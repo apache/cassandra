@@ -70,11 +70,6 @@ import org.apache.cassandra.locator.IReplicaPlacementStrategy;
 import org.apache.cassandra.locator.RackAwareStrategy;
 import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.mapreduce.JobTracker;
-import org.apache.cassandra.mapreduce.MapAssignmentVerbHandler;
-import org.apache.cassandra.mapreduce.MapCompletionVerbHandler;
-import org.apache.cassandra.mapreduce.ReduceAssignmentVerbHandler;
-import org.apache.cassandra.mapreduce.TaskTracker;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
@@ -337,10 +332,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.dataFileVerbHandler_, new DataFileVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.jobConfigurationVerbHandler_, new JobTracker.JobConfigurationVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mapAssignmentVerbHandler_, new MapAssignmentVerbHandler() );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.reduceAssignmentVerbHandler_, new ReduceAssignmentVerbHandler() );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mapCompletionVerbHandler_, new MapCompletionVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.calloutDeployVerbHandler_, new CalloutDeployVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.touchVerbHandler_, new TouchVerbHandler());
         
@@ -517,12 +508,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // match (e.g. somehost.vip vs somehost.vip.domain.com)
         if ( DatabaseDescriptor.getJobTrackerAddress().equals( StorageService.tcpAddr_.getHost() ) ) 
         {
-            JobTracker.instance().start();
-            TaskTracker.instance().start();
+//            JobTracker.instance().start();
+//            TaskTracker.instance().start();
         }
         else
         {
-            TaskTracker.instance().start();
+//            TaskTracker.instance().start();
         }
     }
     

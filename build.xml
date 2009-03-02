@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="cassandra">
+    <property environment="env"/>
+    <property name="debuglevel" value="source,lines,vars"/>
+
+    <property name="basedir" value="."/>
+    <property name="build.src" value="${basedir}/src"/>
+    <property name="build.lib" value="${basedir}/lib"/>
+    <property name="build.dir" value="${basedir}/build"/>
+    <property name="build.classes" value="${build.dir}/classes"/>
+    <property name="final.name" value="cassandra"/>
+
+    <!-- 
+	 Add all the dependencies.
+    -->
+    <path id="cassandra.classpath">
+        <pathelement location="${build.classes}"/>
+        <pathelement location="${build.lib}/activation.jar"/>
+        <pathelement location="${build.lib}/antlr-runtime-3.0.1.jar"/>
+        <pathelement location="${build.lib}/hadoop-core.jar"/>
+        <pathelement location="${build.lib}/asm-all-2.2.1.jar"/>
+        <pathelement location="${build.lib}/azul-collections.jar"/>
+        <pathelement location="${build.lib}/bcel-5.2.jar"/>
+        <pathelement location="${build.lib}/commons-cli-1.1.jar"/>
+        <pathelement location="${build.lib}/commons-javaflow-1.0-SNAPSHOT.jar"/>
+        <pathelement location="${build.lib}/colt.jar"/>
+        <pathelement location="${build.lib}/libfb303.jar"/> 
+        <pathelement location="${build.lib}/commons-logging-1.0.4.jar"/>
+        <pathelement location="${build.lib}/FastInfoset.jar"/>
+        <pathelement location="${build.lib}/commons-math-1.1.jar"/>
+        <pathelement location="${build.lib}/flanagan.jar"/>
+        <pathelement location="${build.lib}/j2ee.jar"/>
+        <pathelement location="${build.lib}/groovy-1.5.6.jar"/>
+        <pathelement location="${build.lib}/groovy-engine.jar"/>
+        <pathelement location="${build.lib}/javacore.jar"/>
+        <pathelement location="${build.lib}/javolution.jar"/>
+        <pathelement location="${build.lib}/jaxb1-impl.jar"/>
+        <pathelement location="${build.lib}/jaxb-api.jar"/>
+        <pathelement location="${build.lib}/jaxb-impl.jar"/>
+        <pathelement location="${build.lib}/jaxb-xjc.jar"/>
+        <pathelement location="${build.lib}/jaxws-2_0.jar"/>
+        <pathelement location="${build.lib}/jaxws-api.jar"/>
+        <pathelement location="${build.lib}/jaxws-rt.jar"/>
+        <pathelement location="${build.lib}/jettison.jar"/>
+        <pathelement location="${build.lib}/jline-0.9.94.jar"/>
+        <pathelement location="${build.lib}/JSAP-2.1.jar"/>
+        <pathelement location="${build.lib}/jsr173_api.jar"/>
+        <pathelement location="${build.lib}/jsr181-api.jar"/>
+        <pathelement location="${build.lib}/jsr250-api.jar"/>
+        <pathelement location="${build.lib}/libthrift.jar"/>
+        <pathelement location="${build.lib}/log4j-1.2.8.jar"/>
+        <pathelement location="${build.lib}/lucene-core-2.2.0.jar"/>
+        <pathelement location="${build.lib}/messaging.jar"/>
+        <pathelement location="${build.lib}/mysql-connector-java-5.0.7-bin.jar"/>
+        <pathelement location="${build.lib}/sjsxp.jar"/>
+        <pathelement location="${build.lib}/xerces.jar"/>
+        <pathelement location="${build.lib}/xpp3.jar"/>
+        <pathelement location="${build.lib}/xstream.jar"/>
+        <pathelement location="${build.lib}/trove-2.0.2.jar"/>
+        <pathelement location="${build.lib}/zookeeper-3.0.0.jar"/>
+        <pathelement location="${build.lib}/pcj.jar"/>
+        <pathelement location="${build.lib}/"/>
+    </path>
+
+    <!--
+	Setup the output directories.
+    -->
+    <target name="init">
+        <mkdir dir="${build.classes}"/>
+    </target>
+    <target name="clean">
+        <delete dir="${build.classes}"/>
+    </target>
+    <target depends="clean" name="cleanall"/>
+
+
+
+    <!--
+       This generates the CLI grammar files from Cli.g
+    -->
+    <target name="gen-cli-grammar">
+      <echo>Building Grammar ${build.src}/org/apache/cassandra/infrastructure/cli/Cli.g  ....</echo>
+      <java classname="org.antlr.Tool"
+            classpath="${build.lib}/antlr-3.0.1.jar:${build.lib}/stringtemplate-3.0.jar:${build.lib}/antlr-2.7.7.jar"
+            fork="true">
+         <arg value="${build.src}/org/apache/cassandra/infrastructure/cli/Cli.g" />
+      </java>
+    </target>
+
+    <!--
+       This generates the CQL grammar files from Cql.g
+    -->
+    <target name="gen-cql-grammar">
+      <echo>Building Grammar ${build.src}/org/apache/cassandra/infrastructure/cql/compiler/parse/Cql.g  ....</echo>
+      <java classname="org.antlr.Tool"
+            classpath="${build.lib}/antlr-3.0.1.jar:${build.lib}/stringtemplate-3.0.jar:${build.lib}/antlr-2.7.7.jar"
+            fork="true">
+         <arg value="${build.src}/org/apache/cassandra/infrastructure/cql/compiler/parse/Cql.g" />
+      </java>
+    </target>
+
+    <!--
+	The build target builds all the .class files
+    -->
+    <target depends="build-subprojects,build-project" name="build"/>
+    <target name="build-subprojects"/>
+    <target depends="init" name="build-project">
+        <echo message="${ant.project.name}: ${ant.file}"/>
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
+            <src path="${build.src}"/>
+            <classpath refid="cassandra.classpath"/>
+        </javac>
+    </target>
+
+    <!--
+	The jar target makes cassandra.jar output.
+    -->
+    <target name="jar" depends="build">
+    <jar jarfile="${build.dir}/${final.name}.jar"
+         basedir="${build.classes}">
+      <manifest>
+        <!-- <section name="org/apache/cassandra/infrastructure"> -->
+          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Version" value="1.1"/>
+          <attribute name="Implementation-Vendor" value="Facebook"/>
+	        <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
+        <!-- </section> -->
+      </manifest>
+    </jar>
+  </target>
+
+
+</project>

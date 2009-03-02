@@ -69,7 +69,6 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.io.SequenceFile;
-import org.apache.cassandra.mapreduce.SequentialScanner;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -257,7 +256,7 @@ class Scanner implements Runnable
     
     public void run()
     {        
-        try
+/*        try
         {            
             SequentialScanner scanner = new SequentialScanner("Mailbox");            
             
@@ -271,6 +270,7 @@ class Scanner implements Runnable
         {
             ex.printStackTrace();
         }        
+        */
     }
 }
 
