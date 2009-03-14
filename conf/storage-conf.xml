@@ -1,0 +1,40 @@
+<Storage>
+   <ClusterName>Test Cluster</ClusterName>
+   <HashingStrategy>RANDOM</HashingStrategy>
+   <RackAware>false</RackAware>
+   <MulticastChannel>230.0.0.1</MulticastChannel>
+   <ReplicationFactor>3</ReplicationFactor>
+   <ZookeeperAddress>myzk.abc.com</ZookeeperAddress>
+   <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
+   <JobTrackerHost>tdsearch001.sf2p.facebook.com</JobTrackerHost>
+   <JobJarFileLocation>C:\Engagements\Cassandra-Nexus</JobJarFileLocation>
+   <StoragePort>7000</StoragePort>
+   <ControlPort>7001</ControlPort>
+   <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
+   <HttpPort>7002</HttpPort>
+   <MetadataDirectory>C:\Engagements\Cassandra-Nexus\DB\system</MetadataDirectory>
+   <CommitLogDirectory>C:\Engagements\Cassandra-Nexus\DB\commitlog</CommitLogDirectory>
+   <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
+   <GangliaServers>
+     <GangliaServer>myzk.abc.com:9800</GangliaServer>
+   </GangliaServers>
+   <DataFileDirectories>
+     <DataFileDirectory>C:\Engagements\Cassandra-Nexus\DB\data</DataFileDirectory>     
+   </DataFileDirectories>
+   <CalloutLocation>C:\Engagements\Cassandra-Nexus\DB\callouts</CalloutLocation>
+   <BootstrapFileDirectory>C:\Engagements\Cassandra-Nexus\DB\bootstrap</BootstrapFileDirectory>
+   <StagingFileDirectory>C:\Engagements\Cassandra-Nexus\DB\staging</StagingFileDirectory>
+   <CommitLogFastSync>false</CommitLogFastSync>
+
+   <Tables>
+      <Table Name="Mailbox">
+          <ColumnFamily ColumnType="Super" ColumnSort="Time" Name="MailboxMailData0"></ColumnFamily>
+          <ColumnFamily ColumnSort="Time" Name="Test" />
+      </Table>
+   </Tables>
+
+   <Seeds>
+     <Seed>myhost.abc.com</Seed>
+     <Seed>myhost2.abc.com</Seed>
+   </Seeds>
+</Storage>
