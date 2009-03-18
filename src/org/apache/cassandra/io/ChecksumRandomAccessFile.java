@@ -197,7 +197,7 @@ public final class ChecksumRandomAccessFile extends RandomAccessFile
         int chksumChunkId = (int)(chksumChunks*(chunk - 1) + 1);
         do
         {            
-            int fId = SequenceFile.getFileId(filename_);               
+            int fId = ChecksumManager.getFileId(filename_);               
             switch( chksumOps )
             {
                 case LOG:                    

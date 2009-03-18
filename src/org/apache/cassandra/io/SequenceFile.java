@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
+import java.util.StringTokenizer;
 import java.util.TreeMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -238,6 +239,37 @@ public class SequenceFile
             {
                 file.createNewFile();
             }
+        }
+    }
+    
+    public static class ChecksumWriter extends Writer
+    {
+        private int size_;
+
+        ChecksumWriter(String filename, int size) throws IOException
+        {
+            super(filename, size);
+            size_ = size;
+        }
+        
+        @Override
+        protected void init(String filename) throws IOException
+        {
+            init(filename, 0);
+        }
+        
+        @Override
+        protected void init(String filename, int size) throws IOException
+        {
+            File file = new File(filename);
+            file_ = new ChecksumRandomAccessFile(file, "rw", size);
+        }
+        
+        @Override
+        public void close() throws IOException
+        {
+            super.close();
+            ChecksumManager.close(filename_);
         }
     }
     
@@ -911,10 +943,13 @@ public class SequenceFile
                     else
                     {
                         /* Read the bloom filter for the column summarization */
+                        long preBfPos = file_.getFilePointer();
                         BloomFilter bf = defreezeBloomFilter();
                         /* column does not exist in this file */
                         if ( !bf.isPresent(columnName) ) 
                             return bytesRead;
+                        long postBfPos = file_.getFilePointer();
+                        dataSize -= (postBfPos - preBfPos);
                         
                         List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
                         /* Read the name indexes if present */
@@ -1149,8 +1184,11 @@ public class SequenceFile
                     }
                     else
                     {
-                        /* Read the bloom filter summarizing the columns */                         
-                        BloomFilter bf = defreezeBloomFilter();  
+                        /* Read the bloom filter summarizing the columns */ 
+                        long preBfPos = file_.getFilePointer();
+                        BloomFilter bf = defreezeBloomFilter();
+                        long postBfPos = file_.getFilePointer();
+                        dataSize -= (postBfPos - preBfPos);
                         /*
                         // remove the columns that the bloom filter says do not exist.
                         for ( String cName : columnNames )
@@ -1406,6 +1444,22 @@ public class SequenceFile
         }
     }
     
+    public static class ChecksumReader extends Reader
+    {        
+        private int size_;
+
+        ChecksumReader(String filename, int size) throws IOException
+        {
+            super(filename);
+            size_ = size;
+        }
+        
+        protected void init(String filename) throws IOException
+        {
+            file_ = new ChecksumRandomAccessFile(filename, "r", size_);
+        }
+    }
+    
     public static class AIOReader extends Reader
     {                  
         private int size_;
@@ -1432,7 +1486,7 @@ public class SequenceFile
         
     private static Logger logger_ = Logger.getLogger( SequenceFile.class ) ;
     public static final short utfPrefix_ = 2;
-    static final String marker_ = "Bloom-Filter";
+    public static final String marker_ = "Bloom-Filter";
 
     public static IFileWriter writer(String filename) throws IOException
     {
@@ -1442,6 +1496,11 @@ public class SequenceFile
     public static IFileWriter bufferedWriter(String filename, int size) throws IOException
     {
         return new BufferWriter(filename, size);
+    }
+    
+    public static IFileWriter chksumWriter(String filename, int size) throws IOException
+    {
+        return new ChecksumWriter(filename, size);
     }
     
     public static IFileWriter aioWriter(String filename, int size) throws IOException
@@ -1467,6 +1526,11 @@ public class SequenceFile
     public static IFileReader bufferedReader(String filename, int size) throws IOException
     {
         return new BufferReader(filename, size);
+    }
+    
+    public static IFileReader chksumReader(String filename, int size) throws IOException
+    {
+        return new ChecksumReader(filename, size);
     }
     
     public static IFileReader aioReader(String filename, int size) throws IOException
@@ -1630,11 +1694,5 @@ public class SequenceFile
         }
         // The number of chars produced may be less than utflen
         return new String(chararr, 0, chararr_count);
-    }
-    
-    public static short getFileId(String file)
-    {
-        String[] peices = file.split("-");
-        return Short.parseShort( peices[2] );
     }
 }

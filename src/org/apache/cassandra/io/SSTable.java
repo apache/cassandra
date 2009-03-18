@@ -245,6 +245,15 @@ public class SSTable
     {        
         /* remove the cached index table from memory */
         indexMetadataMap_.remove(dataFile);
+        /* Delete the checksum file associated with this data file */
+        try
+        {
+            ChecksumManager.onFileDelete(dataFile);
+        }
+        catch ( IOException ex )
+        {
+            logger_.info( LogUtil.throwableToString(ex) );
+        }
         
         File file = new File(dataFile);
         if ( file.exists() )
@@ -252,7 +261,7 @@ public class SSTable
             /* delete the data file */
 			if (file.delete())
 			{			    
-			    logger_.info("** Deleted " + file.getName() + " **");
+			    logger_.info("** Deleted " + file.getName() + " **");                
 			}
 			else
 			{			  
@@ -394,7 +403,7 @@ public class SSTable
         blockIndex_ = new TreeMap<String, BlockMetadata>(Collections.reverseOrder());
         blockIndexes_ = new ArrayList<SortedMap<String, BlockMetadata>>();        
         // dataWriter_ = SequenceFile.writer(dataFile_);
-        dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4*1024*1024);
+        dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4*1024*1024);        
         SSTable.positionAfterFirstBlockIndex_ = dataWriter_.getCurrentPosition(); 
     } 
     
@@ -424,7 +433,8 @@ public class SSTable
     public SSTable(String directory, String filename, PartitionerType pType) throws IOException
     {        
         dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";  
-        dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4*1024*1024);        
+        dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4*1024*1024);    
+        // dataWriter_ = SequenceFile.chksumWriter(dataFile_, 4*1024*1024);
         SSTable.positionAfterFirstBlockIndex_ = dataWriter_.getCurrentPosition(); 
         /* set up the block index based on partition type */
         initBlockIndex(pType);
@@ -900,6 +910,7 @@ public class SSTable
         try
         {
             dataReader = SequenceFile.reader(dataFile_);
+            // dataReader = SequenceFile.chksumReader(dataFile_, 4*1024*1024);
             /* Morph key into actual key based on the partition type. */ 
             key = morphKey(key);
             Coordinate fileCoordinate = getCoordinates(key, dataReader);

@@ -53,7 +53,7 @@ import bak.pcj.map.LongKeyLongChainedHashMap;
  * @author alakshman
  *
  */
-class ChecksumManager
+public class ChecksumManager
 {    
     private static Logger logger_ = Logger.getLogger(ChecksumManager.class);
     /* Keeps a mapping of checksum manager instances to data file */
@@ -111,6 +111,17 @@ class ChecksumManager
         return chksumMgr;
     }
     
+    /**
+     * This method returns true if the file specified is a 
+     * checksum file and false otherwise.
+     * 
+     * @param file we are interested in.
+     * @return true if checksum file false otherwise.
+     */
+    public static boolean isChecksumFile(String file)
+    {
+        return file.contains(ChecksumManager.checksumPrefix_);
+    }
     
     /**
      * On start read all the check sum files on disk and
@@ -136,11 +147,12 @@ class ChecksumManager
         
         for ( File file : allFiles )
         {                           
-            int fId = SequenceFile.getFileId(file.getName());
-            ChecksumReader chksumRdr = new ChecksumReader(file.getAbsolutePath(), 0L, file.length());
-                        
+            int fId = ChecksumManager.getChecksumFileId(file.getName());
+            RandomAccessFile chksumRdr = new RandomAccessFile(file, "r");            
+            long size = chksumRdr.length();
             int chunk = 0;
-            while ( !chksumRdr.isEOF() )
+            
+            while ( chksumRdr.getFilePointer() != size )
             {
                 long value = chksumRdr.readLong();
                 long key = ChecksumManager.key(fId, ++chunk);
@@ -160,7 +172,7 @@ class ChecksumManager
     {
         File f = new File(dataFile);
         long size = f.length();
-        int fileId = SequenceFile.getFileId(f.getName());
+        int fileId = ChecksumManager.getFileId(f.getName());
         int chunks = (int)(size >> 16L);
         
         for ( int i = 0; i < chunks; ++i )
@@ -171,7 +183,7 @@ class ChecksumManager
         
         /* remove the check sum manager instance */
         chksumMgrs_.remove(dataFile);
-        String chksumFile = f.getParent() + System.getProperty("file.separator") + checksumPrefix_ + fileId + ".db";
+        String chksumFile = ChecksumManager.constructChksumFileNameFromDataFileName(f);
         FileUtils.delete(chksumFile);
     }
     
@@ -184,17 +196,53 @@ class ChecksumManager
         return key;
     }
     
+    public static int getFileId(String file)
+    {
+        String filename = new File(file).getName();
+        /*
+         * File name is of the form <table>-<column family>-<index>-Data.db.
+         * Always split and then use the value which is at index length - 2.
+         */
+        String[] peices = filename.split("-");
+        return Integer.parseInt( peices[peices.length - 2] );
+    }
+    
+    static void close(String dataFile) throws IOException
+    {
+        ChecksumManager.chksumMgrs_.get(dataFile).close();
+    }
+    
+    private static int getChecksumFileId(String file)
+    {
+        String filename = new File(file).getName();
+        /*
+         * File name is of the form <table>-<column family>-Checksum-<index>.db.
+         * This tokenizer will strip the .db portion.
+         */
+        String[] peices = filename.split("-");
+        return Integer.parseInt( peices[3] );
+    }
+    
+    private static String constructChksumFileNameFromDataFileName(File file)
+    {
+        String directory = file.getParent();
+        String f = file.getName();
+        /* we need the table and the column family name. */
+        String[] peices = f.split("-");
+        /* we need the index part of the file name */
+        int fId = ChecksumManager.getFileId(f);
+        String chkSumFile = directory + System.getProperty("file.separator") + peices[0] + "-" + peices[1] + "-" + checksumPrefix_ + fId + "-" + "Data" + ".db";
+        return chkSumFile;
+    }
+    
     private RandomAccessFile raf_;
     private Adler32 adler_ = new Adler32();
     
     ChecksumManager(String dataFile) throws IOException
     {
         File file = new File(dataFile);
-        String directory = file.getParent();
-        String f = file.getName();
-        short fId = SequenceFile.getFileId(f);
-        String chkSumFile = directory + System.getProperty("file.separator") + checksumPrefix_ + fId + ".db";
-        raf_ = new RandomAccessFile(chkSumFile, "rw");
+        String chkSumFile = ChecksumManager.constructChksumFileNameFromDataFileName(file);
+        raf_ = new BufferedRandomAccessFile(chkSumFile, "rw");
     }
     
     /* TODO: Remove later. */
@@ -203,8 +251,8 @@ class ChecksumManager
         File file = new File(dataFile);
         String directory = file.getParent();
         String f = file.getName();
-        short fId = SequenceFile.getFileId(f);        
-        raf_ = new RandomAccessFile(chkSumFile, "rw");
+        int fId = ChecksumManager.getFileId(f);        
+        raf_ = new BufferedRandomAccessFile(chkSumFile, "rw");
         
         file = new File(chkSumFile);        
         ChecksumReader chksumRdr = new ChecksumReader(file.getAbsolutePath(), 0L, file.length());
@@ -288,7 +336,7 @@ class ChecksumManager
      */
     void validateChecksum(String file, int chunkId, byte[] buffer, int startOffset, int length) throws IOException
     {            
-        int fId = SequenceFile.getFileId(file);
+        int fId = ChecksumManager.getFileId(file);
         long key = ChecksumManager.key(fId, chunkId);
         adler_.update(buffer, startOffset, length);
         long currentChksum = adler_.getValue();
@@ -311,6 +359,16 @@ class ChecksumManager
     {        
         long key = ChecksumManager.key(fileId, chunkId);
         return chksums_.get(key);
+    }
+    
+    /**
+     * Close the file handler.
+     * 
+     * @throws IOException
+     */
+    void close() throws IOException
+    {
+        raf_.close();
     }
     
     public static void main(String[] args) throws Throwable
