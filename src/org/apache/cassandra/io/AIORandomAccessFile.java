@@ -656,50 +656,6 @@ public final class AIORandomAccessFile extends RandomAccessFile
         this.curr_ += len;
         return len;
     }
-    
-    public static void main(String[] args) throws Throwable
-    {  
-        /*
-        int i = 0;
-        try
-        {
-            RandomAccessFile aRaf2 = new AIORandomAccessFile( new File("/var/cassandra/test.dat"), 64*1024);        
-            aRaf2.seek(0L);
-            while ( i < 10000 )
-            {
-                aRaf2.writeInt(32);
-                aRaf2.writeUTF("Avinash Lakshman");
-                ++i;
-            }
-            aRaf2.close();
-        }
-        catch( IOException ex )
-        {
-            ex.printStackTrace();
-        }
-        */
-        /*
-        int j = 0;
-        try
-        {
-            RandomAccessFile aRaf2 = new AIORandomAccessFile( new File("/var/cassandra/test.dat") );                    
-            while ( j < 10 )
-            {
-                System.out.println( aRaf2.readInt() );
-                System.out.println( aRaf2.readUTF() );
-                ++j;
-            }
-            aRaf2.close();
-        }
-        catch( IOException ex )
-        {
-            ex.printStackTrace();
-        }
-        */
-                
-        ExecutorService es = new ContinuationsExecutor(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>() );
-        es.execute(new ReadImpl());               
-    }
 }
 
 class ReadImpl implements Runnable

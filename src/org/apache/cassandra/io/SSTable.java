@@ -432,7 +432,8 @@ public class SSTable
     */
     public SSTable(String directory, String filename, PartitionerType pType) throws IOException
     {        
-        dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";  
+        dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";
+        // dataWriter_ = SequenceFile.writer(dataFile_);
         dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4*1024*1024);    
         // dataWriter_ = SequenceFile.chksumWriter(dataFile_, 4*1024*1024);
         SSTable.positionAfterFirstBlockIndex_ = dataWriter_.getCurrentPosition(); 
@@ -747,22 +748,7 @@ public class SSTable
         	SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
         }
         
-        keyPositionInfos.add(new KeyPositionInfo(blockIndex.firstKey(), position));
-        /*
-        try
-        {
-            keyPositionInfos.add(new KeyPositionInfo(blockIndex.firstKey(), position));
-        }
-        catch(Exception ex)
-        {
-            Set<String> keysInBlock = blockIndex.keySet();
-            for( String keyInBlock : keysInBlock )
-            {
-                logger_.warn("BLOCK KEY: " + keyInBlock);
-            }
-            logger_.warn(LogUtil.throwableToString(ex));
-        }
-        */
+        keyPositionInfos.add(new KeyPositionInfo(blockIndex.firstKey(), position));        
         blockIndex.clear();        
     }
 
@@ -1088,9 +1074,8 @@ public class SSTable
     	/* reset the buffer and serialize the Bloom Filter. */
         DataOutputBuffer bufOut = new DataOutputBuffer();
         BloomFilter.serializer().serialize(bf, bufOut);
-        bufOut.close();
-
         close(bufOut.getData(), bufOut.getLength());
+        bufOut.close();
         // byte[] bytes = new byte[bufOut.getLength()];        
         // System.arraycopy(bufOut.getData(), 0, bytes, 0, bufOut.getLength());
         // close(bytes, bytes.length);             

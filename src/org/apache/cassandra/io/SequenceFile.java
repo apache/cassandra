@@ -974,7 +974,7 @@ public class SequenceFile
 
                         Coordinate coordinate = columnRange.coordinate();
                 		/* seek to the correct offset to the data, and calculate the data size */
-                        file_.skipBytes((int)coordinate.start_);
+                        file_.skipBytes((int)coordinate.start_);                        
                         dataSize = (int)(coordinate.end_ - coordinate.start_);
                         
                         /*

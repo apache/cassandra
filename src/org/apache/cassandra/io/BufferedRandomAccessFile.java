@@ -165,20 +165,20 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
      * disk. If the file was created read-only, this method is a no-op.
      */
     public void flush() throws IOException
-    {
+    {        
         this.flushBuffer();
     }
     
     /* Flush any dirty bytes in the buffer to disk. */
     private void flushBuffer() throws IOException
-    {
+    {   
         if (this.dirty_)
         {
             if (this.diskPos_ != this.lo_)
                 super.seek(this.lo_);
             int len = (int) (this.curr_ - this.lo_);
             super.write(this.buff_, 0, len);
-            this.diskPos_ = this.curr_;
+            this.diskPos_ = this.curr_;             
             this.dirty_ = false;
         }
     }
@@ -222,7 +222,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     {
         if (pos >= this.hi_ || pos < this.lo_)
         {
-            // seeking outside of current buffer -- flush and read
+            // seeking outside of current buffer -- flush and read             
             this.flushBuffer();
             this.lo_ = pos & BuffMask_; // start at BuffSz boundary
             this.maxHi_ = this.lo_ + (long) this.buff_.length;
@@ -332,14 +332,14 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     }
     
     public void write(byte[] b, int off, int len) throws IOException
-    {
+    {        
         while (len > 0)
-        {
+        {              
             int n = this.writeAtMost(b, off, len);
             off += n;
             len -= n;
-        }
-        this.dirty_ = true;
+            this.dirty_ = true;
+        }        
     }
     
     /*
@@ -347,7 +347,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
      * the number of bytes written.
      */
     private int writeAtMost(byte[] b, int off, int len) throws IOException
-    {
+    {        
         if (this.curr_ >= this.hi_)
         {
             if (this.hitEOF_ && this.hi_ < this.maxHi_)
@@ -356,8 +356,8 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
                 this.hi_ = this.maxHi_;
             }
             else
-            {
-                // slow path -- write current buffer; read next one
+            {                                
+                // slow path -- write current buffer; read next one                
                 this.seek(this.curr_);
                 if (this.curr_ == this.hi_)
                 {

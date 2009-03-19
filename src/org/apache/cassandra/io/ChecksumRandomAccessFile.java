@@ -391,8 +391,8 @@ public final class ChecksumRandomAccessFile extends RandomAccessFile
             int n = this.writeAtMost(b, off, len);
             off += n;
             len -= n;
+            this.dirty_ = true;
         }
-        this.dirty_ = true;
     }
     
     /*
