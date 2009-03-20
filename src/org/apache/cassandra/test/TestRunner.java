@@ -26,14 +26,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKind;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -48,7 +44,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.cassandra.concurrent.ContinuationContext;
 import org.apache.cassandra.concurrent.ContinuationStage;
 import org.apache.cassandra.concurrent.ContinuationsExecutor;
@@ -64,17 +59,22 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ReadMessage;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.SequentialScanner;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.io.BufferedRandomAccessFile;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileWriter;
+import org.apache.cassandra.io.IndexHelper;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDeliveryTask;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.OrderPreservingHashPartitioner;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.commons.javaflow.Continuation;
 import org.apache.log4j.Logger;
@@ -86,23 +86,32 @@ public class TestRunner
     
     private static void doWrite() throws Throwable
     {
-
         Table table = Table.open("Mailbox");  
         Random random = new Random();
-        byte[] bytes = new byte[1024];
-        for (int i = 1001; i <= 1130; ++i)
+        int totalUsed = 0;
+        int[] used = new int[16*1024];
+        byte[] bytes = new byte[4*1024];
+        for (int i = 0; i < 1; ++i)
         {
             String key = Integer.toString(i);
             RowMutation rm = new RowMutation("Mailbox", key);
             random.nextBytes(bytes);
-            for ( int j = 0; j < 1; ++j )
+            while ( totalUsed != 16*1024 )
             {
+                int j = random.nextInt(16*1024);                
+                if ( used[j] == 0 )
+                {
+                    used[j] = 1;
+                    ++totalUsed;
+                }             
+                // rm.add("Test:Column-" + j, bytes, System.currentTimeMillis());
+                
                 for ( int k = 0; k < 1; ++k )
-                {                    
+                {                             
                     rm.add("MailboxMailData0:SuperColumn-" + j + ":Column-" + k, bytes, k);                    
                 }
             }
-            rm.apply();
+            rm.apply();            
         }
         System.out.println("Write done");
     }
@@ -119,9 +128,14 @@ public class TestRunner
         System.out.println(row);
         */
         
-        ColumnFamily cf = table.get(key, "MailboxMailData0");
+        List<String> list = new ArrayList<String>();
+        list.add("SuperColumn-0");
+        list.add("SuperColumn-189");
+        list.add("SuperColumn-23");
+        Row row = table.getRow("0", "MailboxMailData0", list);
         try
         {
+            ColumnFamily cf = row.getColumnFamily("MailboxMailData0");
             Collection<IColumn> columns = cf.getAllColumns();            
             for ( IColumn column : columns )
             {                
@@ -139,14 +153,89 @@ public class TestRunner
         }
     }
     
-    private static void doDeletes()
+    private static void doCheck() throws Throwable
     {
+        BufferedRandomAccessFile fis = new BufferedRandomAccessFile("C:\\Engagements\\buff.dat", "r", 4*1024*1024);
+        IndexHelper.skipBloomFilterAndIndex(fis);
+        byte[] bytes = new byte[(int)(fis.length() - fis.getFilePointer())];
+        fis.readFully(bytes);
+        DataInputBuffer bufIn = new DataInputBuffer();
+        bufIn.reset(bytes, bytes.length);
         
+        ColumnFamily cf = ColumnFamily.serializer().deserialize(bufIn);        
+        Collection<IColumn> columns = cf.getAllColumns();       
+        System.out.println(columns.size());
+        for ( IColumn column : columns )
+        {
+            System.out.println(column.name());
+        }
+        fis.close();
     }
     
+    private static void doScan() throws Throwable
+    {        
+        SequentialScanner scanner = new SequentialScanner("Mailbox");  
+        FileOutputStream fos = new FileOutputStream("C:\\Engagements\\Keys.dat", true);
+        int count = 0;
+        while ( scanner.hasNext() )
+        {
+            Row row = scanner.next();
+            fos.write(row.key().getBytes());
+            fos.write(System.getProperty("line.separator").getBytes());
+            Map<String, ColumnFamily> cfs = row.getColumnFamilies();
+            Set<String> keys = cfs.keySet();
             
+            for ( String key : keys )
+            {
+                System.out.println(row.getColumnFamily(key));                
+            }           
+        }                  
+        System.out.println("Done ...");
+        fos.close();
+    }
+    
+    private static void doScan2(String table) throws Throwable
+    {
+        SequentialScanner scanner = new SequentialScanner(table);
+        while ( scanner.hasNext() )
+        {
+            Row row = scanner.next();            
+            Map<String, ColumnFamily> cfs = row.getColumnFamilies();
+            RowMutation rm = new RowMutation(table, row.key());
+            Set<String> cfNames = cfs.keySet();
+            
+            for ( String cfName  : cfNames )
+            {
+                rm.add(cfName, row.getColumnFamily(cfName));                               
+            } 
+            
+            rm.apply();
+        }                  
+        System.out.println("Done ...");        
+    }
+    
+    private static int max_ = 24;
+    private static BigInteger ONE = BigInteger.ONE;
+    private static BigInteger prime_ = BigInteger.valueOf(255L);
+    
+    private static BigInteger hash(String key)
+    {
+        BigInteger h = BigInteger.ZERO;
+        char val[] = key.toCharArray();
+        
+        for (int i = 0; i < max_; i++)
+        {
+            if( i < val.length )
+                h = prime_.multiply(h).add( BigInteger.valueOf(val[i]) );
+            else
+                h = prime_.multiply(h).add( ONE );
+        }
+        return h;
+    }
+           
     public static void main(String[] args) throws Throwable
     {  
+        // System.out.println( lastIndexOf("ababcbc", "abc") );
         /*
         String name = "/var/cassandra/test.dat";
         FileInputStream f = new FileInputStream(name);
@@ -164,13 +253,24 @@ public class TestRunner
         System.out.println("Closing the stream ...");
         f.close();
         */
+          
+        String s1 = "ab";
+        String s2 = "b";
+        if ( s1.compareTo(s2) >= 0 )
+            System.out.println("s1 is greater than s2");
+        else
+            System.out.println("s2 is greater than s1");
+        System.out.println("s1 : " + hash(s1));
+        System.out.println("s2 : " + hash(s2));
+           
+        //LogUtil.init();
+        //StorageService s = StorageService.instance();
+        //s.start();   
+        // doRead();
+        // doWrite();
+        // doCheck();
+        // doBuffered();
         
-        /*
-        LogUtil.init();
-        StorageService s = StorageService.instance();
-        s.start();    
-        doRead();
-        */
         /*
         FileOutputStream fos = new FileOutputStream("C:\\Engagements\\Test.dat", true);
         SequentialScanner scanner = new SequentialScanner("Mailbox");            
