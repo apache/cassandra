@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.math.BigInteger;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -31,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -101,6 +99,7 @@ public class ColumnFamilyStore
             {
                 String filename = file.getName();
                 String[] tblCfName = getTableAndColumnFamilyName(filename);
+                
                 if (tblCfName[0].equals(table_)
                         && tblCfName[1].equals(columnFamily))
                 {
@@ -133,6 +132,7 @@ public class ColumnFamilyStore
                 	file.delete();
                 	continue;
                 }
+                
                 String[] tblCfName = getTableAndColumnFamilyName(filename);
                 if (tblCfName[0].equals(table_)
                         && tblCfName[1].equals(columnFamily_)
@@ -585,8 +585,6 @@ public class ColumnFamilyStore
 		return (!columnFamily.isMarkedForDelete()) ? columnFamily : null;
 	}
 
-
-
     private void getColumnFamilyFromCurrentMemtable(String key, String cf, IFilter filter, List<ColumnFamily> columnFamilies)
     {
         /* Get the ColumnFamily from Memtable */
@@ -610,7 +608,6 @@ public class ColumnFamilyStore
         }
         return cf;
     }
-
 
     /*
      * This version is used only on start up when we are recovering from logs.
@@ -733,7 +730,6 @@ public class ColumnFamilyStore
         return pq;
     }
 
-
     /*
      * Stage the compactions , compact similar size files.
      * This fn figures out the files close enough by size and if they
@@ -776,9 +772,7 @@ public class ColumnFamilyStore
     	}
     	return buckets;
     }
-    
-    
-    
+       
     /*
      * Break the files into buckets and then compact.
      */
@@ -836,6 +830,7 @@ public class ColumnFamilyStore
     {
     	doMajorCompactionInternal( 0 );
     }
+    
     /*
      * Compact all the files irrespective of the size.
      * skip : is the ammount in Gb of the files to be skipped
@@ -894,7 +889,6 @@ public class ColumnFamilyStore
     	return expectedFileSize;
     }
 
-
     /*
      *  Find the maximum size file in the list .
      */
@@ -913,7 +907,6 @@ public class ColumnFamilyStore
     	}
     	return maxFile;
     }
-
 
     Range getMaxRange( List<Range> ranges )
     {
@@ -1525,32 +1518,5 @@ public class ColumnFamilyStore
         logger_.debug("Total bytes written for compaction  ..."
                 + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
         return;
-    }
-    
-    /*
-     * Take a snap shot of this columnfamily store.
-     */
-    public  void snapshot( String snapshotDirectory ) throws IOException
-    {
-    	File snapshotDir = new File(snapshotDirectory);
-    	if( !snapshotDir.exists() )
-    		snapshotDir.mkdir();
-        lock_.writeLock().lock();
-        List<String> files = new ArrayList<String>(ssTables_);
-        try
-        {
-            for (String file : files)
-            {
-            	File f = new File(file);
-            	Path existingLink = f.toPath();
-            	File hardLinkFile = new File(snapshotDirectory + System.getProperty("file.separator") + f.getName());
-            	Path hardLink = hardLinkFile.toPath();
-            	hardLink.createLink(existingLink);
-            }
-        }
-        finally
-        {
-            lock_.writeLock().unlock();
-        }
     }
 }

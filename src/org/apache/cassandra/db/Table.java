@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
 import org.apache.cassandra.analytics.DBAnalyticsSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.continuations.Suspendable;
@@ -53,7 +52,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.service.*;
@@ -518,7 +516,7 @@ public class Table
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
                 cfStore.onStart();
-        }        
+        }         
     }
     
     /** 
@@ -553,36 +551,6 @@ public class Table
                 if ( cfStore != null )
                     cfStore.touch(key, fData);
             }
-        }
-    }
-    
-    /*
-     * Take a snapshot of the entire set of column families.
-    */
-    public void snapshot( String clientSuppliedName ) throws IOException
-    {
-    	String snapshotDirectory = DatabaseDescriptor.getSnapshotDirectory();
-    	File snapshotDir = new File(snapshotDirectory);
-    	if( !snapshotDir.exists() )
-    		snapshotDir.mkdir();
-
-    	String currentSnapshotDir = null;
-    	if( clientSuppliedName != null && !clientSuppliedName.equals("") )
-    		currentSnapshotDir = snapshotDirectory + System.getProperty("file.separator") + System.currentTimeMillis() + "-" + clientSuppliedName; 
-    	else
-    		currentSnapshotDir = snapshotDirectory + System.getProperty("file.separator") + System.currentTimeMillis();
-
-    	/* First take a snapshot of the commit logs */
-    	CommitLog.open(table_).snapshot( currentSnapshotDir );
-    	/* force roll over the commit log */
-    	CommitLog.open(table_).setForcedRollOver();
-    	/* Now take a snapshot of all columnfamily stores */
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
-            if ( cfStore != null )
-                cfStore.snapshot( currentSnapshotDir );
         }
     }
 
@@ -939,11 +907,7 @@ public class Table
     	            else if(column.timestamp() == 4)
     	            {
     	            	cfStore.forceCleanup();
-    	            }
-    	            else if(column.timestamp() == 5)
-    	            {
-    	            	cfStore.snapshot( new String(column.value()) );
-    	            }
+    	            }    	            
     	            else
     	            {
     	            	cfStore.applyBinary(key, column.value());
