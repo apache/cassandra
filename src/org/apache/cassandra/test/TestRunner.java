@@ -214,25 +214,6 @@ public class TestRunner
         System.out.println("Done ...");        
     }
     
-    private static int max_ = 24;
-    private static BigInteger ONE = BigInteger.ONE;
-    private static BigInteger prime_ = BigInteger.valueOf(255L);
-    
-    private static BigInteger hash(String key)
-    {
-        BigInteger h = BigInteger.ZERO;
-        char val[] = key.toCharArray();
-        
-        for (int i = 0; i < max_; i++)
-        {
-            if( i < val.length )
-                h = prime_.multiply(h).add( BigInteger.valueOf(val[i]) );
-            else
-                h = prime_.multiply(h).add( ONE );
-        }
-        return h;
-    }
-           
     public static void main(String[] args) throws Throwable
     {  
         // System.out.println( lastIndexOf("ababcbc", "abc") );
@@ -253,15 +234,6 @@ public class TestRunner
         System.out.println("Closing the stream ...");
         f.close();
         */
-          
-        String s1 = "ab";
-        String s2 = "b";
-        if ( s1.compareTo(s2) >= 0 )
-            System.out.println("s1 is greater than s2");
-        else
-            System.out.println("s2 is greater than s1");
-        System.out.println("s1 : " + hash(s1));
-        System.out.println("s2 : " + hash(s2));
            
         //LogUtil.init();
         //StorageService s = StorageService.instance();
