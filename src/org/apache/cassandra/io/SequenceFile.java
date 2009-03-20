@@ -24,8 +24,6 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.OpenOption;
-import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
@@ -35,7 +33,6 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.StringTokenizer;
 import java.util.TreeMap;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.db.RowMutation;
@@ -270,32 +267,6 @@ public class SequenceFile
         {
             super.close();
             ChecksumManager.close(filename_);
-        }
-    }
-    
-    public static class AIOWriter extends Writer
-    {        
-        private int size_;
-        private boolean bContinuations_ = false;
-        private long position_ = 0L;
-
-        AIOWriter(String filename, int size) throws IOException
-        {
-            this(filename, size, false);
-        }
-        
-        AIOWriter(String filename, int size, boolean bContinuations) throws IOException
-        {
-            super(filename);
-            size_ = size;
-            bContinuations_ = bContinuations;
-            init(filename);
-        }
-        
-        @Override
-        protected void init(String filename) throws IOException
-        {            
-            file_ = new AIORandomAccessFile(filename, size_, bContinuations_);            
         }
     }
 
@@ -1460,30 +1431,6 @@ public class SequenceFile
         }
     }
     
-    public static class AIOReader extends Reader
-    {                  
-        private int size_;
-        private boolean bContinuations_;
-
-        AIOReader(String filename, int size) throws IOException
-        {
-            this(filename, size, false);
-        }
-        
-        AIOReader(String filename, int size, boolean bContinuations) throws IOException
-        {
-            super(filename);
-            size_ = size;
-            bContinuations_ = bContinuations;
-            init(filename);
-        }
-        
-        protected void init(String filename) throws IOException
-        {
-            file_ = new AIORandomAccessFile(filename, size_, bContinuations_);
-        }                 
-    }
-        
     private static Logger logger_ = Logger.getLogger( SequenceFile.class ) ;
     public static final short utfPrefix_ = 2;
     public static final String marker_ = "Bloom-Filter";
@@ -1501,11 +1448,6 @@ public class SequenceFile
     public static IFileWriter chksumWriter(String filename, int size) throws IOException
     {
         return new ChecksumWriter(filename, size);
-    }
-    
-    public static IFileWriter aioWriter(String filename, int size) throws IOException
-    {
-        return new AIOWriter(filename, size);
     }
 
     public static IFileWriter concurrentWriter(String filename) throws IOException
@@ -1531,16 +1473,6 @@ public class SequenceFile
     public static IFileReader chksumReader(String filename, int size) throws IOException
     {
         return new ChecksumReader(filename, size);
-    }
-    
-    public static IFileReader aioReader(String filename, int size) throws IOException
-    {
-        return new AIOReader(filename, size);
-    }
-    
-    public static IFileReader aioReader(String filename, int size, boolean bContinuations) throws IOException
-    {
-        return new AIOReader(filename, size, bContinuations);
     }
 
     public static boolean readBoolean(ByteBuffer buffer)
