@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.*;
-import java.nio.file.Path;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -628,28 +627,6 @@ class CommitLog
     	forcedRollOver_ = true;
     }
 
-    synchronized  public void snapshot( String snapshotDirectory ) throws IOException
-    {
-        Map<String, List<File>> tableToCommitLogs = RecoveryManager.getListOFCommitLogsPerTable();
-        List<File> clogs = tableToCommitLogs.get(table_);
-        
-        if( clogs != null )
-        {
-        	File snapshotDir = new File(snapshotDirectory);
-        	if( !snapshotDir.exists() )
-        		snapshotDir.mkdir();
-        	File commitLogSnapshotDir = new File(snapshotDirectory + System.getProperty("file.separator") + "CommitLogs");
-        	if( !commitLogSnapshotDir.exists() )
-        		commitLogSnapshotDir.mkdir();
-            for (File file : clogs)
-            {
-            	Path existingLink = file.toPath();
-            	File hardLinkFile = new File(commitLogSnapshotDir.getAbsolutePath() + System.getProperty("file.separator") + file.getName());
-            	Path hardLink = hardLinkFile.toPath();
-            	hardLink.createLink(existingLink);
-            }
-        }
-    }
     public static void main(String[] args) throws Throwable
     {
         LogUtil.init();
