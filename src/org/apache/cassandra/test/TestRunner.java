@@ -59,7 +59,6 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ReadMessage;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.SequentialScanner;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.BufferedRandomAccessFile;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -170,48 +169,6 @@ public class TestRunner
             System.out.println(column.name());
         }
         fis.close();
-    }
-    
-    private static void doScan() throws Throwable
-    {        
-        SequentialScanner scanner = new SequentialScanner("Mailbox");  
-        FileOutputStream fos = new FileOutputStream("C:\\Engagements\\Keys.dat", true);
-        int count = 0;
-        while ( scanner.hasNext() )
-        {
-            Row row = scanner.next();
-            fos.write(row.key().getBytes());
-            fos.write(System.getProperty("line.separator").getBytes());
-            Map<String, ColumnFamily> cfs = row.getColumnFamilies();
-            Set<String> keys = cfs.keySet();
-            
-            for ( String key : keys )
-            {
-                System.out.println(row.getColumnFamily(key));                
-            }           
-        }                  
-        System.out.println("Done ...");
-        fos.close();
-    }
-    
-    private static void doScan2(String table) throws Throwable
-    {
-        SequentialScanner scanner = new SequentialScanner(table);
-        while ( scanner.hasNext() )
-        {
-            Row row = scanner.next();            
-            Map<String, ColumnFamily> cfs = row.getColumnFamilies();
-            RowMutation rm = new RowMutation(table, row.key());
-            Set<String> cfNames = cfs.keySet();
-            
-            for ( String cfName  : cfNames )
-            {
-                rm.add(cfName, row.getColumnFamily(cfName));                               
-            } 
-            
-            rm.apply();
-        }                  
-        System.out.println("Done ...");        
     }
     
     public static void main(String[] args) throws Throwable

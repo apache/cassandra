@@ -110,18 +110,6 @@ public class DBTest
         }             
     }
     
-    private static void doSequentialScannerTest() throws Throwable
-    {
-/*        SequentialScanner scanner = new SequentialScanner("Mailbox");
-        while ( scanner.hasNext() )
-        {
-            Row row = scanner.next();  
-            System.out.println( row.getColumnFamily("Test") );
-            System.out.println( row.getColumnFamily("Test2") );
-        }
-        */
-    }
-    
     public static void doTest()
     {
         String host = "insearch00";
