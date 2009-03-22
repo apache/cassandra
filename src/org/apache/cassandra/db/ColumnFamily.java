@@ -42,7 +42,8 @@ import org.apache.cassandra.io.*;
 public final class ColumnFamily implements Serializable
 {
     private static ICompactSerializer2<ColumnFamily> serializer_;
-    public static final short utfPrefix_ = 2;
+    public static final short utfPrefix_ = 2;   
+    public static final String defaultColumnSortProperty_ = "Time";
     /* The column serializer for this Column Family. Create based on config. */
 
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
@@ -85,7 +86,8 @@ public final class ColumnFamily implements Serializable
     {
     	if ( columnIndexProperty == null )
     		return indexTypes_.get("Time");
-    	return indexTypes_.get(columnIndexProperty);
+        String columnSortType = indexTypes_.get(columnIndexProperty);
+    	return (columnSortType == null) ? ColumnFamily.defaultColumnSortProperty_ : columnSortType;
     }
 
     private transient AbstractColumnFactory columnFactory_;
@@ -493,12 +495,11 @@ class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         /* write if this cf is marked for delete */
         dos.writeBoolean(columnFamily.isMarkedForDelete());
     	/* write the size is the number of columns */
-        dos.writeInt(columns.size());
-
+        dos.writeInt(columns.size());                    
         /* write the column data */
     	for ( IColumn column : columns )
         {
-            columnFamily.getColumnSerializer().serialize(column, dos);
+            columnFamily.getColumnSerializer().serialize(column, dos);            
         }
     }
 
