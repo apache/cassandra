@@ -18,7 +18,7 @@ import com.facebook.thrift.transport.*;
 
 public class Cassandra {
 
-  public interface Iface extends com.facebook.fb303.FacebookService.Iface {
+  public interface Iface {
 
     public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException, TException;
 
@@ -60,7 +60,7 @@ public class Cassandra {
 
   }
 
-  public static class Client extends com.facebook.fb303.FacebookService.Client implements Iface {
+  public static class Client implements Iface {
     public Client(TProtocol prot)
     {
       this(prot, prot);
@@ -68,7 +68,23 @@ public class Cassandra {
 
     public Client(TProtocol iprot, TProtocol oprot)
     {
-      super(iprot, oprot);
+      iprot_ = iprot;
+      oprot_ = oprot;
+    }
+
+    protected TProtocol iprot_;
+    protected TProtocol oprot_;
+
+    protected int seqid_;
+
+    public TProtocol getInputProtocol()
+    {
+      return this.iprot_;
+    }
+
+    public TProtocol getOutputProtocol()
+    {
+      return this.oprot_;
     }
 
     public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException, TException
@@ -669,10 +685,9 @@ public class Cassandra {
     }
 
   }
-  public static class Processor extends com.facebook.fb303.FacebookService.Processor implements TProcessor {
+  public static class Processor implements TProcessor {
     public Processor(Iface iface)
     {
-      super(iface);
       iface_ = iface;
       processMap_.put("get_slice", new get_slice());
       processMap_.put("get_slice_by_names", new get_slice_by_names());
@@ -695,7 +710,12 @@ public class Cassandra {
       processMap_.put("executeQuery", new executeQuery());
     }
 
+    protected static interface ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException;
+    }
+
     private Iface iface_;
+    protected final HashMap<String,ProcessFunction> processMap_ = new HashMap<String,ProcessFunction>();
 
     public boolean process(TProtocol iprot, TProtocol oprot) throws TException
     {
