@@ -261,8 +261,8 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
                     isFrozen_ = true;
                     /* Submit this Memtable to be flushed. */
                     Runnable flusher = new Flusher(cLogCtx);
-                    apartments_.get(cfName_).submit(flusher);
-                    // MemtableManager.instance().submit(cfStore.getColumnFamilyName(), this, cLogCtx);
+                    apartments_.get(cfName_).submit(flusher);   
+                    /* switch the memtable */
                     cfStore.switchMemtable(key, columnFamily, cLogCtx);
                 }
                 else
@@ -463,9 +463,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
             default:
                 flushForRandomPartitioner(ssTable, cfStore, cLogCtx);
                 break;
-        }
-        
-        columnFamilies_.clear();        
+        }        
     }
     
     private void flushForRandomPartitioner(SSTable ssTable, ColumnFamilyStore cfStore, CommitLog.CommitLogContext cLogCtx) throws IOException
