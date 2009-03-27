@@ -57,6 +57,7 @@ import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -819,6 +820,10 @@ public class CassandraServer extends FacebookBase implements
 
     public List<String> get_range(String tablename, final String startkey) throws CassandraException
     {
+        if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner)) {
+            throw new CassandraException("range queries may only be performed against an order-preserving partitioner");
+        }
+
         logger_.debug("get_range");
 
         // send request
