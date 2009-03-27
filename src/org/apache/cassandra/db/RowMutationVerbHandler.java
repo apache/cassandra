@@ -53,7 +53,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-        byte[] bytes = (byte[])message.getMessageBody()[0];
+        byte[] bytes = (byte[]) message.getMessageBody()[0];
         /* Obtain a Row Mutation Context from TLS */
         RowMutationContext rowMutationCtx = tls_.get();
         if ( rowMutationCtx == null )
@@ -70,7 +70,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             logger_.debug("Applying " + rm);
 
             /* Check if there were any hints in this message */
-            byte[] hintedBytes = message.getHeader(RowMutationMessage.hint_);
+            byte[] hintedBytes = message.getHeader(RowMutation.HINT);
             if ( hintedBytes != null && hintedBytes.length > 0 )
             {
             	EndPoint hint = EndPoint.fromBytes(hintedBytes);
@@ -83,6 +83,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             long start = System.currentTimeMillis();
 
+            rowMutationCtx.row_.clear();
             rowMutationCtx.row_.key(rm.key());
             rm.apply(rowMutationCtx.row_);
 

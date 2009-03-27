@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadMessage;
 import org.apache.cassandra.db.ReadResponseMessage;
@@ -53,28 +56,28 @@ public class StorageProxy
      * sent over the wire to N replicas where some of the replicas
      * may be hints.
      */
-    private static Map<EndPoint, Message> createWriteMessages(RowMutationMessage rmMessage, Map<EndPoint, EndPoint> endpointMap) throws IOException
+    private static Map<EndPoint, Message> createWriteMessages(RowMutation rm, Map<EndPoint, EndPoint> endpointMap) throws IOException
     {
-        Map<EndPoint, Message> messageMap = new HashMap<EndPoint, Message>();
-        Message message = RowMutationMessage.makeRowMutationMessage(rmMessage);
-        
-        Set<EndPoint> targets = endpointMap.keySet();
-        for( EndPoint target : targets )
-        {
-            EndPoint hint = endpointMap.get(target);
+		Map<EndPoint, Message> messageMap = new HashMap<EndPoint, Message>();
+		Message message = rm.makeRowMutationMessage();
+
+		for (Map.Entry<EndPoint, EndPoint> entry : endpointMap.entrySet())
+		{
+            EndPoint target = entry.getKey();
+            EndPoint hint = entry.getValue();
             if ( !target.equals(hint) )
-            {
-                Message hintedMessage = RowMutationMessage.makeRowMutationMessage(rmMessage);
-                hintedMessage.addHeader(RowMutationMessage.hint_, EndPoint.toBytes(hint) );
-                logger_.debug("Sending the hint of " + target.getHost() + " to " + hint.getHost());
-                messageMap.put(target, hintedMessage);
-            }
-            else
-            {
-                messageMap.put(target, message);
-            }
-        }
-        return messageMap;
+			{
+				Message hintedMessage = rm.makeRowMutationMessage();
+				hintedMessage.addHeader(RowMutation.HINT, EndPoint.toBytes(hint) );
+				logger_.debug("Sending the hint of " + target.getHost() + " to " + hint.getHost());
+				messageMap.put(target, hintedMessage);
+			}
+			else
+			{
+				messageMap.put(target, message);
+			}
+		}
+		return messageMap;
     }
     
     /**
@@ -82,38 +85,65 @@ public class StorageProxy
      * across all replicas. This method will take care
      * of the possibility of a replica being down and hint
      * the data across to some other replica. 
-     * @param RowMutation the mutation to be applied 
-     *                    across the replicas
+     * @param rm the mutation to be applied across the replicas
     */
     public static void insert(RowMutation rm)
-    {
+	{
         /*
          * Get the N nodes from storage service where the data needs to be
          * replicated
          * Construct a message for write
          * Send them asynchronously to the replicas.
         */
-        try
-        {
-            logger_.debug(" insert");
-            Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
-            // TODO: throw a thrift exception if we do not have N nodes
-            RowMutationMessage rmMsg = new RowMutationMessage(rm); 
-            /* Create the write messages to be sent */
-            Map<EndPoint, Message> messageMap = createWriteMessages(rmMsg, endpointMap);
-            Set<EndPoint> endpoints = messageMap.keySet();
-            for(EndPoint endpoint : endpoints)
-            {
-                MessagingService.getMessagingInstance().sendOneWay(messageMap.get(endpoint), endpoint);
-            }
-        }
+        assert rm.key() != null;
+
+		try
+		{
+			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
+			// TODO: throw a thrift exception if we do not have N nodes
+			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
+            logger_.debug("insert writing to [" + StringUtils.join(messageMap.keySet(), ", ") + "]");
+			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
+			{
+				MessagingService.getMessagingInstance().sendOneWay(entry.getValue(), entry.getKey());
+			}
+		}
         catch (Exception e)
         {
-            logger_.info( LogUtil.throwableToString(e) );
+            logger_.error( LogUtil.throwableToString(e) );
         }
         return;
     }
 
+    public static boolean insertBlocking(RowMutation rm)
+    {
+        assert rm.key() != null;
+
+        try
+        {
+            Message message = rm.makeRowMutationMessage();
+
+            IResponseResolver<Boolean> writeResponseResolver = new WriteResponseResolver();
+            QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(
+                    DatabaseDescriptor.getReplicationFactor(),
+                    writeResponseResolver);
+            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
+            logger_.debug("insertBlocking writing to [" + StringUtils.join(endpoints, ", ") + "]");
+            // TODO: throw a thrift exception if we do not have N nodes
+
+            MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
+            return quorumResponseHandler.get();
+
+            // TODO: if the result is false that means the writes to all the
+            // servers failed hence we need to throw an exception or return an
+            // error back to the client so that it can take appropriate action.
+        }
+        catch (Exception e)
+        {
+            logger_.error( LogUtil.throwableToString(e) );
+            return false;
+        }
+    }
     
     private static Map<String, Message> constructMessages(Map<String, ReadMessage> readMessages) throws IOException
     {

@@ -576,6 +576,19 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 		throw new UnsupportedOperationException();
 	}
 
+    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, int block_for)
+	{
+        logger_.debug("remove");
+        RowMutation rm = new RowMutation(tablename, key.trim());
+        rm.delete(columnFamily_column, timestamp);
+        if (block_for > 0) {
+            return StorageProxy.insertBlocking(rm);
+        } else {
+            StorageProxy.insert(rm);
+            return true;
+        }
+	}
+
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws CassandraException, TException
     {
 		ArrayList<superColumn_t> retlist = new ArrayList<superColumn_t>();
