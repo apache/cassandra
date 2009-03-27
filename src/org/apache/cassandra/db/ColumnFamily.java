@@ -195,10 +195,9 @@ public final class ColumnFamily implements Serializable
     	return columnSerializer_;
     }
 
-    public void createColumn(String name)
+    public void addColumn(String name)
     {
-    	IColumn column = columnFactory_.createColumn(name);
-    	addColumn(column);
+        addColumn(columnFactory_.createColumn(name));
     }
 
     int getColumnCount()
@@ -223,17 +222,15 @@ public final class ColumnFamily implements Serializable
     	return count;
     }
 
-    public void createColumn(String name, byte[] value)
+    public void addColumn(String name, byte[] value)
     {
-    	IColumn column = columnFactory_.createColumn(name, value);
-    	addColumn(column);
+    	addColumn(name, value, 0);
     }
 
-	public void createColumn(String name, byte[] value, long timestamp)
+    public void addColumn(String name, byte[] value, long timestamp)
 	{
-		IColumn column = columnFactory_.createColumn(name, value, timestamp);
-		addColumn(column);
-	}
+        addColumn(columnFactory_.createColumn(name, value, timestamp));
+    }
 
     void clear()
     {

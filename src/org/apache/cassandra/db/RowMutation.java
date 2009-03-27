@@ -154,7 +154,7 @@ public class RowMutation implements Serializable
             {
             	columnFamily = new ColumnFamily(values[0], ColumnFamily.getColumnType("Standard"));
             }
-        	columnFamily.createColumn(values[1], value, timestamp);
+        	columnFamily.addColumn(values[1], value, timestamp);
         }
         if( values.length == 3 )
         {
@@ -162,7 +162,7 @@ public class RowMutation implements Serializable
             {
             	columnFamily = new ColumnFamily(values[0], ColumnFamily.getColumnType("Super"));
             }
-        	columnFamily.createColumn(values[1]+ ":" + values[2], value, timestamp);
+        	columnFamily.addColumn(values[1]+ ":" + values[2], value, timestamp);
         }
         modifications_.put(values[0], columnFamily);
     }
@@ -189,11 +189,11 @@ public class RowMutation implements Serializable
             columnFamily = new ColumnFamily(values[0]);
         if(values.length == 2 )
         {
-	        columnFamily.createColumn( values[1]);
+	        columnFamily.addColumn( values[1]);
         }
         if(values.length == 3 )
         {
-	        columnFamily.createColumn( values[1] + ":" + values[2]);
+	        columnFamily.addColumn( values[1] + ":" + values[2]);
         }
         deletions_.put(values[0], columnFamily);
     }
