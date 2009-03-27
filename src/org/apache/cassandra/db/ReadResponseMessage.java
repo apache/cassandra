@@ -23,9 +23,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-
-import javax.xml.bind.annotation.XmlElement;
-
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -61,32 +58,25 @@ private static ICompactSerializer<ReadResponseMessage> serializer_;
         return message;
     }
 	
-	@XmlElement(name = "Table")
 	private String table_;
-
-	@XmlElement(name = "Row")
 	private Row row_;
-
-	@XmlElement(name = "Digest")
 	private byte[] digest_ = new byte[0];
-
-    @XmlElement(name="isDigestQuery")
     private boolean isDigestQuery_ = false;
-	
-	private ReadResponseMessage() {
-	}
 
-	public ReadResponseMessage(String table, byte[] digest ) {
+	public ReadResponseMessage(String table, byte[] digest ) 
+    {
 		table_ = table;
 		digest_= digest;
 	}
 
-	public ReadResponseMessage(String table, Row row) {
+	public ReadResponseMessage(String table, Row row) 
+    {
 		table_ = table;
 		row_ = row;
 	}
 
-	public String table() {
+	public String table() 
+    {
 		return table_;
 	}
 
@@ -95,7 +85,8 @@ private static ICompactSerializer<ReadResponseMessage> serializer_;
 		return row_;
     }
         
-	public byte[] digest() {
+	public byte[] digest() 
+    {
 		return digest_;
 	}
 
@@ -109,7 +100,6 @@ private static ICompactSerializer<ReadResponseMessage> serializer_;
     	isDigestQuery_ = isDigestQuery;
     }
 }
-
 
 class ReadResponseMessageSerializer implements ICompactSerializer<ReadResponseMessage>
 {

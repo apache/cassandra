@@ -25,8 +25,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-import javax.xml.bind.annotation.XmlElement;
-
 import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -40,6 +38,7 @@ import org.apache.cassandra.service.StorageService;
 public class ReadMessage implements Serializable
 {
     private static ICompactSerializer<ReadMessage> serializer_;	
+    public static final String doRepair_ = "READ-REPAIR";
 	
     static
     {
@@ -60,28 +59,13 @@ public class ReadMessage implements Serializable
         return message;
     }
     
-    @XmlElement(name="Table")
     private String table_;
-    
-    @XmlElement(name="Key")
     private String key_;
-    
-    @XmlElement(name="ColumnFamily")
     private String columnFamily_column_ = null;
-    
-    @XmlElement(name="start")
     private int start_ = -1;
-
-    @XmlElement(name="count")
     private int count_ = -1 ;
-    
-    @XmlElement(name="sinceTimestamp")
     private long sinceTimestamp_ = -1 ;
-
-    @XmlElement(name="columnNames")
     private List<String> columns_ = new ArrayList<String>();
-    
-    @XmlElement(name="isDigestQuery")
     private boolean isDigestQuery_ = false;
         
     private ReadMessage()
@@ -131,7 +115,7 @@ public class ReadMessage implements Serializable
         return table_;
     }
     
-    String key()
+    public String key()
     {
         return key_;
     }
