@@ -58,7 +58,8 @@ public class ColumnIndexer
         dos.writeInt(bufOut.getLength());
         /* write out the serialized bytes. */
         dos.write(bufOut.getData(), 0, bufOut.getLength());
-                
+
+        /* Do the indexing */
         TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(columnFamily.name());        
         doIndexing(typeInfo, columns, dos);        
 	}
