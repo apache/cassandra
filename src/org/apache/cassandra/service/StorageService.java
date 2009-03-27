@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -434,14 +435,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     static
     {
-        String hashingStrategy = DatabaseDescriptor.getHashingStrategy();
-        if (DatabaseDescriptor.ophf_.equalsIgnoreCase(hashingStrategy))
+        try
         {
-            partitioner_ = new OrderPreservingPartitioner();
-        }        
-        else
+            Class cls = Class.forName(DatabaseDescriptor.getPartitionerClass());
+            partitioner_ = (IPartitioner) cls.getConstructor().newInstance();
+        }
+        catch (Exception e)
         {
-            partitioner_ = new RandomPartitioner();
+            throw new RuntimeException(e);
         }
     }
     

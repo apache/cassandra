@@ -1,6 +1,12 @@
 <Storage>
    <ClusterName>Test Cluster</ClusterName>
-   <HashingStrategy>RANDOM</HashingStrategy>
+   <!-- any IPartitioner may be used, including your own
+        as long as it is on the classpath.  Out of the box,
+        Cassandra provides
+        org.apache.cassandra.dht.RandomPartitioner and
+        org.apache.cassandra.dht.OrderPreservingPartitioner.
+        Range queries require using OrderPreservingPartitioner or a subclass. -->
+   <Partitioner>org.apache.cassandra.dht.RandomPartitioner</Partitioner>
    <RackAware>false</RackAware>
    <MulticastChannel>230.0.0.1</MulticastChannel>
    <ReplicationFactor>1</ReplicationFactor>
