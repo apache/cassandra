@@ -32,13 +32,13 @@ import org.apache.cassandra.io.SSTable;
 public class NamesFilter implements IFilter
 {
     /* list of column names to filter against. */
-    private List<String> names_;
-
+    private List<String> names_ = new ArrayList<String>();  
+    
     NamesFilter(List<String> names)
     {
-        names_ = new ArrayList<String>(names);
+        names_ = names;     
     }
-
+    
     public ColumnFamily filter(String cf, ColumnFamily columnFamily)
     {
         if ( columnFamily == null )
@@ -55,8 +55,8 @@ public class NamesFilter implements IFilter
 			{
 		        if ( names_.contains(column.name()) )
 		        {
-		            names_.remove(column.name());
-					filteredCf.addColumn(column);
+		            names_.remove(column.name());            
+					filteredCf.addColumn(column.name(), column);
 		        }
 				if( isDone() )
 				{
@@ -64,20 +64,20 @@ public class NamesFilter implements IFilter
 				}
 			}
 		}
-		else if ( values.length == 2 && DatabaseDescriptor.getColumnType(cfName).equals("Super"))
+		else if ( values.length == 2 && DatabaseDescriptor.getColumnType(cfName).equals("Super") )
 		{
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
     		{
     			SuperColumn superColumn = (SuperColumn)column;
     			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
-				filteredCf.addColumn(filteredSuperColumn);
+				filteredCf.addColumn(filteredSuperColumn.name(), filteredSuperColumn);
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		for(IColumn subColumn : subColumns)
         		{
     		        if ( names_.contains(subColumn.name()) )
     		        {
-    		            names_.remove(subColumn.name());
+    		            names_.remove(subColumn.name());            
     		            filteredSuperColumn.addColumn(subColumn.name(), subColumn);
     		        }
     				if( isDone() )
@@ -87,28 +87,28 @@ public class NamesFilter implements IFilter
     			}
     		}
 		}
-    	else
+    	else 
     	{
     		throw new UnsupportedOperationException();
     	}
 		return filteredCf;
     }
-
+    
     public IColumn filter(IColumn column, DataInputStream dis) throws IOException
-    {
+    {       
         String columnName = column.name();
         if ( names_.contains(columnName) )
         {
-            names_.remove(columnName);
+            names_.remove(columnName);            
         }
         else
         {
             column = null;
         }
-
+        
         return column;
     }
-
+    
     public boolean isDone()
     {
         return names_.isEmpty();

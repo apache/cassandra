@@ -93,6 +93,7 @@ public class RecoveryManager
     
     public static void main(String[] args) throws Throwable
     {
+        DatabaseDescriptor.init();
         long start = System.currentTimeMillis();
         RecoveryManager rm = RecoveryManager.instance();
         rm.doRecovery();  

@@ -47,10 +47,7 @@ class TimeFilter implements IFilter
 
 	public ColumnFamily filter(String cf, ColumnFamily columnFamily)
 	{
-    	if (columnFamily == null)
-    		return columnFamily;
-
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
+    	String[] values = RowMutation.getColumnAndColumnFamily(cf);
 		String cfName = columnFamily.name();
 		ColumnFamily filteredCf = new ColumnFamily(cfName);
 		if( values.length == 1 && !DatabaseDescriptor.getColumnType(cfName).equals("Super"))
@@ -61,7 +58,7 @@ class TimeFilter implements IFilter
     		{
     			if ( column.timestamp() >=  timeLimit_ )
     			{
-    				filteredCf.addColumn(column);
+    				filteredCf.addColumn(column.name(), column);
     				++i;
     			}
     			else
@@ -85,8 +82,8 @@ class TimeFilter implements IFilter
     		for(IColumn column : columns)
     		{
     			SuperColumn superColumn = (SuperColumn)column;
-       			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
-				filteredCf.addColumn(filteredSuperColumn);
+    			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
+				filteredCf.addColumn(filteredSuperColumn.name(), filteredSuperColumn);
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		int i = 0;
         		for(IColumn subColumn : subColumns)
@@ -146,6 +143,6 @@ class TimeFilter implements IFilter
 
 	public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException
     {
-    	return ssTable.next( key, cf, null, new IndexHelper.TimeRange( timeLimit_, System.currentTimeMillis() ) );
+    	return ssTable.next( key, cf, new IndexHelper.TimeRange( timeLimit_, System.currentTimeMillis() ) );
     }
 }

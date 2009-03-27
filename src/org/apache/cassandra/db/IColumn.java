@@ -29,7 +29,6 @@ public interface IColumn
 {
     public static short UtfPrefix_ = 2;
     public boolean isMarkedForDelete();
-    public long getMarkedForDeleteAt();
     public String name();
     public int size();
     public int serializedSize();
@@ -40,7 +39,10 @@ public interface IColumn
     public Collection<IColumn> getSubColumns();
     public IColumn getSubColumn(String columnName);
     public void addColumn(String name, IColumn column);
+    public void delete();
+    public void repair(IColumn column);
     public IColumn diff(IColumn column);
+    public boolean putColumn(IColumn column);
     public int getObjectCount();
-    public byte[] digest();
+    public byte[] digest();    
 }

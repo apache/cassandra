@@ -18,41 +18,60 @@
 
 package org.apache.cassandra.db;
 
+import java.io.DataInput;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.commons.lang.ArrayUtils;
-
+import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.IFileReader;
+import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HashingSchemes;
+import org.apache.cassandra.utils.LogUtil;
+import org.apache.log4j.Logger;
 
 
 /**
- * Column is immutable, which prevents all kinds of confusion in a multithreaded environment.
- * (TODO: look at making SuperColumn immutable too.  This is trickier but is probably doable
- *  with something like PCollections -- http://code.google.com
- *
- * Author : Avinash Lakshman ( alakshman@facebook.com ) & Prashant Malik ( pmalik@facebook.com )
+ * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public final class Column implements IColumn
+public final class Column implements IColumn, Serializable
 {
-    private static ColumnSerializer serializer_ = new ColumnSerializer();
+	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
+    private static ICompactSerializer2<IColumn> serializer_;
+	private final static String seperator_ = ":";
+    static
+    {
+        serializer_ = new ColumnSerializer();
+    }
 
-    static ColumnSerializer serializer()
+    static ICompactSerializer2<IColumn> serializer()
     {
         return serializer_;
     }
 
-    private final String name;
-    private final byte[] value;
-    private final long timestamp;
-    private final boolean isMarkedForDelete;
+    private String name_;
+    private byte[] value_ = new byte[0];
+    private long timestamp_ = 0;
+
+    private transient AtomicBoolean isMarkedForDelete_;
+
+    /* CTOR for JAXB */
+    Column()
+    {
+    }
 
     Column(String name)
     {
-        this(name, ArrayUtils.EMPTY_BYTE_ARRAY);
+        name_ = name;
     }
 
     Column(String name, byte[] value)
@@ -62,71 +81,54 @@ public final class Column implements IColumn
 
     Column(String name, byte[] value, long timestamp)
     {
-        this(name, value, timestamp, false);
-    }
-
-    Column(String name, byte[] value, long timestamp, boolean isDeleted)
-    {
-        assert name != null;
-        assert value != null;
-        this.name = name;
-        this.value = value;
-        this.timestamp = timestamp;
-        isMarkedForDelete = isDeleted;
+        this(name);
+        value_ = value;
+        timestamp_ = timestamp;
     }
 
     public String name()
     {
-        return name;
-    }
-
-    public IColumn getSubColumn(String columnName)
-    {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
+        return name_;
     }
 
     public byte[] value()
     {
-        return value;
+        return value_;
     }
 
     public byte[] value(String key)
     {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
+    	throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
     public Collection<IColumn> getSubColumns()
     {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
+    	throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
+    }
+
+    public IColumn getSubColumn( String columnName )
+    {
+    	throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
     public int getObjectCount()
     {
-        return 1;
+    	return 1;
     }
 
     public long timestamp()
     {
-        return timestamp;
+        return timestamp_;
     }
 
     public long timestamp(String key)
     {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
+    	throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
     public boolean isMarkedForDelete()
     {
-        return isMarkedForDelete;
-    }
-
-    public long getMarkedForDeleteAt()
-    {
-        if (!isMarkedForDelete())
-        {
-            throw new IllegalStateException("column is not marked for delete");
-        }
-        return timestamp;
+        return (isMarkedForDelete_ != null) ? isMarkedForDelete_.get() : false;
     }
 
     public int size()
@@ -140,11 +142,11 @@ public final class Column implements IColumn
          * + entire byte array.
         */
 
-        /*
-           * We store the string as UTF-8 encoded, so when we calculate the length, it
-           * should be converted to UTF-8.
-           */
-        return IColumn.UtfPrefix_ + FBUtilities.getUTF8Length(name) + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value.length;
+    	/*
+    	 * We store the string as UTF-8 encoded, so when we calculate the length, it
+    	 * should be converted to UTF-8.
+    	 */
+        return IColumn.UtfPrefix_ + FBUtilities.getUTF8Length(name_) + DBConstants.boolSize_ + DBConstants.tsSize_ + DBConstants.intSize_ + value_.length;
     }
 
     /*
@@ -153,43 +155,112 @@ public final class Column implements IColumn
     */
     public int serializedSize()
     {
-        return size();
+    	return size();
     }
 
     public void addColumn(String name, IColumn column)
     {
-        throw new UnsupportedOperationException("This operation is not supported for simple columns.");
+    	throw new UnsupportedOperationException("This operation is not supported for simple columns.");
     }
 
+    public void delete()
+    {
+        if ( isMarkedForDelete_ == null )
+            isMarkedForDelete_ = new AtomicBoolean(true);
+        else
+            isMarkedForDelete_.set(true);
+    	value_ = new byte[0];
+    }
+
+    public void repair(IColumn column)
+    {
+    	if( timestamp() < column.timestamp() )
+    	{
+    		value_ = column.value();
+    		timestamp_ = column.timestamp();
+    	}
+    }
     public IColumn diff(IColumn column)
     {
-        if (timestamp() < column.timestamp())
-        {
-            return column;
-        }
-        return null;
+    	IColumn  columnDiff = null;
+    	if( timestamp() < column.timestamp() )
+    	{
+    		columnDiff = new Column(column.name(),column.value(),column.timestamp());
+    	}
+    	return columnDiff;
+    }
+
+    /*
+     * Resolve the column by comparing timestamps
+     * if a newer vaue is being input
+     * take the change else ignore .
+     *
+     */
+    public boolean putColumn(IColumn column)
+    {
+    	if ( !(column instanceof Column))
+    		throw new UnsupportedOperationException("Only Column objects should be put here");
+    	if( !name_.equals(column.name()))
+    		throw new IllegalArgumentException("The name should match the name of the current column or super column");
+    	if(timestamp_ <= column.timestamp())
+    	{
+            return true;
+    	}
+        return false;
     }
 
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(name);
-        sb.append(":");
-        sb.append(isMarkedForDelete());
-        sb.append(":");
-        sb.append(value().length);
-        sb.append("@");
-        sb.append(timestamp());
-        return sb.toString();
+    	StringBuilder sb = new StringBuilder();
+    	sb.append(name_);
+    	sb.append(":");
+    	sb.append(isMarkedForDelete());
+    	sb.append(":");
+    	sb.append(timestamp());
+    	sb.append(":");
+    	sb.append(value().length);
+    	sb.append(":");
+    	sb.append(value());
+    	sb.append(":");
+    	return sb.toString();
     }
 
     public byte[] digest()
     {
-        StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(name);
-        stringBuilder.append(":");
-        stringBuilder.append(timestamp);
-        return stringBuilder.toString().getBytes();
+    	StringBuilder stringBuilder = new StringBuilder();
+  		stringBuilder.append(name_);
+  		stringBuilder.append(seperator_);
+  		stringBuilder.append(timestamp_);
+    	return stringBuilder.toString().getBytes();
+    }
+    
+    /**
+     * This method is basically implemented for Writable interface
+     * for M/R. 
+     */
+    public void readFields(DataInput in) throws IOException
+    {
+        name_ = in.readUTF();
+        boolean delete = in.readBoolean();
+        long ts = in.readLong();
+        int size = in.readInt();
+        byte[] value = new byte[size];
+        in.readFully(value);        
+        if ( delete )
+            delete();
+    }
+    
+    /**
+     * This method is basically implemented for Writable interface
+     * for M/R. 
+     */
+    public void write(DataOutput out) throws IOException
+    {
+        out.writeUTF(name_);
+        out.writeBoolean(isMarkedForDelete());
+        out.writeLong(timestamp_);
+        out.writeInt(value().length);
+        out.write(value());
     }
 
 }
@@ -213,7 +284,9 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
         int size = dis.readInt();
         byte[] value = new byte[size];
         dis.readFully(value);
-        column = new Column(name, value, ts, delete);
+        column = new Column(name, value, ts);
+        if ( delete )
+            column.delete();
         return column;
     }
 
@@ -230,7 +303,7 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
     {
         if ( dis.available() == 0 )
             return null;
-
+                
         String name = dis.readUTF();
         IColumn column = new Column(name);
         column = filter.filter(column, dis);
@@ -266,8 +339,8 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
             	/*
             	 * If this is being called with identity filter
             	 * since a column name is passed in we know
-            	 * that this is a final call
-            	 * Hence if the column is found set the filter to done
+            	 * that this is a final call 
+            	 * Hence if the column is found set the filter to done 
             	 * so that we do not look for the column in further files
             	 */
             	IdentityFilter f = (IdentityFilter)filter;
@@ -295,6 +368,5 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
         /* size of the column */
         int size = dis.readInt();
         dis.skip(size);
-    }
+    }    
 }
-

@@ -24,8 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
-
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,7 +32,11 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IComponentShutdown;
+import org.apache.cassandra.service.IResponseResolver;
+import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.WriteResponseResolver;
+import org.apache.log4j.Logger;
 
 
 /**
@@ -108,14 +110,14 @@ public class HintedHandOffManager implements IComponentShutdown
         private void deleteEndPoint(String endpointAddress, String key) throws Exception
         {
         	RowMutation rm = new RowMutation(DatabaseDescriptor.getTables().get(0), key_);
-        	rm.delete(Table.hints_ + ":" + key + ":" + endpointAddress, System.currentTimeMillis());
+        	rm.delete(Table.hints_ + ":" + key + ":" + endpointAddress);
         	rm.apply();
         }
 
         private void deleteKey(String key) throws Exception
         {
         	RowMutation rm = new RowMutation(DatabaseDescriptor.getTables().get(0), key_);
-        	rm.delete(Table.hints_ + ":" + key, System.currentTimeMillis());
+        	rm.delete(Table.hints_ + ":" + key);
         	rm.apply();
         }
 
@@ -140,7 +142,7 @@ public class HintedHandOffManager implements IComponentShutdown
             	if(hintedColumnFamily == null)
             	{
                     // Force flush now
-                    columnFamilyStore_.forceFlush();
+                    columnFamilyStore_.forceFlush(false);
             		return;
             	}
             	Collection<IColumn> keys = hintedColumnFamily.getAllColumns();
@@ -175,7 +177,7 @@ public class HintedHandOffManager implements IComponentShutdown
                 	}
             	}
                 // Force flush now
-                columnFamilyStore_.forceFlush();
+                columnFamilyStore_.forceFlush(false);
 
                 // Now do a major compaction
                 columnFamilyStore_.forceCompaction(null, null, 0, null);

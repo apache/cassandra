@@ -27,8 +27,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.cassandra.utils.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -40,7 +42,7 @@ public class MemtableManager
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(MemtableManager.class);
     private ReentrantReadWriteLock rwLock_ = new ReentrantReadWriteLock(true);
-    public static MemtableManager instance()
+    static MemtableManager instance() 
     {
         if ( instance_ == null )
         {
@@ -157,22 +159,7 @@ public class MemtableManager
     	}
     }
 
-    public List<Memtable> getUnflushedMemtables(String cfName)
-    {
-        rwLock_.readLock().lock();
-        try
-        {
-            List<Memtable> memtables = history_.get(cfName);
-            if (memtables != null)
-            {
-                return new ArrayList<Memtable>(memtables);
-            }
-            return Arrays.asList(new Memtable[0]);
-        }
-        finally
-        {
-            rwLock_.readLock().unlock();
-        }
-    }
+
+
 
 }

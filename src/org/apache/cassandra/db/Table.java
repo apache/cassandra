@@ -19,14 +19,18 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.File;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.cassandra.analytics.DBAnalyticsSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -48,6 +52,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.cassandra.io.*;
+import org.apache.cassandra.utils.*;
+import org.apache.cassandra.service.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -60,7 +67,7 @@ public class Table
      * is basically the column family name and the ID associated with
      * this column family. We use this ID in the Commit Log header to
      * determine when a log file that has been rolled can be deleted.
-    */
+    */    
     public static class TableMetadata
     {
         /* Name of the column family */
@@ -153,7 +160,7 @@ public class Table
             cfTypeMap_.put(cf, type);
         }
         
-        public boolean isEmpty()
+        boolean isEmpty()
         {
             return cfIdMap_.isEmpty();
         }
@@ -193,7 +200,7 @@ public class Table
             return cfIdMap_.containsKey(cfName);
         }
         
-        public void apply() throws IOException
+        void apply() throws IOException
         {
             String table = DatabaseDescriptor.getTables().get(0);
             DataOutputBuffer bufOut = new DataOutputBuffer();
@@ -454,7 +461,7 @@ public class Table
         return columnFamilyStores_;
     }
 
-    public ColumnFamilyStore getColumnFamilyStore(String cfName)
+    ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
         return columnFamilyStores_.get(cfName);
     }
@@ -488,7 +495,7 @@ public class Table
         for ( String cfName : cfNames )
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
-            sb.append(cfStore.cfStats(newLineSeparator));
+            sb.append(cfStore.cfStats(newLineSeparator, df));
         }
         int newLength = sb.toString().length();
         
@@ -592,7 +599,7 @@ public class Table
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
-                MinorCompactionManager.instance().submitMajor(cfStore, 0);
+                MinorCompactionManager.instance().submitMajor(cfStore, null, 0);
         }
     }
 
@@ -680,6 +687,26 @@ public class Table
             }
         }
         
+        long timeTaken = System.currentTimeMillis() - start;
+        dbAnalyticsSource_.updateReadStatistics(timeTaken);
+        return row;
+    }
+    
+    public Row getRowFromMemory(String key)
+    {
+        Row row = new Row(key);
+        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
+        long start = System.currentTimeMillis();
+        for ( String columnFamily : columnFamilies )
+        {
+            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily);
+            if ( cfStore != null )
+            {    
+                ColumnFamily cf = cfStore.getColumnFamilyFromMemory(key, columnFamily, new IdentityFilter());
+                if ( cf != null )
+                    row.addColumnFamily(cf);
+            }
+        }
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateReadStatistics(timeTaken);
         return row;
@@ -788,18 +815,22 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    void apply(Row row) throws IOException
-    {
+    public void apply(Row row) throws IOException
+    {        
+        String key = row.key();
         /* Add row to the commit log. */
         long start = System.currentTimeMillis();
+               
         CommitLog.CommitLogContext cLogCtx = CommitLog.open(table_).add(row);
-
-        for (ColumnFamily columnFamily : row.getColumnFamilies())
+        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilies();
+        Set<String> cNames = columnFamilies.keySet();
+        for ( String cName : cNames )
         {
+        	ColumnFamily columnFamily = columnFamilies.get(cName);
             ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-            cfStore.apply(row.key(), columnFamily, cLogCtx);
+            cfStore.apply( key, columnFamily, cLogCtx);            
         }
-
+        row.clear();
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateWriteStatistics(timeTaken);
     }
@@ -807,7 +838,7 @@ public class Table
     void applyNow(Row row) throws IOException
     {
         String key = row.key();
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
+        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilies();
 
         Set<String> cNames = columnFamilies.keySet();
         for ( String cName : cNames )
@@ -823,11 +854,24 @@ public class Table
         Set<String> cfNames = columnFamilyStores_.keySet();
         for ( String cfName : cfNames )
         {
-            if (fRecovery) {
-                columnFamilyStores_.get(cfName).flushMemtableOnRecovery();
-            } else {
-                columnFamilyStores_.get(cfName).forceFlush();
-            }
+            columnFamilyStores_.get(cfName).forceFlush(fRecovery);
+        }
+    }
+
+    void delete(Row row) throws IOException
+    {
+        String key = row.key();
+        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilies();
+
+        /* Add row to commit log */
+        CommitLog.open(table_).add(row);
+        Set<String> cNames = columnFamilies.keySet();
+
+        for ( String cName : cNames )
+        {
+        	ColumnFamily columnFamily = columnFamilies.get(cName);
+            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
+            cfStore.delete( key, columnFamily );
         }
     }
 
@@ -837,7 +881,7 @@ public class Table
         /* Add row to the commit log. */
         long start = System.currentTimeMillis();
                 
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
+        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilies();
         Set<String> cNames = columnFamilies.keySet();
         for ( String cName : cNames )
         {
@@ -858,7 +902,7 @@ public class Table
     	            }
     	            else if(column.timestamp() == 3)
     	            {
-    	            	cfStore.forceFlush();
+    	            	cfStore.forceFlush(false);
     	            }
     	            else if(column.timestamp() == 4)
     	            {
@@ -876,16 +920,12 @@ public class Table
         dbAnalyticsSource_.updateWriteStatistics(timeTaken);
     }
 
-    public Set<String> getApplicationColumnFamilies()
+    public static void main(String[] args) throws Throwable
     {
-        Set<String> set = new HashSet<String>();
-        for (String cfName : getColumnFamilies())
-        {
-            if (DatabaseDescriptor.isApplicationColumnFamily(cfName))
-            {
-                set.add(cfName);
-            }
-        }
-        return set;
+        StorageService service = StorageService.instance();
+        service.start();
+        Table table = Table.open("Mailbox");
+        Row row = table.get("35300190:1");
+        System.out.println( row.key() );
     }
 }

@@ -21,6 +21,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collection;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTable;
 
@@ -36,19 +37,19 @@ public class CountFilter implements IFilter
 {
 	private long countLimit_;
 	private boolean isDone_;
-
+	
 	CountFilter(int countLimit)
 	{
-		countLimit_ = countLimit;
+		countLimit_ = countLimit;		
 		isDone_ = false;
 	}
-
+	
 	public ColumnFamily filter(String cfNameParam, ColumnFamily columnFamily)
 	{
     	String[] values = RowMutation.getColumnAndColumnFamily(cfNameParam);
         if ( columnFamily == null )
             return columnFamily;
-
+        
 		String cfName = columnFamily.name();
 		ColumnFamily filteredCf = new ColumnFamily(cfName);
 		if( countLimit_ <= 0 )
@@ -61,7 +62,7 @@ public class CountFilter implements IFilter
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
     		{
-    			filteredCf.addColumn(column);
+    			filteredCf.addColumn(column.name(), column);
     			countLimit_--;
     			if( countLimit_ <= 0 )
     			{
@@ -70,14 +71,14 @@ public class CountFilter implements IFilter
     			}
     		}
 		}
-		else if(values.length == 2 && columnFamily.isSuper())
+		else if(values.length == 2 && DatabaseDescriptor.getColumnType(cfName).equals("Super"))
 		{
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
     		{
     			SuperColumn superColumn = (SuperColumn)column;
     			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
-				filteredCf.addColumn(filteredSuperColumn);
+				filteredCf.addColumn(filteredSuperColumn.name(), filteredSuperColumn);
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		for(IColumn subColumn : subColumns)
         		{
@@ -90,14 +91,14 @@ public class CountFilter implements IFilter
 	    			}
         		}
     		}
-		}
-    	else
+		}    	
+    	else 
     	{
     		throw new UnsupportedOperationException();
     	}
 		return filteredCf;
 	}
-
+    
     public IColumn filter(IColumn column, DataInputStream dis) throws IOException
     {
 		countLimit_--;
@@ -107,7 +108,7 @@ public class CountFilter implements IFilter
 		}
 		return column;
     }
-
+	
 	public boolean isDone()
 	{
 		return isDone_;

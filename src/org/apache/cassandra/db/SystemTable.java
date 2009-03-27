@@ -18,13 +18,25 @@
 
 package org.apache.cassandra.db;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.locks.Lock;
 
-import org.apache.log4j.Logger;
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
@@ -32,8 +44,9 @@ import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.log4j.Logger;
+import org.apache.cassandra.io.*;
+import org.apache.cassandra.utils.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -47,7 +60,7 @@ public class SystemTable
     /* Name of the SystemTable */
     public static final String name_ = "System";
     /* Name of the only column family in the Table */
-    public static final String cfName_ = "LocationInfo";
+    static final String cfName_ = "LocationInfo";
     /* Name of columns in this table */
     static final String generation_ = "Generation";
     static final String token_ = "Token";
@@ -150,20 +163,19 @@ public class SystemTable
      * This method is used to update the SystemTable with the
      * new token.
     */
-    public void updateToken(Token token) throws IOException
+    public void updateToken(BigInteger token) throws IOException
     {
-        IPartitioner p = StorageService.getPartitioner();
         if ( systemRow_ != null )
         {
-            Map<String, ColumnFamily> columnFamilies = systemRow_.getColumnFamilyMap();
+            Map<String, ColumnFamily> columnFamilies = systemRow_.getColumnFamilies();
             /* Retrieve the "LocationInfo" column family */
             ColumnFamily columnFamily = columnFamilies.get(SystemTable.cfName_);
             long oldTokenColumnTimestamp = columnFamily.getColumn(SystemTable.token_).timestamp();
             /* create the "Token" whose value is the new token. */
-            IColumn tokenColumn = new Column(SystemTable.token_, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
+            IColumn tokenColumn = new Column(SystemTable.token_, token.toByteArray(), oldTokenColumnTimestamp + 1);
             /* replace the old "Token" column with this new one. */
-            logger_.debug("Replacing old token " + p.getTokenFactory().fromByteArray(columnFamily.getColumn(SystemTable.token_).value()) + " with " + token);
-            columnFamily.addColumn(tokenColumn);
+            logger_.debug("Replacing old token " + new BigInteger( columnFamily.getColumn(SystemTable.token_).value() ).toString() + " with token " + token.toString());
+            columnFamily.addColumn(SystemTable.token_, tokenColumn);
             reset(systemRow_);
         }
     }
@@ -183,7 +195,17 @@ public class SystemTable
     {
         LogUtil.init();
         StorageService.instance().start();
-        SystemTable.openSystemTable(SystemTable.cfName_).updateToken(StorageService.token("503545744:0"));
+        SystemTable.openSystemTable(SystemTable.cfName_).updateToken( StorageService.hash("503545744:0") );
         System.out.println("Done");
+
+        /*
+        BigInteger hash = StorageService.hash("304700067:0");
+        List<Range> ranges = new ArrayList<Range>();
+        ranges.add( new Range(new BigInteger("1218069462158869448693347920504606362273788442553"), new BigInteger("1092770595533781724218060956188429069")) );
+        if ( Range.isKeyInRanges(ranges, "304700067:0") )
+        {
+            System.out.println("Done");
+        }
+        */
     }
 }

@@ -87,6 +87,10 @@ class MinorCompactionManager implements IComponentShutdown
             	columnFamilyStore_.doCompaction();
                 logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
             }
+            catch (IOException e)
+            {
+                logger_.debug( LogUtil.throwableToString(e) );
+            }
             catch (Throwable th)
             {
                 logger_.error( LogUtil.throwableToString(th) );
@@ -118,9 +122,16 @@ class MinorCompactionManager implements IComponentShutdown
         public Boolean call()
         {
         	boolean result = true;
-            logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
-            result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
-            logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+            try
+            {
+                logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
+                result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
+                logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+            }
+            catch (IOException e)
+            {
+                logger_.debug( LogUtil.throwableToString(e) );
+            }
             return result;
         }
     }
@@ -169,6 +180,10 @@ class MinorCompactionManager implements IComponentShutdown
             	columnFamilyStore_.doCleanupCompaction();
                 logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
             }
+            catch (IOException e)
+            {
+                logger_.debug( LogUtil.throwableToString(e) );
+            }
             catch (Throwable th)
             {
                 logger_.error( LogUtil.throwableToString(th) );
@@ -208,9 +223,14 @@ class MinorCompactionManager implements IComponentShutdown
     public Future<Boolean> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target, List<String> fileList)
     {
         return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges, target, fileList) );
+    } 
+
+    public Future<Boolean> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges)
+    {
+        return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges) );
     }
 
-    public void  submitMajor(ColumnFamilyStore columnFamilyStore, long skip)
+    public void  submitMajor(ColumnFamilyStore columnFamilyStore, List<Range> ranges, long skip)
     {
         compactor_.submit( new OnDemandCompactor(columnFamilyStore, skip) );
     }
