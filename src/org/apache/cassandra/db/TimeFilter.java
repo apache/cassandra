@@ -47,7 +47,10 @@ class TimeFilter implements IFilter
 
 	public ColumnFamily filter(String cf, ColumnFamily columnFamily)
 	{
-    	String[] values = RowMutation.getColumnAndColumnFamily(cf);
+    	if (columnFamily == null)
+    		return columnFamily;
+
+        String[] values = RowMutation.getColumnAndColumnFamily(cf);
 		String cfName = columnFamily.name();
 		ColumnFamily filteredCf = new ColumnFamily(cfName);
 		if( values.length == 1 && !DatabaseDescriptor.getColumnType(cfName).equals("Super"))
