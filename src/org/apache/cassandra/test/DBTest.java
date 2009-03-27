@@ -182,7 +182,6 @@ public class DBTest
         //doWrites();
         //doRead("543");
         
-        DatabaseDescriptor.init();
         DBTest.doTest();
     }
 }
