@@ -12,7 +12,8 @@ import java.io.IOException;
 import java.util.*;
 
 public class SSTableTest extends ServerTest {
-    // @Test
+    /*
+    @Test
     public void testSingleWrite() throws IOException {
         File f = File.createTempFile("sstable", "");
         SSTable ssTable;
@@ -73,4 +74,5 @@ public class SSTableTest extends ServerTest {
             assert Arrays.equals(bytes2, map.get(key));
         }
     }
+    */
 }
