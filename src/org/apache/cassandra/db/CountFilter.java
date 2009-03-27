@@ -21,7 +21,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collection;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTable;
 
@@ -37,19 +36,19 @@ public class CountFilter implements IFilter
 {
 	private long countLimit_;
 	private boolean isDone_;
-	
+
 	CountFilter(int countLimit)
 	{
-		countLimit_ = countLimit;		
+		countLimit_ = countLimit;
 		isDone_ = false;
 	}
-	
+
 	public ColumnFamily filter(String cfNameParam, ColumnFamily columnFamily)
 	{
     	String[] values = RowMutation.getColumnAndColumnFamily(cfNameParam);
         if ( columnFamily == null )
             return columnFamily;
-        
+
 		String cfName = columnFamily.name();
 		ColumnFamily filteredCf = new ColumnFamily(cfName);
 		if( countLimit_ <= 0 )
@@ -71,7 +70,7 @@ public class CountFilter implements IFilter
     			}
     		}
 		}
-		else if(values.length == 2 && DatabaseDescriptor.getColumnType(cfName).equals("Super"))
+		else if(values.length == 2 && columnFamily.isSuper())
 		{
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
@@ -91,14 +90,14 @@ public class CountFilter implements IFilter
 	    			}
         		}
     		}
-		}    	
-    	else 
+		}
+    	else
     	{
     		throw new UnsupportedOperationException();
     	}
 		return filteredCf;
 	}
-    
+
     public IColumn filter(IColumn column, DataInputStream dis) throws IOException
     {
 		countLimit_--;
@@ -108,7 +107,7 @@ public class CountFilter implements IFilter
 		}
 		return column;
     }
-	
+
 	public boolean isDone()
 	{
 		return isDone_;
