@@ -109,7 +109,7 @@ public class DBTest
             System.out.println(scanner.next().name());
         }             
     }
-    
+
     public static void doTest()
     {
         String host = "insearch00";
