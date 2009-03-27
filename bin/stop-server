@@ -1,1 +1,2 @@
-pgrep -f cassandra | xargs kill -9
+user=`whoami`
+pgrep -u $user -f cassandra | xargs kill -9
