@@ -500,23 +500,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Gossiper.instance().addApplicationState(StorageService.nodeId_, new ApplicationState(storageMetadata_.getStorageId().toString()));
     }
 
-    private void startMapReduceFramework()
-    {
-        // TODO: This is a null pointer exception if JobTrackerHost is not in
-        // the config file. Also, shouldn't this comparison be done by IP
-        // instead of host name?  We could have a match but not a textual
-        // match (e.g. somehost.vip vs somehost.vip.domain.com)
-        if ( DatabaseDescriptor.getJobTrackerAddress().equals( StorageService.tcpAddr_.getHost() ) ) 
-        {
-//            JobTracker.instance().start();
-//            TaskTracker.instance().start();
-        }
-        else
-        {
-//            TaskTracker.instance().start();
-        }
-    }
-    
     public void killMe() throws Throwable
     {
         isShutdown_.set(true);
