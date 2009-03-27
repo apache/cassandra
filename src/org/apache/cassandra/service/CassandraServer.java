@@ -855,6 +855,14 @@ public class CassandraServer extends FacebookBase implements
 	{
 		int port = 9160;		
 
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
+        {
+            public void uncaughtException(Thread t, Throwable e)
+            {
+                logger_.error("Fatal exception in thread " + t, e);
+            }
+        });
+
 		try
 		{
 			CassandraServer peerStorageServer = new CassandraServer();
