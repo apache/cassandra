@@ -154,11 +154,6 @@ public class SSTable
             position_ = position;
         }
 
-        public String key()
-        {
-            return decoratedKey;
-        }
-
         public long position()
         {
             return position_;
@@ -510,11 +505,6 @@ public class SSTable
         return getFile(dataFile_);
     }
 
-    public long lastModified()
-    {
-        return dataWriter_.lastModified();
-    }
-    
     /*
      * Seeks to the specified key on disk.
     */

@@ -79,7 +79,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     private Map<String, ColumnFamily> columnFamilies_ = new HashMap<String, ColumnFamily>();
     /* Lock and Condition for notifying new clients about Memtable switches */
     Lock lock_ = new ReentrantLock();
-    Condition condition_;
 
     Memtable(String table, String cfName) throws IOException
     {
@@ -94,7 +93,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
                     ));
         }
 
-        condition_ = lock_.newCondition();
         table_ = table;
         cfName_ = cfName;
         creationTime_ = System.currentTimeMillis();
@@ -193,13 +191,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     void resolveCount(int oldCount, int newCount)
     {
         currentObjectCount_.addAndGet(newCount - oldCount);
-    }
-
-    private boolean isLifetimeViolated()
-    {
-      /* Memtable lifetime in terms of milliseconds */
-      long lifetimeInMillis = DatabaseDescriptor.getMemtableLifetime() * 3600 * 1000;
-      return ( ( System.currentTimeMillis() - creationTime_ ) >= lifetimeInMillis );
     }
 
     boolean isThresholdViolated(String key)
@@ -364,26 +355,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         }
         /* Filter unnecessary data from the column based on the provided filter */
         return filter.filter(columnFamilyColumn, columnFamily);
-    }
-
-    ColumnFamily get(String key, String cfName)
-    {
-    	printExecutorStats();
-    	Callable<ColumnFamily> call = new Getter(key, cfName);
-    	ColumnFamily cf = null;
-    	try
-    	{
-    		cf = apartments_.get(cfName_).submit(call).get();
-    	}
-    	catch ( ExecutionException ex )
-    	{
-    		logger_.debug(LogUtil.throwableToString(ex));
-    	}
-    	catch ( InterruptedException ex2 )
-    	{
-    		logger_.debug(LogUtil.throwableToString(ex2));
-    	}
-    	return cf;
     }
 
     ColumnFamily get(String key, String cfName, IFilter filter)
