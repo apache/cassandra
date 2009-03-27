@@ -15,51 +15,9 @@
     -->
     <path id="cassandra.classpath">
         <pathelement location="${build.classes}"/>
-        <pathelement location="${build.lib}/activation.jar"/>
-        <pathelement location="${build.lib}/antlr-runtime-3.0.1.jar"/>
-        <pathelement location="${build.lib}/hadoop-core.jar"/>
-        <pathelement location="${build.lib}/asm-all-2.2.1.jar"/>
-        <pathelement location="${build.lib}/azul-collections.jar"/>
-        <pathelement location="${build.lib}/bcel-5.2.jar"/>
-        <pathelement location="${build.lib}/commons-cli-1.1.jar"/>
-        <pathelement location="${build.lib}/commons-javaflow-1.0-SNAPSHOT.jar"/>
-        <pathelement location="${build.lib}/colt.jar"/>
-        <pathelement location="${build.lib}/libfb303.jar"/> 
-        <pathelement location="${build.lib}/commons-logging-1.0.4.jar"/>
-        <pathelement location="${build.lib}/FastInfoset.jar"/>
-        <pathelement location="${build.lib}/commons-math-1.1.jar"/>
-        <pathelement location="${build.lib}/flanagan.jar"/>
-        <pathelement location="${build.lib}/j2ee.jar"/>
-        <pathelement location="${build.lib}/groovy-1.5.6.jar"/>
-        <pathelement location="${build.lib}/groovy-engine.jar"/>
-        <pathelement location="${build.lib}/javacore.jar"/>
-        <pathelement location="${build.lib}/javolution.jar"/>
-        <pathelement location="${build.lib}/jaxb1-impl.jar"/>
-        <pathelement location="${build.lib}/jaxb-api.jar"/>
-        <pathelement location="${build.lib}/jaxb-impl.jar"/>
-        <pathelement location="${build.lib}/jaxb-xjc.jar"/>
-        <pathelement location="${build.lib}/jaxws-2_0.jar"/>
-        <pathelement location="${build.lib}/jaxws-api.jar"/>
-        <pathelement location="${build.lib}/jaxws-rt.jar"/>
-        <pathelement location="${build.lib}/jettison.jar"/>
-        <pathelement location="${build.lib}/jline-0.9.94.jar"/>
-        <pathelement location="${build.lib}/JSAP-2.1.jar"/>
-        <pathelement location="${build.lib}/jsr173_api.jar"/>
-        <pathelement location="${build.lib}/jsr181-api.jar"/>
-        <pathelement location="${build.lib}/jsr250-api.jar"/>
-        <pathelement location="${build.lib}/libthrift.jar"/>
-        <pathelement location="${build.lib}/log4j-1.2.8.jar"/>
-        <pathelement location="${build.lib}/lucene-core-2.2.0.jar"/>
-        <pathelement location="${build.lib}/messaging.jar"/>
-        <pathelement location="${build.lib}/mysql-connector-java-5.0.7-bin.jar"/>
-        <pathelement location="${build.lib}/sjsxp.jar"/>
-        <pathelement location="${build.lib}/xerces.jar"/>
-        <pathelement location="${build.lib}/xpp3.jar"/>
-        <pathelement location="${build.lib}/xstream.jar"/>
-        <pathelement location="${build.lib}/trove-2.0.2.jar"/>
-        <pathelement location="${build.lib}/zookeeper-3.0.0.jar"/>
-        <pathelement location="${build.lib}/pcj.jar"/>
-        <pathelement location="${build.lib}/"/>
+        <fileset dir="${build.lib}">
+          <include name="**/*.jar" />
+        </fileset>
     </path>
 
     <!--
