@@ -653,9 +653,9 @@ public class SSTable
         afterAppend(decoratedKey, currentPosition, value.length );
     }
 
-    private Coordinate getCoordinates(String decoratedKey, IFileReader dataReader) throws IOException
+    public static Coordinate getCoordinates(String decoratedKey, IFileReader dataReader) throws IOException
     {
-    	List<KeyPositionInfo> indexInfo = indexMetadataMap_.get(dataFile_);
+    	List<KeyPositionInfo> indexInfo = indexMetadataMap_.get(dataReader.getFileName());
     	int size = (indexInfo == null) ? 0 : indexInfo.size();
     	long start = 0L;
     	long end = dataReader.getEOF();

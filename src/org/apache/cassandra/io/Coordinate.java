@@ -21,10 +21,10 @@ package org.apache.cassandra.io;
  * Section of a file that needs to be scanned
  * is represented by this class.
 */
-class Coordinate
+public class Coordinate
 {
-    long start_;
-    long end_;
+    public final long start_;
+    public final long end_;
     
     Coordinate(long start, long end)
     {

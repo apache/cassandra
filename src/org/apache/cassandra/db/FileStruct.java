@@ -19,92 +19,189 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Iterator;
 
+import org.apache.cassandra.io.Coordinate;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SequenceFile;
-import org.apache.cassandra.service.StorageService;
 
 
-public class FileStruct implements Comparable<FileStruct>
+public class FileStruct implements Comparable<FileStruct>, Iterable<String>
 {
-    IFileReader reader_;
-    String key_;        
-    DataInputBuffer bufIn_;
-    DataOutputBuffer bufOut_;
     
-    public FileStruct()
+    private String key = null;
+    private boolean exhausted = false;
+    private IFileReader reader;
+    private DataInputBuffer bufIn;
+    private DataOutputBuffer bufOut;
+
+    public FileStruct(IFileReader reader)
     {
+        this.reader = reader;
+        bufIn = new DataInputBuffer();
+        bufOut = new DataOutputBuffer();
     }
-    
-    public FileStruct(String file, int bufSize) throws IOException
+
+    public String getFileName()
     {
-        bufIn_ = new DataInputBuffer();
-        bufOut_ = new DataOutputBuffer();
-        reader_ = SequenceFile.bufferedReader(file, bufSize);
-        long bytesRead = advance();
-        if ( bytesRead == -1L )
-            throw new IOException("Either the file is empty or EOF has been reached.");          
+        return reader.getFileName();
     }
-    
+
+    public void close() throws IOException
+    {
+        reader.close();
+    }
+
+    public boolean isExhausted()
+    {
+        return exhausted;
+    }
+
+    public DataInputBuffer getBufIn()
+    {
+        return bufIn;
+    }
+
     public String getKey()
     {
-        return key_;
-    }
-    
-    public DataOutputBuffer getBuffer()
-    {
-        return bufOut_;
-    }
-    
-    public long advance() throws IOException
-    {        
-        long bytesRead = -1L;
-        bufOut_.reset();
-        /* advance and read the next key in the file. */           
-        if (reader_.isEOF())
-        {
-            reader_.close();
-            return bytesRead;
-        }
-            
-        bytesRead = reader_.next(bufOut_);        
-        if (bytesRead == -1)
-        {
-            reader_.close();
-            return bytesRead;
-        }
-
-        bufIn_.reset(bufOut_.getData(), bufOut_.getLength());
-        key_ = bufIn_.readUTF();
-        /* If the key we read is the Block Index Key then omit and read the next key. */
-        if ( key_.equals(SSTable.blockIndexKey_) )
-        {
-            bufOut_.reset();
-            bytesRead = reader_.next(bufOut_);
-            if (bytesRead == -1)
-            {
-                reader_.close();
-                return bytesRead;
-            }
-            bufIn_.reset(bufOut_.getData(), bufOut_.getLength());
-            key_ = bufIn_.readUTF();
-        }
-        
-        return bytesRead;
+        return key;
     }
 
     public int compareTo(FileStruct f)
     {
-        return StorageService.getPartitioner().getDecoratedKeyComparator().compare(key_, f.key_);
+        return key.compareTo(f.key);
     }
-    
-    public void close() throws IOException
+
+    // we don't use SequenceReader.seekTo, since that (sometimes) throws an exception
+    // if the key is not found.  unsure if this behavior is desired.
+    public void seekTo(String seekKey)
     {
-        bufIn_.close();
-        bufOut_.close();
-        reader_.close();
+        try
+        {
+            Coordinate range = SSTable.getCoordinates(seekKey, reader);
+            reader.seek(range.end_);
+            long position = reader.getPositionFromBlockIndex(seekKey);
+            if (position == -1)
+            {
+                reader.seek(range.start_);
+            }
+            else
+            {
+                reader.seek(position);
+            }
+
+            while (!exhausted)
+            {
+                getNextKey();
+                if (key.compareTo(seekKey) >= 0)
+                {
+                    break;
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("corrupt sstable", e);
+        }
+    }
+
+    /*
+     * Read the next key from the data file, skipping block indexes.
+     * Caller must check isExhausted after each call to see if further
+     * reads are valid.
+     */
+    public void getNextKey()
+    {
+        if (exhausted)
+        {
+            throw new IndexOutOfBoundsException();
+        }
+
+        try
+        {
+            bufOut.reset();
+            if (reader.isEOF())
+            {
+                reader.close();
+                exhausted = true;
+                return;
+            }
+
+            long bytesread = reader.next(bufOut);
+            if (bytesread == -1)
+            {
+                reader.close();
+                exhausted = true;
+                return;
+            }
+
+            bufIn.reset(bufOut.getData(), bufOut.getLength());
+            key = bufIn.readUTF();
+            /* If the key we read is the Block Index Key then omit and read the next key. */
+            if (key.equals(SSTable.blockIndexKey_))
+            {
+                bufOut.reset();
+                bytesread = reader.next(bufOut);
+                if (bytesread == -1)
+                {
+                    reader.close();
+                    exhausted = true;
+                    return;
+                }
+                bufIn.reset(bufOut.getData(), bufOut.getLength());
+                key = bufIn.readUTF();
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Iterator<String> iterator()
+    {
+        return new FileStructIterator();
+    }
+
+    private class FileStructIterator implements Iterator<String>
+    {
+        String saved;
+
+        public FileStructIterator()
+        {
+            if (getKey() == null && !isExhausted())
+            {
+                forward();
+            }
+        }
+
+        private void forward()
+        {
+            getNextKey();
+            saved = isExhausted() ? null : getKey();
+        }
+
+        public boolean hasNext()
+        {
+            return saved != null;
+        }
+
+        public String next()
+        {
+            if (saved == null)
+            {
+                throw new IndexOutOfBoundsException();
+            }
+            String key = saved;
+            forward();
+            return key;
+        }
+
+        public void remove()
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 }
