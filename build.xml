@@ -8,6 +8,8 @@
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.classes" value="${build.dir}/classes"/>
+    <property name="test.dir" value="${basedir}/test"/>
+    <property name="test.classes" value="${basedir}/test/classes"/>
     <property name="final.name" value="cassandra"/>
 
     <!-- 
@@ -25,9 +27,11 @@
     -->
     <target name="init">
         <mkdir dir="${build.classes}"/>
+        <mkdir dir="${test.classes}"/>
     </target>
     <target name="clean">
         <delete dir="${build.classes}"/>
+        <delete dir="${test.classes}"/>
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -87,5 +91,31 @@
     </jar>
   </target>
 
+
+  <target name="build-test" depends="build" description="Build the Cassandra classes">
+    <javac
+     debug="${javac.debug}"
+     debuglevel="${javac.debuglevel}"
+     destdir="${test.classes}"
+    >
+      <classpath refid="cassandra.classpath"/>
+      <src path="${test.dir}"/>
+    </javac>
+  </target>
+
+  <taskdef resource="testngtasks" classpath="lib/testng-5.8-jdk15.jar"/>
+  <target name="test" depends="build-test">
+    <echo message="running tests"/>
+    <testng outputDir="${test.dir}/output"
+            haltOnFailure="true"
+            verbose="2">
+      <jvmarg value="-Dstorage-config=conf"/>
+      <classpath>
+        <path refid="cassandra.classpath" />
+        <pathelement location="${test.classes}"/>
+      </classpath>
+      <classfileset dir="${test.classes}" includes="**/*.class" />
+    </testng>
+  </target>
 
 </project>

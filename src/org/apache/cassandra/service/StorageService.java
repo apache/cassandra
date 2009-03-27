@@ -171,7 +171,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     
     public static PartitionerType getPartitionerType()
     {
-        return (DatabaseDescriptor.getHashingStrategy().equalsIgnoreCase(DatabaseDescriptor.ophf_)) ? PartitionerType.OPHF : PartitionerType.RANDOM;
+        return (DatabaseDescriptor.ophf_.equalsIgnoreCase(DatabaseDescriptor.getHashingStrategy())) ? PartitionerType.OPHF : PartitionerType.RANDOM;
     }
 
     /**
@@ -444,10 +444,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     	components_.add(component);
     }
 
-    private void initPartitioner()
+    static
     {
         String hashingStrategy = DatabaseDescriptor.getHashingStrategy();
-        if ( hashingStrategy.equalsIgnoreCase(DatabaseDescriptor.ophf_) )
+        if (DatabaseDescriptor.ophf_.equalsIgnoreCase(hashingStrategy))
         {
             partitioner_ = new OrderPreservingHashPartitioner();
         }        
@@ -458,9 +458,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
     
     public void start() throws Throwable
-    {        
-    	/* Set up the partitioner */
-        initPartitioner();
+    {
         /* Start the DB */
         storageMetadata_ = DBManager.instance().start();  
         /* Set up TCP endpoint */

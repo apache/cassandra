@@ -45,7 +45,7 @@ public class SystemTable
     /* Name of the SystemTable */
     public static final String name_ = "System";
     /* Name of the only column family in the Table */
-    static final String cfName_ = "LocationInfo";
+    public static final String cfName_ = "LocationInfo";
     /* Name of columns in this table */
     static final String generation_ = "Generation";
     static final String token_ = "Token";

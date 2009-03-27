@@ -91,10 +91,7 @@ public class DBManager
 
     public DBManager() throws Throwable
     {
-        /* Read the configuration file */
-        Map<String, Map<String, CFMetaData>> tableToColumnFamilyMap = DatabaseDescriptor.init();
-        storeMetadata(tableToColumnFamilyMap);
-        Set<String> tables = tableToColumnFamilyMap.keySet();
+        Set<String> tables = DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
         
         for (String table : tables)
         {
@@ -104,47 +101,6 @@ public class DBManager
         /* Do recovery if need be. */
         RecoveryManager recoveryMgr = RecoveryManager.instance();
         recoveryMgr.doRecovery();
-    }
-
-    /*
-     * Create the metadata tables. This table has information about
-     * the table name and the column families that make up the table.
-     * Each column family also has an associated ID which is an int.
-    */
-    private static void storeMetadata(Map<String, Map<String, CFMetaData>> tableToColumnFamilyMap) throws Throwable
-    {
-        AtomicInteger idGenerator = new AtomicInteger(0);
-        Set<String> tables = tableToColumnFamilyMap.keySet();
-
-        for ( String table : tables )
-        {
-            Table.TableMetadata tmetadata = Table.TableMetadata.instance();
-            if ( tmetadata.isEmpty() )
-            {
-                tmetadata = Table.TableMetadata.instance();
-                /* Column families associated with this table */
-                Map<String, CFMetaData> columnFamilies = tableToColumnFamilyMap.get(table);
-
-                for (String columnFamily : columnFamilies.keySet())
-                {
-                    tmetadata.add(columnFamily, idGenerator.getAndIncrement(), DatabaseDescriptor.getColumnType(columnFamily));
-                }
-
-                /*
-                 * Here we add all the system related column families. 
-                */
-                /* Add the TableMetadata column family to this map. */
-                tmetadata.add(Table.TableMetadata.cfName_, idGenerator.getAndIncrement());
-                /* Add the LocationInfo column family to this map. */
-                tmetadata.add(SystemTable.cfName_, idGenerator.getAndIncrement());
-                /* Add the recycle column family to this map. */
-                tmetadata.add(Table.recycleBin_, idGenerator.getAndIncrement());
-                /* Add the Hints column family to this map. */
-                tmetadata.add(Table.hints_, idGenerator.getAndIncrement(), ColumnFamily.getColumnType("Super"));
-                tmetadata.apply();
-                idGenerator.set(0);
-            }
-        }
     }
 
     /*

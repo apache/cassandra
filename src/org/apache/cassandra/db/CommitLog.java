@@ -626,9 +626,6 @@ class CommitLog
     public static void main(String[] args) throws Throwable
     {
         LogUtil.init();
-
-        // the return value is not used in this case
-        DatabaseDescriptor.init();
         
         File logDir = new File(DatabaseDescriptor.getLogFileLocation());
         File[] files = logDir.listFiles();
