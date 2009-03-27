@@ -119,7 +119,7 @@ public class DatabaseDescriptor
     
     // the path qualified config file (storage-conf.xml) name
     private static String configFileName_;
-    
+
     static
     {
         try
@@ -336,6 +336,10 @@ public class DatabaseDescriptor
                 {
                     Node columnFamily = columnFamilies.item(j);
                     String cName = XMLUtils.getAttributeValue(columnFamily, "Name");
+                    if (cName == null)
+                    {
+                        throw new IllegalArgumentException("ColumnFamily element missing Name attribute: " + columnFamily);
+                    }
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + cName + "']/";
 
                     /* squirrel away the application column families */
@@ -407,10 +411,11 @@ public class DatabaseDescriptor
                 seeds_.add( seeds[i] );
             }
         }
-        catch (Exception e) {
+        catch (Exception e)
+        {
             throw new RuntimeException(e);
         }
-        
+
         try
         {
             storeMetadata();
@@ -420,7 +425,6 @@ public class DatabaseDescriptor
             throw new RuntimeException(e);
         }
     }
-    
 
     /*
      * Create the metadata tables. This table has information about
@@ -463,6 +467,8 @@ public class DatabaseDescriptor
         }
     }
 
+
+    
     public static String getHashingStrategy()
     {
         return hashingStrategy_;
