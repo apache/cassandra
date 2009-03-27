@@ -184,12 +184,8 @@ public final class ColumnFamily implements Serializable
     */
     void addColumns(ColumnFamily cf)
     {
-        Map<String, IColumn> columns = cf.getColumns();
-        Set<String> cNames = columns.keySet();
-
-        for ( String cName : cNames )
-        {
-        	addColumn(cName, columns.get(cName));
+        for (IColumn column : cf.getAllColumns()) {
+            addColumn(column);
         }
     }
 
@@ -202,7 +198,7 @@ public final class ColumnFamily implements Serializable
     public void createColumn(String name)
     {
     	IColumn column = columnFactory_.createColumn(name);
-    	addColumn(column.name(), column);
+    	addColumn(column);
     }
 
     int getColumnCount()
@@ -230,13 +226,13 @@ public final class ColumnFamily implements Serializable
     public void createColumn(String name, byte[] value)
     {
     	IColumn column = columnFactory_.createColumn(name, value);
-    	addColumn(column.name(), column);
+    	addColumn(column);
     }
 
 	public void createColumn(String name, byte[] value, long timestamp)
 	{
 		IColumn column = columnFactory_.createColumn(name, value, timestamp);
-		addColumn(column.name(), column);
+		addColumn(column);
 	}
 
     void clear()
@@ -248,9 +244,10 @@ public final class ColumnFamily implements Serializable
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column .
     */
-    void addColumn(String name, IColumn column)
+    void addColumn(IColumn column)
     {
     	int newSize = 0;
+        String name = column.name();
         IColumn oldColumn = columns_.get(name);
         if ( oldColumn != null )
         {
@@ -377,14 +374,14 @@ public final class ColumnFamily implements Serializable
         	IColumn columnExternal = columns.get(cName);
         	if( columnInternal == null )
         	{
-        		cfDiff.addColumn(cName, columnExternal);
+        		cfDiff.addColumn(columnExternal);
         	}
         	else
         	{
             	IColumn columnDiff = columnInternal.diff(columnExternal);
         		if(columnDiff != null)
         		{
-        			cfDiff.addColumn(cName, columnDiff);
+        			cfDiff.addColumn(columnDiff);
         		}
         	}
         }
@@ -533,7 +530,7 @@ class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
         	column = cf.getColumnSerializer().deserialize(dis);
         	if(column != null)
         	{
-        		cf.addColumn(column.name(), column);
+        		cf.addColumn(column);
         	}
         }
     }
@@ -562,7 +559,7 @@ class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
             	column = cf.getColumnSerializer().deserialize(dis, filter);
             	if(column != null)
             	{
-            		cf.addColumn(column.name(), column);
+            		cf.addColumn(column);
             		column = null;
             		if(filter.isDone())
             		{
@@ -599,7 +596,7 @@ class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 	            IColumn column = cf.getColumnSerializer().deserialize(dis, columnName, filter);
 	            if ( column != null )
 	            {
-	                cf.addColumn(column.name(), column);
+	                cf.addColumn(column);
 	                break;
 	            }
             }

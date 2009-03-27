@@ -56,7 +56,7 @@ public class NamesFilter implements IFilter
 		        if ( names_.contains(column.name()) )
 		        {
 		            names_.remove(column.name());            
-					filteredCf.addColumn(column.name(), column);
+					filteredCf.addColumn(column);
 		        }
 				if( isDone() )
 				{
@@ -70,8 +70,8 @@ public class NamesFilter implements IFilter
     		for(IColumn column : columns)
     		{
     			SuperColumn superColumn = (SuperColumn)column;
-    			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
-				filteredCf.addColumn(filteredSuperColumn.name(), filteredSuperColumn);
+                SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
+                filteredCf.addColumn(filteredSuperColumn);
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		for(IColumn subColumn : subColumns)
         		{
