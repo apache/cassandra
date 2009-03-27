@@ -46,17 +46,13 @@ public class RowMutationVerbHandler implements IVerbHandler
         protected Row row_ = new Row();
         protected DataInputBuffer buffer_ = new DataInputBuffer();
     }
-    
-    private static Logger logger_ = Logger.getLogger(RowMutationVerbHandler.class);     
+
+    private static Logger logger_ = Logger.getLogger(RowMutationVerbHandler.class);
     /* We use this so that we can reuse the same row mutation context for the mutation. */
     private static ThreadLocal<RowMutationContext> tls_ = new InheritableThreadLocal<RowMutationContext>();
-    
+
     public void doVerb(Message message)
     {
-        /* For DEBUG only. Printing queue length */                         
-        logger_.info( "ROW MUTATION STAGE: " + StageManager.getStageTaskCount(StorageService.mutationStage_) );
-        /* END DEBUG */
-            
         byte[] bytes = (byte[])message.getMessageBody()[0];
         /* Obtain a Row Mutation Context from TLS */
         RowMutationContext rowMutationCtx = tls_.get();
@@ -65,51 +61,46 @@ public class RowMutationVerbHandler implements IVerbHandler
             rowMutationCtx = new RowMutationContext();
             tls_.set(rowMutationCtx);
         }
-                
-        rowMutationCtx.buffer_.reset(bytes, bytes.length);        
-        
+
+        rowMutationCtx.buffer_.reset(bytes, bytes.length);
+
         try
         {
-            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(rowMutationCtx.buffer_);
-            RowMutation rm = rmMsg.getRowMutation();
+            RowMutation rm = RowMutation.serializer().deserialize(rowMutationCtx.buffer_);
+            logger_.debug("Applying " + rm);
+
             /* Check if there were any hints in this message */
-            byte[] hintedBytes = message.getHeader(RowMutationMessage.hint_);            
+            byte[] hintedBytes = message.getHeader(RowMutationMessage.hint_);
             if ( hintedBytes != null && hintedBytes.length > 0 )
             {
             	EndPoint hint = EndPoint.fromBytes(hintedBytes);
+                logger_.debug("Adding hint for " + hint);
                 /* add necessary hints to this mutation */
-                try
-                {
-                	RowMutation hintedMutation = new RowMutation(rm.table(), HintedHandOffManager.key_);
-                	hintedMutation.addHints(rm.key() + ":" + hint.getHost());
-                	hintedMutation.apply();
-                }
-                catch ( ColumnFamilyNotDefinedException ex )
-                {
-                    logger_.debug(LogUtil.throwableToString(ex));
-                }
+                RowMutation hintedMutation = new RowMutation(rm.table(), HintedHandOffManager.key_);
+                hintedMutation.addHints(rm.key() + ":" + hint.getHost());
+                hintedMutation.apply();
             }
-            
-            long start = System.currentTimeMillis(); 
-            
+
+            long start = System.currentTimeMillis();
+
             rowMutationCtx.row_.key(rm.key());
             rm.apply(rowMutationCtx.row_);
-            
-            long end = System.currentTimeMillis();                       
-            logger_.info("ROW MUTATION APPLY: " + (end - start) + " ms.");
-            
-            /*WriteResponseMessage writeResponseMessage = new WriteResponseMessage(rm.table(), rm.key(), true);
-            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), new Object[]{writeResponseMessage} );
-            logger_.debug("Sending teh response to " +  message.getFrom() + " for key :" + rm.key());
-            MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());  */                    
-        }         
-        catch( ColumnFamilyNotDefinedException ex )
+
+            long end = System.currentTimeMillis();
+
+            WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);
+            Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
+            logger_.debug("Mutation applied in " + (end - start) + "ms.  Sending response to " +  message.getFrom() + " for key :" + rm.key());
+            MessagingService.getMessagingInstance().sendOneWay(responseMessage, message.getFrom());
+        }
+        catch(ColumnFamilyNotDefinedException ex)
         {
-            logger_.debug(LogUtil.throwableToString(ex));
-        }        
-        catch ( IOException e )
+            // TODO shouldn't this be checked before it's sent to us?
+            logger_.warn("column family not defined, and no way to tell the client", ex);
+        }
+        catch (IOException e)
         {
-            logger_.debug(LogUtil.throwableToString(e));            
-        }        
+            logger_.error("Error in row mutation", e);
+        }
     }
 }
