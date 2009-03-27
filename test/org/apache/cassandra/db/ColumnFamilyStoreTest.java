@@ -73,7 +73,7 @@ public class ColumnFamilyStoreTest extends ServerTest {
         rm = new RowMutation("Table1", "key1");
         ColumnFamily cf = new ColumnFamily("Standard1");
         cf.delete(1);
-        rm.add(cf.name(), cf);
+        rm.add(cf);
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily("key1", "Standard1", new IdentityFilter());
@@ -98,7 +98,7 @@ public class ColumnFamilyStoreTest extends ServerTest {
         SuperColumn sc = new SuperColumn("SC1");
         sc.markForDeleteAt(1);
         cf.addColumn(sc);
-        rm.add(cf.name(), cf);
+        rm.add(cf);
         rm.apply();
 
         List<ColumnFamily> families = store.getColumnFamilies("key1", "Super1", new IdentityFilter());
