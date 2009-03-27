@@ -9,7 +9,7 @@
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="test.dir" value="${basedir}/test"/>
-    <property name="test.classes" value="${basedir}/test/classes"/>
+    <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="final.name" value="cassandra"/>
 
     <!-- 
@@ -106,7 +106,7 @@
   <taskdef resource="testngtasks" classpath="lib/testng-5.8-jdk15.jar"/>
   <target name="test" depends="build-test">
     <echo message="running tests"/>
-    <testng outputDir="${test.dir}/output"
+    <testng outputDir="${build.dir}/test/output"
             haltOnFailure="true"
             verbose="2">
       <jvmarg value="-Dstorage-config=conf"/>
