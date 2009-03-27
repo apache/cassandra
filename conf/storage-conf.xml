@@ -3,8 +3,8 @@
    <HashingStrategy>RANDOM</HashingStrategy>
    <RackAware>false</RackAware>
    <MulticastChannel>230.0.0.1</MulticastChannel>
-   <ReplicationFactor>3</ReplicationFactor>
-   <ZookeeperAddress>myzk.abc.com</ZookeeperAddress>
+   <ReplicationFactor>1</ReplicationFactor>
+   <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <JobTrackerHost>tdsearch001.sf2p.facebook.com</JobTrackerHost>
    <JobJarFileLocation>C:\Engagements\Cassandra-Nexus</JobJarFileLocation>
@@ -12,29 +12,31 @@
    <ControlPort>7001</ControlPort>
    <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
    <HttpPort>7002</HttpPort>
-   <MetadataDirectory>C:\Engagements\Cassandra-Nexus\DB\system</MetadataDirectory>
-   <CommitLogDirectory>C:\Engagements\Cassandra-Nexus\DB\commitlog</CommitLogDirectory>
+   <MetadataDirectory>/var/cassandra/system</MetadataDirectory>
+   <CommitLogDirectory>/var/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
    <GangliaServers>
-     <GangliaServer>myzk.abc.com:9800</GangliaServer>
+     <GangliaServer>127.0.0.1:12000</GangliaServer>
    </GangliaServers>
    <DataFileDirectories>
-     <DataFileDirectory>C:\Engagements\Cassandra-Nexus\DB\data</DataFileDirectory>     
+     <DataFileDirectory>/var/cassandra/data</DataFileDirectory>
    </DataFileDirectories>
-   <CalloutLocation>C:\Engagements\Cassandra-Nexus\DB\callouts</CalloutLocation>
-   <BootstrapFileDirectory>C:\Engagements\Cassandra-Nexus\DB\bootstrap</BootstrapFileDirectory>
-   <StagingFileDirectory>C:\Engagements\Cassandra-Nexus\DB\staging</StagingFileDirectory>
+   <CalloutLocation>/var/cassandra/callouts</CalloutLocation>
+   <BootstrapFileDirectory>/var/cassandra/bootstrap</BootstrapFileDirectory>
+   <StagingFileDirectory>/var/cassandra/staging</StagingFileDirectory>
    <CommitLogFastSync>false</CommitLogFastSync>
-
    <Tables>
-      <Table Name="Mailbox">
-          <ColumnFamily ColumnType="Super" ColumnSort="Time" Name="MailboxMailData0"></ColumnFamily>
-          <ColumnFamily ColumnSort="Time" Name="Test" />
+      <Table Name = "Table1">
+   	    <ColumnFamily Index="Name" Name="Standard1"/>
+   	    <ColumnFamily Index="Name" Name="Standard2"/>
+   	    <ColumnFamily Index="Time" Name="StandardByTime1"/>
+   	    <ColumnFamily Index="Time" Name="StandardByTime2"/>
+   	    <ColumnFamily ColumnType="Super" Index="Name" Name="Super1"/>
+   	    <ColumnFamily ColumnType="Super" Index="Name" Name="Super2"/>
       </Table>
    </Tables>
-
    <Seeds>
-     <Seed>myhost.abc.com</Seed>
-     <Seed>myhost2.abc.com</Seed>
+     <!-- Add names of hosts that are deemed contact points -->
+     <Seed>127.0.0.1</Seed>
    </Seeds>
 </Storage>
