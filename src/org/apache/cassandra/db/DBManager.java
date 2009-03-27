@@ -19,20 +19,17 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.GuidGenerator;
 
 
 /**
@@ -64,23 +61,23 @@ public class DBManager
 
     public static class StorageMetadata
     {
-        private BigInteger storageId_;
+        private Token myToken;
         private int generation_;
 
-        StorageMetadata(BigInteger storageId, int generation)
+        StorageMetadata(Token storageId, int generation)
         {
-            storageId_ = storageId;
+            myToken = storageId;
             generation_ = generation;
         }
 
-        public BigInteger getStorageId()
+        public Token getStorageId()
         {
-            return storageId_;
+            return myToken;
         }
 
-        public void setStorageId(BigInteger storageId)
+        public void setStorageId(Token storageId)
         {
-            storageId_ = storageId;
+            myToken = storageId;
         }
 
         public int getGeneration()
@@ -117,22 +114,17 @@ public class DBManager
         SystemTable sysTable = SystemTable.openSystemTable(SystemTable.name_);
         Row row = sysTable.get(FBUtilities.getHostName());
 
-        Random random = new Random();
+        IPartitioner p = StorageService.getPartitioner();
         if ( row == null )
         {
-        	/* Generate a token for this Storage node */                       
-            String guid = GuidGenerator.guid();
-            BigInteger token = StorageService.hash(guid);
-            if ( token.signum() == -1 )
-                token = token.multiply(BigInteger.valueOf(-1L));
-
+            Token token = p.getDefaultToken();
             int generation = 1;
 
             String key = FBUtilities.getHostName();
             row = new Row(key);
             ColumnFamily cf = new ColumnFamily(SystemTable.cfName_);
-            cf.addColumn(new Column(SystemTable.token_, token.toByteArray()));
-            cf.addColumn(new Column(SystemTable.generation_, BasicUtilities.intToByteArray(generation)));
+            cf.addColumn(new Column(SystemTable.token_, p.getTokenFactory().toByteArray(token)));
+            cf.addColumn(new Column(SystemTable.generation_, BasicUtilities.intToByteArray(generation)) );
             row.addColumnFamily(cf);
             sysTable.apply(row);
             storageMetadata = new StorageMetadata( token, generation);
@@ -147,14 +139,15 @@ public class DBManager
             {
             	ColumnFamily columnFamily = columnFamilies.get(cfName);
 
-                IColumn token = columnFamily.getColumn(SystemTable.token_);
-                BigInteger bi = new BigInteger( token.value() );
+                IColumn tokenColumn = columnFamily.getColumn(SystemTable.token_);
+                Token token = p.getTokenFactory().fromByteArray(tokenColumn.value());
 
                 IColumn generation = columnFamily.getColumn(SystemTable.generation_);
                 int gen = BasicUtilities.byteArrayToInt(generation.value()) + 1;
 
-                columnFamily.addColumn(new Column("Generation", BasicUtilities.intToByteArray(gen), generation.timestamp() + 1));
-                storageMetadata = new StorageMetadata( bi, gen );
+                Column generation2 = new Column("Generation", BasicUtilities.intToByteArray(gen), generation.timestamp() + 1);
+                columnFamily.addColumn(generation2);
+                storageMetadata = new StorageMetadata(token, gen);
                 break;
             }
             sysTable.reset(row);

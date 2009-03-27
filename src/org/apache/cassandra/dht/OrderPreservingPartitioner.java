@@ -19,15 +19,27 @@
 package org.apache.cassandra.dht;
 
 import java.io.UnsupportedEncodingException;
+import java.text.Collator;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Random;
 
 public class OrderPreservingPartitioner implements IPartitioner
 {
+    // TODO make locale configurable.  But don't just leave it up to the OS or you could really screw
+    // people over if they deploy on nodes with different OS locales.
+    static final Collator collator = Collator.getInstance(new Locale("en", "US")); 
+
     private static final Comparator<String> comparator = new Comparator<String>() {
         public int compare(String o1, String o2)
         {
-            return o2.compareTo(o1);
+            return collator.compare(o1, o2);
+        }
+    };
+    private static final Comparator<String> reverseComparator = new Comparator<String>() {
+        public int compare(String o1, String o2)
+        {
+            return -comparator.compare(o1, o2);
         }
     };
 
@@ -41,9 +53,14 @@ public class OrderPreservingPartitioner implements IPartitioner
         return decoratedKey;
     }
 
-    public Comparator<String> getReverseDecoratedKeyComparator()
+    public Comparator<String> getDecoratedKeyComparator()
     {
         return comparator;
+    }
+
+    public Comparator<String> getReverseDecoratedKeyComparator()
+    {
+        return reverseComparator;
     }
 
     public StringToken getDefaultToken()

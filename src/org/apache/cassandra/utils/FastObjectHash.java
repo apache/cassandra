@@ -187,7 +187,7 @@ abstract public class FastObjectHash<T> extends FastHash
         }
         else
         { // already FULL or REMOVED, must probe
-            // compute the double hash
+            // compute the double token
             final int probe = 1 + (hash % (length - 2));
 
             // if the slot we landed on is FULL (but not removed), probe

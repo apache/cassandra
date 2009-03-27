@@ -658,33 +658,6 @@ public class SequenceFile
         }
         
         /**
-         * This is useful in figuring out the key in system. If an OPHF 
-         * is used then the "key" is the application supplied key. If a random
-         * partitioning mechanism is used then the key is of the form 
-         * hash:key where hash is used internally as the key.
-         * 
-         * @param in the DataInput stream from which the key needs to be read
-         * @return the appropriate key based on partitioning type
-         * @throws IOException
-         */
-        protected String readKeyFromDisk(DataInput in) throws IOException
-        {
-            String keyInDisk = null;
-            PartitionerType pType = StorageService.getPartitionerType();
-            switch( pType )
-            {
-                case OPHF:
-                    keyInDisk = in.readUTF();                  
-                    break;
-                    
-                default:
-                    keyInDisk = in.readUTF().split(":")[0];
-                    break;
-            }
-            return keyInDisk;
-        }
-
-        /**
          * This method dumps the next key/value into the DataOuputStream
          * passed in. Always use this method to query for application
          * specific data as it will have indexes.

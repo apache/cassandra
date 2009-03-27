@@ -1118,7 +1118,7 @@ public class ColumnFamilyStore
 	                            continue;
 	                    	}
 	                    }
-	                    if ( Range.isKeyInRanges(ranges, lastkey) )
+	                    if ( Range.isKeyInRanges(lastkey, ranges) )
 	                    {
 	                        if(ssTableRange == null )
 	                        {
@@ -1148,7 +1148,7 @@ public class ColumnFamilyStore
 	                    			continue;
 	                    		}
 	                    		/* keep on looping until we find a key in the range */
-	                            while ( !Range.isKeyInRanges(ranges, filestruct.key_ ) )
+	                            while ( !Range.isKeyInRanges(filestruct.key_, ranges) )
 	                            {
 		                    		filestruct = getNextKey	( filestruct );
 		                    		if(filestruct == null)
@@ -1156,7 +1156,7 @@ public class ColumnFamilyStore
 		                    			break;
 		                    		}
 	        	                    /* check if we need to continue , if we are done with ranges empty the queue and close all file handles and exit */
-	        	                    //if( !isLoop && StorageService.hash(filestruct.key).compareTo(maxRange.right()) > 0 && !filestruct.key.equals(""))
+	        	                    //if( !isLoop && StorageService.token(filestruct.key).compareTo(maxRange.right()) > 0 && !filestruct.key.equals(""))
 	        	                    //{
 	                                    //filestruct.reader.close();
 	                                    //filestruct = null;

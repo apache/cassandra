@@ -18,18 +18,13 @@
 
 package org.apache.cassandra.locator;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.CompactEndPointSerializationHelper;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 
 
@@ -40,9 +35,9 @@ import org.apache.cassandra.net.EndPoint;
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
-    private Map<BigInteger, EndPoint> tokenToEndPointMap_ = new HashMap<BigInteger, EndPoint>();    
+    private Map<Token, EndPoint> tokenToEndPointMap_ = new HashMap<Token, EndPoint>();
     /* Maintains a reverse index of endpoint to token in the cluster. */
-    private Map<EndPoint, BigInteger> endPointToTokenMap_ = new HashMap<EndPoint, BigInteger>();
+    private Map<EndPoint, Token> endPointToTokenMap_ = new HashMap<EndPoint, Token>();
     
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
@@ -51,7 +46,7 @@ public class TokenMetadata
     {
     }
 
-    private TokenMetadata(Map<BigInteger, EndPoint> tokenToEndPointMap, Map<EndPoint, BigInteger> endPointToTokenMap)
+    private TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap)
     {
         tokenToEndPointMap_ = tokenToEndPointMap;
         endPointToTokenMap_ = endPointToTokenMap;
@@ -59,20 +54,18 @@ public class TokenMetadata
     
     public TokenMetadata cloneMe()
     {
-        Map<BigInteger, EndPoint> tokenToEndPointMap = cloneTokenEndPointMap();
-        Map<EndPoint, BigInteger> endPointToTokenMap = cloneEndPointTokenMap();
-        return new TokenMetadata( tokenToEndPointMap, endPointToTokenMap );
+        return new TokenMetadata(cloneTokenEndPointMap(), cloneEndPointTokenMap());
     }
     
     /**
      * Update the two maps in an safe mode. 
     */
-    public void update(BigInteger token, EndPoint endpoint)
+    public void update(Token token, EndPoint endpoint)
     {
         lock_.writeLock().lock();
         try
         {            
-            BigInteger oldToken = endPointToTokenMap_.get(endpoint);
+            Token oldToken = endPointToTokenMap_.get(endpoint);
             if ( oldToken != null )
                 tokenToEndPointMap_.remove(oldToken);
             tokenToEndPointMap_.put(token, endpoint);
@@ -93,7 +86,7 @@ public class TokenMetadata
         lock_.writeLock().lock();
         try
         {            
-            BigInteger oldToken = endPointToTokenMap_.get(endpoint);
+            Token oldToken = endPointToTokenMap_.get(endpoint);
             if ( oldToken != null )
                 tokenToEndPointMap_.remove(oldToken);            
             endPointToTokenMap_.remove(endpoint);
@@ -104,7 +97,7 @@ public class TokenMetadata
         }
     }
     
-    public BigInteger getToken(EndPoint endpoint)
+    public Token getToken(EndPoint endpoint)
     {
         lock_.readLock().lock();
         try
@@ -133,12 +126,12 @@ public class TokenMetadata
     /*
      * Returns a safe clone of tokenToEndPointMap_.
     */
-    public Map<BigInteger, EndPoint> cloneTokenEndPointMap()
+    public Map<Token, EndPoint> cloneTokenEndPointMap()
     {
         lock_.readLock().lock();
         try
         {            
-            return new HashMap<BigInteger, EndPoint>( tokenToEndPointMap_ );
+            return new HashMap<Token, EndPoint>( tokenToEndPointMap_ );
         }
         finally
         {
@@ -149,12 +142,12 @@ public class TokenMetadata
     /*
      * Returns a safe clone of endPointTokenMap_.
     */
-    public Map<EndPoint, BigInteger> cloneEndPointTokenMap()
+    public Map<EndPoint, Token> cloneEndPointTokenMap()
     {
         lock_.readLock().lock();
         try
         {            
-            return new HashMap<EndPoint, BigInteger>( endPointToTokenMap_ );
+            return new HashMap<EndPoint, Token>( endPointToTokenMap_ );
         }
         finally
         {

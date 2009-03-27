@@ -20,16 +20,12 @@ package org.apache.cassandra.tools;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.Serializable;
-import java.math.BigInteger;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -50,16 +46,17 @@ public class TokenUpdater
         }
         
         String ipPort = args[0];
-        String token = args[1];
+        IPartitioner p = StorageService.getPartitioner();
+        Token token = p.getTokenFactory().fromString(args[1]);
         String file = args[2];
         
         String[] ipPortPair = ipPort.split(":");
         EndPoint target = new EndPoint(ipPortPair[0], Integer.valueOf(ipPortPair[1]));
-        TokenInfoMessage tiMessage = new TokenInfoMessage( target, new BigInteger(token) );
-        
+
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
-        TokenInfoMessage.serializer().serialize(tiMessage, dos);
+        Token.serializer().serialize(token, dos);
+
         /* Construct the token update message to be sent */
         Message tokenUpdateMessage = new Message( new EndPoint(FBUtilities.getHostName(), port_), "", StorageService.tokenVerbHandler_, new Object[]{bos.toByteArray()} );
         
@@ -70,8 +67,8 @@ public class TokenUpdater
         {
             String[] nodeTokenPair = line.split(" ");
             /* Add the node and the token pair into the header of this message. */
-            BigInteger nodeToken = new BigInteger(nodeTokenPair[1]);
-            tokenUpdateMessage.addHeader(nodeTokenPair[0], nodeToken.toByteArray());
+            Token nodeToken = p.getTokenFactory().fromString(nodeTokenPair[1]);
+            tokenUpdateMessage.addHeader(nodeTokenPair[0], p.getTokenFactory().toByteArray(nodeToken));
         }
         
         System.out.println("Sending a token update message to " + target);
@@ -79,64 +76,5 @@ public class TokenUpdater
         Thread.sleep(TokenUpdater.waitTime_);
         System.out.println("Done sending the update message");
     }
-    
-    public static class TokenInfoMessage implements Serializable
-    {
-        private static ICompactSerializer<TokenInfoMessage> serializer_;
-        private static AtomicInteger idGen_ = new AtomicInteger(0);
-        
-        static
-        {
-            serializer_ = new TokenInfoMessageSerializer();            
-        }
-        
-        static ICompactSerializer<TokenInfoMessage> serializer()
-        {
-            return serializer_;
-        }
 
-        private EndPoint target_;
-        private BigInteger token_;
-        
-        TokenInfoMessage(EndPoint target, BigInteger token)
-        {
-            target_ = target;
-            token_ = token;
-        }
-        
-        EndPoint getTarget()
-        {
-            return target_;
-        }
-        
-        BigInteger getToken()
-        {
-            return token_;
-        }
-    }
-    
-    public static class TokenInfoMessageSerializer implements ICompactSerializer<TokenInfoMessage>
-    {
-        public void serialize(TokenInfoMessage tiMessage, DataOutputStream dos) throws IOException
-        {
-            byte[] node = EndPoint.toBytes( tiMessage.getTarget() );
-            dos.writeInt(node.length);
-            dos.write(node);
-            
-            byte[] token = tiMessage.getToken().toByteArray();
-            dos.writeInt( token.length );
-            dos.write(token);
-        }
-        
-        public TokenInfoMessage deserialize(DataInputStream dis) throws IOException
-        {
-            byte[] target = new byte[dis.readInt()];
-            dis.readFully(target);
-            
-            byte[] token = new byte[dis.readInt()];
-            dis.readFully(token);
-            
-            return new TokenInfoMessage(EndPoint.fromBytes(target), new BigInteger(token));
-        }
-    }
 }

@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.locator;
 
-import java.math.BigInteger;
 import java.util.Map;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 
 
@@ -32,7 +32,7 @@ import org.apache.cassandra.net.EndPoint;
  */
 public interface IReplicaPlacementStrategy
 {
-	public EndPoint[] getStorageEndPoints(BigInteger token);
-    public EndPoint[] getStorageEndPoints(BigInteger token, Map<BigInteger, EndPoint> tokenToEndPointMap);
-    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(BigInteger token);    
+	public EndPoint[] getStorageEndPoints(Token token);
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap);
+    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token);    
 }

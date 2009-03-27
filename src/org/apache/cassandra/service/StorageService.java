@@ -18,18 +18,30 @@
 
 package org.apache.cassandra.service;
 
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.io.*;
-import java.lang.management.ManagementFactory;
-import java.math.BigInteger;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.analytics.AnalyticsContext;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -55,7 +67,11 @@ import org.apache.cassandra.db.TouchVerbHandler;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.BootstrapMetadataVerbHandler;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.FailureDetector;
@@ -77,16 +93,12 @@ import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.tools.TokenUpdateVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.commons.math.linear.RealMatrix;
-import org.apache.commons.math.linear.RealMatrixImpl;
-import org.apache.log4j.Logger;
-
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 
 /*
@@ -126,7 +138,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String calloutDeployVerbHandler_ = "CALLOUT-DEPLOY-VERB-HANDLER";
     public final static String touchVerbHandler_ = "TOUCH-VERB-HANDLER";
-    
+
     public static enum ConsistencyLevel
     {
     	WEAK,
@@ -160,9 +172,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * function used by the system for
      * partitioning.
     */
-    public static BigInteger hash(String key)
+    public static Token token(String key)
     {
-        return partitioner_.hash(key);
+        return partitioner_.getTokenForKey(key);
     }
 
     public static IPartitioner getPartitioner() {
@@ -424,7 +436,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         String hashingStrategy = DatabaseDescriptor.getHashingStrategy();
         if (DatabaseDescriptor.ophf_.equalsIgnoreCase(hashingStrategy))
         {
-            partitioner_ = new OrderPreservingHashPartitioner();
+            partitioner_ = new OrderPreservingPartitioner();
         }        
         else
         {
@@ -525,7 +537,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /* TODO: remove later */
-    public void updateTokenMetadata(BigInteger token, EndPoint endpoint)
+    public void updateTokenMetadata(Token token, EndPoint endpoint)
     {
         tokenMetadata_.update(token, endpoint);
     }
@@ -571,8 +583,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Map<Range, List<EndPoint>> getRangeToEndPointMap()
     {
         /* Get the token to endpoint map. */
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Set<BigInteger> tokens = tokenToEndPointMap.keySet();
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Set<Token> tokens = tokenToEndPointMap.keySet();
         /* All the ranges for the tokens */
         Range[] ranges = getAllRanges(tokens);
         Map<Range, List<EndPoint>> oldRangeToEndPointMap = constructRangeToEndPointMap(ranges);
@@ -605,7 +617,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param tokenToEndPointMap mapping of token to endpoints.
      * @return mapping of ranges to the replicas responsible for them.
     */
-    public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges, Map<BigInteger, EndPoint> tokenToEndPointMap)
+    public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges, Map<Token, EndPoint> tokenToEndPointMap)
     {
         logger_.debug("Constructing range to endpoint map ...");
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
@@ -627,7 +639,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Map<EndPoint, List<Range>> constructEndPointToRangesMap()
     {
         Map<EndPoint, List<Range>> endPointToRangesMap = new HashMap<EndPoint, List<Range>>();
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         Collection<EndPoint> mbrs = tokenToEndPointMap.values();
         for ( EndPoint mbr : mbrs )
         {
@@ -648,9 +660,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         ApplicationState nodeIdState = epState.getApplicationState(StorageService.nodeId_);
         if (nodeIdState != null)
         {
-            BigInteger newToken = new BigInteger(nodeIdState.getState());
+            Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
             logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + nodeIdState.getState());
-            BigInteger oldToken = tokenMetadata_.getToken(ep);
+            Token oldToken = tokenMetadata_.getToken(ep);
 
             if ( oldToken != null )
             {
@@ -732,7 +744,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method updates the token on disk and modifies the cached
      * StorageMetadata instance. This is only for the local endpoint.
     */
-    public void updateToken(BigInteger token) throws IOException
+    public void updateToken(Token token) throws IOException
     {
         /* update the token on disk */
         SystemTable.openSystemTable(SystemTable.name_).updateToken(token);
@@ -773,12 +785,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
     	if ( keys.length > 0 )
     	{
-            BigInteger token = tokenMetadata_.getToken(StorageService.tcpAddr_);
-	        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-	        BigInteger[] tokens = tokenToEndPointMap.keySet().toArray( new BigInteger[0] );
+            Token token = tokenMetadata_.getToken(StorageService.tcpAddr_);
+	        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+	        Token[] tokens = tokenToEndPointMap.keySet().toArray(new Token[tokenToEndPointMap.keySet().size()]);
 	        Arrays.sort(tokens);
 	        int index = Arrays.binarySearch(tokens, token) * (keys.length/tokens.length);
-	        BigInteger newToken = hash( keys[index] );
+	        Token newToken = token( keys[index] );
 	        /* update the token */
 	        updateToken(newToken);
     	}
@@ -816,7 +828,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }        
         String[] allNodes = nodesToLoad.split(":");
         EndPoint[] endpoints = new EndPoint[allNodes.length];
-        BigInteger[] tokens = new BigInteger[allNodes.length];
+        Token[] tokens = new Token[allNodes.length];
         
         for ( int i = 0; i < allNodes.length; ++i )
         {
@@ -852,8 +864,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         switch ( mode )
         {
             case FULL:
-                BigInteger token = tokenMetadata_.getToken(endpoint);
-                bootStrapper_.submit( new BootStrapper(new EndPoint[]{endpoint}, new BigInteger[]{token}) );
+                Token token = tokenMetadata_.getToken(endpoint);
+                bootStrapper_.submit(new BootStrapper(new EndPoint[]{endpoint}, token));
                 break;
 
             case HINT:
@@ -871,25 +883,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public String getToken(EndPoint ep)
     {
         EndPoint ep2 = new EndPoint(ep.getHost(), DatabaseDescriptor.getStoragePort());
-        BigInteger token = tokenMetadata_.getToken(ep2);
-        return ( token == null ) ? BigInteger.ZERO.toString() : token.toString();
+        Token token = tokenMetadata_.getToken(ep2);
+        return ( token == null ) ? "" : token.toString();
     }
 
     public String getToken()
     {
         return tokenMetadata_.getToken(StorageService.tcpAddr_).toString();
-    }
-    
-    public void updateToken(String token)
-    {
-        try
-        {
-            updateToken(new BigInteger(token));
-        }
-        catch ( IOException ex )
-        {
-            logger_.debug(LogUtil.throwableToString(ex));
-        }
     }
 
     public String getLiveNodes()
@@ -973,9 +973,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     EndPoint getPredecessor(EndPoint ep)
     {
-        BigInteger token = tokenMetadata_.getToken(ep);
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        Token token = tokenMetadata_.getToken(ep);
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         EndPoint predecessor = (index == 0) ? tokenToEndPointMap.get(tokens
@@ -990,9 +990,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public EndPoint getSuccessor(EndPoint ep)
     {
-        BigInteger token = tokenMetadata_.getToken(ep);
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        Token token = tokenMetadata_.getToken(ep);
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         EndPoint successor = (index == (tokens.size() - 1)) ? tokenToEndPointMap
@@ -1008,9 +1008,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public Range getPrimaryRangeForEndPoint(EndPoint ep)
     {
-        BigInteger right = tokenMetadata_.getToken(ep);
+        Token right = tokenMetadata_.getToken(ep);
         EndPoint predecessor = getPredecessor(ep);
-        BigInteger left = tokenMetadata_.getToken(predecessor);
+        Token left = tokenMetadata_.getToken(predecessor);
         return new Range(left, right);
     }
     
@@ -1041,10 +1041,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * ranges.
      * @return ranges in sorted order
     */
-    public Range[] getAllRanges(Set<BigInteger> tokens)
+    public Range[] getAllRanges(Set<Token> tokens)
     {
         List<Range> ranges = new ArrayList<Range>();
-        List<BigInteger> allTokens = new ArrayList<BigInteger>(tokens);
+        List<Token> allTokens = new ArrayList<Token>(tokens);
         Collections.sort(allTokens);
         int size = allTokens.size();
         for ( int i = 1; i < size; ++i )
@@ -1067,9 +1067,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public EndPoint getPrimary(String key)
     {
         EndPoint endpoint = StorageService.tcpAddr_;
-        BigInteger token = hash(key);
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        Token token = token(key);
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         if (tokens.size() > 0)
         {
             Collections.sort(tokens);
@@ -1115,7 +1115,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public EndPoint[] getNStorageEndPoint(String key)
     {
-        BigInteger token = hash(key);
+        Token token = token(key);
         return nodePicker_.getStorageEndPoints(token);
     }
 
@@ -1150,7 +1150,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public Map<EndPoint, EndPoint> getNStorageEndPointMap(String key)
     {
-        BigInteger token = hash(key);
+        Token token = token(key);
         return nodePicker_.getHintedStorageEndPoints(token);
     }
 
@@ -1160,7 +1160,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      *
      * param @ token - position on the ring
      */
-    public EndPoint[] getNStorageEndPoint(BigInteger token)
+    public EndPoint[] getNStorageEndPoint(Token token)
     {
         return nodePicker_.getStorageEndPoints(token);
     }
@@ -1173,7 +1173,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * param @ token - position on the ring
      * param @ tokens - w/o the following tokens in the token list
      */
-    protected EndPoint[] getNStorageEndPoint(BigInteger token, Map<BigInteger, EndPoint> tokenToEndPointMap)
+    protected EndPoint[] getNStorageEndPoint(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         return nodePicker_.getStorageEndPoints(token, tokenToEndPointMap);
     }

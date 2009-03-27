@@ -25,7 +25,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.BigIntegerToken;
-import org.apache.cassandra.service.StorageService;
 
 /**
  * This class generates a MD5 hash of the key. It uses the standard technique
@@ -41,7 +40,13 @@ public class RandomPartitioner implements IPartitioner
         {
             BigInteger i1 = new BigInteger(o1.split(":")[0]);
             BigInteger i2 = new BigInteger(o2.split(":")[0]);
-            return i2.compareTo(i1);
+            return i1.compareTo(i2);
+        }
+    };
+    private static final Comparator<String> reverseComparator = new Comparator<String>() {
+        public int compare(String o1, String o2)
+        {
+           return -comparator.compare(o1, o2);
         }
     };
 
@@ -60,9 +65,14 @@ public class RandomPartitioner implements IPartitioner
         return decoratedKey.split(":")[1];
     }
 
-    public Comparator<String> getReverseDecoratedKeyComparator()
+    public Comparator<String> getDecoratedKeyComparator()
     {
         return comparator;
+    }
+
+    public Comparator<String> getReverseDecoratedKeyComparator()
+    {
+        return reverseComparator;
     }
 
     public BigIntegerToken getDefaultToken()

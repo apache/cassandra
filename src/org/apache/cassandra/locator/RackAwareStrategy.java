@@ -1,6 +1,5 @@
 package org.apache.cassandra.locator;
 
-import java.math.BigInteger;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -8,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
@@ -27,7 +27,7 @@ public class RackAwareStrategy extends AbstractStrategy
         super(tokenMetadata);
     }
     
-    public EndPoint[] getStorageEndPoints(BigInteger token)
+    public EndPoint[] getStorageEndPoints(Token token)
     {
         int startIndex = 0 ;
         List<EndPoint> list = new ArrayList<EndPoint>();
@@ -35,8 +35,8 @@ public class RackAwareStrategy extends AbstractStrategy
         boolean bOtherRack = false;
         int foundCount = 0;
         int N = DatabaseDescriptor.getReplicationFactor();
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        List tokens = new ArrayList(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
@@ -107,7 +107,7 @@ public class RackAwareStrategy extends AbstractStrategy
         return list.toArray(new EndPoint[0]);
     }
 
-    public EndPoint[] getStorageEndPoints(BigInteger token, Map<BigInteger, EndPoint> tokenToEndPointMap)
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         throw new UnsupportedOperationException("This operation is not currently supported");
     }

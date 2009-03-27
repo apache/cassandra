@@ -28,6 +28,8 @@ public interface IPartitioner
 
     public String undecorateKey(String decoratedKey);
 
+    public Comparator<String> getDecoratedKeyComparator();
+
     public Comparator<String> getReverseDecoratedKeyComparator();
 
     public Token getTokenForKey(String key);

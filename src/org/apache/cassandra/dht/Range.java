@@ -21,17 +21,9 @@ package org.apache.cassandra.dht;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.gms.GossipDigest;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.IFileWriter;
-import org.apache.cassandra.net.CompactEndPointSerializationHelper;
-import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 
 
@@ -51,28 +43,12 @@ public class Range implements Comparable<Range>
     public static ICompactSerializer<Range> serializer()
     {
         return serializer_;
-    }
+    }       
+
+    private Token left_;
+    private Token right_;
     
-    public static boolean isKeyInRanges(List<Range> ranges, String key)
-    {
-        if(ranges == null ) 
-            return false;
-        
-        for ( Range range : ranges)
-        {
-            if(range.contains(StorageService.hash(key)))
-            {
-                return true ;
-            }
-        }
-        return false;
-    }
-        
-    
-    private BigInteger left_;
-    private BigInteger right_;
-    
-    public Range(BigInteger left, BigInteger right)
+    public Range(Token left, Token right)
     {
         left_ = left;
         right_ = right;
@@ -82,7 +58,7 @@ public class Range implements Comparable<Range>
      * Returns the left endpoint of a range.
      * @return left endpoint
      */
-    public BigInteger left()
+    public Token left()
     {
         return left_;
     }
@@ -91,7 +67,7 @@ public class Range implements Comparable<Range>
      * Returns the right endpoint of a range.
      * @return right endpoint
      */
-    public BigInteger right()
+    public Token right()
     {
         return right_;
     }
@@ -102,9 +78,9 @@ public class Range implements Comparable<Range>
      * @param bi point in question
      * @return true if the point contains within the range else false.
      */
-    public boolean contains(BigInteger bi)
+    public boolean contains(Token bi)
     {
-        if ( left_.subtract(right_).signum() > 0 )
+        if ( left_.compareTo(right_) > 0 )
         {
             /* 
              * left is greater than right we are wrapping around.
@@ -114,16 +90,16 @@ public class Range implements Comparable<Range>
              * (2) k < b -- return true
              * (3) b < k < a -- return false
             */
-            if ( bi.subtract(left_).signum() >= 0 )
+            if ( bi.compareTo(left_) >= 0 )
                 return true;
-            else return right_.subtract(bi).signum() > 0;
+            else return right_.compareTo(bi) > 0;
         }
-        else if ( left_.subtract(right_).signum() < 0 )
+        else if ( left_.compareTo(right_) < 0 )
         {
             /*
              * This is the range [a, b) where a < b. 
             */
-            return ( bi.subtract(left_).signum() >= 0 && right_.subtract(bi).signum() >=0 );
+            return ( bi.compareTo(left_) >= 0 && right_.compareTo(bi) >=0 );
         }        
         else
     	{
@@ -136,9 +112,9 @@ public class Range implements Comparable<Range>
      * @param range
      * @return
      */
-    private boolean isWrapAround(Range range)
+    private static boolean isWrapAround(Range range)
     {
-        return range.left_.subtract(range.right_).signum() > 0;
+        return range.left_.compareTo(range.right_) > 0;
     }
     
     public int compareTo(Range rhs)
@@ -156,6 +132,22 @@ public class Range implements Comparable<Range>
         return right_.compareTo(rhs.right_);
     }
     
+
+    public static boolean isKeyInRanges(String key, List<Range> ranges)
+    {
+        assert ranges != null;
+
+        Token token = StorageService.token(key);
+        for (Range range : ranges)
+        {
+            if(range.contains(token))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean equals(Object o)
     {
         if ( !(o instanceof Range) )
@@ -178,15 +170,13 @@ public class Range implements Comparable<Range>
 class RangeSerializer implements ICompactSerializer<Range>
 {
     public void serialize(Range range, DataOutputStream dos) throws IOException
-    {        
-        dos.writeUTF(range.left().toString());
-        dos.writeUTF(range.right().toString());
+    {
+        Token.serializer().serialize(range.left(), dos);
+        Token.serializer().serialize(range.right(), dos);
     }
 
     public Range deserialize(DataInputStream dis) throws IOException
     {
-        BigInteger left = new BigInteger(dis.readUTF());
-        BigInteger right = new BigInteger(dis.readUTF());        
-        return new Range(left, right);
+        return new Range(Token.serializer().deserialize(dis), Token.serializer().deserialize(dis));
     }
 }

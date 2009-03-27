@@ -1,6 +1,5 @@
 package org.apache.cassandra.locator;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -8,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 
 
@@ -27,18 +27,18 @@ public class RackUnawareStrategy extends AbstractStrategy
         super(tokenMetadata);
     }
     
-    public EndPoint[] getStorageEndPoints(BigInteger token)
+    public EndPoint[] getStorageEndPoints(Token token)
     {
         return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());            
     }
     
-    public EndPoint[] getStorageEndPoints(BigInteger token, Map<BigInteger, EndPoint> tokenToEndPointMap)
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         int startIndex = 0 ;
         List<EndPoint> list = new ArrayList<EndPoint>();
         int foundCount = 0;
         int N = DatabaseDescriptor.getReplicationFactor();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
