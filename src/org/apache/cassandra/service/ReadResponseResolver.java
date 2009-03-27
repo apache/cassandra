@@ -37,8 +37,8 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 
-/*
- * This class is used by all read functions and is called by the Qorum 
+/**
+ * This class is used by all read functions and is called by the Quorum 
  * when atleast a few of the servers ( few is specified in Quorum)
  * have sent the response . The resolve fn then schedules read repair 
  * and resolution of read data from the various servers.
@@ -46,7 +46,6 @@ import org.apache.log4j.Logger;
  */
 public class ReadResponseResolver implements IResponseResolver<Row>
 {
-
 	private static Logger logger_ = Logger.getLogger(WriteResponseResolver.class);
 
 	/*
@@ -101,15 +100,16 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                 logger_.info(LogUtil.throwableToString(ex));
             }
 		}
-		// If there was a digest query compare it withh all teh data digests 
-		// If there is a mismatch then thwrow an exception so that read repair can happen.
+		// If there was a digest query compare it with all the data digests 
+		// If there is a mismatch then throw an exception so that read repair can happen.
 		if(isDigestQuery)
 		{
 			for(Row row: rowList)
 			{
 				if( !Arrays.equals(row.digest(), digest) )
 				{
-					throw new DigestMismatchException("The Digest does not match");
+                    /* Wrap the key as the context in this exception */
+					throw new DigestMismatchException(row.key());
 				}
 			}
 		}
@@ -141,13 +141,13 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 				continue;
 			// create the row mutation message based on the diff and schedule a read repair 
 			RowMutation rowMutation = new RowMutation(table, key);            			
-	    	Map<String, ColumnFamily> columnFamilies = diffRow.getColumnFamilyMap();
+	    	Map<String, ColumnFamily> columnFamilies = diffRow.getColumnFamilies();
 	        Set<String> cfNames = columnFamilies.keySet();
 	        
 	        for ( String cfName : cfNames )
 	        {
 	            ColumnFamily cf = columnFamilies.get(cfName);
-	            rowMutation.add(cf);
+	            rowMutation.add(cfName, cf);
 	        }
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
 	        // schedule the read repair

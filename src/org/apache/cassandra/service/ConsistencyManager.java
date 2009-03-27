@@ -58,6 +58,11 @@ class ConsistencyManager implements Runnable
 			if ( responses_.size() == ConsistencyManager.this.replicas_.size() )
 				handleDigestResponses();
 		}
+        
+        public void attachContext(Object o)
+        {
+            throw new UnsupportedOperationException("This operation is not currently supported.");
+        }
 		
 		private void handleDigestResponses()
 		{
@@ -91,7 +96,8 @@ class ConsistencyManager implements Runnable
             replicas_.add(StorageService.getLocalStorageEndPoint());
 			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
 			String table = DatabaseDescriptor.getTables().get(0);
-			ReadMessage readMessage = new ReadMessage(table, row_.key(), columnFamily_);
+            ReadMessage readMessage = constructReadMessage(false);
+			// ReadMessage readMessage = new ReadMessage(table, row_.key(), columnFamily_);
             Message message = ReadMessage.makeReadMessage(readMessage);
 			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray( new EndPoint[0] ), responseHandler);			
 		}
@@ -116,10 +122,14 @@ class ConsistencyManager implements Runnable
 			if ( responses_.size() == majority_ )
 			{
 				String messageId = message.getMessageId();
-				readRepairTable_.put(messageId, messageId, this);
-				// handleResponses();
+				readRepairTable_.put(messageId, messageId, this);				
 			}
 		}
+        
+        public void attachContext(Object o)
+        {
+            throw new UnsupportedOperationException("This operation is not currently supported.");
+        }
 		
 		public void callMe(String key, String value)
 		{
@@ -176,30 +186,8 @@ class ConsistencyManager implements Runnable
 
 	public void run()
 	{
-		logger_.debug(" Run the consistency checks for " + columnFamily_);
-		String table = DatabaseDescriptor.getTables().get(0);
-		ReadMessage readMessageDigestOnly = null;
-		if(columnNames_.size() == 0)
-		{
-			if( start_ >= 0 && count_ < Integer.MAX_VALUE)
-			{
-				readMessageDigestOnly = new ReadMessage(table, row_.key(), columnFamily_, start_, count_);
-			}
-			else if(sinceTimestamp_ > 0)
-			{
-				readMessageDigestOnly = new ReadMessage(table, row_.key(), columnFamily_, sinceTimestamp_);
-			}
-			else
-			{
-				readMessageDigestOnly = new ReadMessage(table, row_.key(), columnFamily_);
-			}
-		}
-		else
-		{
-			readMessageDigestOnly = new ReadMessage(table, row_.key(), columnFamily_, columnNames_);
-			
-		}
-		readMessageDigestOnly.setIsDigestQuery(true);
+		logger_.debug(" Run the consistency checks for " + columnFamily_);		
+        ReadMessage readMessageDigestOnly = constructReadMessage(true);
 		try
 		{
 			Message messageDigestOnly = ReadMessage.makeReadMessage(readMessageDigestOnly);
@@ -211,4 +199,33 @@ class ConsistencyManager implements Runnable
 			logger_.info(LogUtil.throwableToString(ex));
 		}
 	}
+    
+    private ReadMessage constructReadMessage(boolean isDigestQuery)
+    {
+        ReadMessage readMessage = null;
+        String table = DatabaseDescriptor.getTables().get(0);
+        
+        if(columnNames_.size() == 0)
+        {
+            if( start_ >= 0 && count_ < Integer.MAX_VALUE)
+            {
+                readMessage = new ReadMessage(table, row_.key(), columnFamily_, start_, count_);
+            }
+            else if(sinceTimestamp_ > 0)
+            {
+                readMessage = new ReadMessage(table, row_.key(), columnFamily_, sinceTimestamp_);
+            }
+            else
+            {
+                readMessage = new ReadMessage(table, row_.key(), columnFamily_);
+            }
+        }
+        else
+        {
+            readMessage = new ReadMessage(table, row_.key(), columnFamily_, columnNames_);
+            
+        }
+        readMessage.setIsDigestQuery(isDigestQuery);
+        return readMessage;
+    }
 }

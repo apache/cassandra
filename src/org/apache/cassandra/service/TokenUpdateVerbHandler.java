@@ -19,13 +19,12 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
-import org.apache.log4j.Logger;
-
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.log4j.Logger;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -38,7 +37,7 @@ public class TokenUpdateVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {
     	byte[] body = (byte[])message.getMessageBody()[0];
-        Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(body);
+        BigInteger token = new BigInteger(body);
         try
         {
         	logger_.info("Updating the token to [" + token + "]");

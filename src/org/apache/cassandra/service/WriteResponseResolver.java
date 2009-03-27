@@ -20,7 +20,7 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 
-import org.apache.cassandra.db.WriteResponse;
+import org.apache.cassandra.db.WriteResponseMessage;
 import org.apache.cassandra.net.Message;
 import org.apache.log4j.Logger;
 
@@ -47,11 +47,11 @@ public class WriteResponseResolver implements IResponseResolver<Boolean> {
 		boolean returnValue = false;
 		for (Message response : responses) {
 			Object[] body = response.getMessageBody();
-			WriteResponse writeResponse = (WriteResponse) body[0];
-			boolean result = writeResponse.isSuccess();
+			WriteResponseMessage writeResponseMessage = (WriteResponseMessage) body[0];
+			boolean result = writeResponseMessage.isSuccess();
 			if (!result) {
 				logger_.debug("Write at " + response.getFrom()
-						+ " may have failed for the key " + writeResponse.key());
+						+ " may have failed for the key " + writeResponseMessage.key());
 			}
 			returnValue |= result;
 		}

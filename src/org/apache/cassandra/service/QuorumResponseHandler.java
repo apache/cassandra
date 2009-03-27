@@ -26,12 +26,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.WriteResponseMessage;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-
+import org.apache.cassandra.utils.*;
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -121,5 +122,10 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
         {
             lock_.unlock();
         }
+    }
+    
+    public void attachContext(Object o)
+    {
+        throw new UnsupportedOperationException("This operation is not supported in this version of the callback handler");
     }
 }
