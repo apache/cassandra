@@ -62,7 +62,7 @@ public class CountFilter implements IFilter
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
     		{
-    			filteredCf.addColumn(column.name(), column);
+    			filteredCf.addColumn(column);
     			countLimit_--;
     			if( countLimit_ <= 0 )
     			{
@@ -78,7 +78,7 @@ public class CountFilter implements IFilter
     		{
     			SuperColumn superColumn = (SuperColumn)column;
     			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
-				filteredCf.addColumn(filteredSuperColumn.name(), filteredSuperColumn);
+				filteredCf.addColumn(filteredSuperColumn);
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		for(IColumn subColumn : subColumns)
         		{

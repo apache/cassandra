@@ -58,7 +58,7 @@ class TimeFilter implements IFilter
     		{
     			if ( column.timestamp() >=  timeLimit_ )
     			{
-    				filteredCf.addColumn(column.name(), column);
+    				filteredCf.addColumn(column);
     				++i;
     			}
     			else
@@ -82,8 +82,8 @@ class TimeFilter implements IFilter
     		for(IColumn column : columns)
     		{
     			SuperColumn superColumn = (SuperColumn)column;
-    			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
-				filteredCf.addColumn(filteredSuperColumn.name(), filteredSuperColumn);
+       			SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
+				filteredCf.addColumn(filteredSuperColumn);
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		int i = 0;
         		for(IColumn subColumn : subColumns)

@@ -359,7 +359,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         		if(column != null )
         		{
         			columnFamily = new ColumnFamily(cfName_);
-        			columnFamily.addColumn(column.name(), column);
+        			columnFamily.addColumn(column);
         		}
         	}
         	else
