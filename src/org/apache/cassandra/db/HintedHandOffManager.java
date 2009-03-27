@@ -142,7 +142,7 @@ public class HintedHandOffManager implements IComponentShutdown
             	if(hintedColumnFamily == null)
             	{
                     // Force flush now
-                    columnFamilyStore_.forceFlush(false);
+                    columnFamilyStore_.forceFlush();
             		return;
             	}
             	Collection<IColumn> keys = hintedColumnFamily.getAllColumns();
@@ -177,7 +177,7 @@ public class HintedHandOffManager implements IComponentShutdown
                 	}
             	}
                 // Force flush now
-                columnFamilyStore_.forceFlush(false);
+                columnFamilyStore_.forceFlush();
 
                 // Now do a major compaction
                 columnFamilyStore_.forceCompaction(null, null, 0, null);

@@ -395,11 +395,11 @@ public class ColumnFamilyStore
         binaryMemtable_.get().put(key, buffer);
     }
 
-    void forceFlush(boolean fRecovery) throws IOException
+    void forceFlush() throws IOException
     {
         //MemtableManager.instance().submit(getColumnFamilyName(), memtable_.get() , CommitLog.CommitLogContext.NULL);
         //memtable_.get().flush(true, CommitLog.CommitLogContext.NULL);
-        memtable_.get().forceflush(this, fRecovery);
+        memtable_.get().forceflush(this);
     }
 
     void forceFlushBinary() throws IOException
@@ -1511,5 +1511,15 @@ public class ColumnFamilyStore
         logger_.debug("Total bytes written for compaction  ..."
                 + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
         return;
+    }
+
+    public boolean isSuper()
+    {
+        return DatabaseDescriptor.getColumnType(getColumnFamilyName()).equals("Super");
+    }
+
+    public void flushMemtableOnRecovery() throws IOException
+    {
+        memtable_.get().flushOnRecovery();
     }
 }
