@@ -51,7 +51,7 @@ public class SSTableTest
             ColumnFamily cf = new ColumnFamily("Test", "Standard");
             bufOut.reset();           
             // random.nextBytes(bytes);
-            cf.createColumn("C", "Avinash Lakshman is a good man".getBytes(), i);
+            cf.addColumn("C", "Avinash Lakshman is a good man".getBytes(), i);
             ColumnFamily.serializerWithIndexes().serialize(cf, bufOut);
             ssTable.append(key, bufOut);            
             bf.fill(key);
@@ -69,7 +69,7 @@ public class SSTableTest
             String key = Integer.toString(i);
             ColumnFamily cf = new ColumnFamily("Test", "Standard");                      
             // random.nextBytes(bytes);
-            cf.createColumn("C", "Avinash Lakshman is a good man".getBytes(), i);
+            cf.addColumn("C", "Avinash Lakshman is a good man".getBytes(), i);
             columnFamilies.put(key, cf);
         } 
         flushForRandomPartitioner(columnFamilies);
