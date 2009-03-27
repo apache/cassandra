@@ -30,8 +30,7 @@
         <mkdir dir="${test.classes}"/>
     </target>
     <target name="clean">
-        <delete dir="${build.classes}"/>
-        <delete dir="${test.classes}"/>
+        <delete dir="${build.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
 
