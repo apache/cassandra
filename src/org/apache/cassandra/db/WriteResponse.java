@@ -38,40 +38,26 @@ import org.apache.cassandra.service.StorageService;
  * key in a table
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-public class WriteResponse implements Serializable
+public class WriteResponse 
 {
-private static ICompactSerializer<WriteResponse> serializer_;
+    private static WriteResponseSerializer serializer_ = new WriteResponseSerializer();
 
-    static
-    {
-        serializer_ = new WriteResponseSerializer();
-    }
-
-    static ICompactSerializer<WriteResponse> serializer()
+    public static WriteResponseSerializer serializer()
     {
         return serializer_;
     }
-	
-    public static Message makeWriteResponseMessage(WriteResponse writeResponse) throws IOException
+
+    public static Message makeWriteResponseMessage(Message original, WriteResponse writeResponseMessage) throws IOException
     {
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        WriteResponse.serializer().serialize(writeResponse, dos);
-        Message message = new Message(StorageService.getLocalStorageEndPoint(), MessagingService.responseStage_, MessagingService.responseVerbHandler_, new Object[]{bos.toByteArray()});         
-        return message;
+        WriteResponse.serializer().serialize(writeResponseMessage, dos);
+        return original.getReply(StorageService.getLocalStorageEndPoint(), bos.toByteArray());
     }
-    
-	@XmlElement(name = "Table")
-	private String table_;
 
-	@XmlElement(name = "key")
-	private String key_;
-	
-	@XmlElement(name = "Status")
-	private boolean status_;
-	
-	private WriteResponse() {
-	}
+	private final String table_;
+	private final String key_;
+	private final boolean status_;
 
 	public WriteResponse(String table, String key, boolean bVal) {
 		table_ = table;
@@ -79,36 +65,36 @@ private static ICompactSerializer<WriteResponse> serializer_;
 		status_ = bVal;
 	}
 
-	public String table() 
+	public String table()
 	{
 		return table_;
 	}
 
-	public String key() 
+	public String key()
 	{
 		return key_;
 	}
-	
+
 	public boolean isSuccess()
 	{
 		return status_;
 	}
-}
 
-class WriteResponseSerializer implements ICompactSerializer<WriteResponse>
-{
-	public void serialize(WriteResponse wm, DataOutputStream dos) throws IOException
-	{
-		dos.writeUTF(wm.table());
-		dos.writeUTF(wm.key());
-		dos.writeBoolean(wm.isSuccess());
-	}
-	
-    public WriteResponse deserialize(DataInputStream dis) throws IOException
+    public static class WriteResponseSerializer implements ICompactSerializer<WriteResponse>
     {
-    	String table = dis.readUTF();
-    	String key = dis.readUTF();
-    	boolean status = dis.readBoolean();
-    	return new WriteResponse(table, key, status);
+        public void serialize(WriteResponse wm, DataOutputStream dos) throws IOException
+        {
+            dos.writeUTF(wm.table());
+            dos.writeUTF(wm.key());
+            dos.writeBoolean(wm.isSuccess());
+        }
+
+        public WriteResponse deserialize(DataInputStream dis) throws IOException
+        {
+            String table = dis.readUTF();
+            String key = dis.readUTF();
+            boolean status = dis.readBoolean();
+            return new WriteResponse(table, key, status);
+        }
     }
 }
