@@ -105,14 +105,24 @@ class AsyncResult implements IAsyncResult
         return result_;
     }
     
-    void result(Object[] result)
+    public List<Object[]> multiget()
+    {
+        throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
+    }
+    
+    public List<Object[]> multiget(long timeout, TimeUnit tu) throws TimeoutException
+    {
+        throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
+    }
+    
+    public void result(Message response)
     {        
         try
         {
             lock_.lock();
             if ( !done_.get() )
-            {
-                result_ = result;
+            {                
+                result_ = response.getMessageBody();
                 done_.set(true);
                 condition_.signal();
             }

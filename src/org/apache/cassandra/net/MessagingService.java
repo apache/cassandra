@@ -417,7 +417,54 @@ public class MessagingService implements IMessagingService, MessagingServiceMBea
             sendOneWay(messages[i], to[i]);
         }
         return groupId;
-    }    
+    } 
+    
+    public IAsyncResult sendRR(Message[] messages, EndPoint[] to)
+    {
+        if ( messages.length != to.length )
+        {
+            throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
+        }
+        
+        IAsyncResult iar = new MultiAsyncResult(messages.length);
+        String groupId = GuidGenerator.guid();
+        taskCompletionMap_.put(groupId, iar);
+        for ( int i = 0; i < messages.length; ++i )
+        {
+            messages[i].setMessageId(groupId);
+            sendOneWay(messages[i], to[i]);
+        }
+        
+        return iar;
+    }
+    
+    public String sendRR(Message[][] messages, EndPoint[][] to, IAsyncCallback cb)
+    {
+        if ( messages.length != to.length )
+        {
+            throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
+        }
+        
+        int length = messages.length;
+        String[] gids = new String[length];
+        /* Generate the requisite GUID's */
+        for ( int i = 0; i < length; ++i )
+        {
+            gids[i] = GuidGenerator.guid();
+        }
+        /* attach this context to the callback */
+        cb.attachContext(gids);
+        for ( int i = 0; i < length; ++i )
+        {
+            callbackMap_.put(gids[i], cb);
+            for ( int j = 0; j < messages[i].length; ++j )
+            {
+                messages[i][j].setMessageId(gids[i]);
+                sendOneWay(messages[i][j], to[i][j]);
+            }            
+        }      
+        return gids[0];
+    }
 
     /*
         Use this version for fire and forget style messaging.

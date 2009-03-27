@@ -39,11 +39,11 @@ class ResponseVerbHandler implements IVerbHandler
         }
         else
         {            
-            AsyncResult ar = (AsyncResult)MessagingService.getAsyncResult(messageId);
+            IAsyncResult ar = MessagingService.getAsyncResult(messageId);
             if ( ar != null )
             {
                 logger_.info("Processing response on an async result from " + message.getFrom());
-                ar.result(message.getMessageBody());
+                ar.result(message);
             }
         }
     }

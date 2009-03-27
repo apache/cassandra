@@ -27,8 +27,49 @@ import java.util.concurrent.TimeoutException;
  */
 
 public interface IAsyncResult
-{
-    public Object[] get();
+{    
+    /**
+     * This is used to check if the task has been completed
+     * 
+     * @return true if the task has been completed and false otherwise.
+     */
     public boolean isDone();
-    public Object[] get(long timeout, TimeUnit tu) throws TimeoutException; 
+    
+    /**
+     * Returns the result for the task that was submitted.
+     * @return the result wrapped in an Object[]
+    */
+    public Object[] get();    
+    
+    /**
+     * Same operation as the above get() but allows the calling
+     * thread to specify a timeout.
+     * @param timeout the maximum time to wait
+     * @param tu the time unit of the timeout argument
+     * @return the result wrapped in an Object[]
+    */
+    public Object[] get(long timeout, TimeUnit tu) throws TimeoutException;
+    
+    /**
+     * Returns the result for all tasks that was submitted.
+     * @return the list of results wrapped in an Object[]
+    */
+    public List<Object[]> multiget();
+    
+    /**
+     * Same operation as the above get() but allows the calling
+     * thread to specify a timeout.
+     * @param timeout the maximum time to wait
+     * @param tu the time unit of the timeout argument
+     * @return the result wrapped in an Object[]
+    */
+    public List<Object[]> multiget(long timeout, TimeUnit tu) throws TimeoutException;
+    
+    /**
+     * Store the result obtained for the submitted task.
+     * @param result result wrapped in an Object[]
+     * 
+     * @param result the response message
+     */
+    public void result(Message result);
 }
