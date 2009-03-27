@@ -36,14 +36,11 @@ import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.service.IComponentShutdown;
 import org.apache.cassandra.service.PartitionerType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.utils.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -480,7 +477,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
             if ( columnFamily != null )
             {
                 /* serialize the cf with column indexes */
-                ColumnFamily.serializer2().serialize( columnFamily, buffer );                                
+                ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
                 /* Now write the key and value to disk */
                 ssTable.append(pKey.key(), pKey.hash(), buffer);
                 bf.fill(pKey.key());
@@ -507,7 +504,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
             if ( columnFamily != null )
             {
                 /* serialize the cf with column indexes */
-                ColumnFamily.serializer2().serialize( columnFamily, buffer );                                              
+                ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
                 /* Now write the key and value to disk */
                 ssTable.append(key, buffer);
                 bf.fill(key);

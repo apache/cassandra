@@ -22,10 +22,7 @@ import java.io.*;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,16 +35,12 @@ import org.apache.cassandra.io.IndexHelper;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.PartitionerType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.utils.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -1167,7 +1160,7 @@ public class ColumnFamilyStore
 		                    if( columnFamily != null )
 		                    {
 			                	/* serialize the cf with column indexes */
-			                    ColumnFamily.serializer2().serialize(columnFamily, bufOut);
+			                    ColumnFamily.serializerWithIndexes().serialize(columnFamily, bufOut);
 		                    }
 	                    }
 	                    else
@@ -1417,7 +1410,7 @@ public class ColumnFamilyStore
 		                    if( columnFamily != null )
 		                    {
 			                	/* serialize the cf with column indexes */
-			                    ColumnFamily.serializer2().serialize(columnFamily, bufOut);
+			                    ColumnFamily.serializerWithIndexes().serialize(columnFamily, bufOut);
 		                    }
 	                    }
 	                    else
