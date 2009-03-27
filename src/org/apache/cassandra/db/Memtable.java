@@ -36,6 +36,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -45,7 +47,6 @@ import org.apache.cassandra.service.PartitionerType;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.log4j.Logger;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -326,46 +327,44 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         	resolve(key, columnFamily);
     }
 
-    ColumnFamily getLocalCopy(String key, String cfName, IFilter filter)
+    ColumnFamily getLocalCopy(String key, String columnFamilyColumn, IFilter filter)
     {
-    	String[] values = RowMutation.getColumnAndColumnFamily(cfName);
+    	String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
     	ColumnFamily columnFamily = null;
         if(values.length == 1 )
         {
-        	columnFamily = columnFamilies_.get(key);        	
+        	columnFamily = columnFamilies_.get(key);
         }
         else
         {
         	ColumnFamily cFamily = columnFamilies_.get(key);
-        	if(cFamily == null)
-        		return null;
-        	IColumn column = null;
-        	if(values.length == 2)
-        	{
-        		column = cFamily.getColumn(values[1]);
-        		if(column != null )
-        		{
-        			columnFamily = new ColumnFamily(cfName_);
-        			columnFamily.addColumn(column);
-        		}
+        	if (cFamily == null) return null;
+
+        	if (values.length == 2) {
+                IColumn column = cFamily.getColumn(values[1]); // super or normal column
+                if (column != null )
+                {
+                    columnFamily = new ColumnFamily(cfName_);
+                    columnFamily.addColumn(column);
+                }
         	}
-        	else
-        	{
-        		column = cFamily.getColumn(values[1]);
-        		if(column != null )
-        		{
-        			 
-        			IColumn subColumn = ((SuperColumn)column).getSubColumn(values[2]);
-        			if(subColumn != null)
-        			{
-	        			columnFamily = new ColumnFamily(cfName_);
-	            		columnFamily.addColumn(values[1] + ":" + values[2], subColumn.value(), subColumn.timestamp());
-        			}
-        		}
+            else
+            {
+                assert values.length == 3;
+                SuperColumn superColumn = (SuperColumn)cFamily.getColumn(values[1]);
+                if (superColumn != null)
+                {
+                    IColumn subColumn = superColumn.getSubColumn(values[2]);
+                    if (subColumn != null)
+                    {
+                        columnFamily = new ColumnFamily(cfName_);
+                        columnFamily.addColumn(values[1] + ":" + values[2], subColumn.value(), subColumn.timestamp(), subColumn.isMarkedForDelete());
+                    }
+                }
         	}
         }
         /* Filter unnecessary data from the column based on the provided filter */
-        return filter.filter(cfName, columnFamily);
+        return filter.filter(columnFamilyColumn, columnFamily);
     }
 
     ColumnFamily get(String key, String cfName)
