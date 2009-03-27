@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.cql.common;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -32,11 +31,8 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.column_t;
-import org.apache.cassandra.service.superColumn_t;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.db.*;
 
 /**
  * A Row Source Defintion (RSD) for doing a super column range query on a Super Column Family.
@@ -84,7 +80,7 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
         List<Map<String, String>> rows = new LinkedList<Map<String, String>>();
         if (row != null)
         {
-            Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+            Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
             if (cfMap != null && cfMap.size() > 0)
             {
                 ColumnFamily cfamily = cfMap.get(cfMetaData_.cfName);

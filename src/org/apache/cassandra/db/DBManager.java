@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -31,14 +29,10 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.IFileWriter;
-import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
-import org.apache.cassandra.utils.HashingSchemes;
 
 
 /**
@@ -190,7 +184,7 @@ public class DBManager
         else
         {
             /* we crashed and came back up need to bump generation # */
-        	Map<String, ColumnFamily> columnFamilies = row.getColumnFamilies();
+        	Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
         	Set<String> cfNames = columnFamilies.keySet();
 
             for ( String cfName : cfNames )

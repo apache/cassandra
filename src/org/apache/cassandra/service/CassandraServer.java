@@ -26,19 +26,13 @@ import com.facebook.thrift.protocol.*;
 import com.facebook.fb303.FacebookBase;
 import com.facebook.fb303.fb_status;
 import java.io.*;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.net.*;
-import org.apache.cassandra.utils.*;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.common.CqlResult;
@@ -48,8 +42,6 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -120,7 +112,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 			{
 				throw new CassandraException("No row exists for key " + key);			
 			}
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{				
 				logger_	.info("ERROR ColumnFamily " + columnFamily + " map is missing.....: " + "   key:" + key );
@@ -162,7 +154,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
 			}
 
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{
 				logger_	.info("ERROR ColumnFamily " + columnFamily_column + " map is missing.....: " + "   key:" + key);
@@ -277,7 +269,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
 			}
 
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{
 				logger_	.info("ERROR ColumnFamily " + columnFamily_column + " map is missing.....: " + "   key:" + key);
@@ -345,7 +337,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
 			}
 			
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{
 				logger_	.info("ERROR ColumnFamily map is missing.....: "
@@ -417,7 +409,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
 			}
 
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{
 				logger_	.info("ERROR ColumnFamily map is missing.....: "
@@ -683,7 +675,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
 			}
 
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{
 				logger_	.info("ERROR ColumnFamily map is missing.....: "
@@ -758,7 +750,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
 			}
 
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
 			if (cfMap == null || cfMap.size() == 0)
 			{
 				logger_	.info("ERROR ColumnFamily map is missing.....: "
