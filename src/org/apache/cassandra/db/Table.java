@@ -60,7 +60,7 @@ public class Table
      * is basically the column family name and the ID associated with
      * this column family. We use this ID in the Commit Log header to
      * determine when a log file that has been rolled can be deleted.
-    */    
+    */
     public static class TableMetadata
     {
         /* Name of the column family */
@@ -454,7 +454,7 @@ public class Table
         return columnFamilyStores_;
     }
 
-    ColumnFamilyStore getColumnFamilyStore(String cfName)
+    public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
         return columnFamilyStores_.get(cfName);
     }
@@ -874,5 +874,18 @@ public class Table
         row.clear();
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateWriteStatistics(timeTaken);
+    }
+
+    public Set<String> getApplicationColumnFamilies()
+    {
+        Set<String> set = new HashSet<String>();
+        for (String cfName : getColumnFamilies())
+        {
+            if (DatabaseDescriptor.isApplicationColumnFamily(cfName))
+            {
+                set.add(cfName);
+            }
+        }
+        return set;
     }
 }

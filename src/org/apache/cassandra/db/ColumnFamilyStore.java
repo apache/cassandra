@@ -1384,4 +1384,14 @@ public class ColumnFamilyStore
     {
         memtable_.get().flushOnRecovery();
     }
+
+    public Object getMemtable()
+    {
+        return memtable_.get();
+    }
+
+    public Set<String> getSSTableFilenames()
+    {
+        return Collections.unmodifiableSet(ssTables_);
+    }
 }

@@ -288,7 +288,7 @@ public final class ColumnFamily
         return columns_.getSortedColumns();
     }
 
-    Map<String, IColumn> getColumns()
+    public Map<String, IColumn> getColumns()
     {
         return columns_.getColumns();
     }

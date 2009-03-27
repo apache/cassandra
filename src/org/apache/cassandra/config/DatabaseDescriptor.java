@@ -18,21 +18,24 @@
 
 package org.apache.cassandra.config;
 
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.io.*;
 
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TypeInfo;
-import org.apache.cassandra.db.DBManager;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table.TableMetadata;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.apache.cassandra.io.*;
 
 
 /**
@@ -306,6 +309,9 @@ public class DatabaseDescriptor
             /* Read the table related stuff from config */
             NodeList tables = xmlUtils.getRequestedNodeList("/Storage/Tables/Table");
             int size = tables.getLength();
+            if (size == 0) {
+                throw new UnsupportedOperationException("A Table must be configured");
+            }
             for ( int i = 0; i < size; ++i )
             {
                 Node table = tables.item(i);
@@ -784,5 +790,10 @@ public class DatabaseDescriptor
     public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()
     {
         return tableToCFMetaDataMap_;
+    }
+
+    public static String getTableName()
+    {
+        return tables_.get(0);
     }
 }

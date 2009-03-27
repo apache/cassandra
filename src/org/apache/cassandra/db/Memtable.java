@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Iterator;
+import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -45,6 +47,7 @@ import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.DestructivePQIterator;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -417,6 +420,11 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         buffer.close();
 
         columnFamilies_.clear();
+    }
+
+    public Iterator<String> sortedKeyIterator()
+    {
+        return new DestructivePQIterator<String>(new PriorityQueue<String>(columnFamilies_.keySet()));
     }
 
 }

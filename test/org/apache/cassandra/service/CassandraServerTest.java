@@ -9,7 +9,49 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.*;
 
+import com.facebook.thrift.TException;
+
 public class CassandraServerTest extends ServerTest {
+    /*
+    TODO fix resetting server so this works
+    @Test
+    public void test_get_range_empty() throws IOException, TException {
+        CassandraServer server = new CassandraServer();
+        server.start();
+
+        assert CollectionUtils.EMPTY_COLLECTION.equals(server.get_range(DatabaseDescriptor.getTableName(), ""));
+    }
+    */
+
+    /*
+    @Test
+    public void test_get_range() throws IOException, TException, CassandraException
+    {
+        CassandraServer server = new CassandraServer();
+        try
+        {
+            server.start();
+        }
+        catch (Throwable throwable)
+        {
+            throw new RuntimeException(throwable);
+        }
+
+        // TODO insert some data
+        try {
+            String last = null;
+            for (String key : server.get_range(DatabaseDescriptor.getTableName(), "key1")) {
+                if (last != null) {
+                    assert last.compareTo(key) < 0;
+                }
+                last = key;
+            }
+        } finally {
+            server.shutdown();
+        }
+    }
+    */
+
     /*
     @Test
     public void test_get_column() throws Throwable {
