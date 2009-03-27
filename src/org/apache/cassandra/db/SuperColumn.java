@@ -39,15 +39,10 @@ import org.apache.cassandra.utils.FBUtilities;
 public final class SuperColumn implements IColumn, Serializable
 {
 	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
-	private static ICompactSerializer2<IColumn> serializer_;
+	private static SuperColumnSerializer serializer_ = new SuperColumnSerializer();
 	private final static String seperator_ = ":";
 
-    static
-    {
-        serializer_ = new SuperColumnSerializer();
-    }
-
-    static ICompactSerializer2<IColumn> serializer()
+    static SuperColumnSerializer serializer()
     {
         return serializer_;
     }
@@ -173,6 +168,7 @@ public final class SuperColumn implements IColumn, Serializable
     public byte[] value(String key)
     {
     	IColumn column = columns_.get(key);
+    	assert column instanceof Column;
     	if ( column != null )
     		return column.value();
     	throw new IllegalArgumentException("Value was requested for a column that does not exist.");
