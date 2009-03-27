@@ -18,19 +18,28 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.*;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.zip.Deflater;
-import java.util.zip.DataFormatException;
-import java.util.zip.Inflater;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.io.*;
-import java.net.*;
-import java.nio.channels.SocketChannel;
-import java.nio.ByteBuffer;
-import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.StringTokenizer;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */

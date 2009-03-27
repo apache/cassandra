@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -36,8 +35,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.utils.*;
 
 public class TokenUpdater
 {
