@@ -847,9 +847,14 @@ public class Table
         Set<String> cfNames = columnFamilyStores_.keySet();
         for ( String cfName : cfNames )
         {
-            columnFamilyStores_.get(cfName).forceFlush(fRecovery);
+            if (fRecovery) {
+                columnFamilyStores_.get(cfName).flushMemtableOnRecovery();
+            } else {
+                columnFamilyStores_.get(cfName).forceFlush();
+            }
         }
     }
+
 
     void delete(Row row) throws IOException
     {
@@ -895,7 +900,7 @@ public class Table
     	            }
     	            else if(column.timestamp() == 3)
     	            {
-    	            	cfStore.forceFlush(false);
+    	            	cfStore.forceFlush();
     	            }
     	            else if(column.timestamp() == 4)
     	            {

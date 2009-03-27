@@ -20,7 +20,12 @@ package org.apache.cassandra.db;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -124,7 +129,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
             key_ = key;
             columnFamilyName_ = cfName;
         }
-        
+
         Getter(String key, String cfName, IFilter filter)
         {
             this(key, cfName);
@@ -133,7 +138,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
 
         public ColumnFamily call()
         {
-        	ColumnFamily cf = getLocalCopy(key_, columnFamilyName_, filter_);            
+        	ColumnFamily cf = getLocalCopy(key_, columnFamilyName_, filter_);
             return cf;
         }
     }
@@ -179,7 +184,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     }
 
     /**
-     * Compares two Memtable based on creation time. 
+     * Compares two Memtable based on creation time.
      * @param rhs
      * @return
      */
@@ -283,25 +288,28 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     /*
      * This version is used to switch memtable and force flush.
     */
-    void forceflush(ColumnFamilyStore cfStore, boolean fRecovery) throws IOException
+    public void forceflush(ColumnFamilyStore cfStore) throws IOException
     {
-        if(!fRecovery)
+        RowMutation rm = new RowMutation(DatabaseDescriptor.getTables().get(0), flushKey_);
+
+        try
         {
-	    	RowMutation rm = new RowMutation(DatabaseDescriptor.getTables().get(0), flushKey_);
-	        try
-	        {
-	            rm.add(cfStore.columnFamily_ + ":Column","0".getBytes());
-	            rm.apply();
-	        }
-	        catch(ColumnFamilyNotDefinedException ex)
-	        {
-	            logger_.debug(LogUtil.throwableToString(ex));
-	        }
+            if (cfStore.isSuper())
+            {
+                rm.add(cfStore.getColumnFamilyName() + ":SC1:Column", "0".getBytes(), 0);
+            } else {
+                rm.add(cfStore.getColumnFamilyName() + ":Column", "0".getBytes(), 0);
+            }
+            rm.apply();
         }
-        else
+        catch(ColumnFamilyNotDefinedException ex)
         {
-        	flush(CommitLog.CommitLogContext.NULL);
+            logger_.debug(LogUtil.throwableToString(ex));
         }
+    }
+
+    void flushOnRecovery() throws IOException {
+        flush(CommitLog.CommitLogContext.NULL);
     }
 
     private void resolve(String key, ColumnFamily columnFamily)
@@ -397,7 +405,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     	}
     	return cf;
     }
-    
+
     ColumnFamily get(String key, String cfName, IFilter filter)
     {
     	printExecutorStats();
@@ -431,10 +439,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     	apartments_.get(cfName_).submit(deleter);
     }
 
-    /*
-     * param recoveryMode - indicates if this was invoked during
-     *                      recovery.
-    */
     void flush(CommitLog.CommitLogContext cLogCtx) throws IOException
     {
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
@@ -451,18 +455,18 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         String directory = DatabaseDescriptor.getDataFileLocation();
         String filename = cfStore.getNextFileName();
         SSTable ssTable = new SSTable(directory, filename, pType);
-        switch (pType) 
+        switch (pType)
         {
             case OPHF:
                 flushForOrderPreservingPartitioner(ssTable, cfStore, cLogCtx);
                 break;
-                
+
             default:
                 flushForRandomPartitioner(ssTable, cfStore, cLogCtx);
                 break;
-        }        
+        }
     }
-    
+
     private void flushForRandomPartitioner(SSTable ssTable, ColumnFamilyStore cfStore, CommitLog.CommitLogContext cLogCtx) throws IOException
     {
         /* List of primary keys in sorted order */
@@ -489,7 +493,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         buffer.close();
     }
-    
+
     private void flushForOrderPreservingPartitioner(SSTable ssTable, ColumnFamilyStore cfStore, CommitLog.CommitLogContext cLogCtx) throws IOException
     {
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
