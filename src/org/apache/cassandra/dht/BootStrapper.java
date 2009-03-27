@@ -18,20 +18,24 @@
 
 package org.apache.cassandra.dht;
 
- import java.util.ArrayList;
- import java.util.Collections;
- import java.util.HashMap;
- import java.util.HashSet;
- import java.util.List;
- import java.util.Map;
- import java.util.Set;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
- import org.apache.log4j.Logger;
-
- import org.apache.cassandra.locator.TokenMetadata;
- import org.apache.cassandra.net.EndPoint;
- import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.LogUtil;
+import org.apache.log4j.Logger;
 
 
 /**
@@ -44,18 +48,18 @@ public class BootStrapper implements Runnable
     /* endpoints that need to be bootstrapped */
     protected EndPoint[] targets_ = new EndPoint[0];
     /* tokens of the nodes being bootstapped. */
-    protected final Token[] tokens_;
+    protected BigInteger[] tokens_ = new BigInteger[0];
     protected TokenMetadata tokenMetadata_ = null;
     private List<EndPoint> filters_ = new ArrayList<EndPoint>();
 
-    public BootStrapper(EndPoint[] target, Token... token)
+    public BootStrapper(EndPoint[] target, BigInteger[] token)
     {
         targets_ = target;
         tokens_ = token;
         tokenMetadata_ = StorageService.instance().getTokenMetadata();
     }
     
-    public BootStrapper(EndPoint[] target, Token[] token, EndPoint[] filters)
+    public BootStrapper(EndPoint[] target, BigInteger[] token, EndPoint[] filters)
     {
         this(target, token);
         Collections.addAll(filters_, filters);
@@ -67,14 +71,14 @@ public class BootStrapper implements Runnable
         {
             logger_.debug("Beginning bootstrap process for " + targets_ + " ...");                                                               
             /* copy the token to endpoint map */
-            Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+            Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* remove the tokens associated with the endpoints being bootstrapped */                
-            for (Token token : tokens_)
+            for ( BigInteger token : tokens_ )
             {
                 tokenToEndPointMap.remove(token);                    
             }
 
-            Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
+            Set<BigInteger> oldTokens = new HashSet<BigInteger>( tokenToEndPointMap.keySet() );
             Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
             logger_.debug("Total number of old ranges " + oldRanges.length);
             /* 
@@ -126,5 +130,21 @@ public class BootStrapper implements Runnable
             logger_.debug( LogUtil.throwableToString(th) );
         }
     }
+ 
+    private Range getMyOldRange()
+    {
+        Map<EndPoint, BigInteger> oldEndPointToTokenMap = tokenMetadata_.cloneEndPointTokenMap();
+        Map<BigInteger, EndPoint> oldTokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
 
+        oldEndPointToTokenMap.remove(targets_);
+        oldTokenToEndPointMap.remove(tokens_);
+
+        BigInteger myToken = oldEndPointToTokenMap.get(StorageService.getLocalStorageEndPoint());
+        List<BigInteger> allTokens = new ArrayList<BigInteger>(oldTokenToEndPointMap.keySet());
+        Collections.sort(allTokens);
+        int index = Collections.binarySearch(allTokens, myToken);
+        /* Calculate the lhs for the range */
+        BigInteger lhs = (index == 0) ? allTokens.get(allTokens.size() - 1) : allTokens.get( index - 1);
+        return new Range( lhs, myToken );
+    }
 }

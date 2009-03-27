@@ -18,20 +18,21 @@
 
 package org.apache.cassandra.dht;
 
- import java.util.ArrayList;
- import java.util.Collections;
- import java.util.HashMap;
- import java.util.HashSet;
- import java.util.List;
- import java.util.Map;
- import java.util.Set;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
- import org.apache.log4j.Logger;
-
- import org.apache.cassandra.locator.TokenMetadata;
- import org.apache.cassandra.net.EndPoint;
- import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.LogUtil;
+import org.apache.log4j.Logger;
 
 
 /**
@@ -47,11 +48,11 @@ public class LeaveJoinProtocolImpl implements Runnable
     /* endpoints that are to be moved. */
     protected EndPoint[] targets_ = new EndPoint[0];
     /* position where they need to be moved */
-    protected final Token[] tokens_;
+    protected BigInteger[] tokens_ = new BigInteger[0];
     /* token metadata information */
     protected TokenMetadata tokenMetadata_ = null;
 
-    public LeaveJoinProtocolImpl(EndPoint[] targets, Token[] tokens)
+    public LeaveJoinProtocolImpl(EndPoint[] targets, BigInteger[] tokens)
     {
         targets_ = targets;
         tokens_ = tokens;
@@ -64,24 +65,24 @@ public class LeaveJoinProtocolImpl implements Runnable
         {
             logger_.debug("Beginning leave/join process for ...");                                                               
             /* copy the token to endpoint map */
-            Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+            Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* copy the endpoint to token map */
-            Map<EndPoint, Token> endpointToTokenMap = tokenMetadata_.cloneEndPointTokenMap();
+            Map<EndPoint, BigInteger> endpointToTokenMap = tokenMetadata_.cloneEndPointTokenMap();
             
-            Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
+            Set<BigInteger> oldTokens = new HashSet<BigInteger>( tokenToEndPointMap.keySet() );
             Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
             logger_.debug("Total number of old ranges " + oldRanges.length);
             /* Calculate the list of nodes that handle the old ranges */
             Map<Range, List<EndPoint>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges);
             
             /* Remove the tokens of the nodes leaving the ring */
-            Set<Token> tokens = getTokensForLeavingNodes();
+            Set<BigInteger> tokens = getTokensForLeavingNodes();
             oldTokens.removeAll(tokens);
             Range[] rangesAfterNodesLeave = StorageService.instance().getAllRanges(oldTokens);
             /* Get expanded range to initial range mapping */
             Map<Range, List<Range>> expandedRangeToOldRangeMap = getExpandedRangeToOldRangeMapping(oldRanges, rangesAfterNodesLeave);
             /* add the new token positions to the old tokens set */
-            for (Token token : tokens_)
+            for ( BigInteger token : tokens_ )
                 oldTokens.add(token);
             Range[] rangesAfterNodesJoin = StorageService.instance().getAllRanges(oldTokens);
             /* replace the ranges that were split with the split ranges in the old configuration */
@@ -195,12 +196,12 @@ public class LeaveJoinProtocolImpl implements Runnable
         }        
     }
     
-    private Set<Token> getTokensForLeavingNodes()
+    private Set<BigInteger> getTokensForLeavingNodes()
     {
-        Set<Token> tokens = new HashSet<Token>();
+        Set<BigInteger> tokens = new HashSet<BigInteger>();
         for ( EndPoint target : targets_ )
         {
-            tokens.add(tokenMetadata_.getToken(target));
+            tokens.add( tokenMetadata_.getToken(target) );
         }        
         return tokens;
     }
@@ -275,16 +276,16 @@ public class LeaveJoinProtocolImpl implements Runnable
     public static void main(String[] args) throws Throwable
     {
         StorageService ss = StorageService.instance();
-        ss.updateTokenMetadata(new BigIntegerToken("3"), new EndPoint("A", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("6"), new EndPoint("B", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("9"), new EndPoint("C", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("12"), new EndPoint("D", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("15"), new EndPoint("E", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("18"), new EndPoint("F", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("21"), new EndPoint("G", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("24"), new EndPoint("H", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(3), new EndPoint("A", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(6), new EndPoint("B", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(9), new EndPoint("C", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(12), new EndPoint("D", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(15), new EndPoint("E", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(18), new EndPoint("F", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(21), new EndPoint("G", 7000));
+        ss.updateTokenMetadata(BigInteger.valueOf(24), new EndPoint("H", 7000)); 
         
-        Runnable runnable = new LeaveJoinProtocolImpl( new EndPoint[]{new EndPoint("C", 7000), new EndPoint("D", 7000)}, new Token[]{new BigIntegerToken("22"), new BigIntegerToken("23")} );
+        Runnable runnable = new LeaveJoinProtocolImpl( new EndPoint[]{new EndPoint("C", 7000), new EndPoint("D", 7000)}, new BigInteger[]{BigInteger.valueOf(22), BigInteger.valueOf(23)} );
         runnable.run();
     }
 }

@@ -21,9 +21,17 @@ package org.apache.cassandra.dht;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.gms.GossipDigest;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.IFileReader;
+import org.apache.cassandra.io.IFileWriter;
+import org.apache.cassandra.net.CompactEndPointSerializationHelper;
+import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 
 
@@ -43,12 +51,28 @@ public class Range implements Comparable<Range>
     public static ICompactSerializer<Range> serializer()
     {
         return serializer_;
-    }       
-
-    private Token left_;
-    private Token right_;
+    }
     
-    public Range(Token left, Token right)
+    public static boolean isKeyInRanges(List<Range> ranges, String key)
+    {
+        if(ranges == null ) 
+            return false;
+        
+        for ( Range range : ranges)
+        {
+            if(range.contains(StorageService.hash(key)))
+            {
+                return true ;
+            }
+        }
+        return false;
+    }
+        
+    
+    private BigInteger left_;
+    private BigInteger right_;
+    
+    public Range(BigInteger left, BigInteger right)
     {
         left_ = left;
         right_ = right;
@@ -58,7 +82,7 @@ public class Range implements Comparable<Range>
      * Returns the left endpoint of a range.
      * @return left endpoint
      */
-    public Token left()
+    public BigInteger left()
     {
         return left_;
     }
@@ -67,20 +91,19 @@ public class Range implements Comparable<Range>
      * Returns the right endpoint of a range.
      * @return right endpoint
      */
-    public Token right()
+    public BigInteger right()
     {
         return right_;
     }
-
-    /**
-     * Helps determine if a given point on the DHT ring is contained
-     * in the range in question.
-     * @param bi point in question
-     * @return true if the point contains within the range else false.
-     */
-    public boolean contains(Token bi)
+    
+    boolean isSplitRequired()
     {
-        if ( left_.compareTo(right_) > 0 )
+        return ( left_.subtract(right_).signum() >= 0 );
+    }
+    
+    public boolean isSplitBy(BigInteger bi)
+    {
+        if ( left_.subtract(right_).signum() > 0 )
         {
             /* 
              * left is greater than right we are wrapping around.
@@ -90,31 +113,125 @@ public class Range implements Comparable<Range>
              * (2) k < b -- return true
              * (3) b < k < a -- return false
             */
-            if ( bi.compareTo(left_) >= 0 )
+            if ( bi.subtract(left_).signum() > 0 )
                 return true;
-            else return right_.compareTo(bi) > 0;
+            else if (right_.subtract(bi).signum() > 0 )
+                return true;
+            else
+                return false;
         }
-        else if ( left_.compareTo(right_) < 0 )
+        else if ( left_.subtract(right_).signum() < 0 )
         {
             /*
              * This is the range [a, b) where a < b. 
             */
-            return ( bi.compareTo(left_) >= 0 && right_.compareTo(bi) >=0 );
+            return ( bi.subtract(left_).signum() > 0 && right_.subtract(bi).signum() > 0 );
+        }        
+        else
+        {
+            // should never be here.
+            return true;
+        }       
+    }
+    
+    /**
+     * Helps determine if a given point on the DHT ring is contained
+     * in the range in question.
+     * @param bi point in question
+     * @return true if the point contains within the range else false.
+     */
+    public boolean contains(BigInteger bi)
+    {
+        if ( left_.subtract(right_).signum() > 0 )
+        {
+            /* 
+             * left is greater than right we are wrapping around.
+             * So if the interval is [a,b) where a > b then we have
+             * 3 cases one of which holds for any given token k.
+             * (1) k > a -- return true
+             * (2) k < b -- return true
+             * (3) b < k < a -- return false
+            */
+            if ( bi.subtract(left_).signum() >= 0 )
+                return true;
+            else if (right_.subtract(bi).signum() > 0 )
+                return true;
+            else
+                return false;
+        }
+        else if ( left_.subtract(right_).signum() < 0 )
+        {
+            /*
+             * This is the range [a, b) where a < b. 
+            */
+            return ( bi.subtract(left_).signum() >= 0 && right_.subtract(bi).signum() >=0 );
         }        
         else
     	{
     		return true;
     	}    	
     }
-
+    
+    /**
+     * Helps determine if a given range on the DHT ring is contained
+     * within the range associated with the <i>this</i> pointer.
+     * @param rhs rhs in question
+     * @return true if the point contains within the range else false.
+     */
+    public boolean contains(Range rhs)
+    {
+        /* 
+         * If (a, b] and (c, d} are not wrap arounds
+         * then return true if a <= c <= d <= b.
+         */
+        if ( !isWrapAround(this) && !isWrapAround(rhs) )
+        {
+            if ( rhs.left_.subtract(left_).signum() >= 0 && right_.subtract(rhs.right_).signum() >= 0 )
+                return true;
+            else
+                return false;
+        }
+        
+        /*
+         * If lhs is a wrap around and rhs is not then
+         * rhs.left >= lhs.left and rhs.right >= lhs.left.
+         */
+        if ( isWrapAround(this) && !isWrapAround(rhs) )
+        {
+            if ( rhs.left_.subtract(left_).signum() >= 0 && rhs.right_.subtract(right_).signum() >= 0 )
+                return true;
+            else
+                return false;
+        }
+        
+        /* 
+         * If lhs is not a wrap around and rhs is a wrap 
+         * around then we just return false.
+         */
+        if ( !isWrapAround(this) && isWrapAround(rhs) )
+            return false;        
+        
+        if( isWrapAround(this) && isWrapAround(rhs) )
+        {
+            if ( rhs.left_.subtract(left_).signum() >= 0 && right_.subtract(right_).signum() >= 0 )
+                return true;
+            else
+                return false;
+        }
+        
+        /* should never be here */
+        return false;
+    }
+    
     /**
      * Tells if the given range is a wrap around.
      * @param range
      * @return
      */
-    private static boolean isWrapAround(Range range)
+    private boolean isWrapAround(Range range)
     {
-        return range.left_.compareTo(range.right_) > 0;
+        boolean bVal = ( range.left_.subtract(range.right_).signum() > 0 ) ? true : false;
+        return bVal;
     }
     
     public int compareTo(Range rhs)
@@ -132,28 +249,15 @@ public class Range implements Comparable<Range>
         return right_.compareTo(rhs.right_);
     }
     
-
-    public static boolean isKeyInRanges(String key, List<Range> ranges)
-    {
-        assert ranges != null;
-
-        Token token = StorageService.token(key);
-        for (Range range : ranges)
-        {
-            if(range.contains(token))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public boolean equals(Object o)
     {
         if ( !(o instanceof Range) )
             return false;
         Range rhs = (Range)o;
-        return left_.equals(rhs.left_) && right_.equals(rhs.right_);
+        if ( left_.equals(rhs.left_) && right_.equals(rhs.right_) )
+            return true;
+        else
+            return false;
     }
     
     public int hashCode()
@@ -170,13 +274,15 @@ public class Range implements Comparable<Range>
 class RangeSerializer implements ICompactSerializer<Range>
 {
     public void serialize(Range range, DataOutputStream dos) throws IOException
-    {
-        Token.serializer().serialize(range.left(), dos);
-        Token.serializer().serialize(range.right(), dos);
+    {        
+        dos.writeUTF(range.left().toString());
+        dos.writeUTF(range.right().toString());
     }
 
     public Range deserialize(DataInputStream dis) throws IOException
     {
-        return new Range(Token.serializer().deserialize(dis), Token.serializer().deserialize(dis));
+        BigInteger left = new BigInteger(dis.readUTF());
+        BigInteger right = new BigInteger(dis.readUTF());        
+        return new Range(left, right);
     }
 }
