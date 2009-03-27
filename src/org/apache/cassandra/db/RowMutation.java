@@ -65,7 +65,7 @@ public class RowMutation implements Serializable
     {
         table_ = table;
         key_ = row.key();
-        Map<String, ColumnFamily> cfSet = row.getColumnFamilies();
+        Map<String, ColumnFamily> cfSet = row.getColumnFamilyMap();
         Set<String> keyset = cfSet.keySet();
         for(String cfName : keyset)
         {

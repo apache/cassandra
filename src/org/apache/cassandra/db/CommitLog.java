@@ -21,22 +21,18 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.io.SequenceFile;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.utils.*;
 
 /*
  * Commit Log tracks every write operation into the system. The aim
@@ -376,7 +372,7 @@ class CommitLog
                     try
                     {                        
                         Row row = Row.serializer().deserialize(bufIn);
-                        Map<String, ColumnFamily> columnFamilies = new HashMap<String, ColumnFamily>(row.getColumnFamilies());
+                        Map<String, ColumnFamily> columnFamilies = new HashMap<String, ColumnFamily>(row.getColumnFamilyMap());
                         /* remove column families that have already been flushed */
                     	Set<String> cNames = columnFamilies.keySet();
 
@@ -423,7 +419,7 @@ class CommitLog
     */
     private void updateHeader(Row row) throws IOException
     {
-    	Map<String, ColumnFamily> columnFamilies = row.getColumnFamilies();
+    	Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
         Table table = Table.open(table_);
         Set<String> cNames = columnFamilies.keySet();
         for ( String cName : cNames )

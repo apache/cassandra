@@ -33,7 +33,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.db.*;
 
 /**
  * A Row Source Defintion (RSD) for looking up a unique column within a column family.
@@ -96,7 +95,7 @@ public class UniqueKeyQueryRSD extends RowSourceDef
 
         if (row != null)
         {
-            Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
+            Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
             if (cfMap != null && cfMap.size() > 0)
             {
                 ColumnFamily cfamily = cfMap.get(cfMetaData_.cfName);

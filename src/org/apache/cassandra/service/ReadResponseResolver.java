@@ -141,7 +141,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 				continue;
 			// create the row mutation message based on the diff and schedule a read repair 
 			RowMutation rowMutation = new RowMutation(table, key);            			
-	    	Map<String, ColumnFamily> columnFamilies = diffRow.getColumnFamilies();
+	    	Map<String, ColumnFamily> columnFamilies = diffRow.getColumnFamilyMap();
 	        Set<String> cfNames = columnFamilies.keySet();
 	        
 	        for ( String cfName : cfNames )

@@ -17,65 +17,23 @@
  */
 package org.apache.cassandra.test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.Random;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import org.apache.cassandra.concurrent.ContinuationContext;
-import org.apache.cassandra.concurrent.ContinuationStage;
-import org.apache.cassandra.concurrent.ContinuationsExecutor;
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.IStage;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ReadMessage;
-import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Row;
+import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.io.IndexHelper;
 import org.apache.cassandra.io.BufferedRandomAccessFile;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.IFileWriter;
-import org.apache.cassandra.io.IndexHelper;
-import org.apache.cassandra.io.SequenceFile;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageDeliveryTask;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.OrderPreservingHashPartitioner;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.commons.javaflow.Continuation;
+
+
 import org.apache.log4j.Logger;
 
 
@@ -210,7 +168,7 @@ public class TestRunner
             String value = row.key() + System.getProperty("line.separator");
             fos.write( value.getBytes() );
            
-            Map<String, ColumnFamily> cfs = row.getColumnFamilies();
+            Map<String, ColumnFamily> cfs = row.getColumnFamilyMap();
             Set<String> keys = cfs.keySet();
             
             for ( String key : keys )
