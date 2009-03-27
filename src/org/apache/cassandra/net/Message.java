@@ -53,27 +53,20 @@ public class Message implements java.io.Serializable
     Header header_;
     private Object[] body_ = new Object[0];
     
-    /* Ctor for JAXB. DO NOT DELETE */
-    private Message()
+    protected Message(String id, EndPoint from, String messageType, String verb, Object... body)
     {
-    }
-
-    protected Message(String id, EndPoint from, String messageType, String verb, Object[] body)
-    {
-        header_ = new Header(id, from, messageType, verb);
-        body_ = body;
+        this(new Header(id, from, messageType, verb), body);
     }
     
-    protected Message(Header header, Object[] body)
+    protected Message(Header header, Object... body)
     {
         header_ = header;
         body_ = body;
     }
 
-    public Message(EndPoint from, String messageType, String verb, Object[] body)
+    public Message(EndPoint from, String messageType, String verb, Object... body)
     {
-        header_ = new Header(from, messageType, verb);
-        body_ = body;
+        this(new Header(from, messageType, verb), body);
     }    
     
     public byte[] getHeader(Object key)
@@ -164,7 +157,7 @@ public class Message implements java.io.Serializable
         header_.setMessageId(id);
     }    
 
-    public Message getReply(EndPoint from, Object[] args)
+    public Message getReply(EndPoint from, Object... args)
     {        
         Message response = new Message(getMessageId(),
                                        from,
