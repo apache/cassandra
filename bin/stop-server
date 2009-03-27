@@ -1,0 +1,1 @@
+pgrep -f cassandra | xargs kill -9
