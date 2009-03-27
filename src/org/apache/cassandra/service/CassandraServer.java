@@ -997,7 +997,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 
 	public static void main(String[] args) throws Throwable
 	{
-		int port = 9160;		
+		int port = DatabaseDescriptor.getThriftPort();		
 		try
 		{
 			CassandraServer peerStorageServer = new CassandraServer();
