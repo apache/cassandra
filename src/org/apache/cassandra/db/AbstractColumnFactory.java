@@ -31,13 +31,13 @@ import java.util.StringTokenizer;
 abstract class AbstractColumnFactory
 {
     private static Map<String, AbstractColumnFactory> columnFactory_ = new HashMap<String, AbstractColumnFactory>();
-	
+
 	static
 	{
 		columnFactory_.put(ColumnFamily.getColumnType("Standard"),new ColumnFactory());
 		columnFactory_.put(ColumnFamily.getColumnType("Super"),new SuperColumnFactory());
 	}
-	
+
 	static AbstractColumnFactory getColumnFactory(String columnType)
 	{
 		/* Create based on the type required. */
@@ -46,10 +46,11 @@ abstract class AbstractColumnFactory
 		else
 			return columnFactory_.get("Super");
 	}
-    
+
 	public abstract IColumn createColumn(String name);
 	public abstract IColumn createColumn(String name, byte[] value);
-	public abstract IColumn createColumn(String name, byte[] value, long timestamp);
+    public abstract IColumn createColumn(String name, byte[] value, long timestamp);
+    public abstract IColumn createColumn(String name, byte[] value, long timestamp, boolean deleted);
     public abstract ICompactSerializer2<IColumn> createColumnSerializer();
 }
 
@@ -59,17 +60,21 @@ class ColumnFactory extends AbstractColumnFactory
 	{
 		return new Column(name);
 	}
-	
+
 	public IColumn createColumn(String name, byte[] value)
 	{
 		return new Column(name, value);
 	}
-	
+
 	public IColumn createColumn(String name, byte[] value, long timestamp)
 	{
 		return new Column(name, value, timestamp);
 	}
-    
+
+    public IColumn createColumn(String name, byte[] value, long timestamp, boolean deleted) {
+        return new Column(name, value, timestamp, deleted);
+    }
+
     public ICompactSerializer2<IColumn> createColumnSerializer()
     {
         return Column.serializer();
@@ -103,29 +108,28 @@ class SuperColumnFactory extends AbstractColumnFactory
         }
 		return superColumn;
 	}
-	
+
 	public IColumn createColumn(String name, byte[] value)
 	{
-		String[] values = SuperColumnFactory.getSuperColumnAndColumn(name);
-        if ( values.length != 2 )
-            throw new IllegalArgumentException("Super Column " + name + " in invalid format. Must be in <super column name>:<column name> format.");
-        IColumn superColumn = new SuperColumn(values[0]);
-        IColumn subColumn = new Column(values[1], value);
-        superColumn.addColumn(values[1], subColumn);
-		return superColumn;
+        return createColumn(name, value, 0);
 	}
-	
-	public IColumn createColumn(String name, byte[] value, long timestamp)
+
+    public IColumn createColumn(String name, byte[] value, long timestamp)
+    {
+        return createColumn(name, value, timestamp, false);
+    }
+
+    public IColumn createColumn(String name, byte[] value, long timestamp, boolean deleted)
 	{
 		String[] values = SuperColumnFactory.getSuperColumnAndColumn(name);
         if ( values.length != 2 )
             throw new IllegalArgumentException("Super Column " + name + " in invalid format. Must be in <super column name>:<column name> format.");
         IColumn superColumn = new SuperColumn(values[0]);
-        IColumn subColumn = new Column(values[1], value, timestamp);
+        IColumn subColumn = new Column(values[1], value, timestamp, deleted);
         superColumn.addColumn(values[1], subColumn);
 		return superColumn;
 	}
-    
+
     public ICompactSerializer2<IColumn> createColumnSerializer()
     {
         return SuperColumn.serializer();

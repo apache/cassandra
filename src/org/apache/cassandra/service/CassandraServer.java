@@ -562,20 +562,6 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 					}
 				}
 			}
-			if(batchMutation.cfmapdel != null)
-			{
-				Set keys = batchMutation.cfmapdel.keySet();
-				Iterator keyIter = keys.iterator();
-				while (keyIter.hasNext())
-				{
-					Object key = keyIter.next(); // Get the next key.
-					List<column_t> list = batchMutation.cfmapdel.get(key);
-					for (column_t columnData : list)
-					{
-						rm.delete(key.toString() + ":" + columnData.columnName);
-					}
-				}            
-			}
 			StorageProxy.insert(rm);
 		}
 		catch (Exception e)
@@ -587,18 +573,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 
     public void remove(String tablename, String key, String columnFamily_column)
 	{
-		try
-		{
-			validateTable(tablename);
-			RowMutation rm = new RowMutation(tablename, key.trim());
-			rm.delete(columnFamily_column);
-            StorageProxy.insert(rm);
-		}
-		catch (Exception e)
-		{
-			logger_.debug( LogUtil.throwableToString(e) );
-		}
-		return;
+		throw new UnsupportedOperationException();
 	}
 
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws CassandraException, TException
@@ -875,30 +850,6 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 						else
 						{
 							rm.add(key.toString() + ":" + superColumnData.name, new byte[0], 0);
-						}
-					}
-				} 
-			}
-			if(batchMutationSuper.cfmapdel != null)
-			{
-				Set keys = batchMutationSuper.cfmapdel.keySet();
-				Iterator keyIter = keys.iterator();
-				while (keyIter.hasNext())
-				{
-					Object key = keyIter.next(); // Get the next key.
-					List<superColumn_t> list = batchMutationSuper.cfmapdel.get(key);
-					for (superColumn_t superColumnData : list)
-					{
-						if(superColumnData.columns.size() != 0 )
-						{
-							for (column_t columnData : superColumnData.columns)
-							{
-								rm.delete(key.toString() + ":" + superColumnData.name  +":" + columnData.columnName);
-							}
-						}
-						else
-						{
-							rm.delete(key.toString() + ":" + superColumnData.name);
 						}
 					}
 				} 

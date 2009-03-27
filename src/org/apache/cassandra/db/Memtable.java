@@ -143,24 +143,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
         }
     }
 
-    class Remover implements Runnable
-    {
-        private String key_;
-        private ColumnFamily columnFamily_;
-
-        Remover(String key, ColumnFamily columnFamily)
-        {
-            key_ = key;
-            columnFamily_ = columnFamily;
-        }
-
-        public void run()
-        {
-        	columnFamily_.delete();
-            columnFamilies_.put(key_, columnFamily_);
-        }
-    }
-    
     /**
      * Flushes the current memtable to disk.
      * 
@@ -424,19 +406,6 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     		logger_.debug(LogUtil.throwableToString(ex2));
     	}
     	return cf;
-    }
-
-    /*
-     * Although the method is named remove() we cannot remove the key
-     * from memtable. We add it to the memtable but mark it as deleted.
-     * The reason for this because we do not want a successive get()
-     * for the same key to scan the ColumnFamilyStore files for this key.
-    */
-    void remove(String key, ColumnFamily columnFamily) throws IOException
-    {
-    	printExecutorStats();
-    	Runnable deleter = new Remover(key, columnFamily);
-    	apartments_.get(cfName_).submit(deleter);
     }
 
     void flush(CommitLog.CommitLogContext cLogCtx) throws IOException

@@ -18,21 +18,19 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingSchemes;
-import org.apache.cassandra.utils.LogUtil;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -56,7 +54,7 @@ public final class SuperColumn implements IColumn, Serializable
 
 	private String name_;
     private EfficientBidiMap columns_ = new EfficientBidiMap(ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.TIMESTAMP));
-	private AtomicBoolean isMarkedForDelete_ = new AtomicBoolean(false);
+	private long markedForDeleteAt = Long.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
 
     SuperColumn()
@@ -70,7 +68,7 @@ public final class SuperColumn implements IColumn, Serializable
 
 	public boolean isMarkedForDelete()
 	{
-		return isMarkedForDelete_.get();
+		return markedForDeleteAt > Long.MIN_VALUE;
 	}
 
     public String name()
@@ -83,12 +81,11 @@ public final class SuperColumn implements IColumn, Serializable
     	return columns_.getSortedColumns();
     }
 
-    public IColumn getSubColumn( String columnName )
+    public IColumn getSubColumn(String columnName)
     {
-    	IColumn column = columns_.get(columnName);
-    	if ( column instanceof SuperColumn )
-    		throw new UnsupportedOperationException("A super column cannot hold other super columns.");
-		return column;
+        IColumn column = columns_.get(columnName);
+        assert column instanceof Column;
+        return column;
     }
 
     public int compareTo(IColumn superColumn)
@@ -148,7 +145,7 @@ public final class SuperColumn implements IColumn, Serializable
         return size;
     }
 
-    protected void remove(String columnName)
+    public void remove(String columnName)
     {
     	columns_.remove(columnName);
     }
@@ -176,8 +173,6 @@ public final class SuperColumn implements IColumn, Serializable
     public byte[] value(String key)
     {
     	IColumn column = columns_.get(key);
-    	if ( column instanceof SuperColumn )
-    		throw new UnsupportedOperationException("A super column cannot hold other super columns.");
     	if ( column != null )
     		return column.value();
     	throw new IllegalArgumentException("Value was requested for a column that does not exist.");
@@ -211,19 +206,18 @@ public final class SuperColumn implements IColumn, Serializable
      * Go through each sub column if it exists then as it to resolve itself
      * if the column does not exist then create it.
      */
-    public boolean putColumn(IColumn column)
+    public void putColumn(IColumn column)
     {
     	if ( !(column instanceof SuperColumn))
     		throw new UnsupportedOperationException("Only Super column objects should be put here");
     	if( !name_.equals(column.name()))
     		throw new IllegalArgumentException("The name should match the name of the current column or super column");
-    	Collection<IColumn> columns = column.getSubColumns();
 
-        for ( IColumn subColumn : columns )
+        for (IColumn subColumn : column.getSubColumns())
         {
-       		addColumn(subColumn.name(), subColumn);
+        	addColumn(subColumn.name(), subColumn);
         }
-        return false;
+        markedForDeleteAt = Math.max(markedForDeleteAt, column.getMarkedForDeleteAt());
     }
 
     public int getObjectCount()
@@ -231,31 +225,14 @@ public final class SuperColumn implements IColumn, Serializable
     	return 1 + columns_.size();
     }
 
-    public void delete()
-    {
-    	columns_.clear();
-    	isMarkedForDelete_.set(true);
+    public long getMarkedForDeleteAt() {
+        return markedForDeleteAt;
     }
 
     int getColumnCount()
     {
     	return columns_.size();
     }
-
-    public void repair(IColumn column)
-    {
-    	Collection<IColumn> columns = column.getSubColumns();
-
-        for ( IColumn subColumn : columns )
-        {
-        	IColumn columnInternal = columns_.get(subColumn.name());
-        	if( columnInternal == null )
-        		columns_.put(subColumn.name(), subColumn);
-        	else
-        		columnInternal.repair(subColumn);
-        }
-    }
-
 
     public IColumn diff(IColumn column)
     {
@@ -287,7 +264,7 @@ public final class SuperColumn implements IColumn, Serializable
     public byte[] digest()
     {
     	Set<IColumn> columns = columns_.getSortedColumns();
-    	byte[] xorHash = new byte[0];
+    	byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
     	if(name_ == null)
     		return xorHash;
     	xorHash = name_.getBytes();
@@ -302,22 +279,22 @@ public final class SuperColumn implements IColumn, Serializable
     public String toString()
     {
     	StringBuilder sb = new StringBuilder();
+        sb.append("SuperColumn(");
     	sb.append(name_);
-    	sb.append(":");
-        sb.append(isMarkedForDelete());
-        sb.append(":");
 
-        Collection<IColumn> columns  = getSubColumns();
-        sb.append(columns.size());
-        sb.append(":");
-        sb.append(size());
-        sb.append(":");
-        for ( IColumn subColumn : columns )
-        {
-            sb.append(subColumn.toString());
+        if (isMarkedForDelete()) {
+            sb.append(" -delete at " + getMarkedForDeleteAt() + "-");
         }
-        sb.append(":");
+
+        sb.append(" [");
+        sb.append(StringUtils.join(getSubColumns(), ", "));
+        sb.append("])");
+
         return sb.toString();
+    }
+
+    public void markForDeleteAt(long timestamp) {
+        this.markedForDeleteAt = timestamp;
     }
 }
 
@@ -327,7 +304,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     {
     	SuperColumn superColumn = (SuperColumn)column;
         dos.writeUTF(superColumn.name());
-        dos.writeBoolean(superColumn.isMarkedForDelete());
+        dos.writeLong(superColumn.getMarkedForDeleteAt());
 
         Collection<IColumn> columns  = column.getSubColumns();
         int size = columns.size();
@@ -354,18 +331,15 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     private SuperColumn defreezeSuperColumn(DataInputStream dis) throws IOException
     {
         String name = dis.readUTF();
-        boolean delete = dis.readBoolean();
         SuperColumn superColumn = new SuperColumn(name);
-        if ( delete )
-            superColumn.delete();
+        superColumn.markForDeleteAt(dis.readLong());
         return superColumn;
     }
 
     public IColumn deserialize(DataInputStream dis) throws IOException
     {
         SuperColumn superColumn = defreezeSuperColumn(dis);
-        if ( !superColumn.isMarkedForDelete() )
-            fillSuperColumn(superColumn, dis);
+        fillSuperColumn(superColumn, dis);
         return superColumn;
     }
 
@@ -378,12 +352,11 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         int size = dis.readInt();
         dis.skip(size);
     }
-    
+
     private void fillSuperColumn(IColumn superColumn, DataInputStream dis) throws IOException
     {
-        if ( dis.available() == 0 )
-            return;
-        
+        assert dis.available() != 0;
+
         /* read the number of columns */
         int size = dis.readInt();
         /* read the size of all columns */
@@ -399,13 +372,12 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     {
         if ( dis.available() == 0 )
             return null;
-        
+
         IColumn superColumn = defreezeSuperColumn(dis);
         superColumn = filter.filter(superColumn, dis);
         if(superColumn != null)
         {
-            if ( !superColumn.isMarkedForDelete() )
-                fillSuperColumn(superColumn, dis);
+            fillSuperColumn(superColumn, dis);
             return superColumn;
         }
         else
@@ -427,32 +399,29 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     {
         if ( dis.available() == 0 )
             return null;
-        
+
         String[] names = RowMutation.getColumnAndColumnFamily(name);
         if ( names.length == 1 )
         {
             IColumn superColumn = defreezeSuperColumn(dis);
             if(name.equals(superColumn.name()))
             {
-                if ( !superColumn.isMarkedForDelete() )
+                /* read the number of columns stored */
+                int size = dis.readInt();
+                /* read the size of all columns */
+                dis.readInt();
+                IColumn column = null;
+                for ( int i = 0; i < size; ++i )
                 {
-                    /* read the number of columns stored */
-                    int size = dis.readInt();
-                    /* read the size of all columns */
-                    dis.readInt();     
-                	IColumn column = null;
-                    for ( int i = 0; i < size; ++i )
+                    column = Column.serializer().deserialize(dis, filter);
+                    if(column != null)
                     {
-                    	column = Column.serializer().deserialize(dis, filter);
-                    	if(column != null)
-                    	{
-                            superColumn.addColumn(column.name(), column);
-                    		column = null;
-                    		if(filter.isDone())
-                    		{
-                    			break;
-                    		}
-                    	}
+                        superColumn.addColumn(column.name(), column);
+                        column = null;
+                        if(filter.isDone())
+                        {
+                            break;
+                        }
                     }
                 }
                 return superColumn;

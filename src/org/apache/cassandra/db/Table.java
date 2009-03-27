@@ -855,24 +855,6 @@ public class Table
         }
     }
 
-
-    void delete(Row row) throws IOException
-    {
-        String key = row.key();
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-
-        /* Add row to commit log */
-        CommitLog.open(table_).add(row);
-        Set<String> cNames = columnFamilies.keySet();
-
-        for ( String cName : cNames )
-        {
-        	ColumnFamily columnFamily = columnFamilies.get(cName);
-            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-            cfStore.delete( key, columnFamily );
-        }
-    }
-
     void load(Row row) throws IOException
     {
         String key = row.key();

@@ -24,6 +24,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 
+import org.apache.commons.lang.ArrayUtils;
+
 import org.apache.cassandra.io.ICompactSerializer;
 
 
@@ -166,39 +168,23 @@ public class RowMutation implements Serializable
         }
         modifications_.put(values[0], columnFamily);
     }
-    
+
     /*
      * Specify a column name to be deleted. Column name is
      * specified as <column family>:column. This will result
      * in a ColumnFamily associated with <column family> as
      * name and perhaps Column with <column> as name being
      * marked as deleted.
-     * TODO : Delete is NOT correct as we do not know 
+     * TODO : Delete is NOT correct as we do not know
      * the CF type so we need to fix that.
-     * param @ cf - column name as <column family>:<column>     
+     * param @ cf - column name as <column family>:<column>
     */
-    public void delete(String cf)
-    {        
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        
-        if ( values.length == 0 || values.length > 3 )
-            throw new IllegalArgumentException("Column Family " + cf + " in invalid format. Must be in <column family>:<column> format.");
-     
-        ColumnFamily columnFamily = modifications_.get(values[0]);
-        if ( columnFamily == null )
-            columnFamily = new ColumnFamily(values[0]);
-        if(values.length == 2 )
-        {
-	        columnFamily.addColumn( values[1]);
-        }
-        if(values.length == 3 )
-        {
-	        columnFamily.addColumn( values[1] + ":" + values[2]);
-        }
-        deletions_.put(values[0], columnFamily);
+    public void delete(String columnFamilyColumn)
+    {
+        throw new UnsupportedOperationException();
     }
-    
-    /* 
+
+    /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
     */
@@ -214,16 +200,6 @@ public class RowMutation implements Serializable
             row.addColumnFamily( modifications_.get(cfName) );            
         }
         table.apply(row);
-                
-        Set<String> cfNames2 = deletions_.keySet();
-        for (String cfName : cfNames2 )
-        {    
-            if ( !table.isValidColumnFamily(cfName) )
-                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " has not been defined.");
-            row.addColumnFamily( deletions_.get(cfName) );        
-        }
-        if ( deletions_.size() > 0 )
-            table.delete(row);
     }
     
     /* 
@@ -241,16 +217,6 @@ public class RowMutation implements Serializable
             row.addColumnFamily( modifications_.get(cfName) );            
         }
         table.apply(row);
-                
-        Set<String> cfNames2 = deletions_.keySet();
-        for (String cfName : cfNames2 )
-        {    
-            if ( !table.isValidColumnFamily(cfName) )
-                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " has not been defined.");
-            row.addColumnFamily( deletions_.get(cfName) );        
-        }
-        if ( deletions_.size() > 0 )
-            table.delete(row);
     }
     
     /* 

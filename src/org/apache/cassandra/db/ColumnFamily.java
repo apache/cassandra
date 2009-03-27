@@ -18,28 +18,29 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.lang.reflect.Proxy;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingSchemes;
-import org.apache.log4j.Logger;
-import org.apache.cassandra.io.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-
-public final class ColumnFamily implements Serializable
+public final class ColumnFamily
 {
     private static ICompactSerializer2<ColumnFamily> serializer_;
     public static final short utfPrefix_ = 2;   
@@ -56,7 +57,7 @@ public final class ColumnFamily implements Serializable
         /* TODO: These are the various column types. Hard coded for now. */
         columnTypes_.put("Standard", "Standard");
         columnTypes_.put("Super", "Super");
-        
+
         indexTypes_.put("Name", "Name");
         indexTypes_.put("Time", "Time");
     }
@@ -94,9 +95,9 @@ public final class ColumnFamily implements Serializable
 
     private String name_;
 
-    private  transient ICompactSerializer2<IColumn> columnSerializer_;
-    private transient AtomicBoolean isMarkedForDelete_;
-    private  AtomicInteger size_ = new AtomicInteger(0);
+    private transient ICompactSerializer2<IColumn> columnSerializer_;
+    private long markedForDeleteAt = Long.MIN_VALUE;
+    private AtomicInteger size_ = new AtomicInteger(0);
     private EfficientBidiMap columns_;
 
     private Comparator<IColumn> columnComparator_;
@@ -122,20 +123,16 @@ public final class ColumnFamily implements Serializable
 
 		return columnComparator_;
 	}
-    
-    ColumnFamily()
-    {
-    }
 
-    public ColumnFamily(String cf)
+    public ColumnFamily(String cfName)
     {
-        name_ = cf;
+        name_ = cfName;
         createColumnFactoryAndColumnSerializer();
     }
 
-    public ColumnFamily(String cf, String columnType)
+    public ColumnFamily(String cfName, String columnType)
     {
-        name_ = cf;
+        this(cfName);
         createColumnFactoryAndColumnSerializer(columnType);
     }
 
@@ -168,7 +165,7 @@ public final class ColumnFamily implements Serializable
     ColumnFamily cloneMe()
     {
     	ColumnFamily cf = new ColumnFamily(name_);
-    	cf.isMarkedForDelete_ = isMarkedForDelete_;
+    	cf.markedForDeleteAt = markedForDeleteAt;
     	cf.columns_ = columns_.cloneMe();
     	return cf;
     }
@@ -178,13 +175,14 @@ public final class ColumnFamily implements Serializable
         return name_;
     }
 
-    /**
+    /*
      *  We need to go through each column
      *  in the column family and resolve it before adding
     */
     void addColumns(ColumnFamily cf)
     {
-        for (IColumn column : cf.getAllColumns()) {
+        for (IColumn column : cf.getAllColumns())
+        {
             addColumn(column);
         }
     }
@@ -197,7 +195,7 @@ public final class ColumnFamily implements Serializable
 
     public void addColumn(String name)
     {
-        addColumn(columnFactory_.createColumn(name));
+    	addColumn(columnFactory_.createColumn(name));
     }
 
     int getColumnCount()
@@ -206,7 +204,7 @@ public final class ColumnFamily implements Serializable
     	Map<String, IColumn> columns = columns_.getColumns();
     	if( columns != null )
     	{
-    		if(!DatabaseDescriptor.getColumnType(name_).equals("Super"))
+    		if(!isSuper())
     		{
     			count = columns.size();
     		}
@@ -222,14 +220,25 @@ public final class ColumnFamily implements Serializable
     	return count;
     }
 
+    public boolean isSuper()
+    {
+        return DatabaseDescriptor.getColumnType(name_).equals("Super");
+    }
+
     public void addColumn(String name, byte[] value)
     {
     	addColumn(name, value, 0);
     }
 
     public void addColumn(String name, byte[] value, long timestamp)
+    {
+        addColumn(name, value, timestamp, false);
+    }
+
+    public void addColumn(String name, byte[] value, long timestamp, boolean deleted)
 	{
-        addColumn(columnFactory_.createColumn(name, value, timestamp));
+		IColumn column = columnFactory_.createColumn(name, value, timestamp, deleted);
+		addColumn(column);
     }
 
     void clear()
@@ -243,28 +252,28 @@ public final class ColumnFamily implements Serializable
     */
     void addColumn(IColumn column)
     {
-    	int newSize = 0;
         String name = column.name();
         IColumn oldColumn = columns_.get(name);
-        if ( oldColumn != null )
+        if (oldColumn != null)
         {
-            int oldSize = oldColumn.size();
-            if( oldColumn.putColumn(column))
+            if (oldColumn instanceof SuperColumn)
             {
-            	// This will never be called for super column as put column always returns false.
-                columns_.put(name, column);
-            	newSize = column.size();
+                int oldSize = oldColumn.size();
+                ((SuperColumn) oldColumn).putColumn(column);
+                size_.addAndGet(oldColumn.size() - oldSize);
             }
             else
             {
-            	newSize = oldColumn.size();
+                if (oldColumn.timestamp() <= column.timestamp())
+                {
+                    columns_.put(name, column);
+                    size_.addAndGet(column.size());
+                }
             }
-            size_.addAndGet(newSize - oldSize);
         }
         else
         {
-            newSize = column.size();
-            size_.addAndGet(newSize);
+            size_.addAndGet(column.size());
             columns_.put(name, column);
         }
     }
@@ -274,7 +283,7 @@ public final class ColumnFamily implements Serializable
         return columns_.get( name );
     }
 
-    public Collection<IColumn> getAllColumns()
+    public SortedSet<IColumn> getAllColumns()
     {
         return columns_.getSortedColumns();
     }
@@ -289,17 +298,14 @@ public final class ColumnFamily implements Serializable
     	columns_.remove(columnName);
     }
 
-    void delete()
+    void delete(long timestamp)
     {
-        if ( isMarkedForDelete_ == null )
-            isMarkedForDelete_ = new AtomicBoolean(true);
-        else
-            isMarkedForDelete_.set(true);
+        markedForDeleteAt = timestamp;
     }
 
-    boolean isMarkedForDelete()
+    public boolean isMarkedForDelete()
     {
-        return ( ( isMarkedForDelete_ == null ) ? false : isMarkedForDelete_.get() );
+        return markedForDeleteAt > Long.MIN_VALUE;
     }
 
     /*
@@ -328,28 +334,8 @@ public final class ColumnFamily implements Serializable
      */
     void repair(ColumnFamily columnFamily)
     {
-        Map<String, IColumn> columns = columnFamily.getColumns();
-        Set<String> cNames = columns.keySet();
-
-        for ( String cName : cNames )
-        {
-        	IColumn columnInternal = columns_.get(cName);
-        	IColumn columnExternal = columns.get(cName);
-
-        	if( columnInternal == null )
-        	{                
-        		if(DatabaseDescriptor.getColumnFamilyType(name_).equals(ColumnFamily.getColumnType("Super")))
-        		{
-        			columnInternal = new SuperColumn(columnExternal.name());
-        			columns_.put(cName, columnInternal);
-        		}
-        		if(DatabaseDescriptor.getColumnFamilyType(name_).equals(ColumnFamily.getColumnType("Standard")))
-        		{
-        			columnInternal = columnExternal;
-        			columns_.put(cName, columnInternal);
-        		}
-        	}
-       		columnInternal.repair(columnExternal);
+        for (IColumn column : columnFamily.getAllColumns()) {
+            addColumn(column);
         }
     }
 
@@ -417,193 +403,174 @@ public final class ColumnFamily implements Serializable
     public String toString()
     {
     	StringBuilder sb = new StringBuilder();
+        sb.append("ColumnFamily(");
     	sb.append(name_);
-    	sb.append(":");
-    	sb.append(isMarkedForDelete());
-    	sb.append(":");
-    	Collection<IColumn> columns = getAllColumns();
-        sb.append(columns.size());
-        sb.append(":");
 
-        for ( IColumn column : columns )
-        {
-            sb.append(column.toString());
+        if (isMarkedForDelete()) {
+            sb.append(" -delete at " + getMarkedForDeleteAt() + "-");
         }
-        sb.append(":");
+
+    	sb.append(" [");
+        sb.append(StringUtils.join(getAllColumns(), ", "));
+        sb.append("])");
+
     	return sb.toString();
     }
 
     public byte[] digest()
     {
     	Set<IColumn> columns = columns_.getSortedColumns();
-    	byte[] xorHash = new byte[0];
-    	byte[] tmpHash = new byte[0];
+    	byte[] xorHash = null;
     	for(IColumn column : columns)
     	{
-    		if(xorHash.length == 0)
+    		if(xorHash == null)
     		{
     			xorHash = column.digest();
     		}
     		else
     		{
-    			tmpHash = column.digest();
-    			xorHash = FBUtilities.xor(xorHash, tmpHash);
+                xorHash = FBUtilities.xor(xorHash, column.digest());
     		}
     	}
     	return xorHash;
     }
-}
 
-class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
-{
-	/*
-	 * We are going to create indexes, and write out that information as well. The format
-	 * of the data serialized is as follows.
-	 *
-	 * 1) Without indexes:
-     *  // written by the data
-	 * 	<boolean false (index is not present)>
-	 * 	<column family id>
-	 * 	<is marked for delete>
-	 * 	<total number of columns>
-	 * 	<columns data>
+    public long getMarkedForDeleteAt() {
+        return markedForDeleteAt;
+    }
 
-	 * 	<boolean true (index is present)>
-	 *
-	 *  This part is written by the column indexer
-	 * 	<size of index in bytes>
-	 * 	<list of column names and their offsets relative to the first column>
-	 *
-	 *  <size of the cf in bytes>
-	 * 	<column family id>
-	 * 	<is marked for delete>
-	 * 	<total number of columns>
-	 * 	<columns data>
-	*/
-    public void serialize(ColumnFamily columnFamily, DataOutputStream dos) throws IOException
+    public static class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
-    	Collection<IColumn> columns = columnFamily.getAllColumns();
+        /*
+         * We are going to create indexes, and write out that information as well. The format
+         * of the data serialized is as follows.
+         *
+         * 1) Without indexes:
+         *  // written by the data
+         * 	<boolean false (index is not present)>
+         * 	<column family id>
+         * 	<is marked for delete>
+         * 	<total number of columns>
+         * 	<columns data>
 
-        /* write the column family id */
-        dos.writeUTF(columnFamily.name());
-        /* write if this cf is marked for delete */
-        dos.writeBoolean(columnFamily.isMarkedForDelete());
-    	/* write the size is the number of columns */
-        dos.writeInt(columns.size());                    
-        /* write the column data */
-    	for ( IColumn column : columns )
+         * 	<boolean true (index is present)>
+         *
+         *  This part is written by the column indexer
+         * 	<size of index in bytes>
+         * 	<list of column names and their offsets relative to the first column>
+         *
+         *  <size of the cf in bytes>
+         * 	<column family id>
+         * 	<is marked for delete>
+         * 	<total number of columns>
+         * 	<columns data>
+        */
+        public void serialize(ColumnFamily columnFamily, DataOutputStream dos) throws IOException
         {
-            columnFamily.getColumnSerializer().serialize(column, dos);            
-        }
-    }
+            Collection<IColumn> columns = columnFamily.getAllColumns();
 
-    /*
-     * Use this method to create a bare bones Column Family. This column family
-     * does not have any of the Column information.
-    */
-    private ColumnFamily defreezeColumnFamily(DataInputStream dis) throws IOException
-    {
-        String name = dis.readUTF();
-        boolean delete = dis.readBoolean();
-        ColumnFamily cf = new ColumnFamily(name);
-        if ( delete )
-            cf.delete();
-        return cf;
-    }
+            /* write the column family id */
+            dos.writeUTF(columnFamily.name());
+            /* write if this cf is marked for delete */
+            dos.writeLong(columnFamily.getMarkedForDeleteAt());
 
-    /*
-     * This method fills the Column Family object with the column information
-     * from the DataInputStream. The "items" parameter tells us whether we need
-     * all the columns or just a subset of all the Columns that make up the
-     * Column Family. If "items" is -1 then we need all the columns if not we
-     * deserialize only as many columns as indicated by the "items" parameter.
-    */
-    private void fillColumnFamily(ColumnFamily cf,  DataInputStream dis) throws IOException
-    {
-        int size = dis.readInt();        	        	
-    	IColumn column = null;           
-        for ( int i = 0; i < size; ++i )
-        {
-        	column = cf.getColumnSerializer().deserialize(dis);
-        	if(column != null)
-        	{
-        		cf.addColumn(column);
-        	}
-        }
-    }
+            /* write the size is the number of columns */
+            dos.writeInt(columns.size());
 
-    public ColumnFamily deserialize(DataInputStream dis) throws IOException
-    {       
-        ColumnFamily cf = defreezeColumnFamily(dis);
-        if ( !cf.isMarkedForDelete() )
-            fillColumnFamily(cf,dis);
-        return cf;
-    }
-
-    /*
-     * This version of deserialize is used when we need a specific set if columns for
-     * a column family specified in the name cfName parameter.
-    */
-    public ColumnFamily deserialize(DataInputStream dis, IFilter filter) throws IOException
-    {        
-        ColumnFamily cf = defreezeColumnFamily(dis);
-        if ( !cf.isMarkedForDelete() )
-        {
-            int size = dis.readInt();        	        	
-        	IColumn column = null;
-            for ( int i = 0; i < size; ++i )
+            /* write the column data */
+            for ( IColumn column : columns )
             {
-            	column = cf.getColumnSerializer().deserialize(dis, filter);
-            	if(column != null)
-            	{
-            		cf.addColumn(column);
-            		column = null;
-            		if(filter.isDone())
-            		{
-            			break;
-            		}
-            	}
+                columnFamily.getColumnSerializer().serialize(column, dos);
             }
         }
-        return cf;
-    }
 
-    /*
-     * Deserialize a particular column or super column or the entire columnfamily given a : seprated name
-     * name could be of the form cf:superColumn:column  or cf:column or cf
-     */
-    public ColumnFamily deserialize(DataInputStream dis, String name, IFilter filter) throws IOException
-    {        
-        String[] names = RowMutation.getColumnAndColumnFamily(name);
-        String columnName = "";
-        if ( names.length == 1 )
-            return deserialize(dis, filter);
-        if( names.length == 2 )
-            columnName = names[1];
-        if( names.length == 3 )
-            columnName = names[1]+ ":" + names[2];
-
-        ColumnFamily cf = defreezeColumnFamily(dis);
-        if ( !cf.isMarkedForDelete() )
+        /*
+         * Use this method to create a bare bones Column Family. This column family
+         * does not have any of the Column information.
+        */
+        private ColumnFamily defreezeColumnFamily(DataInputStream dis) throws IOException
         {
+            String name = dis.readUTF();
+            ColumnFamily cf = new ColumnFamily(name);
+            cf.delete(dis.readLong());
+            return cf;
+        }
+
+        public ColumnFamily deserialize(DataInputStream dis) throws IOException
+        {
+            ColumnFamily cf = defreezeColumnFamily(dis);
+            int size = dis.readInt();
+            IColumn column = null;
+            for ( int i = 0; i < size; ++i )
+            {
+                column = cf.getColumnSerializer().deserialize(dis);
+                if(column != null)
+                {
+                    cf.addColumn(column);
+                }
+            }
+            return cf;
+        }
+
+        /*
+         * This version of deserialize is used when we need a specific set if columns for
+         * a column family specified in the name cfName parameter.
+        */
+        public ColumnFamily deserialize(DataInputStream dis, IFilter filter) throws IOException
+        {
+            ColumnFamily cf = defreezeColumnFamily(dis);
+            int size = dis.readInt();
+            IColumn column = null;
+            for ( int i = 0; i < size; ++i )
+            {
+                column = cf.getColumnSerializer().deserialize(dis, filter);
+                if(column != null)
+                {
+                    cf.addColumn(column);
+                    column = null;
+                    if(filter.isDone())
+                    {
+                        break;
+                    }
+                }
+            }
+            return cf;
+        }
+
+        /*
+         * Deserialize a particular column or super column or the entire columnfamily given a : seprated name
+         * name could be of the form cf:superColumn:column  or cf:column or cf
+         */
+        public ColumnFamily deserialize(DataInputStream dis, String name, IFilter filter) throws IOException
+        {
+            String[] names = RowMutation.getColumnAndColumnFamily(name);
+            String columnName = "";
+            if ( names.length == 1 )
+                return deserialize(dis, filter);
+            if( names.length == 2 )
+                columnName = names[1];
+            if( names.length == 3 )
+                columnName = names[1]+ ":" + names[2];
+
+            ColumnFamily cf = defreezeColumnFamily(dis);
             /* read the number of columns */
-            int size = dis.readInt();            
+            int size = dis.readInt();
             for ( int i = 0; i < size; ++i )
             {
-	            IColumn column = cf.getColumnSerializer().deserialize(dis, columnName, filter);
-	            if ( column != null )
-	            {
-	                cf.addColumn(column);
-	                break;
-	            }
+                IColumn column = cf.getColumnSerializer().deserialize(dis, columnName, filter);
+                if ( column != null )
+                {
+                    cf.addColumn(column);
+                    break;
+                }
             }
+            return cf;
         }
-        return cf;
-    }
 
-    public void skip(DataInputStream dis) throws IOException
-    {
-        throw new UnsupportedOperationException("This operation is not yet supported.");
+        public void skip(DataInputStream dis) throws IOException
+        {
+            throw new UnsupportedOperationException("This operation is not yet supported.");
+        }
     }
-
 }
+

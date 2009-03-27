@@ -615,17 +615,6 @@ public class ColumnFamilyStore
     }
 
     /*
-     * Delete doesn't mean we can blindly delete. We need to write this to disk
-     * as being marked for delete. This is to prevent a previous value from
-     * resuscitating a column family that has been deleted.
-     */
-    void delete(String key, ColumnFamily columnFamily)
-            throws IOException
-    {
-        memtable_.get().remove(key, columnFamily);
-    }
-
-    /*
      * This method is called when the Memtable is frozen and ready to be flushed
      * to disk. This method informs the CommitLog that a particular ColumnFamily
      * is being flushed to disk.
