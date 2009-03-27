@@ -36,20 +36,16 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class Row
 {
-    private static ICompactSerializer<Row> serializer_;
+    private static RowSerializer serializer_ = new RowSerializer();
     private static Logger logger_ = Logger.getLogger(Row.class);
 
-    static
-    {
-        serializer_ = new RowSerializer();
-    }
-
-    static ICompactSerializer<Row> serializer()
+    static RowSerializer serializer()
     {
         return serializer_;
     }
 
     private String key_;
+
     private Map<String, ColumnFamily> columnFamilies_ = new Hashtable<String, ColumnFamily>();
 
     protected Row()
