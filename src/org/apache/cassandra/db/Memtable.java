@@ -307,6 +307,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
             int newObjectCount = oldCf.getColumnCount();
             resolveSize(oldSize, newSize);
             resolveCount(oldObjectCount, newObjectCount);
+            oldCf.delete(Math.max(oldCf.getMarkedForDeleteAt(), columnFamily.getMarkedForDeleteAt()));
         }
         else
         {

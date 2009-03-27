@@ -18,15 +18,27 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigInteger;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -40,7 +52,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.log4j.Logger;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -431,66 +442,46 @@ public class ColumnFamilyStore
         binaryMemtable_.get().put(key, buffer);
     }
 
+    public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter) throws IOException
+    {
+        List<ColumnFamily> columnFamilies = getColumnFamilies(key, columnFamilyColumn, filter);
+        return resolveAndRemoveDeleted(columnFamilies);
+    }
+
     /**
      *
      * Get the column family in the most efficient order.
      * 1. Memtable
      * 2. Sorted list of files
      */
-    public ColumnFamily getColumnFamily(String key, String cf, IFilter filter) throws IOException
+    List<ColumnFamily> getColumnFamilies(String key, String columnFamilyColumn, IFilter filter) throws IOException
     {
-    	List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
-    	ColumnFamily columnFamily = null;
-    	long start = System.currentTimeMillis();
-        /* Get the ColumnFamily from Memtable */
-    	getColumnFamilyFromCurrentMemtable(key, cf, filter, columnFamilies);
-        if(columnFamilies.size() != 0)
+        List<ColumnFamily> columnFamilies = getMemoryColumnFamilies(key, columnFamilyColumn, filter);
+        if (columnFamilies.size() == 0 || !filter.isDone())
         {
-	        if(filter.isDone())
-	        	return columnFamilies.get(0);
+            long start = System.currentTimeMillis();
+            getColumnFamilyFromDisk(key, columnFamilyColumn, columnFamilies, filter);
+            logger_.debug("DISK TIME: " + (System.currentTimeMillis() - start) + " ms.");
         }
-        /* Check if MemtableManager has any historical information */
-        MemtableManager.instance().getColumnFamily(key, columnFamily_, cf, filter, columnFamilies);
-        if(columnFamilies.size() != 0)
-        {
-        	columnFamily = resolve(columnFamilies);
-	        if(filter.isDone())
-	        	return columnFamily;
-	        columnFamilies.clear();
-	        columnFamilies.add(columnFamily);
-        }
-        getColumnFamilyFromDisk(key, cf, columnFamilies, filter);
-        logger_.debug("DISK TIME: " + (System.currentTimeMillis() - start)
-                + " ms.");
-        columnFamily = resolve(columnFamilies);
-       
-        return columnFamily;
+        return columnFamilies;
     }
-    
-    public ColumnFamily getColumnFamilyFromMemory(String key, String cf, IFilter filter) 
+
+    private List<ColumnFamily> getMemoryColumnFamilies(String key, String columnFamilyColumn, IFilter filter)
     {
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
-        ColumnFamily columnFamily = null;
-        long start = System.currentTimeMillis();
         /* Get the ColumnFamily from Memtable */
-        getColumnFamilyFromCurrentMemtable(key, cf, filter, columnFamilies);
-        if(columnFamilies.size() != 0)
+        getColumnFamilyFromCurrentMemtable(key, columnFamilyColumn, filter, columnFamilies);
+        if (columnFamilies.size() == 0 || !filter.isDone())
         {
-            if(filter.isDone())
-                return columnFamilies.get(0);
+            /* Check if MemtableManager has any historical information */
+            MemtableManager.instance().getColumnFamily(key, columnFamily_, columnFamilyColumn, filter, columnFamilies);
         }
-        /* Check if MemtableManager has any historical information */
-        MemtableManager.instance().getColumnFamily(key, columnFamily_, cf, filter, columnFamilies);
-        if(columnFamilies.size() != 0)
-        {
-            columnFamily = resolve(columnFamilies);
-            if(filter.isDone())
-                return columnFamily;
-            columnFamilies.clear();
-            columnFamilies.add(columnFamily);
-        }
-        columnFamily = resolve(columnFamilies);
-        return columnFamily;
+        return columnFamilies;
+    }
+
+    public ColumnFamily getColumnFamilyFromMemory(String key, String columnFamilyColumn, IFilter filter)
+    {
+        return resolveAndRemoveDeleted(getMemoryColumnFamilies(key, columnFamilyColumn, filter));
     }
 
     /**
@@ -530,33 +521,14 @@ public class ColumnFamilyStore
             long start = System.currentTimeMillis();
             if (columnFamily != null)
             {
-	            /*
-	             * TODO
-	             * By using the filter before removing deleted columns 
-	             * we have a efficient implementation of timefilter 
-	             * but for count filter this can return wrong results 
-	             * we need to take care of that later.
-	             */
-                /* suppress columns marked for delete */
-                Map<String, IColumn> columns = columnFamily.getColumns();
-                Set<String> cNames = columns.keySet();
-
-                for (String cName : cNames)
-                {
-                    IColumn column = columns.get(cName);
-                    if (column.isMarkedForDelete())
-                        columns.remove(cName);
-                }
                 columnFamilies.add(columnFamily);
                 if(filter.isDone())
                 {
                 	break;
                 }
             }
-            logger_.debug("DISK Data structure population  TIME: " + (System.currentTimeMillis() - start)
-                    + " ms.");
+            logger_.debug("DISK Data structure population  TIME: " + (System.currentTimeMillis() - start) + " ms.");
         }
-        files.clear();  	
     }
 
 
@@ -570,12 +542,11 @@ public class ColumnFamilyStore
 		if (bufIn.getLength() == 0)
 			return null;
         start = System.currentTimeMillis();
-        ColumnFamily columnFamily = null;
-       	columnFamily = ColumnFamily.serializer().deserialize(bufIn, cf, filter);
+        ColumnFamily columnFamily = ColumnFamily.serializer().deserialize(bufIn, cf, filter);
 		logger_.debug("DISK Deserialize TIME: " + (System.currentTimeMillis() - start) + " ms.");
 		if (columnFamily == null)
-			return columnFamily;
-		return (!columnFamily.isMarkedForDelete()) ? columnFamily : null;
+			return null;
+		return columnFamily;
 	}
 
     private void getColumnFamilyFromCurrentMemtable(String key, String cf, IFilter filter, List<ColumnFamily> columnFamilies)
@@ -584,20 +555,66 @@ public class ColumnFamilyStore
         ColumnFamily columnFamily = memtable_.get().get(key, cf, filter);
         if (columnFamily != null)
         {
-            if (!columnFamily.isMarkedForDelete())
-                columnFamilies.add(columnFamily);
+            columnFamilies.add(columnFamily);
         }
     }
     
-    private ColumnFamily resolve(List<ColumnFamily> columnFamilies)
+    /** merge all columnFamilies into a single instance, with only the newest versions of columns preserved. */
+    static ColumnFamily resolve(List<ColumnFamily> columnFamilies)
     {
         int size = columnFamilies.size();
         if (size == 0)
-            return null;        
-        ColumnFamily cf = columnFamilies.get(0);
-        for ( int i = 1; i < size ; ++i )
+            return null;
+
+        // start from nothing so that we don't include potential deleted columns from the first instance
+        String cfname = columnFamilies.get(0).name();
+        ColumnFamily cf = new ColumnFamily(cfname);
+
+        // merge
+        for (ColumnFamily cf2 : columnFamilies)
         {
-            cf.addColumns(columnFamilies.get(i));
+            assert cf.name().equals(cf2.name());
+            cf.addColumns(cf2);
+            cf.delete(Math.max(cf.getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
+        }
+        return cf;
+    }
+
+    /** like resolve, but leaves the resolved CF as the only item in the list */
+    private static void merge(List<ColumnFamily> columnFamilies)
+    {
+        ColumnFamily cf = resolve(columnFamilies);
+        columnFamilies.clear();
+        columnFamilies.add(cf);
+    }
+
+    private static ColumnFamily resolveAndRemoveDeleted(List<ColumnFamily> columnFamilies) {
+        ColumnFamily cf = resolve(columnFamilies);
+        return removeDeleted(cf);
+    }
+
+    static ColumnFamily removeDeleted(ColumnFamily cf) {
+        if (cf == null) {
+            return null;
+        }
+        for (String cname : new ArrayList<String>(cf.getColumns().keySet())) {
+            IColumn c = cf.getColumns().get(cname);
+            if (c instanceof SuperColumn) {
+                long min_timestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
+                // don't operate directly on the supercolumn, it could be the one in the memtable
+                cf.remove(cname);
+                IColumn sc = new SuperColumn(cname);
+                for (IColumn subColumn : c.getSubColumns()) {
+                    if (!subColumn.isMarkedForDelete() && subColumn.timestamp() >= min_timestamp) {
+                        sc.addColumn(subColumn.name(), subColumn);
+                    }
+                }
+                if (sc.getSubColumns().size() > 0) {
+                    cf.addColumn(sc);
+                }
+            } else if (c.isMarkedForDelete() || c.timestamp() < cf.getMarkedForDeleteAt()) {
+                cf.remove(cname);
+            }
         }
         return cf;
     }
@@ -610,8 +627,7 @@ public class ColumnFamilyStore
      */
     void applyNow(String key, ColumnFamily columnFamily) throws IOException
     {
-        if (!columnFamily.isMarkedForDelete())
-            memtable_.get().putOnRecovery(key, columnFamily);
+         memtable_.get().putOnRecovery(key, columnFamily);
     }
 
     /*
@@ -1125,14 +1141,7 @@ public class ColumnFamilyStore
 	                                if(columnFamilies.size() > 1)
 	                                {
 	    		                        // Now merge the 2 column families
-	    			                    columnFamily = resolve(columnFamilies);
-	    			                    columnFamilies.clear();
-	    			                    if( columnFamily != null)
-	    			                    {
-		    			                    // add the merged columnfamily back to the list
-		    			                    columnFamilies.add(columnFamily);
-	    			                    }
-
+                                        merge(columnFamilies);
 	                                }
 			                        // deserialize into column families
 			                        columnFamilies.add(ColumnFamily.serializer().deserialize(filestruct.bufIn_));
@@ -1144,7 +1153,7 @@ public class ColumnFamilyStore
 		                    	}
 		                    }
 		                    // Now after merging all crap append to the sstable
-		                    columnFamily = resolve(columnFamilies);
+		                    columnFamily = resolveAndRemoveDeleted(columnFamilies);
 		                    columnFamilies.clear();
 		                    if( columnFamily != null )
 		                    {
@@ -1375,15 +1384,7 @@ public class ColumnFamilyStore
 	                                // We want to add only 2 and resolve them right there in order to save on memory footprint
 	                                if(columnFamilies.size() > 1)
 	                                {
-	    		                        // Now merge the 2 column families
-	    			                    columnFamily = resolve(columnFamilies);
-	    			                    columnFamilies.clear();
-	    			                    if( columnFamily != null)
-	    			                    {
-		    			                    // add the merged columnfamily back to the list
-		    			                    columnFamilies.add(columnFamily);
-	    			                    }
-
+	    		                        merge(columnFamilies);
 	                                }
 			                        // deserialize into column families                                    
 			                        columnFamilies.add(ColumnFamily.serializer().deserialize(filestruct.bufIn_));
@@ -1394,7 +1395,7 @@ public class ColumnFamilyStore
 		                    	}
 		                    }
 		                    // Now after merging all crap append to the sstable
-		                    columnFamily = resolve(columnFamilies);
+		                    columnFamily = resolveAndRemoveDeleted(columnFamilies);
 		                    columnFamilies.clear();
 		                    if( columnFamily != null )
 		                    {

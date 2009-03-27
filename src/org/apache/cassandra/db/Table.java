@@ -808,22 +808,18 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    public void apply(Row row) throws IOException
-    {        
-        String key = row.key();
+    void apply(Row row) throws IOException
+    {
         /* Add row to the commit log. */
         long start = System.currentTimeMillis();
-               
         CommitLog.CommitLogContext cLogCtx = CommitLog.open(table_).add(row);
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-        Set<String> cNames = columnFamilies.keySet();
-        for ( String cName : cNames )
+
+        for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-        	ColumnFamily columnFamily = columnFamilies.get(cName);
             ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-            cfStore.apply( key, columnFamily, cLogCtx);            
+            cfStore.apply(row.key(), columnFamily, cLogCtx);
         }
-        row.clear();
+
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateWriteStatistics(timeTaken);
     }
