@@ -76,7 +76,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                         if ( !bVal )
                             doGossipToSeed(message);
 
-                        logger_.trace("Performing status check ...");
+                        logger_.debug("Performing status check ...");
                         doStatusCheck();
                     }
                 }
@@ -344,7 +344,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             sb.append(gDigest);
             sb.append(" ");
         }
-        logger_.trace("Gossip Digests are : " + sb.toString());
+        logger_.debug("Gossip Digests are : " + sb.toString());
     }
 
     public int getCurrentGenerationNumber(EndPoint endpoint)
@@ -367,7 +367,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos);
-        logger_.trace("@@@@ Size of GossipDigestAckMessage is " + bos.toByteArray().length);
+        logger_.debug("@@@@ Size of GossipDigestAckMessage is " + bos.toByteArray().length);
         Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK_VERB, new Object[]{bos.toByteArray()});
         return message;
     }
@@ -392,7 +392,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
 
         EndPoint to = eps.get(++rrIndex_);
-        logger_.trace("Sending a GossipDigestSynMessage to " + to + " ...");
+        logger_.info("Sending a GossipDigestSynMessage to " + to + " ...");
         MessagingService.getMessagingInstance().sendUdpOneWay(message, to);
         return seeds_.contains(to);
     }
@@ -411,7 +411,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         List<EndPoint> liveEndPoints = new ArrayList<EndPoint>(epSet);
         int index = (size == 1) ? 0 : random_.nextInt(size);
         EndPoint to = liveEndPoints.get(index);
-        logger_.trace("Sending a GossipDigestSynMessage to " + to + " ...");
+        logger_.info("Sending a GossipDigestSynMessage to " + to + " ...");
         MessagingService.getMessagingInstance().sendUdpOneWay(message, to);
         return seeds_.contains(to);
     }
@@ -977,7 +977,7 @@ class GossipDigestSynVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {
         EndPoint from = message.getFrom();
-        logger_.trace("Received a GossipDigestSynMessage from " + from);
+        logger_.info("Received a GossipDigestSynMessage from " + from);
 
         byte[] bytes = (byte[])message.getMessageBody()[0];
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
@@ -1001,7 +1001,7 @@ class GossipDigestSynVerbHandler implements IVerbHandler
 
             GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
             Message gDigestAckMessage = Gossiper.instance().makeGossipDigestAckMessage(gDigestAck);
-            logger_.trace("Sending a GossipDigestAckMessage to " + from);
+            logger_.info("Sending a GossipDigestAckMessage to " + from);
             MessagingService.getMessagingInstance().sendUdpOneWay(gDigestAckMessage, from);
         }
         catch (IOException e)
@@ -1061,7 +1061,7 @@ class GossipDigestAckVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {
         EndPoint from = message.getFrom();
-        logger_.trace("Received a GossipDigestAckMessage from " + from);
+        logger_.info("Received a GossipDigestAckMessage from " + from);
 
         byte[] bytes = (byte[])message.getMessageBody()[0];
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
@@ -1091,7 +1091,7 @@ class GossipDigestAckVerbHandler implements IVerbHandler
 
             GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
             Message gDigestAck2Message = Gossiper.instance().makeGossipDigestAck2Message(gDigestAck2);
-            logger_.trace("Sending a GossipDigestAck2Message to " + from);
+            logger_.info("Sending a GossipDigestAck2Message to " + from);
             MessagingService.getMessagingInstance().sendUdpOneWay(gDigestAck2Message, from);
         }
         catch ( IOException e )
@@ -1108,7 +1108,7 @@ class GossipDigestAck2VerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {
         EndPoint from = message.getFrom();
-        logger_.trace("Received a GossipDigestAck2Message from " + from);
+        logger_.info("Received a GossipDigestAck2Message from " + from);
 
         byte[] bytes = (byte[])message.getMessageBody()[0];
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );

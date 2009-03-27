@@ -177,7 +177,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         /* We need this so that we do not suspect a convict. */
         boolean isConvicted = false;
         double phi = hbWnd.phi(now);
-        logger_.trace("PHI for " + ep + " : " + phi);
+        logger_.info("PHI for " + ep + " : " + phi);
         
         /*
         if ( phi > phiConvictThreshold_ )

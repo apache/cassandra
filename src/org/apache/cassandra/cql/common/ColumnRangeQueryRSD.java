@@ -33,6 +33,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.cassandra.db.*;
 
 /**
  * A Row Source Defintion (RSD) for doing a range query on a column map
@@ -111,7 +112,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         List<Map<String, String>> rows = new LinkedList<Map<String, String>>();
         if (row != null)
         {
-            Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
+            Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
             if (cfMap != null && cfMap.size() > 0)
             {
                 ColumnFamily cfamily = cfMap.get(cfMetaData_.cfName);

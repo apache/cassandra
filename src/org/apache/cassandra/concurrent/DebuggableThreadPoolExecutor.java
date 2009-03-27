@@ -57,23 +57,6 @@ public final class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
     public void afterExecute(Runnable r, Throwable t)
     {
         super.afterExecute(r,t);
-
-        if (r instanceof FutureTask) {
-            assert t == null;
-            try
-            {
-                ((FutureTask)r).get();
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (ExecutionException e)
-            {
-                t = e;
-            }
-        }
-
         if ( t != null )
         {  
             Context ctx = ThreadLocalContext.get();
@@ -83,10 +66,20 @@ public final class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
                 
                 if ( object != null )
                 {
-                    logger_.error("In afterExecute() " + t.getClass().getName() + " occured while working with " + object);
+                    logger_.info("**** In afterExecute() " + t.getClass().getName() + " occured while working with " + object + " ****");
+                }
+                else
+                {
+                    logger_.info("**** In afterExecute() " + t.getClass().getName() + " occured ****");
                 }
             }
-            logger_.error("Error in ThreadPoolExecutor", t);
+            
+            Throwable cause = t.getCause();
+            if ( cause != null )
+            {
+                logger_.info( LogUtil.throwableToString(cause) );
+            }
+            logger_.info( LogUtil.throwableToString(t) );
         }
     }
 }

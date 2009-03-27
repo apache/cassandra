@@ -18,13 +18,18 @@
 
 package org.apache.cassandra.locator;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.net.CompactEndPointSerializationHelper;
 import org.apache.cassandra.net.EndPoint;
 
 
@@ -34,19 +39,29 @@ import org.apache.cassandra.net.EndPoint;
 
 public class TokenMetadata
 {
-    /* Maintains token to endpoint map of every node in the cluster. */
-    private Map<Token, EndPoint> tokenToEndPointMap_ = new HashMap<Token, EndPoint>();
+    private static ICompactSerializer<TokenMetadata> serializer_ = new TokenMetadataSerializer();
+    
+    public static ICompactSerializer<TokenMetadata> serializer()
+    {
+        return serializer_;
+    }
+    
+    /* Maintains token to endpoint map of every node in the cluster. */    
+    private Map<BigInteger, EndPoint> tokenToEndPointMap_ = new HashMap<BigInteger, EndPoint>();    
     /* Maintains a reverse index of endpoint to token in the cluster. */
-    private Map<EndPoint, Token> endPointToTokenMap_ = new HashMap<EndPoint, Token>();
+    private Map<EndPoint, BigInteger> endPointToTokenMap_ = new HashMap<EndPoint, BigInteger>();
     
     /* Use this lock for manipulating the token map */
-    private final ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
-
+    private ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
+    
+    /*
+     * For JAXB purposes. 
+    */
     public TokenMetadata()
     {
     }
-
-    private TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap)
+    
+    protected TokenMetadata(Map<BigInteger, EndPoint> tokenToEndPointMap, Map<EndPoint, BigInteger> endPointToTokenMap)
     {
         tokenToEndPointMap_ = tokenToEndPointMap;
         endPointToTokenMap_ = endPointToTokenMap;
@@ -54,18 +69,20 @@ public class TokenMetadata
     
     public TokenMetadata cloneMe()
     {
-        return new TokenMetadata(cloneTokenEndPointMap(), cloneEndPointTokenMap());
+        Map<BigInteger, EndPoint> tokenToEndPointMap = cloneTokenEndPointMap();
+        Map<EndPoint, BigInteger> endPointToTokenMap = cloneEndPointTokenMap();
+        return new TokenMetadata( tokenToEndPointMap, endPointToTokenMap );
     }
     
     /**
      * Update the two maps in an safe mode. 
     */
-    public void update(Token token, EndPoint endpoint)
+    public void update(BigInteger token, EndPoint endpoint)
     {
         lock_.writeLock().lock();
         try
         {            
-            Token oldToken = endPointToTokenMap_.get(endpoint);
+            BigInteger oldToken = endPointToTokenMap_.get(endpoint);
             if ( oldToken != null )
                 tokenToEndPointMap_.remove(oldToken);
             tokenToEndPointMap_.put(token, endpoint);
@@ -86,7 +103,7 @@ public class TokenMetadata
         lock_.writeLock().lock();
         try
         {            
-            Token oldToken = endPointToTokenMap_.get(endpoint);
+            BigInteger oldToken = endPointToTokenMap_.get(endpoint);
             if ( oldToken != null )
                 tokenToEndPointMap_.remove(oldToken);            
             endPointToTokenMap_.remove(endpoint);
@@ -97,7 +114,7 @@ public class TokenMetadata
         }
     }
     
-    public Token getToken(EndPoint endpoint)
+    public BigInteger getToken(EndPoint endpoint)
     {
         lock_.readLock().lock();
         try
@@ -126,12 +143,12 @@ public class TokenMetadata
     /*
      * Returns a safe clone of tokenToEndPointMap_.
     */
-    public Map<Token, EndPoint> cloneTokenEndPointMap()
+    public Map<BigInteger, EndPoint> cloneTokenEndPointMap()
     {
         lock_.readLock().lock();
         try
         {            
-            return new HashMap<Token, EndPoint>( tokenToEndPointMap_ );
+            return new HashMap<BigInteger, EndPoint>( tokenToEndPointMap_ );
         }
         finally
         {
@@ -142,12 +159,12 @@ public class TokenMetadata
     /*
      * Returns a safe clone of endPointTokenMap_.
     */
-    public Map<EndPoint, Token> cloneEndPointTokenMap()
+    public Map<EndPoint, BigInteger> cloneEndPointTokenMap()
     {
         lock_.readLock().lock();
         try
         {            
-            return new HashMap<EndPoint, Token>( endPointToTokenMap_ );
+            return new HashMap<EndPoint, BigInteger>( endPointToTokenMap_ );
         }
         finally
         {
@@ -169,5 +186,53 @@ public class TokenMetadata
         }
         
         return sb.toString();
+    }
+}
+
+class TokenMetadataSerializer implements ICompactSerializer<TokenMetadata>
+{
+    public void serialize(TokenMetadata tkMetadata, DataOutputStream dos) throws IOException
+    {        
+        Map<BigInteger, EndPoint> tokenToEndPointMap = tkMetadata.cloneTokenEndPointMap();
+        Set<BigInteger> tokens = tokenToEndPointMap.keySet();
+        /* write the size */
+        dos.writeInt(tokens.size());        
+        for ( BigInteger token : tokens )
+        {
+            byte[] bytes = token.toByteArray();
+            /* Convert the BigInteger to byte[] and persist */
+            dos.writeInt(bytes.length);
+            dos.write(bytes); 
+            /* Write the endpoint out */
+            CompactEndPointSerializationHelper.serialize(tokenToEndPointMap.get(token), dos);
+        }
+    }
+    
+    public TokenMetadata deserialize(DataInputStream dis) throws IOException
+    {
+        TokenMetadata tkMetadata = null;
+        int size = dis.readInt();
+        
+        if ( size > 0 )
+        {
+            Map<BigInteger, EndPoint> tokenToEndPointMap = new HashMap<BigInteger, EndPoint>();
+            Map<EndPoint, BigInteger> endPointToTokenMap = new HashMap<EndPoint, BigInteger>();
+            
+            for ( int i = 0; i < size; ++i )
+            {
+                /* Read the byte[] and convert to BigInteger */
+                byte[] bytes = new byte[dis.readInt()];
+                dis.readFully(bytes);
+                BigInteger token = new BigInteger(bytes);
+                /* Read the endpoint out */
+                EndPoint endpoint = CompactEndPointSerializationHelper.deserialize(dis);
+                tokenToEndPointMap.put(token, endpoint);
+                endPointToTokenMap.put(endpoint, token);
+            }
+            
+            tkMetadata = new TokenMetadata( tokenToEndPointMap, endPointToTokenMap );
+        }
+        
+        return tkMetadata;
     }
 }

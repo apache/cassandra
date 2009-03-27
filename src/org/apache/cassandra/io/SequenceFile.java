@@ -212,11 +212,13 @@ public class SequenceFile
     }
 
     public static class BufferWriter extends Writer
-    {
+    {        
+        private int size_;
 
         BufferWriter(String filename, int size) throws IOException
         {
             super(filename, size);
+            size_ = size;
         }
         
         @Override
@@ -268,6 +270,145 @@ public class SequenceFile
         }
     }
 
+    public static class ConcurrentWriter extends AbstractWriter
+    {
+        private FileChannel fc_;
+
+        public ConcurrentWriter(String filename) throws IOException
+        {
+            super(filename);
+            RandomAccessFile raf = new RandomAccessFile(filename, "rw");
+            fc_ = raf.getChannel();
+        }
+
+        public long getCurrentPosition() throws IOException
+        {
+            return fc_.position();
+        }
+
+        public void seek(long position) throws IOException
+        {
+            fc_.position(position);
+        }
+
+        public void append(DataOutputBuffer buffer) throws IOException
+        {
+            int length = buffer.getLength();
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(length);
+            byteBuffer.put(buffer.getData(), 0, length);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+        }
+        
+        public void append(DataOutputBuffer keyBuffer, DataOutputBuffer buffer) throws IOException
+        {
+            int keyBufLength = keyBuffer.getLength();
+            if ( keyBuffer == null || keyBufLength == 0 )
+                throw new IllegalArgumentException("Key cannot be NULL or of zero length.");
+
+            /* Size allocated "int" for key length + key + "int" for data length + data */
+            int length = buffer.getLength();
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect( 4 + keyBufLength + 4 + length );
+            byteBuffer.putInt(keyBufLength);
+            byteBuffer.put(keyBuffer.getData(), 0, keyBufLength);
+            byteBuffer.putInt(length);
+            byteBuffer.put(buffer.getData(), 0, length);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+        }
+
+        public void append(String key, DataOutputBuffer buffer) throws IOException
+        {
+            if ( key == null )
+                throw new IllegalArgumentException("Key cannot be NULL.");
+
+            int length = buffer.getLength();
+            /* Size allocated : utfPrefix_ + key length + "int" for data size + data */
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect( SequenceFile.utfPrefix_ + key.length() + 4 + length);
+            SequenceFile.writeUTF(byteBuffer, key);
+            byteBuffer.putInt(length);
+            byteBuffer.put(buffer.getData(), 0, length);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+        }
+
+        public void append(String key, byte[] value) throws IOException
+        {
+            if ( key == null )
+                throw new IllegalArgumentException("Key cannot be NULL.");
+
+            /* Size allocated key length + "int" for data size + data */
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(utfPrefix_ + key.length() + 4 + value.length);
+            SequenceFile.writeUTF(byteBuffer, key);
+            byteBuffer.putInt(value.length);
+            byteBuffer.put(value);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+        }
+
+        public void append(String key, long value) throws IOException
+        {
+            if ( key == null )
+                throw new IllegalArgumentException("Key cannot be NULL.");
+
+            /* Size allocated key length + a long */
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(SequenceFile.utfPrefix_ + key.length() + 8);
+            SequenceFile.writeUTF(byteBuffer, key);
+            byteBuffer.putLong(value);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+        }
+
+        /*
+         * Be extremely careful while using this API. This currently
+         * used to write the commit log header in the commit logs.
+         * If not used carefully it could completely screw up reads
+         * of other key/value pairs that are written.
+        */
+        public long writeDirect(byte[] bytes) throws IOException
+        {
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(bytes.length);
+            byteBuffer.put(bytes);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+            return fc_.position();
+        }
+        
+        public void writeLong(long value) throws IOException
+        {
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(8);
+            byteBuffer.putLong(value);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);
+        }
+
+        public void close() throws IOException
+        {
+            fc_.close();
+        }
+
+        public void close(byte[] footer, int size) throws IOException
+        {
+            /* Size is marker length + "int" for size + footer data */
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect( utfPrefix_ + SequenceFile.marker_.length() + 4 + footer.length);
+            SequenceFile.writeUTF(byteBuffer, SequenceFile.marker_);
+            byteBuffer.putInt(size);
+            byteBuffer.put(footer);
+            byteBuffer.flip();
+            fc_.write(byteBuffer);            
+        }
+
+        public String getFileName()
+        {
+            return filename_;
+        }
+
+        public long getFileSize() throws IOException
+        {
+            return fc_.size();
+        }
+    }
+    
     public static class FastConcurrentWriter extends AbstractWriter
     {
         private FileChannel fc_;
@@ -420,8 +561,36 @@ public class SequenceFile
         public String getFileName()
         {
             return filename_;
+        }   
+        
+        /**
+         * Given the application key this method basically figures if
+         * the key is in the block. Key comparisons differ based on the
+         * partition function. In OPHF key is stored as is but in the
+         * case of a Random hash key used internally is hash(key):key.
+         * @param key which we are looking for
+         * @param in DataInput stream into which we are looking for the key.
+         * @return true if key is found and false otherwise.
+         * @throws IOException
+         */
+        protected boolean isKeyInBlock(String key, DataInput in) throws IOException
+        {
+            boolean bVal = false;            
+            String keyInBlock = in.readUTF();
+            PartitionerType pType = StorageService.getPartitionerType();
+            switch ( pType )
+            {
+                case OPHF:
+                    bVal = keyInBlock.equals(key);
+                    break;
+                    
+                default:                    
+                    bVal = keyInBlock.split(":")[0].equals(key);
+                    break;
+            }
+            return bVal;
         }
-
+       
         /**
          * Return the position of the given key from the block index.
          * @param key the key whose offset is to be extracted from the current block index
@@ -449,7 +618,7 @@ public class SequenceFile
             for ( int i = 0; i < keys; ++i )
             {            
                 String keyInBlock = bufIn.readUTF();                
-                if ( keyInBlock.equals(key) )
+                if ( keyInBlock.equals(key) )                
                 {                	
                     position = bufIn.readLong();
                     break;
@@ -497,9 +666,8 @@ public class SequenceFile
             /* Number of keys in the block. */
             int keys = bufIn.readInt();
             for ( int i = 0; i < keys; ++i )
-            {
-                String keyInBlock = bufIn.readUTF();
-                if (keyInBlock.equals(key))
+            {                
+                if ( isKeyInBlock(key, bufIn) )
                 {
                     long position = bufIn.readLong();
                     long dataSize = bufIn.readLong();
@@ -583,7 +751,7 @@ public class SequenceFile
         {
             /* Goto the Block Index */
             seek(section.end_);
-            long position = getPositionFromBlockIndex(key);
+            long position = getPositionFromBlockIndex(key);            
             seek(position);                   
         }
         
@@ -629,9 +797,9 @@ public class SequenceFile
             }
             return totalBytesRead;
         }
-
+        
         /**
-         * Reads the column name indexes if present. If the
+         * Reads the column name indexes if present. If the 
          * indexes are based on time then skip over them.
          * @param cfName
          * @return
@@ -640,13 +808,13 @@ public class SequenceFile
         {
             /* check if we have an index */
             boolean hasColumnIndexes = file_.readBoolean();
-            int totalBytesRead = 1;
+            int totalBytesRead = 1;            
             /* if we do then deserialize the index */
             if(hasColumnIndexes)
-            {
+            {        
                 if ( DatabaseDescriptor.isTimeSortingEnabled(cfName) )
                 {
-                    /* read the index */
+                    /* read the index */                            
                     totalBytesRead += IndexHelper.deserializeIndex(cfName, file_, columnIndexList);
                 }
                 else
@@ -657,6 +825,272 @@ public class SequenceFile
             return totalBytesRead;
         }
         
+        /**
+         * This is useful in figuring out the key in system. If an OPHF 
+         * is used then the "key" is the application supplied key. If a random
+         * partitioning mechanism is used then the key is of the form 
+         * hash:key where hash is used internally as the key.
+         * 
+         * @param in the DataInput stream from which the key needs to be read
+         * @return the appropriate key based on partitioning type
+         * @throws IOException
+         */
+        protected String readKeyFromDisk(DataInput in) throws IOException
+        {
+            String keyInDisk = null;
+            PartitionerType pType = StorageService.getPartitionerType();
+            switch( pType )
+            {
+                case OPHF:
+                    keyInDisk = in.readUTF();                  
+                    break;
+                    
+                default:
+                    keyInDisk = in.readUTF().split(":")[0];
+                    break;
+            }
+            return keyInDisk;
+        }
+
+        /**
+         * This method dumps the next key/value into the DataOuputStream
+         * passed in. Always use this method to query for application
+         * specific data as it will have indexes.
+         *
+         * @param key key we are interested in.
+         * @param dos DataOutputStream that needs to be filled.
+         * @param cf the IColumn we want to read
+         * @param section region of the file that needs to be read
+         * @return total number of bytes read/considered
+        */
+        public long next(String key, DataOutputBuffer bufOut, String cf, Coordinate section) throws IOException
+        {
+    		String[] values = RowMutation.getColumnAndColumnFamily(cf);
+    		String columnFamilyName = values[0];    		
+    		String columnName = (values.length == 1) ? null : values[1];
+
+            long bytesRead = -1L;
+            if ( isEOF() )
+                return bytesRead;
+            seekTo(key, section);            
+            /* note the position where the key starts */
+            long startPosition = file_.getFilePointer();
+            String keyInDisk = readKeyFromDisk(file_);
+            if ( keyInDisk != null )
+            {
+                /*
+                 * If key on disk is greater than requested key
+                 * we can bail out since we exploit the property
+                 * of the SSTable format.
+                */
+                if ( keyInDisk.compareTo(key) > 0 )
+                    return bytesRead;
+
+                /*
+                 * If we found the key then we populate the buffer that
+                 * is passed in. If not then we skip over this key and
+                 * position ourselves to read the next one.
+                */
+                int dataSize = file_.readInt();
+                if ( keyInDisk.equals(key) )
+                {
+                    /* write the key into buffer */
+                    bufOut.writeUTF( keyInDisk );                    
+                    
+                    if(columnName == null)
+                    {
+                    	int bytesSkipped = IndexHelper.skipBloomFilterAndIndex(file_);
+	                    /*
+	                     * read the correct number of bytes for the column family and
+	                     * write data into buffer. Substract from dataSize the bloom
+                         * filter size.
+	                    */                        
+                    	dataSize -= bytesSkipped;
+                    	/* write the data size */
+                    	bufOut.writeInt(dataSize);
+	                    /* write the data into buffer, except the boolean we have read */
+	                    bufOut.write(file_, dataSize);
+                    }
+                    else
+                    {
+                        /* Read the bloom filter for the column summarization */
+                        long preBfPos = file_.getFilePointer();
+                        BloomFilter bf = defreezeBloomFilter();
+                        /* column does not exist in this file */
+                        if ( !bf.isPresent(columnName) ) 
+                            return bytesRead;
+                        long postBfPos = file_.getFilePointer();
+                        dataSize -= (postBfPos - preBfPos);
+                        
+                        List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+                        /* Read the name indexes if present */
+                        int totalBytesRead = handleColumnNameIndexes(columnFamilyName, columnIndexList);                    	
+                    	dataSize -= totalBytesRead;
+
+                        /* read the column family name */
+                        String cfName = file_.readUTF();
+                        dataSize -= (utfPrefix_ + cfName.length());
+
+                        /* read if this cf is marked for delete */
+                        boolean markedForDelete = file_.readBoolean();
+                        dataSize -= 1;
+
+                        /* read the total number of columns */
+                        int totalNumCols = file_.readInt();
+                        dataSize -= 4;
+                                                
+                        /* get the column range we have to read */
+                        IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnNameIndexInfo(columnName);
+                        IndexHelper.ColumnRange columnRange = IndexHelper.getColumnRangeFromNameIndex(cIndexInfo, columnIndexList, dataSize, totalNumCols);
+
+                        Coordinate coordinate = columnRange.coordinate();
+                		/* seek to the correct offset to the data, and calculate the data size */
+                        file_.skipBytes((int)coordinate.start_);                        
+                        dataSize = (int)(coordinate.end_ - coordinate.start_);
+                        
+                        /*
+                         * write the number of columns in the column family we are returning:
+                         * 	dataSize that we are reading +
+                         * 	length of column family name +
+                         * 	one booleanfor deleted or not +
+                         * 	one int for number of columns
+                        */
+                        bufOut.writeInt(dataSize + utfPrefix_+cfName.length() + 4 + 1);
+                        /* write the column family name */
+                        bufOut.writeUTF(cfName);
+                        /* write if this cf is marked for delete */
+                        bufOut.writeBoolean(markedForDelete);
+                        /* write number of columns */
+                        bufOut.writeInt(columnRange.count());
+                        /* now write the columns */
+                        bufOut.write(file_, dataSize);
+                    }
+                }
+                else
+                {
+                    /* skip over data portion */
+                	file_.seek(dataSize + file_.getFilePointer());
+                }
+                
+                long endPosition = file_.getFilePointer();
+                bytesRead = endPosition - startPosition;                 
+            }
+
+            return bytesRead;
+        }
+        
+        /**
+         * This method dumps the next key/value into the DataOuputStream
+         * passed in. Always use this method to query for application
+         * specific data as it will have indexes.
+         
+         * @param key key we are interested in.
+         * @param dos DataOutputStream that needs to be filled.
+         * @param column name of the column in our format.
+         * @param timeRange time range we are interested in.
+         * @param section region of the file that needs to be read
+         * @throws IOException
+         * @return number of bytes that were read.
+        */
+        public long next(String key, DataOutputBuffer bufOut, String cf, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
+        {
+            String[] values = RowMutation.getColumnAndColumnFamily(cf);
+            String columnFamilyName = values[0];            
+            String columnName = (values.length == 1) ? null : values[1];
+
+            long bytesRead = -1L;
+            if ( isEOF() )
+                return bytesRead;                                
+            seekTo(key, section);            
+            /* note the position where the key starts */
+            long startPosition = file_.getFilePointer();
+            String keyInDisk = readKeyFromDisk(file_);
+            if ( keyInDisk != null )
+            {
+                /*
+                 * If key on disk is greater than requested key
+                 * we can bail out since we exploit the property
+                 * of the SSTable format.
+                */
+                if ( keyInDisk.compareTo(key) > 0 )
+                    return bytesRead;
+
+                /*
+                 * If we found the key then we populate the buffer that
+                 * is passed in. If not then we skip over this key and
+                 * position ourselves to read the next one.
+                */
+                int dataSize = file_.readInt();
+                if ( keyInDisk.equals(key) )
+                {
+                    /* write the key into buffer */
+                    bufOut.writeUTF( keyInDisk );                    
+                    
+                    if(columnName == null)
+                    {
+                        int bytesSkipped = IndexHelper.skipBloomFilter(file_);
+                        /*
+                         * read the correct number of bytes for the column family and
+                         * write data into buffer. Substract from dataSize the bloom
+                         * filter size.
+                        */                        
+                        dataSize -= bytesSkipped;
+                        List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+                        /* Read the times indexes if present */
+                        int totalBytesRead = handleColumnTimeIndexes(columnFamilyName, columnIndexList);                        
+                        dataSize -= totalBytesRead;
+                        
+                        /* read the column family name */
+                        String cfName = file_.readUTF();
+                        dataSize -= (utfPrefix_ + cfName.length());
+
+                        /* read if this cf is marked for delete */
+                        boolean markedForDelete = file_.readBoolean();
+                        dataSize -= 1;
+
+                        /* read the total number of columns */
+                        int totalNumCols = file_.readInt();
+                        dataSize -= 4;
+                                                
+                        /* get the column range we have to read */                        
+                        IndexHelper.ColumnRange columnRange = IndexHelper.getColumnRangeFromTimeIndex(timeRange, columnIndexList, dataSize, totalNumCols);
+
+                        Coordinate coordinate = columnRange.coordinate();
+                        /* seek to the correct offset to the data, and calculate the data size */
+                        file_.skipBytes((int)coordinate.start_);
+                        dataSize = (int)(coordinate.end_ - coordinate.start_);
+                        
+                        /*
+                         * write the number of columns in the column family we are returning:
+                         *  dataSize that we are reading +
+                         *  length of column family name +
+                         *  one booleanfor deleted or not +
+                         *  one int for number of columns
+                        */
+                        bufOut.writeInt(dataSize + utfPrefix_+cfName.length() + 4 + 1);
+                        /* write the column family name */
+                        bufOut.writeUTF(cfName);
+                        /* write if this cf is marked for delete */
+                        bufOut.writeBoolean(markedForDelete);
+                        /* write number of columns */
+                        bufOut.writeInt(columnRange.count());
+                        /* now write the columns */
+                        bufOut.write(file_, dataSize);
+                    }
+                }
+                else
+                {
+                    /* skip over data portion */
+                    file_.seek(dataSize + file_.getFilePointer());
+                }
+                
+                long endPosition = file_.getFilePointer();
+                bytesRead = endPosition - startPosition;                 
+            }
+
+            return bytesRead;
+        }
+
         /**
          * This method dumps the next key/value into the DataOuputStream
          * passed in. Always use this method to query for application
@@ -670,11 +1104,11 @@ public class SequenceFile
          * @return total number of bytes read/considered
          *
         */
-        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
+        public long next(String key, DataOutputBuffer bufOut, String cf, List<String> columnNames, Coordinate section) throws IOException
         {
-            assert timeRange == null || columnNames == null; // at most one may be non-null
-            
-            List<String> cNames = columnNames == null ? null : new ArrayList<String>(columnNames);
+        	String[] values = RowMutation.getColumnAndColumnFamily(cf);
+    		String columnFamilyName = values[0];
+            List<String> cNames = new ArrayList<String>(columnNames);
 
             long bytesRead = -1L;
             if ( isEOF() )
@@ -682,8 +1116,8 @@ public class SequenceFile
 
             seekTo(key, section);            
             /* note the position where the key starts */
-            long startPosition = file_.getFilePointer();
-            String keyInDisk = file_.readUTF();
+            long startPosition = file_.getFilePointer();            
+            String keyInDisk = readKeyFromDisk(file_);
             if ( keyInDisk != null )
             {
                 /*
@@ -737,9 +1171,7 @@ public class SequenceFile
                         
                         List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
                         /* read the column name indexes if present */
-                        int totalBytesRead = (timeRange == null)
-                                           ? handleColumnNameIndexes(columnFamilyName, columnIndexList)
-                                           : handleColumnTimeIndexes(columnFamilyName, columnIndexList);
+                        int totalBytesRead = handleColumnNameIndexes(columnFamilyName, columnIndexList);                        
                     	dataSize -= totalBytesRead;
 
                         /* read the column family name */
@@ -747,8 +1179,8 @@ public class SequenceFile
                         dataSize -= (utfPrefix_ + cfName.length());
 
                         /* read if this cf is marked for delete */
-                        long markedForDeleteAt = file_.readLong();
-                        dataSize -= 8;
+                        boolean markedForDelete = file_.readBoolean();
+                        dataSize -= 1;
 
                         /* read the total number of columns */
                         int totalNumCols = file_.readInt();
@@ -758,15 +1190,7 @@ public class SequenceFile
                         /* sort the required list of columns */
                         Collections.sort(cNames);
                         /* get the various column ranges we have to read */
-                        List<IndexHelper.ColumnRange> columnRanges;
-                        if (timeRange == null)
-                        {
-                            columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(cNames, columnIndexList, dataSize, totalNumCols);
-                        }
-                        else
-                        {
-                            columnRanges = Arrays.asList(IndexHelper.getColumnRangeFromTimeIndex(timeRange, columnIndexList, dataSize, totalNumCols));
-                        }
+                        List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(cNames, columnIndexList, dataSize, totalNumCols);
 
                         /* calculate the data size */
                         int numColsReturned = 0;
@@ -789,7 +1213,7 @@ public class SequenceFile
                         /* write the column family name */
                         bufOut.writeUTF(cfName);
                         /* write if this cf is marked for delete */
-                        bufOut.writeLong(markedForDeleteAt);
+                        bufOut.writeBoolean(markedForDelete);
                         /* write number of columns */
                         bufOut.writeInt(numColsReturned);
                         int prevPosition = 0;
@@ -856,8 +1280,65 @@ public class SequenceFile
                 bytesRead = -1L;
             return bytesRead;
         }
-    }
 
+        /**
+         * This method dumps the next key/value into the DataOuputStream
+         * passed in.
+         *
+         * @param key - key we are interested in.
+         * @param dos - DataOutputStream that needs to be filled.
+         * @param section region of the file that needs to be read
+         * @return total number of bytes read/considered
+         */
+        public long next(String key, DataOutputBuffer bufOut, Coordinate section) throws IOException
+        {
+            long bytesRead = -1L;
+            if ( isEOF() )
+                return bytesRead;
+                   
+            seekTo(key, section);            
+            /* note the position where the key starts */
+            long startPosition = file_.getFilePointer(); 
+            String keyInDisk = readKeyFromDisk(file_);
+            if ( keyInDisk != null )
+            {
+                /*
+                 * If key on disk is greater than requested key
+                 * we can bail out since we exploit the property
+                 * of the SSTable format.
+                */
+                if ( keyInDisk.compareTo(key) > 0 )
+                    return bytesRead;
+
+                /*
+                 * If we found the key then we populate the buffer that
+                 * is passed in. If not then we skip over this key and
+                 * position ourselves to read the next one.
+                */
+                int dataSize = file_.readInt();
+                if ( keyInDisk.equals(key) )
+                {
+                    /* write the key into buffer */
+                    bufOut.writeUTF( keyInDisk );
+                    /* write data size into buffer */
+                    bufOut.writeInt(dataSize);
+                    /* write the data into buffer */
+                    bufOut.write(file_, dataSize);
+                }
+                else
+                {
+                    /* skip over data portion */
+                	file_.seek(dataSize + file_.getFilePointer());
+                }
+
+                long endPosition = file_.getFilePointer();
+                bytesRead = endPosition - startPosition;
+            }
+
+            return bytesRead;
+        }
+    }
+    
     public static class Reader extends AbstractReader
     {
         Reader(String filename) throws IOException
@@ -951,6 +1432,7 @@ public class SequenceFile
     }
     
     private static Logger logger_ = Logger.getLogger( SequenceFile.class ) ;
+    public static final short utfPrefix_ = 2;
     public static final String marker_ = "Bloom-Filter";
 
     public static IFileWriter writer(String filename) throws IOException
@@ -968,6 +1450,11 @@ public class SequenceFile
         return new ChecksumWriter(filename, size);
     }
 
+    public static IFileWriter concurrentWriter(String filename) throws IOException
+    {
+        return new ConcurrentWriter(filename);
+    }
+    
     public static IFileWriter fastWriter(String filename, int size) throws IOException
     {
         return new FastConcurrentWriter(filename, size);
@@ -986,6 +1473,11 @@ public class SequenceFile
     public static IFileReader chksumReader(String filename, int size) throws IOException
     {
         return new ChecksumReader(filename, size);
+    }
+
+    public static boolean readBoolean(ByteBuffer buffer)
+    {
+        return ( buffer.get() == 1 ? true : false );
     }
 
     /**
@@ -1056,4 +1548,83 @@ public class SequenceFile
         buffer.put(bytearr, 0, utflen + 2);
     }
 
+    /**
+     * Read a UTF8 string from a serialized buffer.
+     * @param buffer buffer from which a UTF8 string is read
+     * @return a Java String
+    */
+    protected static String readUTF(ByteBuffer in) throws IOException
+    {
+        int utflen = in.getShort();
+        byte[] bytearr = new byte[utflen];
+        char[] chararr = new char[utflen];
+
+        int c, char2, char3;
+        int count = 0;
+        int chararr_count = 0;
+
+        in.get(bytearr, 0, utflen);
+
+        while (count < utflen)
+        {
+            c = (int) bytearr[count] & 0xff;
+            if (c > 127)
+                break;
+            count++;
+            chararr[chararr_count++] = (char) c;
+        }
+
+        while (count < utflen)
+        {
+            c = (int) bytearr[count] & 0xff;
+            switch (c >> 4)
+            {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+                /* 0xxxxxxx */
+                count++;
+                chararr[chararr_count++] = (char) c;
+                break;
+            case 12:
+            case 13:
+                /* 110x xxxx 10xx xxxx */
+                count += 2;
+                if (count > utflen)
+                    throw new UTFDataFormatException(
+                    "malformed input: partial character at end");
+                char2 = (int) bytearr[count - 1];
+                if ((char2 & 0xC0) != 0x80)
+                    throw new UTFDataFormatException(
+                            "malformed input around byte " + count);
+                chararr[chararr_count++] = (char) (((c & 0x1F) << 6) | (char2 & 0x3F));
+                break;
+            case 14:
+                /* 1110 xxxx 10xx xxxx 10xx xxxx */
+                count += 3;
+                if (count > utflen)
+                    throw new UTFDataFormatException(
+                    "malformed input: partial character at end");
+                char2 = (int) bytearr[count - 2];
+                char3 = (int) bytearr[count - 1];
+                if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80))
+                    throw new UTFDataFormatException(
+                            "malformed input around byte " + (count - 1));
+                chararr[chararr_count++] = (char) (((c & 0x0F) << 12)
+                        | ((char2 & 0x3F) << 6) | ((char3 & 0x3F) << 0));
+                break;
+            default:
+                /* 10xx xxxx, 1111 xxxx */
+                throw new UTFDataFormatException("malformed input around byte "
+                        + count);
+            }
+        }
+        // The number of chars produced may be less than utflen
+        return new String(chararr, 0, chararr_count);
+    }
 }

@@ -109,7 +109,7 @@ public class DBTest
             System.out.println(scanner.next().name());
         }             
     }
-
+    
     public static void doTest()
     {
         String host = "insearch00";
@@ -182,6 +182,7 @@ public class DBTest
         //doWrites();
         //doRead("543");
         
+        DatabaseDescriptor.init();
         DBTest.doTest();
     }
 }

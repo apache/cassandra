@@ -18,24 +18,24 @@
 
 package org.apache.cassandra.tools;
 
+import java.util.*;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.log4j.Logger;
+import java.math.BigInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tools.TokenUpdater.TokenInfoMessage;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.log4j.Logger;
+import org.apache.cassandra.io.*;
+import org.apache.cassandra.config.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -54,8 +54,9 @@ public class TokenUpdateVerbHandler implements IVerbHandler
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
             /* Deserialize to get the token for this endpoint. */
-            Token token = Token.serializer().deserialize(bufIn);
-
+            TokenUpdater.TokenInfoMessage tiMessage = TokenUpdater.TokenInfoMessage.serializer().deserialize(bufIn);
+            
+            BigInteger token = tiMessage.getToken();
             logger_.info("Updating the token to [" + token + "]");
             StorageService.instance().updateToken(token);
             
@@ -65,19 +66,19 @@ public class TokenUpdateVerbHandler implements IVerbHandler
             logger_.debug("Number of nodes in the header " + headers.size());
             Set<String> nodes = headers.keySet();
             
-            IPartitioner p = StorageService.getPartitioner();
             for ( String node : nodes )
             {            
                 logger_.debug("Processing node " + node);
                 byte[] bytes = headers.remove(node);
                 /* Send a message to this node to update its token to the one retreived. */
                 EndPoint target = new EndPoint(node, DatabaseDescriptor.getStoragePort());
-                token = p.getTokenFactory().fromByteArray(bytes);
+                token = new BigInteger(bytes);
                 
-                /* Reset the new Message */
+                /* Reset the new TokenInfoMessage */
+                tiMessage = new TokenUpdater.TokenInfoMessage(target, token );
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
-                Token.serializer().serialize(token, dos);
+                TokenInfoMessage.serializer().serialize(tiMessage, dos);
                 message.setMessageBody(new Object[]{bos.toByteArray()});
                 
                 logger_.debug("Sending a token update message to " + target + " to update it to " + token);

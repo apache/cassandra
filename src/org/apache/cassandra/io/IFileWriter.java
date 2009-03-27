@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.io;
 
+import java.io.File;
 import java.io.IOException;
+
+import org.apache.cassandra.db.PrimaryKey;
 
 
 /**

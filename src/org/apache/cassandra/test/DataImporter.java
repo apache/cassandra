@@ -20,8 +20,12 @@ package org.apache.cassandra.test;
 
 import com.facebook.thrift.transport.TTransport;
 import com.facebook.thrift.transport.TSocket;
+import com.facebook.thrift.transport.THttpClient;
+import com.facebook.thrift.transport.TFramedTransport;
 import com.facebook.thrift.protocol.TBinaryProtocol;
-
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.*;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -29,17 +33,25 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.StringTokenizer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
@@ -58,7 +70,8 @@ import org.apache.cassandra.service.batch_mutation_super_t;
 import org.apache.cassandra.service.batch_mutation_t;
 import org.apache.cassandra.service.column_t;
 import org.apache.cassandra.service.superColumn_t;
-
+import org.apache.cassandra.utils.BasicUtilities;
+import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Token;
@@ -894,7 +907,7 @@ public class DataImporter {
                 Thread.sleep(1000/requestsPerSecond_, 1000%requestsPerSecond_);
 				errorCount_++;
 			} else {
-				Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
+				Map<String, ColumnFamily> cfMap = row.getColumnFamilies();
 				if (cfMap == null || cfMap.size() == 0) {
 					logger_
 							.debug("ERROR ColumnFamil map is missing.....: "
