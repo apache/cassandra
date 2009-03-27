@@ -1,6 +1,7 @@
 package org.apache.cassandra.io;
 
 import org.apache.cassandra.ServerTest;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.FileStruct;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.commons.collections.CollectionUtils;
@@ -28,8 +29,8 @@ public class SSTableTest extends ServerTest {
         bf.fill(key);
         ssTable.close(bf);
 
-        // TODO append/next are not symmetrical ops anymore
-        
+        // TODO this is broken because SST/SequenceFile now assume that only CFs are written
+
         // verify
         ssTable = new SSTable(f.getPath() + "-Data.db");
         DataInputBuffer bufIn = ssTable.next(key, "Test:C");
@@ -58,7 +59,7 @@ public class SSTableTest extends ServerTest {
         }
         ssTable.close(bf);
 
-        // TODO append/next are not symmetrical ops anymore
+        // TODO this is broken because SST/SequenceFile now assume that only CFs are written
 
         // verify
         List<String> keys = new ArrayList(map.keySet());

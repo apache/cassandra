@@ -19,12 +19,21 @@
 package org.apache.cassandra.service;
 
 import java.math.BigInteger;
+import java.util.Comparator;
+import java.text.Collator;
 
 public class OrderPreservingHashPartitioner implements IPartitioner
 {
     private final static int maxKeyHashLength_ = 24;
     private static final BigInteger prime_ = BigInteger.valueOf(31);
-    
+    private static final Comparator<String> comparator = new Comparator<String>() {
+        public int compare(String o1, String o2)
+        {
+            return o2.compareTo(o1);
+        }
+    };
+
+
     public BigInteger hash(String key)
     {
         BigInteger h = BigInteger.ZERO;
@@ -38,5 +47,20 @@ public class OrderPreservingHashPartitioner implements IPartitioner
                 h = OrderPreservingHashPartitioner.prime_.multiply(h).add( OrderPreservingHashPartitioner.prime_ );
         }
         return h;
+    }
+
+    public String decorateKey(String key)
+    {
+        return key;
+    }
+
+    public String undecorateKey(String decoratedKey)
+    {
+        return decoratedKey;
+    }
+
+    public Comparator<String> getReverseDecoratedKeyComparator()
+    {
+        return comparator;
     }
 }

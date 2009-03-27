@@ -183,6 +183,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return partitioner_.hash(key);
     }
+
+    public static IPartitioner getPartitioner() {
+        return partitioner_;
+    }
     
     public static enum BootstrapMode
     {

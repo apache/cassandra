@@ -146,6 +146,6 @@ class TimeFilter implements IFilter
 
 	public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException
     {
-    	return ssTable.next( key, cf, new IndexHelper.TimeRange( timeLimit_, System.currentTimeMillis() ) );
+    	return ssTable.next( key, cf, null, new IndexHelper.TimeRange( timeLimit_, System.currentTimeMillis() ) );
     }
 }

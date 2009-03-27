@@ -16,15 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
 import java.util.Comparator;
 
 public interface IPartitioner
 {
-    public BigInteger hash(String key);
-
     /** transform key to on-disk format s.t. keys are stored in node comparison order.
      *  this lets bootstrap rip out parts of the sstable sequentially instead of doing random seeks. */
     public String decorateKey(String key);
@@ -32,4 +29,10 @@ public interface IPartitioner
     public String undecorateKey(String decoratedKey);
 
     public Comparator<String> getReverseDecoratedKeyComparator();
+
+    public Token getTokenForKey(String key);
+
+    public Token getDefaultToken();
+
+    public Token.TokenFactory getTokenFactory();
 }

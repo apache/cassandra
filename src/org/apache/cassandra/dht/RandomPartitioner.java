@@ -16,12 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.util.Comparator;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.BigIntegerToken;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * This class generates a MD5 hash of the key. It uses the standard technique
@@ -59,5 +63,41 @@ public class RandomPartitioner implements IPartitioner
     public Comparator<String> getReverseDecoratedKeyComparator()
     {
         return comparator;
+    }
+
+    public BigIntegerToken getDefaultToken()
+    {
+        String guid = GuidGenerator.guid();
+        BigInteger token = FBUtilities.hash(guid);
+        if ( token.signum() == -1 )
+            token = token.multiply(BigInteger.valueOf(-1L));
+        return new BigIntegerToken(token);
+    }
+
+    private final Token.TokenFactory<BigInteger> tokenFactory = new Token.TokenFactory<BigInteger>() {
+        public byte[] toByteArray(Token<BigInteger> bigIntegerToken)
+        {
+            return bigIntegerToken.token.toByteArray();
+        }
+
+        public Token<BigInteger> fromByteArray(byte[] bytes)
+        {
+            return new BigIntegerToken(new BigInteger(bytes));
+        }
+
+        public Token<BigInteger> fromString(String string)
+        {
+            return new BigIntegerToken(new BigInteger(string));
+        }
+    };
+
+    public Token.TokenFactory<BigInteger> getTokenFactory()
+    {
+        return tokenFactory;
+    }
+
+    public Token getTokenForKey(String key)
+    {
+        return new BigIntegerToken(FBUtilities.hash(key));
     }
 }

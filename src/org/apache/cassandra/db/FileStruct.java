@@ -101,23 +101,7 @@ public class FileStruct implements Comparable<FileStruct>
 
     public int compareTo(FileStruct f)
     {
-    	int value = 0;
-        PartitionerType pType = StorageService.getPartitionerType();
-        switch( pType )
-        {
-            case OPHF:
-                value = key_.compareTo(f.key_);                    
-                break;
-                
-            default:
-            	String lhs = key_.split(":")[0];            
-                BigInteger b = new BigInteger(lhs);
-                String rhs = f.key_.split(":")[0];
-                BigInteger b2 = new BigInteger(rhs);
-                value = b.compareTo(b2);
-                break;
-        }
-        return value;
+        return -StorageService.getPartitioner().getReverseDecoratedKeyComparator().compare(key_, f.key_);
     }
     
     public void close() throws IOException
