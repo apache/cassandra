@@ -70,7 +70,7 @@ public final class ColumnFamily implements Serializable
      * This method returns the serializer whose methods are
      * preprocessed by a dynamic proxy.
     */
-    public static ICompactSerializer2<ColumnFamily> serializer2()
+    public static ICompactSerializer2<ColumnFamily> serializerWithIndexes()
     {
         return (ICompactSerializer2<ColumnFamily>)Proxy.newProxyInstance( ColumnFamily.class.getClassLoader(), new Class[]{ICompactSerializer2.class}, new CompactSerializerInvocationHandler<ColumnFamily>(serializer_) );
     }
