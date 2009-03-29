@@ -853,6 +853,15 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	public static void main(String[] args) throws Throwable
 	{
 		int port = DatabaseDescriptor.getThriftPort();
+
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
+        {
+            public void uncaughtException(Thread t, Throwable e)
+            {
+                logger_.error("Fatal exception in thread " + t, e);
+            }
+        });
+
 		try
 		{
 			CassandraServer peerStorageServer = new CassandraServer();
