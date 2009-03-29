@@ -26,5 +26,10 @@ public class ServerTest {
             {
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
             }
+            for (File f : dir.listFiles())
+            {
+                f.delete();
+            }
         }
     }
+}
