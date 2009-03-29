@@ -55,16 +55,7 @@ public interface StorageServiceMBean
      * 
      */
     public void doGC();
-    
-    /**
-     * Get the token such that the range of this node
-     * is split after <i>count</i> number of keys.
-     * @param count number of keys after which to generate
-     *              token.
-     * @return appropriate token
-     */
-    public String getAppropriateToken(int count);
-    
+
     /**
      * Stream the files in the bootstrap directory over to the
      * node being bootstrapped. This is used in case of normal
