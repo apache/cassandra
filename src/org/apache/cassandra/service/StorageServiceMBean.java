@@ -19,9 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.math.BigInteger;
-
-import org.apache.cassandra.net.EndPoint;
 
 
 /**
