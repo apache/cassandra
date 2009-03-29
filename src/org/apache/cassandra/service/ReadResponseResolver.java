@@ -147,7 +147,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	        for ( String cfName : cfNames )
 	        {
 	            ColumnFamily cf = columnFamilies.get(cfName);
-	            rowMutation.add(cfName, cf);
+	            rowMutation.add(cf);
 	        }
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
 	        // schedule the read repair

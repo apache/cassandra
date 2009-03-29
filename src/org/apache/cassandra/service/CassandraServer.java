@@ -18,21 +18,29 @@
 
 package org.apache.cassandra.service;
 
-import com.facebook.thrift.*;
-import com.facebook.thrift.server.*;
-import com.facebook.thrift.server.TThreadPoolServer.Options;
-import com.facebook.thrift.transport.*;
-import com.facebook.thrift.protocol.*;
-import com.facebook.fb303.FacebookBase;
-import com.facebook.fb303.fb_status;
-import java.io.*;
-import java.util.Collection;
-import java.util.List;
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Arrays;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.log4j.Logger;
+
+import com.facebook.fb303.FacebookBase;
+import com.facebook.fb303.fb_status;
+import com.facebook.thrift.TException;
+import com.facebook.thrift.protocol.TBinaryProtocol;
+import com.facebook.thrift.protocol.TProtocolFactory;
+import com.facebook.thrift.server.TThreadPoolServer;
+import com.facebook.thrift.server.TThreadPoolServer.Options;
+import com.facebook.thrift.transport.TServerSocket;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.common.CqlResult;
@@ -45,8 +53,11 @@ import org.apache.cassandra.db.RowMutationMessage;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.log4j.Logger;
+import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.DataOutputBuffer;
+
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -68,7 +79,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 		storageService = StorageService.instance();
 	}
 
-	public CassandraServer() throws Throwable
+	public CassandraServer()
 	{
 		super("CassandraServer");
 		// Create the instance of the storage service
@@ -80,7 +91,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	 * specified port.
 	 */
 	public void start() throws Throwable
-	{
+    {
 		LogUtil.init();
 		//LogUtil.setLogLevel("com.facebook", "DEBUG");
 		// Start the storage service
@@ -473,107 +484,21 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
     
     public boolean batch_insert_blocking(batch_mutation_t batchMutation)
     {
-		// 1. Get the N nodes from storage service where the data needs to be
-		// replicated
-		// 2. Construct a message for read\write
-		// 3. SendRR ( to all the nodes above )
-		// 4. Wait for a response from atleast X nodes where X <= N
-		// 5. return success
-    	boolean result = false;
-		try
-		{
-			logger_.warn(" batch_insert_blocking");
-			validateTable(batchMutation.table);
-			IResponseResolver<Boolean> writeResponseResolver = new WriteResponseResolver();
-			QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(
-					DatabaseDescriptor.getReplicationFactor(),
-					writeResponseResolver);
-			EndPoint[] endpoints = storageService.getNStorageEndPoint(batchMutation.key);
-			// TODO: throw a thrift exception if we do not have N nodes
-
-			logger_.debug(" Creating the row mutation");
-			RowMutation rm = new RowMutation(batchMutation.table,
-					batchMutation.key.trim());
-			Set keys = batchMutation.cfmap.keySet();
-			Iterator keyIter = keys.iterator();
-			while (keyIter.hasNext())
-			{
-				Object key = keyIter.next(); // Get the next key.
-				List<column_t> list = batchMutation.cfmap.get(key);
-				for (column_t columnData : list)
-				{
-					rm.add(key.toString() + ":" + columnData.columnName,
-							columnData.value.getBytes(), columnData.timestamp);
-
-				}
-			}            
-            
-			RowMutationMessage rmMsg = new RowMutationMessage(rm);           
-			Message message = new Message(StorageService.getLocalStorageEndPoint(), 
-                    StorageService.mutationStage_,
-					StorageService.mutationVerbHandler_, 
-                    new Object[]{ rmMsg }
-            );
-			MessagingService.getMessagingInstance().sendRR(message, endpoints,
-					quorumResponseHandler);
-			logger_.debug(" Calling quorum response handler's get");
-			result = quorumResponseHandler.get(); 
-                       
-			// TODO: if the result is false that means the writes to all the
-			// servers failed hence we need to throw an exception or return an
-			// error back to the client so that it can take appropriate action.
-		}
-		catch (Exception e)
-		{
-			logger_.info( LogUtil.throwableToString(e) );
-		}
-		return result;
-    	
+        logger_.debug("batch_insert_blocking");
+        RowMutation rm = RowMutation.getRowMutation(batchMutation);
+        return StorageProxy.insertBlocking(rm);
     }
+
 	public void batch_insert(batch_mutation_t batchMutation)
 	{
-		// 1. Get the N nodes from storage service where the data needs to be
-		// replicated
-		// 2. Construct a message for read\write
-		// 3. SendRR ( to all the nodes above )
-		// 4. Wait for a response from atleast X nodes where X <= N
-		// 5. return success
-
-		try
-		{
-			logger_.debug(" batch_insert");
-			logger_.debug(" Creating the row mutation");
-			validateTable(batchMutation.table);
-			RowMutation rm = new RowMutation(batchMutation.table,
-					batchMutation.key.trim());
-			if(batchMutation.cfmap != null)
-			{
-				Set keys = batchMutation.cfmap.keySet();
-				Iterator keyIter = keys.iterator();
-				while (keyIter.hasNext())
-				{
-					Object key = keyIter.next(); // Get the next key.
-					List<column_t> list = batchMutation.cfmap.get(key);
-					for (column_t columnData : list)
-					{
-						rm.add(key.toString() + ":" + columnData.columnName,
-								columnData.value.getBytes(), columnData.timestamp);
-	
-					}
-				}
-			}
-			StorageProxy.insert(rm);
-		}
-		catch (Exception e)
-		{
-			logger_.info( LogUtil.throwableToString(e) );
-		}
-		return;
+        logger_.debug("batch_insert");
+        RowMutation rm = RowMutation.getRowMutation(batchMutation);
+        StorageProxy.insert(rm);
 	}
 
     public void remove(String tablename, String key, String columnFamily_column)
 	{
-		throw new UnsupportedOperationException();
+		throw new UnsupportedOperationException("Remove is coming soon");
 	}
 
     public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, int block_for)
@@ -794,86 +719,16 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
     
     public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper)
     {
-    	boolean result = false;
-		try
-		{
-			logger_.warn(" batch_insert_SuperColumn_blocking");
-			logger_.debug(" Creating the row mutation");
-			validateTable(batchMutationSuper.table);
-			RowMutation rm = new RowMutation(batchMutationSuper.table,
-					batchMutationSuper.key.trim());
-			Set keys = batchMutationSuper.cfmap.keySet();
-			Iterator keyIter = keys.iterator();
-			while (keyIter.hasNext())
-			{
-				Object key = keyIter.next(); // Get the next key.
-				List<superColumn_t> list = batchMutationSuper.cfmap.get(key);
-				for (superColumn_t superColumnData : list)
-				{
-					if(superColumnData.columns.size() != 0 )
-					{
-						for (column_t columnData : superColumnData.columns)
-						{
-							rm.add(key.toString() + ":" + superColumnData.name  +":" + columnData.columnName,
-									columnData.value.getBytes(), columnData.timestamp);
-						}
-					}
-					else
-					{
-						rm.add(key.toString() + ":" + superColumnData.name, new byte[0], 0);
-					}
-				}
-			}            
-            StorageProxy.insert(rm);
-		}
-		catch (Exception e)
-		{
-			logger_.info( LogUtil.throwableToString(e) );
-		}
-		return result;
-    	
+        logger_.debug("batch_insert_SuperColumn_blocking");
+        RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
+        return StorageProxy.insertBlocking(rm);
     }
+
     public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper)
     {
-		try
-		{
-			logger_.debug(" batch_insert");
-			logger_.debug(" Creating the row mutation");
-			validateTable(batchMutationSuper.table);
-			RowMutation rm = new RowMutation(batchMutationSuper.table,
-					batchMutationSuper.key.trim());
-			if(batchMutationSuper.cfmap != null)
-			{
-				Set keys = batchMutationSuper.cfmap.keySet();
-				Iterator keyIter = keys.iterator();
-				while (keyIter.hasNext())
-				{
-					Object key = keyIter.next(); // Get the next key.
-					List<superColumn_t> list = batchMutationSuper.cfmap.get(key);
-					for (superColumn_t superColumnData : list)
-					{
-						if(superColumnData.columns.size() != 0 )
-						{
-							for (column_t columnData : superColumnData.columns)
-							{
-								rm.add(key.toString() + ":" + superColumnData.name  +":" + columnData.columnName,
-										columnData.value.getBytes(), columnData.timestamp);
-							}
-						}
-						else
-						{
-							rm.add(key.toString() + ":" + superColumnData.name, new byte[0], 0);
-						}
-					}
-				} 
-			}
-            StorageProxy.insert(rm);
-		}
-		catch (Exception e)
-		{
-			logger_.info( LogUtil.throwableToString(e) );
-		}
-		return;
+        logger_.debug("batch_insert_SuperColumn");
+        RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
+        StorageProxy.insert(rm);
     }
 
     public String getStringProperty(String propertyName) throws TException
@@ -960,7 +815,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
         }
         return result;
     }
-    
+
     /*
      * This method is used to ensure that all keys
      * prior to the specified key, as dtermined by
@@ -997,7 +852,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 
 	public static void main(String[] args) throws Throwable
 	{
-		int port = DatabaseDescriptor.getThriftPort();		
+		int port = DatabaseDescriptor.getThriftPort();
 		try
 		{
 			CassandraServer peerStorageServer = new CassandraServer();
