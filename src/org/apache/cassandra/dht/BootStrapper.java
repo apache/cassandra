@@ -130,21 +130,5 @@ public class BootStrapper implements Runnable
             logger_.debug( LogUtil.throwableToString(th) );
         }
     }
- 
-    private Range getMyOldRange()
-    {
-        Map<EndPoint, BigInteger> oldEndPointToTokenMap = tokenMetadata_.cloneEndPointTokenMap();
-        Map<BigInteger, EndPoint> oldTokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
 
-        oldEndPointToTokenMap.remove(targets_);
-        oldTokenToEndPointMap.remove(tokens_);
-
-        BigInteger myToken = oldEndPointToTokenMap.get(StorageService.getLocalStorageEndPoint());
-        List<BigInteger> allTokens = new ArrayList<BigInteger>(oldTokenToEndPointMap.keySet());
-        Collections.sort(allTokens);
-        int index = Collections.binarySearch(allTokens, myToken);
-        /* Calculate the lhs for the range */
-        BigInteger lhs = (index == 0) ? allTokens.get(allTokens.size() - 1) : allTokens.get( index - 1);
-        return new Range( lhs, myToken );
-    }
 }

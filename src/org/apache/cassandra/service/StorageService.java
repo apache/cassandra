@@ -128,16 +128,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String bootStrapInitiateVerbHandler_ = "BOOTSTRAP-INITIATE-VERB-HANDLER";
     public final static String bootStrapInitiateDoneVerbHandler_ = "BOOTSTRAP-INITIATE-DONE-VERB-HANDLER";
     public final static String bootStrapTerminateVerbHandler_ = "BOOTSTRAP-TERMINATE-VERB-HANDLER";
-    public final static String tokenInfoVerbHandler_ = "TOKEN-INFO-VERB-HANDLER";
-    public final static String locationInfoVerbHandler_ = "LOCATION-INFO-VERB-HANDLER";
     public final static String dataFileVerbHandler_ = "DATA-FILE-VERB-HANDLER";
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
-    public final static String jobConfigurationVerbHandler_ = "JOB-CONFIGURATION-VERB-HANDLER";
-    public final static String taskMetricVerbHandler_ = "TASK-METRIC-VERB-HANDLER";
-    public final static String mapAssignmentVerbHandler_ = "MAP-ASSIGNMENT-VERB-HANDLER"; 
-    public final static String reduceAssignmentVerbHandler_ = "REDUCE-ASSIGNMENT-VERB-HANDLER";
-    public final static String mapCompletionVerbHandler_ = "MAP-COMPLETION-VERB-HANDLER";
     public final static String calloutDeployVerbHandler_ = "CALLOUT-DEPLOY-VERB-HANDLER";
     public final static String touchVerbHandler_ = "TOUCH-VERB-HANDLER";
     
@@ -327,8 +320,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootStrapInitiateDoneVerbHandler_, new StorageService.BootstrapInitiateDoneVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootStrapTerminateVerbHandler_, new StreamManager.BootstrapTerminateVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(HttpConnection.httpRequestVerbHandler_, new HttpRequestVerbHandler(this) );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.tokenInfoVerbHandler_, new TokenInfoVerbHandler() );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.locationInfoVerbHandler_, new LocationInfoVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.dataFileVerbHandler_, new DataFileVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
@@ -696,77 +687,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
         return endPointToRangesMap;
     }
-    
-    /**
-     * Get the estimated disk space of the target endpoint in its
-     * primary range.
-     * @param target whose primary range we are interested in.
-     * @return disk space of the target in the primary range.
-     */
-    private double getDiskSpaceForPrimaryRange(EndPoint target)
-    {
-        double primaryDiskSpace = 0d;
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Set<BigInteger> tokens = tokenToEndPointMap.keySet();
-        Range[] allRanges = getAllRanges(tokens);
-        Arrays.sort(allRanges);
-        /* Mapping from Range to its ordered position on the ring */
-        Map<Range, Integer> rangeIndex = new HashMap<Range, Integer>();
-        for ( int i = 0; i < allRanges.length; ++i )
-        {
-            rangeIndex.put(allRanges[i], i);
-        }
-        /* Get the coefficients for the equations */
-        List<double[]> equations = new ArrayList<double[]>();
-        /* Get the endpoint to range map */
-        Map<EndPoint, List<Range>> endPointToRangesMap = constructEndPointToRangesMap();
-        Set<EndPoint> eps = endPointToRangesMap.keySet();
-        
-        for ( EndPoint ep : eps )
-        {
-            List<Range> ranges = endPointToRangesMap.get(ep);
-            double[] equation = new double[allRanges.length];
-            for ( Range range : ranges )
-            {                
-                int index = rangeIndex.get(range);
-                equation[index] = 1;
-            }
-            equations.add(equation);
-        }
-        double[][] coefficients = equations.toArray( new double[0][0] );
-        
-        /* Get the constants which are the aggregate disk space for each endpoint */
-        double[] constants = new double[allRanges.length];
-        int index = 0;
-        for ( EndPoint ep : eps )
-        {
-            /* reset the port back to control port */
-            ep.setPort(DatabaseDescriptor.getControlPort());
-            String lInfo = null;
-            if ( ep.equals(StorageService.udpAddr_) )
-                lInfo = getLoadInfo();
-            else                
-                lInfo = getLoadInfo(ep);
-            LoadInfo li = new LoadInfo(lInfo);
-            constants[index++] = FileUtils.stringToFileSize(li.diskSpace());
-        }
-        
-        RealMatrix matrix = new RealMatrixImpl(coefficients);
-        double[] solutions = matrix.solve(constants);
-        Range primaryRange = getPrimaryRangeForEndPoint(target);
-        primaryDiskSpace = solutions[rangeIndex.get(primaryRange)];
-        return primaryDiskSpace;
-    }
-    
-    /**
-     * This is very dangerous. This is used only on the client
-     * side to set up the client library. This is then used to
-     * find the appropriate nodes to route the key to.
-    */
-    public void setTokenMetadata(TokenMetadata tokenMetadata)
-    {
-        tokenMetadata_ = tokenMetadata;
-    }
 
     /**
      *  Called when there is a change in application state. In particular
@@ -840,17 +760,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    public static BigInteger generateRandomToken()
-    {
-	    byte[] randomBytes = new byte[24];
-	    Random random = new Random();
-	    for ( int i = 0 ; i < 24 ; i++)
-	    {
-	    randomBytes[i] = (byte)(31 + random.nextInt(256 - 31));
-	    }
-	    return hash(new String(randomBytes));
-    }
-
     /**
      * Get the count of primary keys from the sampler.
     */
@@ -869,37 +778,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         LoadInfo li = storageLoadBalancer_.getLoad(ep);
         return ( li == null ) ? "N/A" : li.toString();
-    }
-    
-    /**
-     * Get the endpoint that has the largest primary count.
-     * @return
-     */
-    EndPoint getEndPointWithLargestPrimaryCount()
-    {
-        Set<EndPoint> allMbrs = Gossiper.instance().getAllMembers();
-        Map<LoadInfo, EndPoint> loadInfoToEndPointMap = new HashMap<LoadInfo, EndPoint>();
-        List<LoadInfo> lInfos = new ArrayList<LoadInfo>();
-        
-        for ( EndPoint mbr : allMbrs )
-        {
-            mbr.setPort(DatabaseDescriptor.getStoragePort());
-            LoadInfo li = null;
-            if ( mbr.equals(StorageService.tcpAddr_) )
-            {
-                li = new LoadInfo( getLoadInfo() );
-                lInfos.add( li );
-            }
-            else
-            {
-                li = storageLoadBalancer_.getLoad(mbr);
-                lInfos.add( li );
-            }
-            loadInfoToEndPointMap.put(li, mbr);
-        }
-        
-        Collections.sort(lInfos, new LoadInfo.DiskSpaceComparator());
-        return loadInfoToEndPointMap.get( lInfos.get(lInfos.size() - 1) );
     }
 
     /*
@@ -1178,35 +1056,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /**
-     * This method returns the range handled by this node.
-     */
-    public Range getMyRange()
-    {
-        BigInteger myToken = tokenMetadata_.getToken(StorageService.tcpAddr_);
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List<BigInteger> allTokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
-        Collections.sort(allTokens);
-        int index = Collections.binarySearch(allTokens, myToken);
-        /* Calculate the lhs for the range */
-        BigInteger lhs = (index == 0) ? allTokens.get(allTokens.size() - 1) : allTokens.get( index - 1);
-        return new Range( lhs, myToken );
-    }
-    
-    /**
-     * Get the primary for the given range. Use the replica placement
-     * strategies to determine which are the replicas. The first replica
-     * in the list is the primary.
-     * 
-     * @param range on the ring.
-     * @return endpoint responsible for the range.
-     */
-    public EndPoint getPrimaryStorageEndPointForRange(Range range)
-    {
-        EndPoint[] replicas = nodePicker_.getStorageEndPoints(range.left());
-        return replicas[0];
-    }
-    
-    /**
      * Get the primary range for the specified endpoint.
      * @param ep endpoint we are interested in.
      * @return range for the specified endpoint.
@@ -1274,20 +1123,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /**
-     * Get all ranges that span the ring given a set
-     * of endpoints.
-    */
-    public Range[] getPrimaryRangesForEndPoints(Set<EndPoint> endpoints)
-    {
-        List<Range> allRanges = new ArrayList<Range>();
-        for ( EndPoint endpoint : endpoints )
-        {
-            allRanges.add( getPrimaryRangeForEndPoint( endpoint) );
-        }
-        return allRanges.toArray(new Range[0]);
-    }
-    
-    /**
      * This method returns the endpoint that is responsible for storing the
      * specified key.
      *
@@ -1335,63 +1170,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         EndPoint endpoint = getPrimary(key);
         return StorageService.tcpAddr_.equals(endpoint);
     }
-    
-    /**
-     * This method determines whether the target endpoint is the
-     * primary for the given key.
-     * @param key
-     * @param target the target enpoint 
-     * @return true if the local endpoint is the primary replica.
-    */
-    public boolean isPrimary(String key, EndPoint target)
-    {
-        EndPoint endpoint = getPrimary(key);
-        return target.equals(endpoint);
-    }
-    
-    /**
-     * This method determines whether the local endpoint is the
-     * seondary replica for the given key.
-     * @param key
-     * @return true if the local endpoint is the secondary replica.
-     */
-    public boolean isSecondary(String key)
-    {
-        EndPoint[] topN = getNStorageEndPoint(key);
-        if ( topN.length < DatabaseDescriptor.getReplicationFactor() )
-            return false;
-        return topN[1].equals(StorageService.tcpAddr_);
-    }
-    
-    /**
-     * This method determines whether the local endpoint is the
-     * seondary replica for the given key.
-     * @param key
-     * @return true if the local endpoint is the tertiary replica.
-     */
-    public boolean isTertiary(String key)
-    {
-        EndPoint[] topN = getNStorageEndPoint(key);
-        if ( topN.length < DatabaseDescriptor.getReplicationFactor() )
-            return false;
-        return topN[2].equals(StorageService.tcpAddr_);
-    }
-    
-    /**
-     * This method determines if the local endpoint is
-     * in the topN of N nodes passed in.
-    */
-    public boolean isInTopN(String key)
-    {
-    	EndPoint[] topN = getNStorageEndPoint(key);
-        for ( EndPoint ep : topN )
-        {
-            if ( ep.equals( StorageService.tcpAddr_ ) )
-                return true;
-        }
-        return false;
-    }
-    
+
     /**
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
@@ -1447,21 +1226,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     /**
      * This method returns the N endpoints that are responsible for storing the
-     * specified key i.e for replication. But it makes sure that the N endpoints
-     * that are returned are live as reported by the FD. It returns the hint information
-     * if some nodes in the top N are not live.
-     *
-     * param @ key - key for which we need to find the endpoint return value -
-     * the endpoint responsible for this key
-     */
-    public Map<EndPoint, EndPoint> getNHintedStorageEndPoint(String key)
-    {
-        BigInteger token = hash(key);
-        return nodePicker_.getHintedStorageEndPoints(token);
-    }
-
-    /**
-     * This method returns the N endpoints that are responsible for storing the
      * specified token i.e for replication.
      *
      * param @ token - position on the ring
@@ -1484,19 +1248,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return nodePicker_.getStorageEndPoints(token, tokenToEndPointMap);
     }
 
-    /**
-     * This method returns the N endpoints that are responsible for storing the
-     * specified key i.e for replication. But it makes sure that the N endpoints
-     * that are returned are live as reported by the FD. It returns the hint information
-     * if some nodes in the top N are not live.
-     *
-     * param @ token - position on the ring
-     */
-    public Map<EndPoint, EndPoint> getNHintedStorageEndPoint(BigInteger token)
-    {
-        return nodePicker_.getHintedStorageEndPoints(token);
-    }
-    
     /**
      * This function finds the most suitable endpoint given a key.
      * It checks for loclity and alive test.

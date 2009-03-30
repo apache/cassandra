@@ -95,45 +95,7 @@ public class Range implements Comparable<Range>
     {
         return right_;
     }
-    
-    boolean isSplitRequired()
-    {
-        return ( left_.subtract(right_).signum() >= 0 );
-    }
-    
-    public boolean isSplitBy(BigInteger bi)
-    {
-        if ( left_.subtract(right_).signum() > 0 )
-        {
-            /* 
-             * left is greater than right we are wrapping around.
-             * So if the interval is [a,b) where a > b then we have
-             * 3 cases one of which holds for any given token k.
-             * (1) k > a -- return true
-             * (2) k < b -- return true
-             * (3) b < k < a -- return false
-            */
-            if ( bi.subtract(left_).signum() > 0 )
-                return true;
-            else if (right_.subtract(bi).signum() > 0 )
-                return true;
-            else
-                return false;
-        }
-        else if ( left_.subtract(right_).signum() < 0 )
-        {
-            /*
-             * This is the range [a, b) where a < b. 
-            */
-            return ( bi.subtract(left_).signum() > 0 && right_.subtract(bi).signum() > 0 );
-        }        
-        else
-        {
-            // should never be here.
-            return true;
-        }       
-    }
-    
+
     /**
      * Helps determine if a given point on the DHT ring is contained
      * in the range in question.
@@ -154,10 +116,7 @@ public class Range implements Comparable<Range>
             */
             if ( bi.subtract(left_).signum() >= 0 )
                 return true;
-            else if (right_.subtract(bi).signum() > 0 )
-                return true;
-            else
-                return false;
+            else return right_.subtract(bi).signum() > 0;
         }
         else if ( left_.subtract(right_).signum() < 0 )
         {
@@ -171,58 +130,7 @@ public class Range implements Comparable<Range>
     		return true;
     	}    	
     }
-    
-    /**
-     * Helps determine if a given range on the DHT ring is contained
-     * within the range associated with the <i>this</i> pointer.
-     * @param rhs rhs in question
-     * @return true if the point contains within the range else false.
-     */
-    public boolean contains(Range rhs)
-    {
-        /* 
-         * If (a, b] and (c, d} are not wrap arounds
-         * then return true if a <= c <= d <= b.
-         */
-        if ( !isWrapAround(this) && !isWrapAround(rhs) )
-        {
-            if ( rhs.left_.subtract(left_).signum() >= 0 && right_.subtract(rhs.right_).signum() >= 0 )
-                return true;
-            else
-                return false;
-        }
-        
-        /*
-         * If lhs is a wrap around and rhs is not then
-         * rhs.left >= lhs.left and rhs.right >= lhs.left.
-         */
-        if ( isWrapAround(this) && !isWrapAround(rhs) )
-        {
-            if ( rhs.left_.subtract(left_).signum() >= 0 && rhs.right_.subtract(right_).signum() >= 0 )
-                return true;
-            else
-                return false;
-        }
-        
-        /* 
-         * If lhs is not a wrap around and rhs is a wrap 
-         * around then we just return false.
-         */
-        if ( !isWrapAround(this) && isWrapAround(rhs) )
-            return false;        
-        
-        if( isWrapAround(this) && isWrapAround(rhs) )
-        {
-            if ( rhs.left_.subtract(left_).signum() >= 0 && right_.subtract(right_).signum() >= 0 )
-                return true;
-            else
-                return false;
-        }
-        
-        /* should never be here */
-        return false;
-    }
-    
+
     /**
      * Tells if the given range is a wrap around.
      * @param range
@@ -230,8 +138,7 @@ public class Range implements Comparable<Range>
      */
     private boolean isWrapAround(Range range)
     {
-        boolean bVal = ( range.left_.subtract(range.right_).signum() > 0 ) ? true : false;
-        return bVal;
+        return range.left_.subtract(range.right_).signum() > 0;
     }
     
     public int compareTo(Range rhs)
@@ -254,10 +161,7 @@ public class Range implements Comparable<Range>
         if ( !(o instanceof Range) )
             return false;
         Range rhs = (Range)o;
-        if ( left_.equals(rhs.left_) && right_.equals(rhs.right_) )
-            return true;
-        else
-            return false;
+        return left_.equals(rhs.left_) && right_.equals(rhs.right_);
     }
     
     public int hashCode()

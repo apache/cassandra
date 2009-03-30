@@ -488,7 +488,7 @@ public class Table
         for ( String cfName : cfNames )
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
-            sb.append(cfStore.cfStats(newLineSeparator, df));
+            sb.append(cfStore.cfStats(newLineSeparator));
         }
         int newLength = sb.toString().length();
         
@@ -592,7 +592,7 @@ public class Table
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
-                MinorCompactionManager.instance().submitMajor(cfStore, null, 0);
+                MinorCompactionManager.instance().submitMajor(cfStore, 0);
         }
     }
 
@@ -680,26 +680,6 @@ public class Table
             }
         }
         
-        long timeTaken = System.currentTimeMillis() - start;
-        dbAnalyticsSource_.updateReadStatistics(timeTaken);
-        return row;
-    }
-    
-    public Row getRowFromMemory(String key)
-    {
-        Row row = new Row(key);
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
-        long start = System.currentTimeMillis();
-        for ( String columnFamily : columnFamilies )
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily);
-            if ( cfStore != null )
-            {    
-                ColumnFamily cf = cfStore.getColumnFamilyFromMemory(key, columnFamily, new IdentityFilter());
-                if ( cf != null )
-                    row.addColumnFamily(cf);
-            }
-        }
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateReadStatistics(timeTaken);
         return row;

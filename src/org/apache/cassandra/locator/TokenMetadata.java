@@ -39,29 +39,19 @@ import org.apache.cassandra.net.EndPoint;
 
 public class TokenMetadata
 {
-    private static ICompactSerializer<TokenMetadata> serializer_ = new TokenMetadataSerializer();
-    
-    public static ICompactSerializer<TokenMetadata> serializer()
-    {
-        return serializer_;
-    }
-    
-    /* Maintains token to endpoint map of every node in the cluster. */    
+    /* Maintains token to endpoint map of every node in the cluster. */
     private Map<BigInteger, EndPoint> tokenToEndPointMap_ = new HashMap<BigInteger, EndPoint>();    
     /* Maintains a reverse index of endpoint to token in the cluster. */
     private Map<EndPoint, BigInteger> endPointToTokenMap_ = new HashMap<EndPoint, BigInteger>();
     
     /* Use this lock for manipulating the token map */
-    private ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
-    
-    /*
-     * For JAXB purposes. 
-    */
+    private final ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
+
     public TokenMetadata()
     {
     }
-    
-    protected TokenMetadata(Map<BigInteger, EndPoint> tokenToEndPointMap, Map<EndPoint, BigInteger> endPointToTokenMap)
+
+    private TokenMetadata(Map<BigInteger, EndPoint> tokenToEndPointMap, Map<EndPoint, BigInteger> endPointToTokenMap)
     {
         tokenToEndPointMap_ = tokenToEndPointMap;
         endPointToTokenMap_ = endPointToTokenMap;
@@ -186,53 +176,5 @@ public class TokenMetadata
         }
         
         return sb.toString();
-    }
-}
-
-class TokenMetadataSerializer implements ICompactSerializer<TokenMetadata>
-{
-    public void serialize(TokenMetadata tkMetadata, DataOutputStream dos) throws IOException
-    {        
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tkMetadata.cloneTokenEndPointMap();
-        Set<BigInteger> tokens = tokenToEndPointMap.keySet();
-        /* write the size */
-        dos.writeInt(tokens.size());        
-        for ( BigInteger token : tokens )
-        {
-            byte[] bytes = token.toByteArray();
-            /* Convert the BigInteger to byte[] and persist */
-            dos.writeInt(bytes.length);
-            dos.write(bytes); 
-            /* Write the endpoint out */
-            CompactEndPointSerializationHelper.serialize(tokenToEndPointMap.get(token), dos);
-        }
-    }
-    
-    public TokenMetadata deserialize(DataInputStream dis) throws IOException
-    {
-        TokenMetadata tkMetadata = null;
-        int size = dis.readInt();
-        
-        if ( size > 0 )
-        {
-            Map<BigInteger, EndPoint> tokenToEndPointMap = new HashMap<BigInteger, EndPoint>();
-            Map<EndPoint, BigInteger> endPointToTokenMap = new HashMap<EndPoint, BigInteger>();
-            
-            for ( int i = 0; i < size; ++i )
-            {
-                /* Read the byte[] and convert to BigInteger */
-                byte[] bytes = new byte[dis.readInt()];
-                dis.readFully(bytes);
-                BigInteger token = new BigInteger(bytes);
-                /* Read the endpoint out */
-                EndPoint endpoint = CompactEndPointSerializationHelper.deserialize(dis);
-                tokenToEndPointMap.put(token, endpoint);
-                endPointToTokenMap.put(endpoint, token);
-            }
-            
-            tkMetadata = new TokenMetadata( tokenToEndPointMap, endPointToTokenMap );
-        }
-        
-        return tkMetadata;
     }
 }
