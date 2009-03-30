@@ -25,6 +25,9 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -154,6 +157,20 @@ public class ReadMessage implements Serializable
     {
     	return columns_;
     }
+
+    public String toString()
+    {
+        return "ReadMessage(" +
+               "table='" + table_ + '\'' +
+               ", key='" + key_ + '\'' +
+               ", columnFamily_column='" + columnFamily_column_ + '\'' +
+               ", start=" + start_ +
+               ", count=" + count_ +
+               ", sinceTimestamp=" + sinceTimestamp_ +
+               ", columns=[" + StringUtils.join(columns_, ", ") + "]" +
+               ", isDigestQuery=" + isDigestQuery_ +
+               ')';
+    }
 }
 
 class ReadMessageSerializer implements ICompactSerializer<ReadMessage>
@@ -202,7 +219,7 @@ class ReadMessageSerializer implements ICompactSerializer<ReadMessage>
 		{
 			rm = new ReadMessage(table, key, columnFamily_column, columns);
 		}
-		if( sinceTimestamp > 0 )
+		else if( sinceTimestamp > 0 )
 		{
 			rm = new ReadMessage(table, key, columnFamily_column, sinceTimestamp);
 		}
