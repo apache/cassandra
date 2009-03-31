@@ -1,2 +1,14 @@
-user=`whoami`
-pgrep -u $user -f cassandra | xargs kill -9
+echo "please read the stop-server script before use"
+
+# if you are using the cassandra start script with -p, this
+# is the best way to stop:
+
+# kill `cat <pidfile>` 
+
+
+# otherwise, you can run something like this, but
+# this is a shotgun approach and will kill other processes
+# with cassandra in their name or arguments too:
+
+# user=`whoami`
+# pgrep -u $user -f cassandra | xargs kill

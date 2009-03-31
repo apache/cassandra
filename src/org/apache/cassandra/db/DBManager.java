@@ -44,7 +44,7 @@ public class DBManager
     private static DBManager dbMgr_;
     private static Lock lock_ = new ReentrantLock();
 
-    public static DBManager instance() throws Throwable
+    public static DBManager instance() throws IOException
     {
         if ( dbMgr_ == null )
         {
@@ -89,7 +89,7 @@ public class DBManager
         }
     }
 
-    public DBManager() throws Throwable
+    public DBManager() throws IOException
     {
         Set<String> tables = DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
         

@@ -448,7 +448,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
     
-    public void start() throws Throwable
+    public void start() throws IOException
     {
         /* Start the DB */
         storageMetadata_ = DBManager.instance().start();  

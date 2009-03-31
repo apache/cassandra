@@ -90,7 +90,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 	 * The start function initializes the server and start's listening on the
 	 * specified port.
 	 */
-	public void start() throws Throwable
+	public void start() throws IOException
     {
 		LogUtil.init();
 		//LogUtil.setLogLevel("com.facebook", "DEBUG");
@@ -850,42 +850,5 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
 		return null;
 	}
 
-	public static void main(String[] args) throws Throwable
-	{
-		int port = DatabaseDescriptor.getThriftPort();
-
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
-        {
-            public void uncaughtException(Thread t, Throwable e)
-            {
-                logger_.error("Fatal exception in thread " + t, e);
-            }
-        });
-
-		try
-		{
-			CassandraServer peerStorageServer = new CassandraServer();
-			peerStorageServer.start();
-			Cassandra.Processor processor = new Cassandra.Processor(
-					peerStorageServer);
-			// Transport
-			TServerSocket tServerSocket =  new TServerSocket(port);
-			 // Protocol factory
-			TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();
-			 // ThreadPool Server
-			Options options = new Options();
-			options.minWorkerThreads = 64;
-			TThreadPoolServer serverEngine = new TThreadPoolServer(processor, tServerSocket, tProtocolFactory);
-			serverEngine.serve();
-
-		}
-		catch (Exception x)
-		{
-			System.err.println("UNCAUGHT EXCEPTION IN main()");
-			x.printStackTrace();
-			System.exit(1);
-		}
-
-	}
-
+    // main method moved to CassandraDaemon
 }
