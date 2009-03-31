@@ -8,6 +8,7 @@
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.classes" value="${build.dir}/classes"/>
+    <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="final.name" value="cassandra"/>
@@ -116,5 +117,19 @@
       <classfileset dir="${test.classes}" includes="**/*.class" />
     </testng>
   </target>
+	
+  <target name="javadoc" depends="init">
+    <tstamp>
+      <format property="YEAR" pattern="yyyy"/>
+    </tstamp>
+    <javadoc destdir="${javadoc.dir}" author="true" version="true" use="true"
+      windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
+      bottom="Copyright &amp;copy; ${YEAR} The Apache Software Foundation">
+
+      <fileset dir="${build.src}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
+    </javadoc>
+   </target>
 
 </project>
