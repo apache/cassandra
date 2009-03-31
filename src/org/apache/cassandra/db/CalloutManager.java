@@ -187,7 +187,7 @@ public class CalloutManager
     /**
      * Execute the specified callout.
      * @param callout to be executed.
-     * @params args arguments to be passed to the callouts.
+     * @param args arguments to be passed to the callouts.
      */
     public Object executeCallout(String callout, Object ... args)
     {

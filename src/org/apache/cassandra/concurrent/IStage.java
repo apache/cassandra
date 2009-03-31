@@ -31,8 +31,8 @@ import java.util.concurrent.*;
 public interface IStage 
 {
     /**
-     * Get the name of the associated stage
-     * @return
+     * Get the name of the associated stage.
+     * @return name of the associated stage.
      */
     public String getName();
     
@@ -43,7 +43,7 @@ public interface IStage
     public ExecutorService getInternalThreadPool();
     
     /**
-     * This method is used to execute a peice of code on
+     * This method is used to execute a piece of code on
      * this stage. The idea is that the <i>run()</i> method
      * of this Runnable instance is invoked on a thread from a
      * thread pool that belongs to this stage.
@@ -52,14 +52,14 @@ public interface IStage
     public void execute(Runnable runnable);
     
     /**
-     * This method is used to execute a peice of code on
+     * This method is used to execute a piece of code on
      * this stage which returns a Future pointer. The idea
      * is that the <i>call()</i> method of this Runnable 
      * instance is invoked on a thread from a thread pool 
      * that belongs to this stage.
      
      * @param callable instance that needs to be invoked.
-     * @return
+     * @return the future return object from the callable.
      */
     public Future<Object> execute(Callable<Object> callable);
     
@@ -68,9 +68,9 @@ public interface IStage
      * that execute periodically. 
      * 
      * @param command the task to execute.
-     * @param initialDelay the time to delay first execution 
+     * @param delay the time to delay first execution 
      * @param unit the time unit of the initialDelay and period parameters 
-     * @return
+     * @return the future return object from the runnable.
      */
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit); 
       
@@ -81,7 +81,7 @@ public interface IStage
      * @param initialDelay the time to delay first execution
      * @param period the period between successive executions
      * @param unit the time unit of the initialDelay and period parameters 
-     * @return
+     * @return the future return object from the runnable.
      */
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit); 
     
@@ -92,7 +92,7 @@ public interface IStage
      * @param initialDelay the time to delay first execution
      * @param delay  the delay between the termination of one execution and the commencement of the next.
      * @param unit the time unit of the initialDelay and delay parameters 
-     * @return
+     * @return the future return object from the runnable.
      */
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit);
     
@@ -107,14 +107,14 @@ public interface IStage
     
     /**
      * Checks if the stage has been shutdown.
-     * @return
+     * @return true if shut down, otherwise false.
      */
     public boolean isShutdown();
     
     /**
      * This method returns the number of tasks that are 
      * pending on this stage to be executed.
-     * @return
+     * @return task count.
      */
     public long getTaskCount();
 }

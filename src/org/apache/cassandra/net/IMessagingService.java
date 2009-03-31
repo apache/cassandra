@@ -137,7 +137,7 @@ public interface IMessagingService
      * whose results are harnessed via the <i>IAsyncResult</i>
      * @param messages groups of grouped messages.
      * @param to destination for the groups of messages
-     * @param the callback handler to be invoked for the responses
+     * @param cb the callback handler to be invoked for the responses
      * @return the group id which is basically useless - it is only returned for API's
      *         to look compatible.
      */

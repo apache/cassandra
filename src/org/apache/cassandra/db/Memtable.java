@@ -166,8 +166,9 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
 
     /**
      * Compares two Memtable based on creation time.
-     * @param rhs
-     * @return
+     * @param rhs Memtable to compare to.
+     * @return a negative integer, zero, or a positive integer as this object
+     * is less than, equal to, or greater than the specified object.
      */
     public int compareTo(Memtable rhs)
     {

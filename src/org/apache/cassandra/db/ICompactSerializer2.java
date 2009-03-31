@@ -40,7 +40,6 @@ public interface ICompactSerializer2<T> extends ICompactSerializer<T>
      * argument.
      * 
      * @param dis DataInput from which we need to deserialize.
-     * @param columnNames list of items that are required.
      * @throws IOException
      * @return type which contains the specified items.
 	*/
@@ -52,7 +51,6 @@ public interface ICompactSerializer2<T> extends ICompactSerializer<T>
      * 
      * @param dis DataInput from which we need to deserialize.
      * @param name name of the desired field.
-     * @param count count of the number of fields required.
      * @throws IOException
      * @return the deserialized type.
     */

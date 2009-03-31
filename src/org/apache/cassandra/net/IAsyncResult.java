@@ -67,8 +67,6 @@ public interface IAsyncResult
     
     /**
      * Store the result obtained for the submitted task.
-     * @param result result wrapped in an Object[]
-     * 
      * @param result the response message
      */
     public void result(Message result);

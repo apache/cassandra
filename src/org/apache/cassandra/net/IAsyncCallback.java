@@ -25,7 +25,7 @@ package org.apache.cassandra.net;
 public interface IAsyncCallback 
 {
 	/**
-	 * @param response responses to be returned
+	 * @param msg responses to be returned
 	 */
 	public void response(Message msg);
     

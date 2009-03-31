@@ -58,8 +58,7 @@ public class SelectorManager extends Thread
     /**
      * Constructor, which is private since there is only one selector per JVM.
      * 
-     * @param profile
-     *            DESCRIBE THE PARAMETER
+     * @param name name of thread. 
      */
     protected SelectorManager(String name)
     {

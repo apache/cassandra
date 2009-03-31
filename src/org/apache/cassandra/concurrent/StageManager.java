@@ -52,7 +52,7 @@ public class StageManager
      * Returns the stage that we are currently executing on.
      * This relies on the fact that the thread names in the
      * stage have the name of the stage as the prefix.
-     * @return
+     * @return Returns the stage that we are currently executing on.
      */
     public static IStage getCurrentStage()
     {
@@ -97,7 +97,7 @@ public class StageManager
      * This method gets the number of tasks on the
      * stage's internal queue.
      * @param stage name of the stage
-     * @return
+     * @return stage task count.
      */
     public static long getStageTaskCount(String stage)
     {

@@ -848,7 +848,7 @@ public class SequenceFile
          * specific data as it will have indexes.
          *
          * @param key key we are interested in.
-         * @param dos DataOutputStream that needs to be filled.
+         * @param bufOut DataOutputStream that needs to be filled.
          * @param cf the IColumn we want to read
          * @param section region of the file that needs to be read
          * @return total number of bytes read/considered
@@ -975,8 +975,8 @@ public class SequenceFile
          * specific data as it will have indexes.
          
          * @param key key we are interested in.
-         * @param dos DataOutputStream that needs to be filled.
-         * @param column name of the column in our format.
+         * @param bufOut DataOutputStream that needs to be filled.
+         * @param cf name of the column in our format.
          * @param timeRange time range we are interested in.
          * @param section region of the file that needs to be read
          * @throws IOException
@@ -1087,8 +1087,8 @@ public class SequenceFile
          * specific data as it will have indexes.
          *
          * @param key key we are interested in.
-         * @param dos DataOutputStream that needs to be filled.
-         * @param cfName The name of the column family only without the ":"
+         * @param bufOut DataOutputStream that needs to be filled.
+         * @param cf The name of the column family only without the ":"
          * @param columnNames The list of columns in the cfName column family that we want to return
          * @param section region of the file that needs to be read
          * @return total number of bytes read/considered
@@ -1235,7 +1235,7 @@ public class SequenceFile
          * This method dumps the next key/value into the DataOuputStream
          * passed in.
          *
-         * @param dos - DataOutputStream that needs to be filled.
+         * @param bufOut DataOutputStream that needs to be filled.
          * @return total number of bytes read/considered
          */
         public long next(DataOutputBuffer bufOut) throws IOException
@@ -1276,7 +1276,7 @@ public class SequenceFile
          * passed in.
          *
          * @param key - key we are interested in.
-         * @param dos - DataOutputStream that needs to be filled.
+         * @param bufOut DataOutputStream that needs to be filled.
          * @param section region of the file that needs to be read
          * @return total number of bytes read/considered
          */
