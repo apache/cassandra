@@ -93,7 +93,7 @@ public class MemtableManager
     }
     
     private Map<String, List<Memtable>> history_ = new HashMap<String, List<Memtable>>();
-    private ExecutorService flusher_ = new DebuggableThreadPoolExecutor( 1,
+    ExecutorService flusher_ = new DebuggableThreadPoolExecutor( 1,
             1,
             Integer.MAX_VALUE,
             TimeUnit.SECONDS,

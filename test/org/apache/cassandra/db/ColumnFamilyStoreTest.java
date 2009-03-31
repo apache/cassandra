@@ -7,18 +7,27 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.Arrays;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 
 public class ColumnFamilyStoreTest extends ServerTest {
-    @Test
-    public void testMain() throws IOException, ColumnFamilyNotDefinedException {
-        Table table = Table.open("Table1");
+    static byte[] bytes1, bytes2;
+    static {
         Random random = new Random();
-        byte[] bytes1 = new byte[1024];
-        byte[] bytes2 = new byte[1024];
+        bytes1 = new byte[1024];
+        bytes2 = new byte[128];
         random.nextBytes(bytes1);
         random.nextBytes(bytes2);
+    }
 
-        for (int i = 800; i < 1000; ++i)
+    @Test
+    public void testMain() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+
+        for (int i = 900; i < 1000; ++i)
         {
             String key = Integer.toString(i);
             RowMutation rm;
@@ -29,7 +38,7 @@ public class ColumnFamilyStoreTest extends ServerTest {
                 rm.add("Standard1:" + "Column-" + j, bytes, j);
                 rm.apply();
 
-                for ( int k = 0; k < 8; ++k )
+                for ( int k = 0; k < 4; ++k )
                 {
                     bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
                     rm = new RowMutation("Table1", key);
@@ -39,19 +48,51 @@ public class ColumnFamilyStoreTest extends ServerTest {
             }
         }
 
-        for ( int i = 800; i < 1000; ++i )
+        validateBytes(table);
+        table.getColumnFamilyStore("Standard1").forceFlush();
+        table.getColumnFamilyStore("Super1").forceFlush();
+
+        // wait for flush to finish
+        Future f = MemtableManager.instance().flusher_.submit(new Runnable()
+        {
+            public void run() {}
+        });
+        f.get();
+
+        validateBytes(table);
+    }
+
+    private void validateBytes(Table table)
+            throws ColumnFamilyNotDefinedException, IOException
+    {
+        for ( int i = 900; i < 1000; ++i )
         {
             String key = Integer.toString(i);
-            // TODO actually test results
-            ColumnFamily cf = table.get(key, "Super1:SuperColumn-1");
+            ColumnFamily cf;
+
+            cf = table.get(key, "Standard1");
+            Collection<IColumn> columns = cf.getAllColumns();
+            for (IColumn column : columns)
+            {
+                int j = Integer.valueOf(column.name().split("-")[1]);
+                byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
+                assert Arrays.equals(bytes, column.value());
+            }
+
+            cf = table.get(key, "Super1");
             assert cf != null;
             Collection<IColumn> superColumns = cf.getAllColumns();
-            for ( IColumn superColumn : superColumns )
+            assert superColumns.size() == 8;
+            for (IColumn superColumn : superColumns)
             {
+                int j = Integer.valueOf(superColumn.name().split("-")[1]);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
-                for ( IColumn subColumn : subColumns )
+                assert subColumns.size() == 4;
+                for (IColumn subColumn : subColumns)
                 {
-                    //System.out.println(subColumn);
+                    int k = Integer.valueOf(subColumn.name().split("-")[1]);
+                    byte[] bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
+                    assert Arrays.equals(bytes, subColumn.value());
                 }
             }
         }

@@ -262,6 +262,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
 
     /*
      * This version is used to switch memtable and force flush.
+     * Flushing is still done in a separate executor -- forceFlush does not block.
     */
     public void forceflush(ColumnFamilyStore cfStore) throws IOException
     {
