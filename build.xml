@@ -7,6 +7,7 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
+    <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="test.dir" value="${basedir}/test"/>
@@ -106,10 +107,12 @@
   <taskdef resource="testngtasks" classpath="lib/testng-5.8-jdk15.jar"/>
   <target name="test" depends="build-test">
     <echo message="running tests"/>
+    <mkdir dir="${build.test.dir}/commitlog"/>
+    <mkdir dir="${build.test.dir}/cassandra"/>
     <testng outputDir="${build.dir}/test/output"
             haltOnFailure="true"
             verbose="2">
-      <jvmarg value="-Dstorage-config=conf"/>
+      <jvmarg value="-Dstorage-config=test/conf"/>
       <classpath>
         <path refid="cassandra.classpath" />
         <pathelement location="${test.classes}"/>
