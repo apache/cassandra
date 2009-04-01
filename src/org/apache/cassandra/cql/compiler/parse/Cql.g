@@ -97,11 +97,11 @@ tokens {
 }
 
 @parser::header {
-            package com.facebook.infrastructure.cql.compiler.parse;
+            package org.apache.cassandra.cql.compiler.parse;
         }
 
 @lexer::header {
-            package com.facebook.infrastructure.cql.compiler.parse;
+            package org.apache.cassandra.cql.compiler.parse;
         }
 
 //
