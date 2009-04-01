@@ -58,11 +58,11 @@ tokens {
 }
 
 @parser::header {
-package com.facebook.infrastructure.cli;
+package org.apache.cassandra.cli;
 }
 
 @lexer::header {
-package com.facebook.infrastructure.cli;
+package org.apache.cassandra.cli;
 }
 
 //
@@ -85,6 +85,7 @@ stmt
 
 connectStmt
     : K_CONNECT host SLASH port -> ^(NODE_CONNECT host port)
+    | K_CONNECT ip SLASH port -> ^(NODE_CONNECT ip port)
     ;
 
 helpStmt
@@ -150,6 +151,8 @@ value: StringLiteral;
 columnOrSuperColumn: StringLiteral;
 
 host: id+=Identifier (id+=DOT id+=Identifier)* -> ^(NODE_ID_LIST $id+);
+
+ip: id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral -> ^(NODE_ID_LIST $id+);
 
 port: IntegerLiteral;
 
