@@ -55,8 +55,6 @@ public class DatabaseDescriptor
     private static String snapshotDirectory_;
     /* Keeps the list of Ganglia servers to contact */
     private static String[] gangliaServers_ ;
-    /* Keeps the list of map output directories */
-    private static String[] mapOutputDirectories_;
     /* Keeps the list of data file directories */
     private static String[] dataFileDirectories_;
     /* Current index into the above list of directories */
@@ -244,14 +242,6 @@ public class DatabaseDescriptor
             else
             {
                     snapshotDirectory_ = metadataDirectory_ + System.getProperty("file.separator") + "snapshot";
-            }
-
-            /* map output directory */
-            mapOutputDirectories_ = xmlUtils.getNodeValues("/Storage/MapOutputDirectories/MapOutputDirectory");
-            if ( mapOutputDirectories_.length > 0 )
-            {
-                for ( String mapOutputDirectory : mapOutputDirectories_ )
-                    FileUtils.createDirectory(mapOutputDirectory);
             }
 
             /* data file directory */
@@ -666,17 +656,6 @@ public class DatabaseDescriptor
     public static void setSnapshotDirectory(String snapshotDirectory)
     {
     	snapshotDirectory_ = snapshotDirectory;
-    }
-    
-    public static String[] getAllMapOutputDirectories()
-    {
-        return mapOutputDirectories_;
-    }
-    
-    public static String getMapOutputLocation()
-    {
-        String mapOutputDirectory = mapOutputDirectories_[currentIndex_];
-        return mapOutputDirectory;
     }
 
     public static String[] getAllDataFileLocations()
