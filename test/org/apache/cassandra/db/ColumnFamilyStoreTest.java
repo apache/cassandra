@@ -4,17 +4,24 @@ import org.apache.cassandra.ServerTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutionException;
 
-public class ColumnFamilyStoreTest extends ServerTest {
+public class ColumnFamilyStoreTest extends ServerTest
+{
     static byte[] bytes1, bytes2;
-    static {
+
+    static
+    {
         Random random = new Random();
         bytes1 = new byte[1024];
         bytes2 = new byte[128];
@@ -31,14 +38,14 @@ public class ColumnFamilyStoreTest extends ServerTest {
         {
             String key = Integer.toString(i);
             RowMutation rm;
-            for ( int j = 0; j < 8; ++j )
+            for (int j = 0; j < 8; ++j)
             {
                 byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
                 rm = new RowMutation("Table1", key);
                 rm.add("Standard1:" + "Column-" + j, bytes, j);
                 rm.apply();
 
-                for ( int k = 0; k < 4; ++k )
+                for (int k = 0; k < 4; ++k)
                 {
                     bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
                     rm = new RowMutation("Table1", key);
@@ -55,7 +62,9 @@ public class ColumnFamilyStoreTest extends ServerTest {
         // wait for flush to finish
         Future f = MemtableManager.instance().flusher_.submit(new Runnable()
         {
-            public void run() {}
+            public void run()
+            {
+            }
         });
         f.get();
 
@@ -65,7 +74,7 @@ public class ColumnFamilyStoreTest extends ServerTest {
     private void validateBytes(Table table)
             throws ColumnFamilyNotDefinedException, IOException
     {
-        for ( int i = 900; i < 1000; ++i )
+        for (int i = 900; i < 1000; ++i)
         {
             String key = Integer.toString(i);
             ColumnFamily cf;
@@ -99,7 +108,8 @@ public class ColumnFamilyStoreTest extends ServerTest {
     }
 
     @Test
-    public void testRemove() throws IOException, ColumnFamilyNotDefinedException {
+    public void testRemove() throws IOException, ColumnFamilyNotDefinedException
+    {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
         RowMutation rm;
@@ -122,7 +132,8 @@ public class ColumnFamilyStoreTest extends ServerTest {
     }
 
     @Test
-    public void testRemoveSuperColumn() throws IOException, ColumnFamilyNotDefinedException {
+    public void testRemoveSuperColumn() throws IOException, ColumnFamilyNotDefinedException
+    {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
         RowMutation rm;
@@ -151,5 +162,43 @@ public class ColumnFamilyStoreTest extends ServerTest {
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 0;
         assert ColumnFamilyStore.removeDeleted(resolved).getColumnCount() == 0;
+    }
+
+    @Test
+    public void testGetCompactionBuckets() throws IOException
+    {
+        // create files 20 40 60 ... 180
+        List<String> small = new ArrayList<String>();
+        List<String> med = new ArrayList<String>();
+        List<String> all = new ArrayList<String>();
+
+        String fname;
+        fname = createFile(20);
+        small.add(fname);
+        all.add(fname);
+        fname = createFile(40);
+        small.add(fname);
+        all.add(fname);
+
+        for (int i = 60; i <= 140; i += 20)
+        {
+            fname = createFile(i);
+            med.add(fname);
+            all.add(fname);
+        }
+
+        Set<List<String>> buckets = ColumnFamilyStore.getCompactionBuckets(all, 50);
+        assert buckets.contains(small);
+        assert buckets.contains(med);
+    }
+
+    private String createFile(int nBytes) throws IOException
+    {
+        File f = File.createTempFile("bucket_test", "");
+        FileOutputStream fos = new FileOutputStream(f);
+        byte[] bytes = new byte[nBytes];
+        fos.write(bytes);
+        fos.close();
+        return f.getAbsolutePath();
     }
 }

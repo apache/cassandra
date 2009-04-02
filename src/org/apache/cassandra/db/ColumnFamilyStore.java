@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -707,48 +708,47 @@ public class ColumnFamilyStore
     }
 
     /*
-     * Stage the compactions , compact similar size files.
-     * This fn figures out the files close enough by size and if they
-     * are greater than the threshold then compacts.
+     * Group files of similar size into buckets.
      */
-    Map<Integer, List<String>> stageOrderedCompaction(List<String> files)
+    static Set<List<String>> getCompactionBuckets(List<String> files, long min)
     {
-        // Sort the files based on the generation ID 
-        Collections.sort(files, new FileNameComparator(FileNameComparator.Ascending));
-    	Map<Integer, List<String>>  buckets = new HashMap<Integer, List<String>>();
-    	int maxBuckets = 1000;
-    	long averages[] = new long[maxBuckets];
-    	long min = 50L*1024L*1024L;
-    	Integer i = 0;
-    	for(String file : files)
+    	Map<List<String>, Long> buckets = new HashMap<List<String>, Long>();
+    	for(String fname : files)
     	{
-    		File f = new File(file);
+    		File f = new File(fname);
     		long size = f.length();
-			if ( (size > averages[i]/2 && size < 3*averages[i]/2) || ( size < min && averages[i] < min ))
-			{
-				averages[i] = (averages[i] + size) / 2 ;
-				List<String> fileList = buckets.get(i);
-				if(fileList == null)
-				{
-					fileList = new ArrayList<String>();
-					buckets.put(i, fileList);
-				}
-				fileList.add(file);
-			}
-			else
+
+    		boolean bFound = false;
+            // look for a bucket containing similar-sized files:
+            // group in the same bucket if it's w/in 50% of the average for this bucket,
+            // or this file and the bucket are all considered "small" (less than `min`)
+            for (List<String> bucket : new ArrayList<List<String>>(buckets.keySet()))
     		{
-				if( i >= maxBuckets )
-					break;
-				i++;
-				List<String> fileList = new ArrayList<String>();
-				buckets.put(i, fileList);
-				fileList.add(file);
-    			averages[i] = size;
+                long averageSize = buckets.get(bucket);
+                if ((size > averageSize/2 && size < 3*averageSize/2)
+                    || ( size < min && averageSize < min))
+    			{
+                    // remove and re-add because adding changes the hash
+                    buckets.remove(bucket);
+    				averageSize = (averageSize + size) / 2 ;
+                    bucket.add(fname);
+                    buckets.put(bucket, averageSize);
+    				bFound = true;
+    				break;
+    			}
+    		}
+            // no similar bucket found; put it in a new one
+    		if(!bFound)
+    		{
+                ArrayList<String> bucket = new ArrayList<String>();
+                bucket.add(fname);
+                buckets.put(bucket, size);
     		}
     	}
-    	return buckets;
+
+        return buckets.keySet();
     }
-       
+
     /*
      * Break the files into buckets and then compact.
      */
@@ -759,11 +759,8 @@ public class ColumnFamilyStore
         try
         {
 	        int count = 0;
-	    	Map<Integer, List<String>> buckets = stageOrderedCompaction(files);
-	    	Set<Integer> keySet = buckets.keySet();
-	    	for(Integer key : keySet)
-	    	{
-	    		List<String> fileList = buckets.get(key);
+	    	for(List<String> fileList : getCompactionBuckets(files, 50L*1024L*1024L))
+            {
 	    		Collections.sort( fileList , new FileNameComparator( FileNameComparator.Ascending));
 	    		if(fileList.size() >= threshHold_ )
 	    		{
