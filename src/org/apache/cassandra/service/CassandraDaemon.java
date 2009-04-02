@@ -27,6 +27,8 @@ import com.facebook.thrift.protocol.TProtocolFactory;
 import com.facebook.thrift.server.TThreadPoolServer;
 import com.facebook.thrift.transport.TServerSocket;
 import com.facebook.thrift.transport.TTransportException;
+import com.facebook.thrift.transport.TTransportFactory;
+import com.facebook.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
@@ -71,7 +73,13 @@ public class CassandraDaemon
         // ThreadPool Server
         TThreadPoolServer.Options options = new TThreadPoolServer.Options();
         options.minWorkerThreads = 64;
-        serverEngine = new TThreadPoolServer(processor, tServerSocket, tProtocolFactory);
+        serverEngine = new TThreadPoolServer(new TProcessorFactory(processor),
+                                             tServerSocket,
+                                             new TTransportFactory(),
+                                             new TTransportFactory(),
+                                             tProtocolFactory,
+                                             tProtocolFactory,
+                                             options);
     }
 
     /** hook for JSVC */
