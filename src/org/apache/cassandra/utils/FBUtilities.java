@@ -146,15 +146,6 @@ public class FBUtilities
         return localInetAddress_;
     }
 
-    public static String getLocalHostName() throws UnknownHostException
-    {
-	if ( host_ == null )
-	{
-		host_ = getLocalAddress().getHostName();
-	}
-	return host_;
-    }
-
     public static String getHostName() throws UnknownHostException
     {
         return getLocalAddress().getCanonicalHostName();

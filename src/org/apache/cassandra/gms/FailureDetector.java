@@ -140,7 +140,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         try
         {
             /* If the endpoint in question is the local endpoint return true. */
-            String localHost = FBUtilities.getLocalHostName();
+            String localHost = FBUtilities.getHostName();
             if ( localHost.equals( ep.getHost() ) )
                     return true;
         }
