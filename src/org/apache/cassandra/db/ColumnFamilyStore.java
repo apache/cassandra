@@ -634,7 +634,6 @@ public class ColumnFamilyStore
     */
     void storeLocation(String filename, BloomFilter bf)
     {
-        boolean doCompaction = false;
         int ssTableSize = 0;
     	lock_.writeLock().lock();
         try
@@ -647,19 +646,9 @@ public class ColumnFamilyStore
         {
         	lock_.writeLock().unlock();
         }
-        if (ssTableSize >= threshHold_ && !isCompacting_.get())
-        {
-            doCompaction = true;
-        }
 
-        if (isCompacting_.get())
-        {
-            if ( ssTableSize % threshHold_ == 0 )
-            {
-                doCompaction = true;
-            }
-        }
-        if ( doCompaction )
+        if ((ssTableSize >= threshHold_ && !isCompacting_.get())
+            || (isCompacting_.get() && ssTableSize % threshHold_ == 0))
         {
             logger_.debug("Submitting for  compaction ...");
             MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
