@@ -75,7 +75,7 @@ public class CassandraDaemon
     }
 
     /** hook for JSVC */
-    public void load(String[] args) throws IOException, TTransportException
+    public void init(String[] args) throws IOException, TTransportException
     {  
         setup();
     }
