@@ -33,6 +33,7 @@ import java.util.StringTokenizer;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -712,7 +713,7 @@ public class ColumnFamilyStore
      */
     static Set<List<String>> getCompactionBuckets(List<String> files, long min)
     {
-    	Map<List<String>, Long> buckets = new HashMap<List<String>, Long>();
+    	Map<List<String>, Long> buckets = new ConcurrentHashMap<List<String>, Long>();
     	for(String fname : files)
     	{
     		File f = new File(fname);
@@ -722,7 +723,7 @@ public class ColumnFamilyStore
             // look for a bucket containing similar-sized files:
             // group in the same bucket if it's w/in 50% of the average for this bucket,
             // or this file and the bucket are all considered "small" (less than `min`)
-            for (List<String> bucket : new ArrayList<List<String>>(buckets.keySet()))
+            for (List<String> bucket : buckets.keySet())
     		{
                 long averageSize = buckets.get(bucket);
                 if ((size > averageSize/2 && size < 3*averageSize/2)
