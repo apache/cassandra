@@ -33,6 +33,14 @@
     </target>
     <target name="clean">
         <delete dir="${build.dir}" />
+        <delete file="${build.src}/org/apache/cassandra/cli/Cli__.g" />
+        <delete file="${build.src}/org/apache/cassandra/cli/CliLexer.java" />
+        <delete file="${build.src}/org/apache/cassandra/cli/CliParser.java" />
+        <delete file="${build.src}/org/apache/cassandra/cli/Cli.tokens" />
+        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql__.g" />
+        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/CqlLexer.java" />
+        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/CqlParser.java" />
+        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.tokens" />
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -42,11 +50,11 @@
        This generates the CLI grammar files from Cli.g
     -->
     <target name="gen-cli-grammar">
-      <echo>Building Grammar ${build.src}/org/apache/cassandra/infrastructure/cli/Cli.g  ....</echo>
+      <echo>Building Grammar ${build.src}/org/apache/cassandra/cli/Cli.g  ....</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.0.1.jar:${build.lib}/stringtemplate-3.0.jar:${build.lib}/antlr-2.7.7.jar"
             fork="true">
-         <arg value="${build.src}/org/apache/cassandra/infrastructure/cli/Cli.g" />
+         <arg value="${build.src}/org/apache/cassandra/cli/Cli.g" />
       </java>
     </target>
 
@@ -54,11 +62,11 @@
        This generates the CQL grammar files from Cql.g
     -->
     <target name="gen-cql-grammar">
-      <echo>Building Grammar ${build.src}/org/apache/cassandra/infrastructure/cql/compiler/parse/Cql.g  ....</echo>
+      <echo>Building Grammar ${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g  ....</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.0.1.jar:${build.lib}/stringtemplate-3.0.jar:${build.lib}/antlr-2.7.7.jar"
             fork="true">
-         <arg value="${build.src}/org/apache/cassandra/infrastructure/cql/compiler/parse/Cql.g" />
+         <arg value="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g" />
       </java>
     </target>
 
@@ -67,7 +75,7 @@
     -->
     <target depends="build-subprojects,build-project" name="build"/>
     <target name="build-subprojects"/>
-    <target depends="init" name="build-project">
+    <target depends="init,gen-cli-grammar,gen-cql-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
