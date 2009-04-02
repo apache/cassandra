@@ -49,7 +49,13 @@
     <!--
        This generates the CLI grammar files from Cli.g
     -->
-    <target name="gen-cli-grammar">
+    <target name="check-gen-cli-grammar">
+        <uptodate property="cliUpToDate" 
+                srcfile="${build.src}/org/apache/cassandra/cli/Cli.g" 
+                targetfile="${build.src}/org/apache/cassandra/cli/Cli.tokens"/>
+    </target>
+ 
+    <target name="gen-cli-grammar" depends="check-gen-cli-grammar" unless="cliUpToDate">
       <echo>Building Grammar ${build.src}/org/apache/cassandra/cli/Cli.g  ....</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.0.1.jar:${build.lib}/stringtemplate-3.0.jar:${build.lib}/antlr-2.7.7.jar"
@@ -61,7 +67,13 @@
     <!--
        This generates the CQL grammar files from Cql.g
     -->
-    <target name="gen-cql-grammar">
+    <target name="check-gen-cql-grammar">
+        <uptodate property="cqlUpToDate" 
+                srcfile="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g" 
+                targetfile="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.tokens"/>
+    </target>
+ 
+    <target name="gen-cql-grammar" depends="check-gen-cql-grammar" unless="cqlUpToDate">
       <echo>Building Grammar ${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g  ....</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.lib}/antlr-3.0.1.jar:${build.lib}/stringtemplate-3.0.jar:${build.lib}/antlr-2.7.7.jar"
