@@ -85,7 +85,7 @@ public class CqlCompiler
             throw new MismatchedTokenException(ttype, input);
         }
 
-        public void recoverFromMismatchedSet(IntStream input,
+        public Object recoverFromMismatchedSet(IntStream input,
                                              RecognitionException re,
                                              BitSet follow) throws RecognitionException
         {
