@@ -19,7 +19,6 @@
 package org.apache.cassandra.utils;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
 /**

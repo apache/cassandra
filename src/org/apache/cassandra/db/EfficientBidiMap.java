@@ -19,14 +19,12 @@
 package org.apache.cassandra.db;
 
 import java.io.Serializable;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.Comparator;
-import java.util.TreeSet;
 
-import org.apache.cassandra.db.ColumnComparatorFactory.ComparatorType;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 
 /**
@@ -35,16 +33,16 @@ import org.apache.cassandra.db.ColumnComparatorFactory.ComparatorType;
 
 class EfficientBidiMap implements Serializable
 {
-    private Map<String, IColumn> map_;
-    private SortedSet<IColumn> sortedSet_;
+    private NonBlockingHashMap<String, IColumn> map_;
+    private ConcurrentSkipListSet<IColumn> sortedSet_;
     private Comparator<IColumn> columnComparator_;
 
     EfficientBidiMap(Comparator<IColumn> columnComparator)
     {
-        this(new ConcurrentHashMap<String, IColumn>(), new ConcurrentSkipListSet<IColumn>(columnComparator), columnComparator);
+        this(new NonBlockingHashMap<String, IColumn>(), new ConcurrentSkipListSet<IColumn>(columnComparator), columnComparator);
     }
 
-    EfficientBidiMap(Map<String, IColumn> map, SortedSet<IColumn> set, Comparator<IColumn> comparator)
+    private EfficientBidiMap(NonBlockingHashMap<String, IColumn> map, ConcurrentSkipListSet<IColumn> set, Comparator<IColumn> comparator)
     {
     	map_ = map;
     	sortedSet_ = set;
@@ -102,9 +100,7 @@ class EfficientBidiMap implements Serializable
 
     EfficientBidiMap cloneMe()
     {
-    	Map<String, IColumn> map = new ConcurrentHashMap<String, IColumn>(map_);
-    	SortedSet<IColumn> set = new ConcurrentSkipListSet<IColumn>(sortedSet_);
-    	return new EfficientBidiMap(map, set, columnComparator_);
+    	return new EfficientBidiMap((NonBlockingHashMap<String, IColumn>) map_.clone(), sortedSet_.clone(), columnComparator_);
     }
 }
 
