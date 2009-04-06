@@ -193,7 +193,7 @@ public class SSTable
 
         public int compareTo(KeyPositionInfo kPosInfo)
         {
-            int value = 0;
+            int value;
             PartitionerType pType = StorageService.getPartitionerType();
             switch( pType )
             {
@@ -513,7 +513,7 @@ public class SSTable
                     bufIn.readInt();                    
                     /* Number of keys in the block. */
                     int keys = bufIn.readInt();
-                    String largestKeyInBlock = null;
+                    String largestKeyInBlock;
                     for ( int i = 0; i < keys; ++i )
                     {
                         String keyInBlock = bufIn.readUTF();
@@ -660,7 +660,7 @@ public class SSTable
         return currentPosition;
     }
 
-    private void afterAppend(String key, long position, long size) throws IOException
+    private void afterAppend(String key, long position, long size)
     {
         ++indexKeysWritten_;
         lastWrittenKey_ = key;
@@ -673,7 +673,7 @@ public class SSTable
         }                
     }
     
-    private void afterAppend(BigInteger hash, long position, long size) throws IOException
+    private void afterAppend(BigInteger hash, long position, long size)
     {
         ++indexKeysWritten_;
         String key = hash.toString();
@@ -759,14 +759,6 @@ public class SSTable
         long currentPosition = beforeAppend(key);
         dataWriter_.append(key, value);
         afterAppend(key, currentPosition, value.length );
-    }
-    
-    public void append(String key, BigInteger hash, byte[] value) throws IOException
-    {
-        long currentPosition = beforeAppend(hash);
-        /* Use as key - hash + ":" + key */
-        dataWriter_.append(hash + ":" + key, value);
-        afterAppend(hash, currentPosition, value.length);
     }
 
     private Coordinate getCoordinates(String key, IFileReader dataReader) throws IOException
@@ -893,56 +885,6 @@ public class SSTable
         String columnFamilyName = values[0];
         List<String> columnNames = (values.length == 1) ? null : Arrays.asList(values[1]);
         return next(key, columnFamilyName, columnNames, null);
-    }
-    
-    long getSeekPosition(String key, long start)
-    {
-        Long seekStart = touchCache_.get(dataFile_ + ":" + key);
-        if( seekStart != null)
-        {
-            return seekStart;
-        }
-        return start;
-    }
-
-    /*
-     * Given a key we are interested in this method gets the
-     * closest index before the key on disk.
-     *
-     *  param @ key - key we are interested in.
-     *  return position of the closest index before the key
-     *  on disk or -1 if this key is not on disk.
-    */
-    private long getClosestIndexPositionToKeyOnDisk(String key)
-    {
-        long position = -1L;
-        List<KeyPositionInfo> indexInfo = indexMetadataMap_.get(dataFile_);
-        int size = indexInfo.size();
-        int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(key));
-        if ( index < 0 )
-        {
-            /*
-             * We are here which means that the requested
-             * key is not an index.
-            */
-            index = (++index)*(-1);
-            /* this means key is not present at all */
-            if ( index >= size )
-                return position;
-            /* a scan is in order. */
-            position = (index == 0) ? 0 : indexInfo.get(index - 1).position();
-        }
-        else
-        {
-            /*
-             * If we are here that means the key is in the index file
-             * and we can retrieve it w/o a scan. In reality we would
-             * like to have a retreive(key, fromPosition) but for now
-             * we use scan(start, start + 1) - a hack.
-            */
-            position = indexInfo.get(index).position();
-        }
-        return position;
     }
 
     public void close() throws IOException

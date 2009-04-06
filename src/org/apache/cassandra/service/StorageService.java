@@ -138,8 +138,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
     	WEAK,
     	STRONG
-    };
-    
+    }
+
     private static StorageService instance_;
     /* Used to lock the factory for creation of StorageService instance */
     private static Lock createLock_ = new ReentrantLock();
@@ -181,8 +181,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         HINT,
         FULL
-    };
-    
+    }
+
     public static class BootstrapInitiateDoneVerbHandler implements IVerbHandler
     {
         private static Logger logger_ = Logger.getLogger( BootstrapInitiateDoneVerbHandler.class );
@@ -302,7 +302,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    public StorageService() throws Throwable
+    public StorageService()
     {
         init();
         uptime_ = System.currentTimeMillis();        
@@ -627,8 +627,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Set<BigInteger> tokens = tokenToEndPointMap.keySet();
         /* All the ranges for the tokens */
         Range[] ranges = getAllRanges(tokens);
-        Map<Range, List<EndPoint>> oldRangeToEndPointMap = constructRangeToEndPointMap(ranges);
-        return oldRangeToEndPointMap;
+        return constructRangeToEndPointMap(ranges);
     }
 
     /**
@@ -856,7 +855,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private void doBootstrap(String nodes)
     {
         String[] allNodesAndFilter = nodes.split("-");
-        String nodesToLoad = null;
+        String nodesToLoad;
         String filterSources = null;
         
         if ( allNodesAndFilter.length == 2 )
@@ -1032,10 +1031,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
-        EndPoint predecessor = (index == 0) ? tokenToEndPointMap.get(tokens
+        return (index == 0) ? tokenToEndPointMap.get(tokens
                 .get(tokens.size() - 1)) : tokenToEndPointMap.get(tokens
                 .get(--index));
-        return predecessor;
     }
 
     /*
@@ -1049,10 +1047,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
-        EndPoint successor = (index == (tokens.size() - 1)) ? tokenToEndPointMap
+        return (index == (tokens.size() - 1)) ? tokenToEndPointMap
                 .get(tokens.get(0))
                 : tokenToEndPointMap.get(tokens.get(++index));
-        return successor;
     }
 
     /**

@@ -82,7 +82,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     /* Lock and Condition for notifying new clients about Memtable switches */
     Lock lock_ = new ReentrantLock();
 
-    Memtable(String table, String cfName) throws IOException
+    Memtable(String table, String cfName)
     {
         if ( apartments_.get(cfName) == null )
         {
@@ -315,7 +315,7 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
      * is not respected and a forceFlush() needs to be invoked to flush
      * the contents to disk.
     */
-    void putOnRecovery(String key, ColumnFamily columnFamily) throws IOException
+    void putOnRecovery(String key, ColumnFamily columnFamily)
     {
         if(!key.equals(Memtable.flushKey_))
         	resolve(key, columnFamily);

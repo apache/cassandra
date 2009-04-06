@@ -101,12 +101,6 @@ class MinorCompactionManager implements IComponentShutdown
         private EndPoint target_;
         private List<String> fileList_;
 
-        FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges)
-        {
-            columnFamilyStore_ = columnFamilyStore;
-            ranges_ = ranges;
-        }
-        
         FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target,List<String> fileList)
         {
             columnFamilyStore_ = columnFamilyStore;
@@ -117,7 +111,7 @@ class MinorCompactionManager implements IComponentShutdown
 
         public Boolean call()
         {
-        	boolean result = true;
+        	boolean result;
             logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
             result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
             logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
@@ -138,17 +132,9 @@ class MinorCompactionManager implements IComponentShutdown
 
         public void run()
         {
-            try
-            {
-                logger_.debug("Started  Major compaction ..."+columnFamilyStore_.columnFamily_);
-                columnFamilyStore_.doMajorCompaction(skip_);
-                logger_.debug("Finished Major compaction ..."+columnFamilyStore_.columnFamily_);
-            }
-            catch (IOException e)
-            {
-                logger_.debug( LogUtil.throwableToString(e) );
-            }
-            return ;
+            logger_.debug("Started  Major compaction ..."+columnFamilyStore_.columnFamily_);
+            columnFamilyStore_.doMajorCompaction(skip_);
+            logger_.debug("Finished Major compaction ..."+columnFamilyStore_.columnFamily_);
         }
     }
 

@@ -69,8 +69,8 @@ public class Range implements Comparable<Range>
     }
         
     
-    private BigInteger left_;
-    private BigInteger right_;
+    private final BigInteger left_;
+    private final BigInteger right_;
     
     public Range(BigInteger left, BigInteger right)
     {

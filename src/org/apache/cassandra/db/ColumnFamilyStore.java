@@ -356,8 +356,8 @@ public class ColumnFamilyStore
      */
     String getTempFileName( List<String> files)
     {
-    	int lowestIndex = 0 ;
-    	int index = 0;
+    	int lowestIndex;
+    	int index;
     	Collections.sort(files, new FileNameComparator(FileNameComparator.Ascending));
     	
     	if( files.size() <= 1)
@@ -515,7 +515,7 @@ public class ColumnFamilyStore
 	{
 		SSTable ssTable = new SSTable(ssTableFile);
 		long start = System.currentTimeMillis();
-		DataInputBuffer bufIn = null;
+		DataInputBuffer bufIn;
 		bufIn = filter.next(key, cf, ssTable);
 		logger_.debug("DISK ssTable.next TIME: " + (System.currentTimeMillis() - start) + " ms.");
 		if (bufIn.getLength() == 0)
@@ -746,7 +746,7 @@ public class ColumnFamilyStore
         List<String> files = new ArrayList<String>(ssTables_);
         try
         {
-	        int count = 0;
+	        int count;
 	    	for(List<String> fileList : getCompactionBuckets(files, 50L*1024L*1024L))
             {
 	    		Collections.sort( fileList , new FileNameComparator( FileNameComparator.Ascending));
@@ -781,7 +781,7 @@ public class ColumnFamilyStore
         }
     }
 
-    void doMajorCompaction(long skip)  throws IOException
+    void doMajorCompaction(long skip)
     {
     	doMajorCompactionInternal( skip );
     }
@@ -796,7 +796,7 @@ public class ColumnFamilyStore
     {
         isCompacting_.set(true);
         List<String> filesInternal = new ArrayList<String>(ssTables_);
-        List<String> files = null;
+        List<String> files;
         try
         {
         	 if( skip > 0L )
@@ -948,11 +948,11 @@ public class ColumnFamilyStore
      * @throws IOException
      */
     /* TODO: Take care of the comments later. */
-    void doCleanup(String file) throws IOException
+    void doCleanup(String file)
     {
     	if(file == null )
     		return;
-        List<Range> myRanges = null;
+        List<Range> myRanges;
     	List<String> files = new ArrayList<String>();
     	files.add(file);
     	List<String> newFiles = new ArrayList<String>();
@@ -1002,8 +1002,8 @@ public class ColumnFamilyStore
         long totalBytesWritten = 0;
         long totalkeysRead = 0;
         long totalkeysWritten = 0;
-        String rangeFileLocation = null;
-        String mergedFileName = null;
+        String rangeFileLocation;
+        String mergedFileName;
         try
         {
 	        // Calculate the expected compacted filesize
@@ -1053,7 +1053,7 @@ public class ColumnFamilyStore
 	                else
 	                {
 	                    Collections.sort(lfs, new FileStructComparator());
-	                    ColumnFamily columnFamily = null;
+	                    ColumnFamily columnFamily;
 	                    bufOut.reset();
 	                    if(lfs.size() > 1)
 	                    {
@@ -1295,7 +1295,7 @@ public class ColumnFamilyStore
 	                else
 	                {
 	                    Collections.sort(lfs, new FileStructComparator());
-	                    ColumnFamily columnFamily = null;
+	                    ColumnFamily columnFamily;
 	                    bufOut.reset();
 	                    if(lfs.size() > 1)
 	                    {

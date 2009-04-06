@@ -421,7 +421,7 @@ public class SequenceFile
                     {
                         Method getCleanerMethod = buffer.getClass().getMethod("cleaner", new Class[0]);
                         getCleanerMethod.setAccessible(true);
-                        sun.misc.Cleaner cleaner = (sun.misc.Cleaner) getCleanerMethod.invoke(buffer, new Object[0]);
+                        sun.misc.Cleaner cleaner = (sun.misc.Cleaner) getCleanerMethod.invoke(buffer);
                         cleaner.clean();
                     }
                     catch (Throwable e)

@@ -684,14 +684,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
     private String handleCompactMe()
     {
         Table table = Table.open(DatabaseDescriptor.getTables().get(0));
-        try
-        {
-            table.forceCompaction();
-        }
-        catch (IOException ex)
-        {
-            logger_.debug(LogUtil.throwableToString(ex));
-        }
+        table.forceCompaction();
         return "Compacting ...";
     }
 

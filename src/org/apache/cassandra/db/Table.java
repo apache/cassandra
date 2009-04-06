@@ -65,11 +65,6 @@ public class Table
     {
         /* Name of the column family */
         public final static String cfName_ = "TableMetadata";
-        /* 
-         * Name of one of the columns. The other columns are the individual
-         * column families in the system. 
-        */
-        public static final String cardinality_ = "PrimaryCardinality";
         private static ICompactSerializer<TableMetadata> serializer_;
         static
         {
@@ -173,11 +168,6 @@ public class Table
             return cfTypeMap_.get(cfName);
         }
 
-        void setColumnFamilyType(String cfName, String type)
-        {
-            cfTypeMap_.put(cfName, type);
-        }
-
         Set<String> getColumnFamilies()
         {
             return cfIdMap_.keySet();
@@ -208,13 +198,7 @@ public class Table
                 logger_.debug(LogUtil.throwableToString(ex));
             }
         }
-        
-        public void reset() throws IOException
-        {        
-            writer_.seek(0L);
-            apply();
-        }
-        
+
         public String toString()
         {
             StringBuilder sb = new StringBuilder("");
@@ -380,19 +364,7 @@ public class Table
             
             return fileNames;
         }
-        
-        private boolean isStreamContextForThisColumnFamily(StreamContextManager.StreamContext streamContext, String cf)
-        {
-            String[] peices = FBUtilities.strip(streamContext.getTargetFile(), "-");
-            return peices[1].equals(cf);
-        }
-        
-        private String getColumnFamilyFromFile(String file)
-        {
-            String[] peices = FBUtilities.strip(file, "-");
-            return peices[1];
-        }
-                
+
         private void addStreamContext(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
         {
             logger_.debug("Adding stream context " + streamContext + " for " + host + " ...");
@@ -401,7 +373,6 @@ public class Table
     }
     
     private static Logger logger_ = Logger.getLogger(Table.class);
-    public static final String newLine_ = System.getProperty("line.separator");
     public static final String recycleBin_ = "RecycleColumnFamily";
     public static final String hints_ = "HintsColumnFamily";
     
@@ -467,11 +438,6 @@ public class Table
         return cfType;
     }
 
-    public void setColumnFamilyType(String cfName, String type)
-    {
-        tableMetadata_.setColumnFamilyType(cfName, type);
-    }
-    
     /*
      * This method is called to obtain statistics about
      * the table. It will return statistics about all
@@ -562,7 +528,7 @@ public class Table
      * do a complete compaction since we can figure out based on the ranges
      * whether the files need to be split.
     */
-    public boolean forceCompaction(List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
+    public boolean forceCompaction(List<Range> ranges, EndPoint target, List<String> fileList)
     {
         boolean result = true;
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
@@ -585,7 +551,7 @@ public class Table
      * This method is an ADMIN operation to force compaction
      * of all SSTables on disk. 
     */
-    public void forceCompaction() throws IOException
+    public void forceCompaction()
     {
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
