@@ -104,19 +104,6 @@ public interface IFileReader
 
     /**
      * This method dumps the next key/value into the DataOuputStream
-     * passed in.
-     *
-     * @param key key we are interested in.
-     * @param bufOut DataOutputStream that needs to be filled.
-     * @param column name of the column in our format.
-     * @param section region of the file that needs to be read
-     * @throws IOException
-     * @return number of bytes that were read.
-    */
-    public long next(String key, DataOutputBuffer bufOut, String column, Coordinate section) throws IOException;
-
-    /**
-     * This method dumps the next key/value into the DataOuputStream
      * passed in. Always use this method to query for application
      * specific data as it will have indexes.
      *
@@ -125,26 +112,14 @@ public interface IFileReader
      * @param columnFamilyName The name of the column family only without the ":"
      * @param columnNames - The list of columns in the cfName column family
      * 					     that we want to return
+     * OR
+     * @param timeRange - time range we are interested in
      * @param section region of the file that needs to be read
      * @throws IOException
      * @return number of bytes read.
      *
     */
-    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, Coordinate section) throws IOException;
-    
-    /**
-     * This method dumps the next key/value into the DataOuputStream
-     * passed in.
-     *
-     * @param key key we are interested in.
-     * @param bufOut DataOutputStream that needs to be filled.
-     * @param column name of the column in our format.
-     * @param timeRange time range we are interested in.
-     * @param section region of the file that needs to be read
-     * @throws IOException
-     * @return number of bytes that were read.
-    */
-    public long next(String key, DataOutputBuffer bufOut, String column, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException;
+    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException;
 
     /**
      * Close the file after reading.

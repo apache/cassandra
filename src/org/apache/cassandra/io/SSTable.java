@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.db.RowMutation;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -867,7 +868,7 @@ public class SSTable
              * we have the position we have to read from in order to get the
              * column family, get the column family and column(s) needed.
             */          
-            bufIn = getData(dataReader, key, cf, cNames, fileCoordinate);
+            bufIn = getData(dataReader, key, cf, cNames, null, fileCoordinate);
         }
         finally
         {
@@ -920,7 +921,7 @@ public class SSTable
              * we have the position we have to read from in order to get the
              * column family, get the column family and column(s) needed.
             */  
-            bufIn = getData(dataReader, key, cfName, timeRange, fileCoordinate);
+            bufIn = getData(dataReader, key, cfName, null, timeRange, fileCoordinate);
         }
         finally
         {
@@ -945,32 +946,20 @@ public class SSTable
     /*
      * Get the data for the key from the position passed in. 
     */
-    private DataInputBuffer getData(IFileReader dataReader, String key, String column, Coordinate section) throws IOException
+    private DataInputBuffer getData(IFileReader dataReader, String key, String columnFamilyColumn, Coordinate section) throws IOException
     {
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        DataInputBuffer bufIn = new DataInputBuffer();
-        
-        long bytesRead = dataReader.next(key, bufOut, column, section);
-        if ( bytesRead != -1L )
-        {
-            if ( bufOut.getLength() > 0 )
-            {                              
-                bufIn.reset(bufOut.getData(), bufOut.getLength());            
-                /* read the key even though we do not use it */
-                bufIn.readUTF();
-                bufIn.readInt();            
-            }
-        }
-        
-        return bufIn;
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
+        String columnFamilyName = values[0];
+        List<String> columnNames = (values.length == 1) ? null : Arrays.asList(values[1]);
+        return getData(dataReader, key, columnFamilyName, columnNames, null, section);
     }
     
-    private DataInputBuffer getData(IFileReader dataReader, String key, String cf, List<String> columns, Coordinate section) throws IOException
+    private DataInputBuffer getData(IFileReader dataReader, String key, String cf, List<String> columns, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
     {
         DataOutputBuffer bufOut = new DataOutputBuffer();
         DataInputBuffer bufIn = new DataInputBuffer();
                   
-        long bytesRead = dataReader.next(key, bufOut, cf, columns, section);
+        long bytesRead = dataReader.next(key, bufOut, cf, columns, timeRange, section);
         if ( bytesRead != -1L )
         {
             if ( bufOut.getLength() > 0 )
@@ -980,32 +969,6 @@ public class SSTable
                 bufIn.readUTF();
                 bufIn.readInt();            
             }        
-        }
-        return bufIn;
-    }
-    
-    /*
-     * Get the data for the key from the position passed in. 
-    */
-    private DataInputBuffer getData(IFileReader dataReader, String key, String cfName, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
-    {
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        DataInputBuffer bufIn = new DataInputBuffer();
-                
-        try
-        {
-            dataReader.next(key, bufOut, cfName, timeRange, section);
-            if ( bufOut.getLength() > 0 )
-            {                              
-                bufIn.reset(bufOut.getData(), bufOut.getLength());            
-                /* read the key even though we do not use it */
-                bufIn.readUTF();
-                bufIn.readInt();            
-            }
-        }
-        catch ( IOException ex )
-        {
-            logger_.warn(LogUtil.throwableToString(ex));
         }
         return bufIn;
     }

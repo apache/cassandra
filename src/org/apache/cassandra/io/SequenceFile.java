@@ -848,19 +848,6 @@ public class SequenceFile
             return keyInDisk;
         }
 
-        public long next(String key, DataOutputBuffer bufOut, String cf, Coordinate section) throws IOException
-        {
-            String[] values = RowMutation.getColumnAndColumnFamily(cf);
-            String columnFamilyName = values[0];
-            List<String> columnNames = (values.length == 1) ? null : Arrays.asList(values[1]);
-            return next(key, bufOut, columnFamilyName, columnNames, section);
-        }
-
-        public long next(String key, DataOutputBuffer bufOut, String cf, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
-        {
-            return next(key, bufOut, cf, null, timeRange, section);
-        }
-
         /**
          * This method dumps the next key/value into the DataOuputStream
          * passed in. Always use this method to query for application
@@ -981,11 +968,6 @@ public class SequenceFile
             bufOut.writeInt(columnRange.count());
             /* now write the columns */
             bufOut.write(file_, dataSize);
-        }
-
-        public long next(String key, DataOutputBuffer bufOut, String cf, List<String> columnNames, Coordinate section) throws IOException
-        {
-            return next(key, bufOut, cf, columnNames, null, section);
         }
 
         private void readColumns(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> cNames)
