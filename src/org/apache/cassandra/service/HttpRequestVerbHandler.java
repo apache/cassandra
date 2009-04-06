@@ -122,7 +122,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
          */
         String path = httpRequest.getPath();
         /* for the health checks, just return the string only */
-        if(path.indexOf(LB_HEALTH_CHECK) != -1)
+        if(path.contains(LB_HEALTH_CHECK))
         {
         	httpResponse.println(handleLBHealthCheck());
             return;
@@ -134,23 +134,23 @@ public class HttpRequestVerbHandler implements IVerbHandler
         StringBuilder sbResult = new StringBuilder();
         do
         {
-            if(query.indexOf(DETAILS) != -1)
+            if(query.contains(DETAILS))
             {
                 fServeSummary = false;
                 sbResult.append(handleNodeDetails());
                 break;
             }
-            else if(query.indexOf(LOADME) != -1)
+            else if(query.contains(LOADME))
             {
                 sbResult.append(handleLoadMe());
                 break;
             }
-            else if(query.indexOf(KILLME) != -1)
+            else if(query.contains(KILLME))
             {
                 sbResult.append(handleKillMe());
                 break;
             }
-            else if(query.indexOf(COMPACTME) != -1)
+            else if(query.contains(COMPACTME))
             {
                 sbResult.append(handleCompactMe());
                 break;
@@ -192,17 +192,17 @@ public class HttpRequestVerbHandler implements IVerbHandler
         StringBuilder sbResult = new StringBuilder();
         do
         {
-            if(query.indexOf(QUERY) != -1)
+            if(query.contains(QUERY))
             {
                 sbResult.append(handleQuery(httpRequest));
                 break;
             }
-            else if(query.indexOf(INSERT) != -1)
+            else if(query.contains(INSERT))
             {
                 sbResult.append(handleInsert(httpRequest));
                 break;
             }
-            else if(query.indexOf(SCRIPT) != -1)
+            else if(query.contains(SCRIPT))
             {
                 sbResult.append(handleScript(httpRequest));
                 break;

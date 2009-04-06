@@ -272,7 +272,7 @@ public class Table
         public void onStreamCompletion(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus) throws IOException
         {                        
             /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */            
-            if ( streamContext.getTargetFile().indexOf("-Data.db") != -1 )
+            if (streamContext.getTargetFile().contains("-Data.db"))
             {
                 File file = new File( streamContext.getTargetFile() );
                 String fileName = file.getName();

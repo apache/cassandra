@@ -368,7 +368,7 @@ public class MessagingService implements IMessagingService, MessagingServiceMBea
         while(keys.hasNext())
         {
             key = (String)keys.next();
-            if(-1 != key.indexOf(localEndPoint.toString()))
+            if (key.contains(localEndPoint.toString()))
                 keys.remove();
         }
     }

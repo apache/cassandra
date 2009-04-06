@@ -64,7 +64,7 @@ class ContinuationClassTransformer implements ClassFileTransformer
         
         for( AnnotationNode annotationNode : annotationNodes )
         {            
-            if ( annotationNode.desc.indexOf(ContinuationClassTransformer.targetAnnotation_) != -1 )
+            if (annotationNode.desc.contains(ContinuationClassTransformer.targetAnnotation_))
             {                
                 bytes = transformer_.transform(bytes);
             }

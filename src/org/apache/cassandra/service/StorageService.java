@@ -357,7 +357,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                         String path = "/Cassandra/" + DatabaseDescriptor.getClusterName() + "/Leader";
                         String eventPath = we.getPath();
                         logger_.debug("PROCESS EVENT : " + eventPath);
-                        if ( eventPath != null && (eventPath.indexOf(path) != -1) )
+                        if (eventPath != null && (eventPath.contains(path)))
                         {                                                           
                             logger_.debug("Signalling the leader instance ...");
                             LeaderElector.instance().signal();                                        

@@ -34,7 +34,7 @@ public class ZookeeperWatcher implements Watcher
     {                            
         String eventPath = we.getPath();
         logger_.debug("PROCESS EVENT : " + eventPath);
-        if ( eventPath != null && (eventPath.indexOf(leader_) != -1) )
+        if (eventPath != null && (eventPath.contains(leader_)))
         {                                                           
             logger_.debug("Signalling the leader instance ...");
             LeaderElector.instance().signal();                                        
