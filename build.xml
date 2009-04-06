@@ -130,8 +130,8 @@
 
   <target name="build-test" depends="build" description="Build the Cassandra classes">
     <javac
-     debug="${javac.debug}"
-     debuglevel="${javac.debuglevel}"
+     debug="true"
+     debuglevel="${debuglevel}"
      destdir="${test.classes}"
     >
       <classpath refid="cassandra.classpath"/>
