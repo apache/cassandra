@@ -116,7 +116,7 @@ public class NamesFilter implements IFilter
 
     public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException
     {
-    	return ssTable.next(key, cf, names_);
+    	return ssTable.next(key, cf, names_, null);
     }
 
 }

@@ -20,11 +20,7 @@ package org.apache.cassandra.io;
 
 import java.io.*;
 import java.math.BigInteger;
-import java.nio.channels.FileChannel;
 import java.util.*;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.PartitionerType;
@@ -35,7 +31,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
+
 import org.apache.cassandra.db.RowMutation;
 
 /**
@@ -853,26 +849,37 @@ public class SSTable
         }
         return internalKey;
     }
-    
-    public DataInputBuffer next(String key, String cf, List<String> cNames) throws IOException
+
+    public DataInputBuffer next(String key, String cf, List<String> cNames, IndexHelper.TimeRange timeRange) throws IOException
     {
-    	DataInputBuffer bufIn = null;        
+        DataInputBuffer bufIn = new DataInputBuffer();
         IFileReader dataReader = null;
         try
         {
             dataReader = SequenceFile.reader(dataFile_);
-            /* Morph key into actual key based on the partition type. */ 
+            /* Morph key into actual key based on the partition type. */
             key = morphKey(key);
-            Coordinate fileCoordinate = getCoordinates(key, dataReader);    
+            Coordinate fileCoordinate = getCoordinates(key, dataReader);
             /*
              * we have the position we have to read from in order to get the
              * column family, get the column family and column(s) needed.
-            */          
-            bufIn = getData(dataReader, key, cf, cNames, null, fileCoordinate);
+            */
+            DataOutputBuffer bufOut = new DataOutputBuffer();
+            long bytesRead = dataReader.next(key, bufOut, cf, cNames, timeRange, fileCoordinate);
+            if (bytesRead != -1L)
+            {
+                if (bufOut.getLength() > 0)
+                {
+                    bufIn.reset(bufOut.getData(), bufOut.getLength());
+                    /* read the key even though we do not use it */
+                    bufIn.readUTF();
+                    bufIn.readInt();
+                }
+            }
         }
         finally
         {
-            if ( dataReader != null )
+            if (dataReader != null)
             {
                 dataReader.close();
             }
@@ -880,57 +887,12 @@ public class SSTable
         return bufIn;
     }
     
-    public DataInputBuffer next(String key, String columnName) throws IOException
+    public DataInputBuffer next(String key, String columnFamilyColumn) throws IOException
     {
-        DataInputBuffer bufIn = null;
-        IFileReader dataReader = null;
-        try
-        {
-            dataReader = SequenceFile.reader(dataFile_);
-            // dataReader = SequenceFile.chksumReader(dataFile_, 4*1024*1024);
-            /* Morph key into actual key based on the partition type. */ 
-            key = morphKey(key);
-            Coordinate fileCoordinate = getCoordinates(key, dataReader);
-            /*
-             * we have the position we have to read from in order to get the
-             * column family, get the column family and column(s) needed.
-            */            
-            bufIn = getData(dataReader, key, columnName, fileCoordinate);
-        }
-        finally
-        {
-            if ( dataReader != null )
-            {
-                dataReader.close();
-            }
-        }
-        return bufIn;
-    }
-    
-    public DataInputBuffer next(String key, String cfName, IndexHelper.TimeRange timeRange) throws IOException
-    {
-        DataInputBuffer bufIn = null;
-        IFileReader dataReader = null;
-        try
-        {
-            dataReader = SequenceFile.reader(dataFile_);
-            /* Morph key into actual key based on the partition type. */ 
-            key = morphKey(key);
-            Coordinate fileCoordinate = getCoordinates(key, dataReader);
-            /*
-             * we have the position we have to read from in order to get the
-             * column family, get the column family and column(s) needed.
-            */  
-            bufIn = getData(dataReader, key, cfName, null, timeRange, fileCoordinate);
-        }
-        finally
-        {
-            if ( dataReader != null )
-            {
-                dataReader.close();
-            }
-        }
-        return bufIn;
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
+        String columnFamilyName = values[0];
+        List<String> columnNames = (values.length == 1) ? null : Arrays.asList(values[1]);
+        return next(key, columnFamilyName, columnNames, null);
     }
     
     long getSeekPosition(String key, long start)
@@ -942,37 +904,7 @@ public class SSTable
         }
         return start;
     }
-        
-    /*
-     * Get the data for the key from the position passed in. 
-    */
-    private DataInputBuffer getData(IFileReader dataReader, String key, String columnFamilyColumn, Coordinate section) throws IOException
-    {
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
-        String columnFamilyName = values[0];
-        List<String> columnNames = (values.length == 1) ? null : Arrays.asList(values[1]);
-        return getData(dataReader, key, columnFamilyName, columnNames, null, section);
-    }
-    
-    private DataInputBuffer getData(IFileReader dataReader, String key, String cf, List<String> columns, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
-    {
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        DataInputBuffer bufIn = new DataInputBuffer();
-                  
-        long bytesRead = dataReader.next(key, bufOut, cf, columns, timeRange, section);
-        if ( bytesRead != -1L )
-        {
-            if ( bufOut.getLength() > 0 )
-            {                     
-                bufIn.reset(bufOut.getData(), bufOut.getLength());             
-                /* read the key even though we do not use it */
-                bufIn.readUTF();
-                bufIn.readInt();            
-            }        
-        }
-        return bufIn;
-    }
-    
+
     /*
      * Given a key we are interested in this method gets the
      * closest index before the key on disk.
