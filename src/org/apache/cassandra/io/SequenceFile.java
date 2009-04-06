@@ -123,7 +123,6 @@ public class SequenceFile
             if (keyBuffer == null || keyBufLength == 0)
                 throw new IllegalArgumentException("Key cannot be NULL or of zero length.");
 
-            file_.seek(file_.getFilePointer());
             file_.writeInt(keyBufLength);
             file_.write(keyBuffer.getData(), 0, keyBufLength);
 
@@ -137,7 +136,6 @@ public class SequenceFile
             if (key == null)
                 throw new IllegalArgumentException("Key cannot be NULL.");
 
-            file_.seek(file_.getFilePointer());
             file_.writeUTF(key);
             int length = buffer.getLength();
             file_.writeInt(length);
@@ -149,7 +147,6 @@ public class SequenceFile
             if (key == null)
                 throw new IllegalArgumentException("Key cannot be NULL.");
 
-            file_.seek(file_.getFilePointer());
             file_.writeUTF(key);
             file_.writeInt(value.length);
             file_.write(value);
@@ -160,7 +157,6 @@ public class SequenceFile
             if (key == null)
                 throw new IllegalArgumentException("Key cannot be NULL.");
 
-            file_.seek(file_.getFilePointer());
             file_.writeUTF(key);
             file_.writeLong(value);
         }
