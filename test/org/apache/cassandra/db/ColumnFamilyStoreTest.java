@@ -12,7 +12,7 @@ import java.util.Random;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.concurrent.FutureTask;
+import java.util.SortedSet;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutionException;
 
@@ -30,7 +30,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testMain() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testNameSort() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
 
@@ -55,11 +55,61 @@ public class ColumnFamilyStoreTest extends ServerTest
             }
         }
 
-        validateBytes(table);
+        validateNameSort(table);
+
         table.getColumnFamilyStore("Standard1").forceFlush();
         table.getColumnFamilyStore("Super1").forceFlush();
+        waitForFlush();
+        validateNameSort(table);
+    }
 
-        // wait for flush to finish
+    @Test
+    public void testTimeSort() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+
+        for (int i = 900; i < 1000; ++i)
+        {
+            String key = Integer.toString(i);
+            RowMutation rm;
+            for (int j = 0; j < 8; ++j)
+            {
+                byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
+                rm = new RowMutation("Table1", key);
+                rm.add("StandardByTime1:" + "Column-" + j, bytes, j);
+                rm.apply();
+            }
+        }
+
+        validateTimeSort(table);
+
+        table.getColumnFamilyStore("StandardByTime1").forceFlush();
+        waitForFlush();
+        validateTimeSort(table);
+    }
+
+    private void validateTimeSort(Table table) throws IOException, ColumnFamilyNotDefinedException
+    {
+        for (int i = 900; i < 1000; ++i)
+        {
+            String key = Integer.toString(i);
+            for (int j = 0; j < 8; j += 3)
+            {
+                ColumnFamily cf = table.getRow(key, "StandardByTime1", j).getColumnFamilies().iterator().next();
+                SortedSet<IColumn> columns = cf.getAllColumns();
+                assert columns.size() == 8 - j;
+                int k = 7;
+                for (IColumn c : columns)
+                {
+                    assert c.timestamp() == k--;
+                }
+            }
+        }
+    }
+
+    private void waitForFlush()
+            throws InterruptedException, ExecutionException
+    {
         Future f = MemtableManager.instance().flusher_.submit(new Runnable()
         {
             public void run()
@@ -67,11 +117,9 @@ public class ColumnFamilyStoreTest extends ServerTest
             }
         });
         f.get();
-
-        validateBytes(table);
     }
 
-    private void validateBytes(Table table)
+    private void validateNameSort(Table table)
             throws ColumnFamilyNotDefinedException, IOException
     {
         for (int i = 900; i < 1000; ++i)

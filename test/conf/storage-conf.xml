@@ -33,14 +33,14 @@
    <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
    <CommitLogFastSync>false</CommitLogFastSync>
    <Tables>
-      <Table Name = "Table1">
-   	    <ColumnFamily Index="Name" Name="Standard1"/>
-   	    <ColumnFamily Index="Name" Name="Standard2"/>
-   	    <ColumnFamily Index="Time" Name="StandardByTime1"/>
-   	    <ColumnFamily Index="Time" Name="StandardByTime2"/>
-   	    <ColumnFamily ColumnType="Super" Index="Name" Name="Super1"/>
-   	    <ColumnFamily ColumnType="Super" Index="Name" Name="Super2"/>
-      </Table>
+     <Table Name = "Table1">
+       <ColumnFamily ColumnSort="Name" Name="Standard1"/>
+       <ColumnFamily ColumnSort="Name" Name="Standard2"/>
+       <ColumnFamily ColumnSort="Time" Name="StandardByTime1"/>
+       <ColumnFamily ColumnSort="Time" Name="StandardByTime2"/>
+       <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super1"/>
+       <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super2"/>
+     </Table>
    </Tables>
    <Seeds>
      <!-- Add names of hosts that are deemed contact points -->
