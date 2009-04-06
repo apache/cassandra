@@ -869,11 +869,9 @@ public class SequenceFile
          * @return number of bytes that were read.
          * @throws IOException
          */
-        public long next(String key, DataOutputBuffer bufOut, String cf, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
+        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
         {
-            String[] values = RowMutation.getColumnAndColumnFamily(cf);
-            String columnFamilyName = values[0];
-            String columnName = (values.length == 1) ? null : values[1];
+            assert !columnFamilyName.contains(":");
 
             long bytesRead = -1L;
             if (isEOF())
@@ -903,57 +901,54 @@ public class SequenceFile
                     /* write the key into buffer */
                     bufOut.writeUTF(keyInDisk);
 
-                    if (columnName == null)
-                    {
-                        int bytesSkipped = IndexHelper.skipBloomFilter(file_);
-                        /*
-                         * read the correct number of bytes for the column family and
-                         * write data into buffer. Substract from dataSize the bloom
-                         * filter size.
-                        */
-                        dataSize -= bytesSkipped;
-                        List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-                        /* Read the times indexes if present */
-                        int totalBytesRead = handleColumnTimeIndexes(columnFamilyName, columnIndexList);
-                        dataSize -= totalBytesRead;
+                    int bytesSkipped = IndexHelper.skipBloomFilter(file_);
+                    /*
+                     * read the correct number of bytes for the column family and
+                     * write data into buffer. Substract from dataSize the bloom
+                     * filter size.
+                    */
+                    dataSize -= bytesSkipped;
+                    List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+                    /* Read the times indexes if present */
+                    int totalBytesRead = handleColumnTimeIndexes(columnFamilyName, columnIndexList);
+                    dataSize -= totalBytesRead;
 
-                        /* read the column family name */
-                        String cfName = file_.readUTF();
-                        dataSize -= (utfPrefix_ + cfName.length());
+                    /* read the column family name */
+                    String cfName = file_.readUTF();
+                    dataSize -= (utfPrefix_ + cfName.length());
 
-                        /* read if this cf is marked for delete */
-                        long markedForDeleteAt = file_.readLong();
-                        dataSize -= 8;
+                    /* read if this cf is marked for delete */
+                    long markedForDeleteAt = file_.readLong();
+                    dataSize -= 8;
 
-                        /* read the total number of columns */
-                        int totalNumCols = file_.readInt();
-                        dataSize -= 4;
+                    /* read the total number of columns */
+                    int totalNumCols = file_.readInt();
+                    dataSize -= 4;
 
-                        /* get the column range we have to read */
-                        IndexHelper.ColumnRange columnRange = IndexHelper.getColumnRangeFromTimeIndex(timeRange, columnIndexList, dataSize, totalNumCols);
+                    /* get the column range we have to read */
+                    IndexHelper.ColumnRange columnRange = IndexHelper.getColumnRangeFromTimeIndex(timeRange, columnIndexList, dataSize, totalNumCols);
 
-                        Coordinate coordinate = columnRange.coordinate();
-                        /* seek to the correct offset to the data, and calculate the data size */
-                        file_.skipBytes((int) coordinate.start_);
-                        dataSize = (int) (coordinate.end_ - coordinate.start_);
+                    Coordinate coordinate = columnRange.coordinate();
+                    /* seek to the correct offset to the data, and calculate the data size */
+                    file_.skipBytes((int) coordinate.start_);
+                    dataSize = (int) (coordinate.end_ - coordinate.start_);
 
-                        /*
-                         * write the number of columns in the column family we are returning:
-                         *  dataSize that we are reading +
-                         *  length of column family name +
-                         *  one booleanfor deleted or not +
-                         *  one int for number of columns
-                        */
-                        bufOut.writeInt(dataSize + utfPrefix_ + cfName.length() + 4 + 1);
-                        /* write the column family name */
-                        bufOut.writeUTF(cfName);
-                        /* write if this cf is marked for delete */
-                        bufOut.writeLong(markedForDeleteAt);
-                        /* write number of columns */
-                        bufOut.writeInt(columnRange.count());
-                        /* now write the columns */
-                        bufOut.write(file_, dataSize);
-                    }
+                    /*
+                     * write the number of columns in the column family we are returning:
+                     *  dataSize that we are reading +
+                     *  length of column family name +
+                     *  one booleanfor deleted or not +
+                     *  one int for number of columns
+                    */
+                    bufOut.writeInt(dataSize + utfPrefix_ + cfName.length() + 4 + 1);
+                    /* write the column family name */
+                    bufOut.writeUTF(cfName);
+                    /* write if this cf is marked for delete */
+                    bufOut.writeLong(markedForDeleteAt);
+                    /* write number of columns */
+                    bufOut.writeInt(columnRange.count());
+                    /* now write the columns */
+                    bufOut.write(file_, dataSize);
                 }
                 else
                 {

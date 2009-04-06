@@ -144,8 +144,8 @@ class TimeFilter implements IFilter
 		return isDone_;
 	}
 
-	public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException
+	public DataInputBuffer next(String key, String cfName, SSTable ssTable) throws IOException
     {
-    	return ssTable.next( key, cf, new IndexHelper.TimeRange( timeLimit_, Long.MAX_VALUE ) );
+    	return ssTable.next( key, cfName, new IndexHelper.TimeRange( timeLimit_, Long.MAX_VALUE ) );
     }
 }

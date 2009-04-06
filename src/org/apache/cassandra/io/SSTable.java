@@ -906,7 +906,7 @@ public class SSTable
         return bufIn;
     }
     
-    public DataInputBuffer next(String key, String columnName, IndexHelper.TimeRange timeRange) throws IOException
+    public DataInputBuffer next(String key, String cfName, IndexHelper.TimeRange timeRange) throws IOException
     {
         DataInputBuffer bufIn = null;
         IFileReader dataReader = null;
@@ -920,7 +920,7 @@ public class SSTable
              * we have the position we have to read from in order to get the
              * column family, get the column family and column(s) needed.
             */  
-            bufIn = getData(dataReader, key, columnName, timeRange, fileCoordinate);
+            bufIn = getData(dataReader, key, cfName, timeRange, fileCoordinate);
         }
         finally
         {
@@ -987,14 +987,14 @@ public class SSTable
     /*
      * Get the data for the key from the position passed in. 
     */
-    private DataInputBuffer getData(IFileReader dataReader, String key, String column, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
+    private DataInputBuffer getData(IFileReader dataReader, String key, String cfName, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
     {
         DataOutputBuffer bufOut = new DataOutputBuffer();
         DataInputBuffer bufIn = new DataInputBuffer();
                 
         try
         {
-            dataReader.next(key, bufOut, column, timeRange, section);
+            dataReader.next(key, bufOut, cfName, timeRange, section);
             if ( bufOut.getLength() > 0 )
             {                              
                 bufIn.reset(bufOut.getData(), bufOut.getLength());            
