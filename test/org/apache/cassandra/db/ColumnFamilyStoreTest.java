@@ -163,6 +163,7 @@ public class ColumnFamilyStoreTest extends ServerTest
             }
         });
         f.get();
+        Thread.sleep(1000);
     }
 
     private void validateNameSort(Table table)
