@@ -1,20 +1,23 @@
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.ServerTest;
-import org.testng.annotations.Test;
-
-import java.io.IOException;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.Arrays;
-import java.util.ArrayList;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.Future;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import org.apache.commons.lang.ArrayUtils;
+
+import org.apache.cassandra.ServerTest;
+import org.testng.annotations.Test;
 
 public class ColumnFamilyStoreTest extends ServerTest
 {
@@ -38,16 +41,22 @@ public class ColumnFamilyStoreTest extends ServerTest
         {
             String key = Integer.toString(i);
             RowMutation rm;
+
+            // standard
             for (int j = 0; j < 8; ++j)
             {
                 byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
                 rm = new RowMutation("Table1", key);
                 rm.add("Standard1:" + "Column-" + j, bytes, j);
                 rm.apply();
+            }
 
+            // super
+            for (int j = 0; j < 8; ++j)
+            {
                 for (int k = 0; k < 4; ++k)
                 {
-                    bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
+                    byte[] bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
                     rm = new RowMutation("Table1", key);
                     rm.add("Super1:" + "SuperColumn-" + j + ":Column-" + k, bytes, k);
                     rm.apply();
@@ -76,7 +85,7 @@ public class ColumnFamilyStoreTest extends ServerTest
             {
                 byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
                 rm = new RowMutation("Table1", key);
-                rm.add("StandardByTime1:" + "Column-" + j, bytes, j);
+                rm.add("StandardByTime1:" + "Column-" + j, bytes, j * 2);
                 rm.apply();
             }
         }
@@ -86,6 +95,43 @@ public class ColumnFamilyStoreTest extends ServerTest
         table.getColumnFamilyStore("StandardByTime1").forceFlush();
         waitForFlush();
         validateTimeSort(table);
+
+        // interleave some new data to test memtable + sstable
+        String key = "900";
+        RowMutation rm;
+        for (int j = 0; j < 4; ++j)
+        {
+            rm = new RowMutation("Table1", key);
+            rm.add("StandardByTime1:" + "Column+" + j, ArrayUtils.EMPTY_BYTE_ARRAY, j * 2 + 1);
+            rm.apply();
+        }
+        // and some overwrites
+        for (int j = 4; j < 8; ++j)
+        {
+            rm = new RowMutation("Table1", key);
+            rm.add("StandardByTime1:" + "Column-" + j, ArrayUtils.EMPTY_BYTE_ARRAY, j * 3);
+            rm.apply();
+        }
+        // verify
+        ColumnFamily cf = table.getRow(key, "StandardByTime1", 0).getColumnFamilies().iterator().next();
+        SortedSet<IColumn> columns = cf.getAllColumns();
+        assert columns.size() == 12;
+        Iterator<IColumn> iter = columns.iterator();
+        IColumn column;
+        for (int j = 7; j >= 4; j--)
+        {
+            column = iter.next();
+            assert column.name().equals("Column-" + j);
+            assert column.timestamp() == j * 3;
+            assert column.value().length == 0;
+        }
+        for (int j = 3; j >= 0; j--)
+        {
+            column = iter.next();
+            assert column.name().equals("Column+" + j);
+            column = iter.next();
+            assert column.name().equals("Column-" + j);
+        }
     }
 
     private void validateTimeSort(Table table) throws IOException, ColumnFamilyNotDefinedException
@@ -95,13 +141,13 @@ public class ColumnFamilyStoreTest extends ServerTest
             String key = Integer.toString(i);
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = table.getRow(key, "StandardByTime1", j).getColumnFamilies().iterator().next();
+                ColumnFamily cf = table.getRow(key, "StandardByTime1", j * 2).getColumnFamilies().iterator().next();
                 SortedSet<IColumn> columns = cf.getAllColumns();
                 assert columns.size() == 8 - j;
                 int k = 7;
                 for (IColumn c : columns)
                 {
-                    assert c.timestamp() == k--;
+                    assert c.timestamp() == (k--) * 2;
                 }
             }
         }
@@ -156,7 +202,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemove() throws IOException, ColumnFamilyNotDefinedException
+    public void testRemove() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -167,6 +213,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm.add("Standard1:Column1", "asdf".getBytes(), 0);
         rm.apply();
         store.forceFlush();
+        waitForFlush();
 
         // remove
         rm = new RowMutation("Table1", "key1");
@@ -180,7 +227,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveSuperColumn() throws IOException, ColumnFamilyNotDefinedException
+    public void testRemoveSuperColumn() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
@@ -191,6 +238,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm.add("Super1:SC1:Column1", "asdf".getBytes(), 0);
         rm.apply();
         store.forceFlush();
+        waitForFlush();
 
         // remove
         rm = new RowMutation("Table1", "key1");
