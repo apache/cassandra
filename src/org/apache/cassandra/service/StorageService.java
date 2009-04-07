@@ -161,11 +161,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return "http://" + tcpAddr_.getHost() + ":" + DatabaseDescriptor.getHttpPort();
     }
-    
-    public static PartitionerType getPartitionerType()
-    {
-        return (DatabaseDescriptor.ophf_.equalsIgnoreCase(DatabaseDescriptor.getHashingStrategy())) ? PartitionerType.OPHF : PartitionerType.RANDOM;
-    }
 
     /**
      * This is a facade for the hashing 
@@ -175,6 +170,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public static BigInteger hash(String key)
     {
         return partitioner_.hash(key);
+    }
+
+    public static IPartitioner getPartitioner() {
+        return partitioner_;
     }
     
     public static enum BootstrapMode

@@ -28,11 +28,9 @@ import java.util.Random;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.PrimaryKey;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.service.PartitionerType;
 import org.apache.cassandra.utils.BloomFilter;
 
 
@@ -58,47 +56,7 @@ public class SSTableTest
         }
         ssTable.close(bf);
     }
-    
-    private static void hashSSTableWrite() throws Throwable
-    {        
-        Map<String, ColumnFamily> columnFamilies = new HashMap<String, ColumnFamily>();                
-        byte[] bytes = new byte[64*1024];
-        Random random = new Random();
-        for ( int i = 100; i < 1000; ++i )
-        {
-            String key = Integer.toString(i);
-            ColumnFamily cf = new ColumnFamily("Test", "Standard");                      
-            // random.nextBytes(bytes);
-            cf.addColumn("C", "Avinash Lakshman is a good man".getBytes(), i);
-            columnFamilies.put(key, cf);
-        } 
-        flushForRandomPartitioner(columnFamilies);
-    }
-    
-    private static void flushForRandomPartitioner(Map<String, ColumnFamily> columnFamilies) throws Throwable
-    {
-        SSTable ssTable = new SSTable("C:\\Engagements\\Cassandra", "Table-Test-1", PartitionerType.RANDOM);
-        /* List of primary keys in sorted order */
-        List<PrimaryKey> pKeys = PrimaryKey.create( columnFamilies.keySet() );
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        /* Use this BloomFilter to decide if a key exists in a SSTable */
-        BloomFilter bf = new BloomFilter(pKeys.size(), 15);
-        for ( PrimaryKey pKey : pKeys )
-        {
-            buffer.reset();
-            ColumnFamily columnFamily = columnFamilies.get(pKey.key());
-            if ( columnFamily != null )
-            {
-                /* serialize the cf with column indexes */
-                ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
-                /* Now write the key and value to disk */
-                ssTable.append(pKey.key(), pKey.hash(), buffer);
-                bf.fill(pKey.key());                
-            }
-        }
-        ssTable.close(bf);
-    }
-    
+
     private static void readSSTable() throws Throwable
     {
         SSTable ssTable = new SSTable("C:\\Engagements\\Cassandra\\Table-Test-1-Data.db");  

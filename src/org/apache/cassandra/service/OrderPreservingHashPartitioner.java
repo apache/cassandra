@@ -19,14 +19,30 @@
 package org.apache.cassandra.service;
 
 import java.math.BigInteger;
+import java.util.Comparator;
+import java.text.Collator;
 
 public class OrderPreservingHashPartitioner implements IPartitioner
 {
     private final static int maxKeyHashLength_ = 36;
     private final static BigInteger ONE = BigInteger.ONE;
-    /* May be even 255L will work. But I need to verify that. */
     private static final BigInteger prime_ = BigInteger.valueOf(Character.MAX_VALUE);
     
+    private static final Comparator<String> comparator = new Comparator<String>()
+    {
+        public int compare(String o1, String o2)
+        {
+            return o1.compareTo(o2);
+        }
+    };
+    private static final Comparator<String> rcomparator = new Comparator<String>()
+    {
+        public int compare(String o1, String o2)
+        {
+            return -comparator.compare(o1, o2);
+        }
+    };
+
     public BigInteger hash(String key)
     {
         BigInteger h = BigInteger.ZERO;
@@ -40,5 +56,25 @@ public class OrderPreservingHashPartitioner implements IPartitioner
                 h = prime_.multiply(h).add( ONE );
         }
         return h;
+    }
+
+    public String decorateKey(String key)
+    {
+        return key;
+    }
+
+    public String undecorateKey(String decoratedKey)
+    {
+        return decoratedKey;
+    }
+
+    public Comparator<String> getReverseDecoratedKeyComparator()
+    {
+        return rcomparator;
+    }
+
+    public Comparator<String> getDecoratedKeyComparator()
+    {
+        return comparator;
     }
 }
