@@ -12,6 +12,7 @@
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
+    <property name="test.conf" value="${test.dir}/conf"/>
     <property name="final.name" value="cassandra"/>
 
     <!-- http://cobertura.sourceforge.net/ -->
@@ -148,12 +149,13 @@
             haltOnFailure="true"
             verbose="2">
       <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
-      <jvmarg value="-Dstorage-config=test/conf"/>
+      <jvmarg value="-Dstorage-config=${test.conf}"/>
       <classpath>
         <pathelement location="${cobertura.classes.dir}"/>
         <path refid="cassandra.classpath" />
         <pathelement location="${test.classes}"/>
         <pathelement location="${cobertura.dir}/cobertura.jar"/>
+        <pathelement location="${test.conf}"/>
       </classpath>
       <classfileset dir="${test.classes}" includes="**/*.class" />
     </testng>
