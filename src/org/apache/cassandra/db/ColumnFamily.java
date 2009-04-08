@@ -42,10 +42,9 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public final class ColumnFamily
 {
+    /* The column serializer for this Column Family. Create based on config. */
     private static ICompactSerializer2<ColumnFamily> serializer_;
     public static final short utfPrefix_ = 2;   
-    public static final String defaultColumnSortProperty_ = "Time";
-    /* The column serializer for this Column Family. Create based on config. */
 
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
     private static Map<String, String> columnTypes_ = new HashMap<String, String>();
@@ -87,8 +86,7 @@ public final class ColumnFamily
     {
     	if ( columnIndexProperty == null )
     		return indexTypes_.get("Time");
-        String columnSortType = indexTypes_.get(columnIndexProperty);
-    	return (columnSortType == null) ? ColumnFamily.defaultColumnSortProperty_ : columnSortType;
+        return indexTypes_.get(columnIndexProperty);
     }
 
     private transient AbstractColumnFactory columnFactory_;

@@ -22,6 +22,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TypeInfo;
@@ -41,6 +43,8 @@ import org.apache.cassandra.io.*;
 
 public class DatabaseDescriptor
 {
+    private static Logger logger_ = Logger.getLogger(DatabaseDescriptor.class);
+
     public static final String random_ = "RANDOM";
     public static final String ophf_ = "OPHF";
     private static int storagePort_ = 7000;
@@ -225,15 +229,11 @@ public class DatabaseDescriptor
 
             /* metadata directory */
             metadataDirectory_ = xmlUtils.getNodeValue("/Storage/MetadataDirectory");
-            if ( metadataDirectory_ != null )
-                FileUtils.createDirectory(metadataDirectory_);
-            else
+            if (metadataDirectory_ == null)
             {
-                if ( os.equals("Linux") )
-                {
-                    metadataDirectory_ = "/var/storage/system";
-                }
+                throw new ConfigurationException("MetadataDirectory must be specified");
             }
+            FileUtils.createDirectory(metadataDirectory_);
 
             /* snapshot directory */
             snapshotDirectory_ = xmlUtils.getNodeValue("/Storage/SnapshotDirectory");
@@ -246,42 +246,28 @@ public class DatabaseDescriptor
 
             /* data file directory */
             dataFileDirectories_ = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
-            if ( dataFileDirectories_.length > 0 )
+            if (dataFileDirectories_.length == 0)
             {
-                for ( String dataFileDirectory : dataFileDirectories_ )
-                    FileUtils.createDirectory(dataFileDirectory);
+                throw new ConfigurationException("At least one DataFileDirectory must be specified");
             }
-            else
-            {
-                if ( os.equals("Linux") )
-                {
-                    dataFileDirectories_ = new String[]{"/var/storage/data"};
-                }
-            }
+            for ( String dataFileDirectory : dataFileDirectories_ )
+                FileUtils.createDirectory(dataFileDirectory);
 
             /* bootstrap file directory */
             bootstrapFileDirectory_ = xmlUtils.getNodeValue("/Storage/BootstrapFileDirectory");
-            if ( bootstrapFileDirectory_ != null )
-                FileUtils.createDirectory(bootstrapFileDirectory_);
-            else
+            if (bootstrapFileDirectory_ == null)
             {
-                if ( os.equals("Linux") )
-                {
-                    bootstrapFileDirectory_ = "/var/storage/bootstrap";
-                }
+                throw new ConfigurationException("MetadataDirectory must be specified");
             }
+            FileUtils.createDirectory(bootstrapFileDirectory_);
 
             /* commit log directory */
             logFileDirectory_ = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
-            if ( logFileDirectory_ != null )
-                FileUtils.createDirectory(logFileDirectory_);
-            else
+            if (logFileDirectory_ == null)
             {
-                if ( os.equals("Linux") )
-                {
-                    logFileDirectory_ = "/var/storage/commitlog";
-                }
+                throw new ConfigurationException("MetadataDirectory must be specified");
             }
+            FileUtils.createDirectory(logFileDirectory_);
 
             /* threshold after which commit log should be rotated. */
             String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
@@ -309,6 +295,10 @@ public class DatabaseDescriptor
 
                 /* parsing out the table name */
                 String tName = XMLUtils.getAttributeValue(table, "Name");
+                if (tName == null)
+                {
+                    throw new ConfigurationException("Table name attribute is required");
+                }
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
 
@@ -327,18 +317,30 @@ public class DatabaseDescriptor
                 {
                     Node columnFamily = columnFamilies.item(j);
                     String cName = XMLUtils.getAttributeValue(columnFamily, "Name");
+                    if (cName == null)
+                    {
+                        throw new ConfigurationException("ColumnFamily name attribute is required");
+                    }
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + cName + "']/";
 
                     /* squirrel away the application column families */
                     applicationColumnFamilies_.add(cName);
 
                     // Parse out the column type
-                    String columnType = xmlUtils.getAttributeValue(columnFamily, "ColumnType");
-                    columnType = ColumnFamily.getColumnType(columnType);
+                    String rawColumnType = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
+                    String columnType = ColumnFamily.getColumnType(rawColumnType);
+                    if (columnType == null)
+                    {
+                        throw new ConfigurationException("Column " + cName + " has invalid type " + rawColumnType);
+                    }
 
                     // Parse out the column family sorting property for columns
-                    String columnIndexProperty = XMLUtils.getAttributeValue(columnFamily, "ColumnSort");
-                    String columnIndexType = ColumnFamily.getColumnSortProperty(columnIndexProperty);
+                    String rawColumnIndexType = XMLUtils.getAttributeValue(columnFamily, "ColumnSort");
+                    String columnIndexType = ColumnFamily.getColumnSortProperty(rawColumnIndexType);
+                    if (columnIndexType == null)
+                    {
+                        throw new ConfigurationException("invalid column sort value " + rawColumnIndexType);
+                    }
 
                     // Parse out user-specified logical names for the various dimensions
                     // of a the column family from the config.
@@ -398,7 +400,13 @@ public class DatabaseDescriptor
                 seeds_.add( seeds[i] );
             }
         }
-        catch (Exception e) {
+        catch (ConfigurationException e)
+        {
+            logger_.error("Fatal error: " + e.getMessage());
+            System.exit(1);
+        }
+        catch (Exception e)
+        {
             throw new RuntimeException(e);
         }
         
@@ -775,5 +783,13 @@ public class DatabaseDescriptor
     public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()
     {
         return tableToCFMetaDataMap_;
+    }
+
+    private static class ConfigurationException extends Exception
+    {
+        public ConfigurationException(String message)
+        {
+            super(message);
+        }
     }
 }
