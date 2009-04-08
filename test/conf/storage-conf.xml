@@ -20,7 +20,7 @@
    <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
    <HttpPort>7002</HttpPort>
    <MetadataDirectory>build/test/cassandra/system</MetadataDirectory>
-   <CommitLogDirectory>build/test/commitlog</CommitLogDirectory>
+   <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
    <GangliaServers>
      <GangliaServer>127.0.0.1:12000</GangliaServer>

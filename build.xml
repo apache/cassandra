@@ -143,7 +143,6 @@
   <taskdef resource="testngtasks" classpath="lib/testng-5.8-jdk15.jar"/>
   <target name="test" depends="build-test">
     <echo message="running tests"/>
-    <mkdir dir="${build.test.dir}/commitlog"/>
     <mkdir dir="${build.test.dir}/cassandra"/>
     <testng outputDir="${build.dir}/test/output"
             haltOnFailure="true"
