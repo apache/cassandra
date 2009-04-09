@@ -24,87 +24,89 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SequenceFile;
-import org.apache.cassandra.service.StorageService;
 
 
 public class FileStruct implements Comparable<FileStruct>
 {
-    IFileReader reader_;
-    String key_; // decorated!
-    DataInputBuffer bufIn_;
-    DataOutputBuffer bufOut_;
-    
-    public FileStruct()
+    private String key = null; // decorated!
+    private boolean exhausted = false;
+    private IFileReader reader;
+    private DataInputBuffer bufIn;
+    private DataOutputBuffer bufOut;
+
+    public FileStruct(IFileReader reader)
     {
+        this.reader = reader;
+        bufIn = new DataInputBuffer();
+        bufOut = new DataOutputBuffer();
     }
-    
-    public FileStruct(String file, int bufSize) throws IOException
+
+    public String getFileName()
     {
-        bufIn_ = new DataInputBuffer();
-        bufOut_ = new DataOutputBuffer();
-        reader_ = SequenceFile.bufferedReader(file, bufSize);
-        long bytesRead = advance();
-        if ( bytesRead == -1L )
-            throw new IOException("Either the file is empty or EOF has been reached.");          
+        return reader.getFileName();
     }
-    
+
+    public void close() throws IOException
+    {
+        reader.close();
+    }
+
+    public boolean isExhausted()
+    {
+        return exhausted;
+    }
+
+    public DataInputBuffer getBufIn()
+    {
+        return bufIn;
+    }
+
     public String getKey()
     {
-        return key_;
-    }
-    
-    public DataOutputBuffer getBuffer()
-    {
-        return bufOut_;
-    }
-    
-    public long advance() throws IOException
-    {        
-        long bytesRead = -1L;
-        bufOut_.reset();
-        /* advance and read the next key in the file. */           
-        if (reader_.isEOF())
-        {
-            reader_.close();
-            return bytesRead;
-        }
-            
-        bytesRead = reader_.next(bufOut_);        
-        if (bytesRead == -1)
-        {
-            reader_.close();
-            return bytesRead;
-        }
-
-        bufIn_.reset(bufOut_.getData(), bufOut_.getLength());
-        key_ = bufIn_.readUTF();
-        /* If the key we read is the Block Index Key then omit and read the next key. */
-        if ( key_.equals(SSTable.blockIndexKey_) )
-        {
-            bufOut_.reset();
-            bytesRead = reader_.next(bufOut_);
-            if (bytesRead == -1)
-            {
-                reader_.close();
-                return bytesRead;
-            }
-            bufIn_.reset(bufOut_.getData(), bufOut_.getLength());
-            key_ = bufIn_.readUTF();
-        }
-        
-        return bytesRead;
+        return key;
     }
 
     public int compareTo(FileStruct f)
     {
-        return StorageService.getPartitioner().getDecoratedKeyComparator().compare(key_, f.key_);
+        return key.compareTo(f.key);
     }
-    
-    public void close() throws IOException
+
+    /*
+     * Read the next key from the data file, skipping block indexes.
+     * Caller must check isExhausted after each call to see if further
+     * reads are valid.
+     */
+    public void advance() throws IOException
     {
-        bufIn_.close();
-        bufOut_.close();
-        reader_.close();
+        if (exhausted)
+        {
+            throw new IndexOutOfBoundsException();
+        }
+
+        bufOut.reset();
+        if (reader.isEOF())
+        {
+            reader.close();
+            exhausted = true;
+            return;
+        }
+
+        long bytesread = reader.next(bufOut);
+        if (bytesread == -1)
+        {
+            reader.close();
+            exhausted = true;
+            return;
+        }
+
+        bufIn.reset(bufOut.getData(), bufOut.getLength());
+        key = bufIn.readUTF();
+        /* If the key we read is the Block Index Key then omit and read the next key. */
+        if (key.equals(SSTable.blockIndexKey_))
+        {
+            reader.close();
+            exhausted = true;
+        }
     }
+
 }
