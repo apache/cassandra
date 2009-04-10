@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,7 +51,6 @@ import org.apache.cassandra.service.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -694,7 +694,7 @@ public class ColumnFamilyStore
      */
     static Set<List<String>> getCompactionBuckets(List<String> files, long min)
     {
-    	Map<List<String>, Long> buckets = new NonBlockingHashMap<List<String>, Long>();
+    	Map<List<String>, Long> buckets = new ConcurrentHashMap<List<String>, Long>();
     	for(String fname : files)
     	{
     		File f = new File(fname);

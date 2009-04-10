@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.ServerTest;
 import org.testng.annotations.Test;
@@ -285,8 +286,23 @@ public class ColumnFamilyStoreTest extends ServerTest
         }
 
         Set<List<String>> buckets = ColumnFamilyStore.getCompactionBuckets(all, 50);
-        assert buckets.contains(small);
-        assert buckets.contains(med);
+        assert buckets.size() == 2 : bucketString(buckets);
+        Iterator<List<String>> iter = buckets.iterator();
+        List<String> bucket1 = iter.next();
+        List<String> bucket2 = iter.next();
+        assert bucket1.size() + bucket2.size() == all.size() : bucketString(buckets) + " does not match [" + StringUtils.join(all, ", ") + "]";
+        assert buckets.contains(small) : bucketString(buckets) + " does not contain {" + StringUtils.join(small, ", ") + "}";
+        assert buckets.contains(med) : bucketString(buckets) + " does not contain {" + StringUtils.join(med, ", ") + "}";
+    }
+
+    private static String bucketString(Set<List<String>> buckets)
+    {
+        ArrayList<String> pieces = new ArrayList<String>();
+        for (List<String> bucket : buckets)
+        {
+            pieces.add("[" + StringUtils.join(bucket, ", ") + "]");
+        }
+        return "{" + StringUtils.join(pieces, ", ") + "}";
     }
 
     private String createFile(int nBytes) throws IOException
