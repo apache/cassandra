@@ -307,21 +307,6 @@ public final class ColumnFamily
     }
 
     /*
-     * This is used as oldCf.merge(newCf). Basically we take the newCf
-     * and merge it into the oldCf.
-    */
-    void merge(ColumnFamily columnFamily)
-    {
-        Map<String, IColumn> columns = columnFamily.getColumns();
-        Set<String> cNames = columns.keySet();
-
-        for ( String cName : cNames )
-        {
-            columns_.put(cName, columns.get(cName));
-        }
-    }
-
-    /*
      * This function will repair a list of columns
      * If there are any columns in the external list which are not present
      * internally then they are added ( this might have to change depending on
@@ -336,7 +321,6 @@ public final class ColumnFamily
             addColumn(column);
         }
     }
-
 
     /*
      * This function will calculate the differnce between 2 column families
