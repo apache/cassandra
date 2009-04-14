@@ -293,7 +293,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             mbs.registerMBean(this, new ObjectName(
-                    "com.facebook.infrastructure.service:type=StorageService"));
+                    "org.apache.cassandra.service:type=StorageService"));
         }
         catch (Exception e)
         {
