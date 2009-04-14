@@ -24,6 +24,7 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.service.IPartitioner;
 
 
 public class FileStruct implements Comparable<FileStruct>
@@ -33,10 +34,12 @@ public class FileStruct implements Comparable<FileStruct>
     private IFileReader reader;
     private DataInputBuffer bufIn;
     private DataOutputBuffer bufOut;
+    private IPartitioner partitioner;
 
-    public FileStruct(IFileReader reader)
+    public FileStruct(IFileReader reader, IPartitioner partitioner)
     {
         this.reader = reader;
+        this.partitioner = partitioner;
         bufIn = new DataInputBuffer();
         bufOut = new DataOutputBuffer();
     }
@@ -68,7 +71,7 @@ public class FileStruct implements Comparable<FileStruct>
 
     public int compareTo(FileStruct f)
     {
-        return key.compareTo(f.key);
+        return partitioner.getDecoratedKeyComparator().compare(key, f.key);
     }
 
     /*

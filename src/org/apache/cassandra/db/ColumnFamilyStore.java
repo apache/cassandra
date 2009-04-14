@@ -664,7 +664,7 @@ public class ColumnFamilyStore
             {
             	try
             	{
-            		fs = new FileStruct(SequenceFile.bufferedReader(file, bufferSize));
+            		fs = new FileStruct(SequenceFile.bufferedReader(file, bufferSize), StorageService.getPartitioner());
 	                fs.advance();
 	                if(fs.isExhausted())
 	                	continue;
