@@ -81,16 +81,16 @@ class MinorCompactionManager implements IComponentShutdown
 
         public void run()
         {
+                logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
             try
             {
-                logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
-            	columnFamilyStore_.doCompaction();
-                logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+                columnFamilyStore_.doCompaction();
             }
-            catch (Throwable th)
+            catch (IOException e)
             {
-                logger_.error( LogUtil.throwableToString(th) );
+                throw new RuntimeException(e);
             }
+            logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
         }
     }
 
@@ -149,16 +149,9 @@ class MinorCompactionManager implements IComponentShutdown
 
         public void run()
         {
-            try
-            {
-                logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
-            	columnFamilyStore_.doCleanupCompaction();
-                logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
-            }
-            catch (Throwable th)
-            {
-                logger_.error( LogUtil.throwableToString(th) );
-            }
+            logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
+            columnFamilyStore_.doCleanupCompaction();
+            logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
         }
     }
     
@@ -181,9 +174,9 @@ class MinorCompactionManager implements IComponentShutdown
     			MinorCompactionManager.intervalInMins_, TimeUnit.MINUTES);       
     }
 
-    public void submit(ColumnFamilyStore columnFamilyStore)
+    public Future submit(ColumnFamilyStore columnFamilyStore)
     {
-        compactor_.submit(new FileCompactor(columnFamilyStore));
+        return compactor_.submit(new FileCompactor(columnFamilyStore));
     }
     
     public void submitCleanup(ColumnFamilyStore columnFamilyStore)

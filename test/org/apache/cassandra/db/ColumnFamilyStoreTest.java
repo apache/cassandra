@@ -314,4 +314,26 @@ public class ColumnFamilyStoreTest extends ServerTest
         fos.close();
         return f.getAbsolutePath();
     }
+
+    @Test
+    public void testCompaction() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        store.ssTables_.clear(); // TODO integrate this better into test setup/teardown
+
+        for (int j = 0; j < 5; j++) {
+            for (int i = 0; i < 10; i++) {
+                long epoch = System.currentTimeMillis()  /  1000;
+                String key = String.format("%s.%s.%s",  epoch,  1,  i);
+                RowMutation rm = new RowMutation("Table1", key);
+                rm.add("Standard1:A", new byte[0], epoch);
+                rm.apply();
+            }
+            store.forceFlush();
+            waitForFlush();
+        }
+        Future ft = MinorCompactionManager.instance().submit(store);
+        ft.get();
+    }
 }
