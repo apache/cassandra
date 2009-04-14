@@ -40,4 +40,12 @@ public interface ColumnFamilyStoreMBean
      * @return The number of columns.
      */
     public int getMemtableColumnsCount();
+    
+    /**
+     * Returns the number of times that a flush has resulted in the 
+     * memtable being switched out.
+     * 
+     * @return the number of memtable switches
+     */
+    public int getMemtableSwitchCount();
 }

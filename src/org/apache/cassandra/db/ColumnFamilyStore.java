@@ -68,6 +68,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private String table_;
     public String columnFamily_;
+    
+    private volatile Integer memtableSwitchCount = 0;
 
     /* This is used to generate the next index for a SSTable */
     private AtomicInteger fileIndexGenerator_ = new AtomicInteger(0);
@@ -395,6 +397,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         memtable_.set( new Memtable(table_, columnFamily_) );
         if(!key.equals(Memtable.flushKey_))
         	memtable_.get().put(key, columnFamily, cLogCtx);
+        
+        if (memtableSwitchCount == Integer.MAX_VALUE)
+        {
+            memtableSwitchCount = 0;
+        }
+        memtableSwitchCount++;
     }
 
     /*
@@ -1379,5 +1387,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public int getMemtableDataSize()
     {
         return memtable_.get().getCurrentSize();
+    }
+
+    public int getMemtableSwitchCount()
+    {
+        return memtableSwitchCount;
     }
 }
