@@ -20,6 +20,9 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -56,7 +59,7 @@ import org.apache.cassandra.utils.LogUtil;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class ColumnFamilyStore
+public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static int threshHold_ = 4;
     private static final int bufSize_ = 128*1024*1024;
@@ -116,6 +119,17 @@ public class ColumnFamilyStore
         fileIndexGenerator_.set(value);
         memtable_ = new AtomicReference<Memtable>( new Memtable(table_, columnFamily_) );
         binaryMemtable_ = new AtomicReference<BinaryMemtable>( new BinaryMemtable(table_, columnFamily_) );
+        
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            mbs.registerMBean(this, new ObjectName(
+                    "org.apache.cassandra.db:type=ColumnFamilyStore-" + columnFamily_));
+        }
+        catch (Exception e)
+        {
+            logger_.error(LogUtil.throwableToString(e));
+        }
     }
 
     void onStart() throws IOException
@@ -1355,5 +1369,15 @@ public class ColumnFamilyStore
     public void flushMemtableOnRecovery() throws IOException
     {
         memtable_.get().flushOnRecovery();
+    }
+
+    public int getMemtableColumnsCount()
+    {
+        return memtable_.get().getCurrentObjectCount();
+    }
+
+    public int getMemtableDataSize()
+    {
+        return memtable_.get().getCurrentSize();
     }
 }

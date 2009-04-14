@@ -39,7 +39,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class BinaryMemtable implements MemtableMBean
+public class BinaryMemtable
 {
     private static Logger logger_ = Logger.getLogger( Memtable.class );
     private int threshold_ = 512*1024*1024;

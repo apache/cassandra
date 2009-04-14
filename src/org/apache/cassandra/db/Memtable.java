@@ -54,7 +54,7 @@ import org.apache.cassandra.service.StorageService;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class Memtable implements MemtableMBean, Comparable<Memtable>
+public class Memtable implements Comparable<Memtable>
 {
 	private static Logger logger_ = Logger.getLogger( Memtable.class );
     private static Map<String, ExecutorService> apartments_ = new HashMap<String, ExecutorService>();
@@ -183,9 +183,14 @@ public class Memtable implements MemtableMBean, Comparable<Memtable>
     		return 0;
     }
 
-    public int getMemtableThreshold()
+    public int getCurrentSize()
     {
         return currentSize_.get();
+    }
+    
+    public int getCurrentObjectCount()
+    {
+        return currentObjectCount_.get();
     }
 
     void resolveSize(int oldSize, int newSize)
