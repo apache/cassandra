@@ -5,13 +5,12 @@ import org.testng.annotations.Test;
 import java.util.Comparator;
 
 public class ColumnComparatorFactoryTest {
-    public Comparator<IColumn> nameComparator;
+    public Comparator<IColumn> nameComparator  = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
 
     @Test
     public void testLT() {
         IColumn col1 = new Column("Column-8");
         IColumn col2 = new Column("Column-9");
-        nameComparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
         assert nameComparator.compare(col1, col2) < 0;
     }
 
