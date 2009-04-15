@@ -22,6 +22,19 @@
    <MetadataDirectory>/var/cassandra/system</MetadataDirectory>
    <CommitLogDirectory>/var/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
+   <!-- 
+     The maximum amount of data to store in a memtable before flushing it to
+     disk. Note: There is one memtable per column family, and this threshold
+     is based solely on the amount of data stored, not actual heap memory
+     usage (there is some overhead in indexing the columns).
+   -->
+   <MemtableSizeInMB>64</MemtableSizeInMB>
+   <!--
+     The maximum number of columns in millions. Like MemtableSizeInMB above,
+     this is used to impose a limit on how large a memtable can grow before 
+     it is flushed to disk.
+   -->
+   <MemtableObjectCountInMillions>1</MemtableObjectCountInMillions>
    <GangliaServers>
      <GangliaServer>127.0.0.1:12000</GangliaServer>
    </GangliaServers>
