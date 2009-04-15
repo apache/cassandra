@@ -32,7 +32,7 @@ import org.apache.cassandra.utils.*;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public final class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
+public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
     private static Logger logger_ = Logger.getLogger(DebuggableThreadPoolExecutor.class);    
     
