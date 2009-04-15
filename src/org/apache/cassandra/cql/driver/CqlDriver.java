@@ -21,7 +21,7 @@ import org.apache.cassandra.cql.compiler.common.*;
 import org.apache.cassandra.cql.compiler.parse.*;
 import org.apache.cassandra.cql.compiler.sem.*;
 import org.apache.cassandra.cql.common.*;
-import com.facebook.thrift.*;
+import org.apache.thrift.*;
 
 import org.apache.cassandra.cql.common.CqlResult;
 import org.apache.cassandra.cql.common.Plan;

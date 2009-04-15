@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cli;
 
-import com.facebook.thrift.*;
+import org.apache.thrift.*;
 
 import org.antlr.runtime.tree.*;
 import org.apache.cassandra.cql.common.Utils;
