@@ -42,6 +42,7 @@ import org.apache.cassandra.service.batch_mutation_t;
 import org.apache.cassandra.service.column_t;
 import org.apache.cassandra.service.superColumn_t;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 
 /**
@@ -187,7 +188,16 @@ public class RowMutation implements Serializable
             columnFamily = new ColumnFamily(cfName);
         if (values.length == 2)
         {
-            columnFamily.addColumn(values[1], ArrayUtils.EMPTY_BYTE_ARRAY, timestamp, true);
+            if (DatabaseDescriptor.getColumnFamilyType(cfName).equals("Standard"))
+            {
+                columnFamily.addColumn(values[1], ArrayUtils.EMPTY_BYTE_ARRAY, timestamp, true);
+            }
+            else
+            {
+                SuperColumn sc = new SuperColumn(values[1]);
+                sc.markForDeleteAt(timestamp);
+                columnFamily.addColumn(sc);
+            }
         }
         else if (values.length == 3)
         {
