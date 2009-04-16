@@ -491,17 +491,12 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
         StorageProxy.insert(rm);
 	}
 
-    public void remove(String tablename, String key, String columnFamily_column)
-	{
-		throw new UnsupportedOperationException("Remove is coming soon");
-	}
-
-    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, int block_for)
+    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block)
 	{
         logger_.debug("remove");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.delete(columnFamily_column, timestamp);
-        if (block_for > 0) {
+        if (block) {
             return StorageProxy.insertBlocking(rm);
         } else {
             StorageProxy.insert(rm);

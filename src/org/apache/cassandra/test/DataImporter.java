@@ -1345,85 +1345,6 @@ public class DataImporter {
         
     }
 
-    
-    
-	public void testRemove(String filepath) throws Throwable {
-		BufferedReader bufReader = new BufferedReader(new InputStreamReader(
-				new FileInputStream(filepath)), 16 * 1024 * 1024);
-		String line = null;
-		String delimiter_ = new String(",");
-		RowMutationMessage rmInbox = null;
-		RowMutationMessage rmOutbox = null;
-		ColumnFamily cfInbox = null;
-		ColumnFamily cfOutbox = null;
-		String firstuser = null ;
-		String nextuser = null;
-		while ((line = bufReader.readLine()) != null) {
-			StringTokenizer st = new StringTokenizer(line, delimiter_);
-			int i = 0;
-			String threadId = null;
-			int lastUpdated = 0;
-			int isDeleted = 0;
-			int folder = 0;
-			String user = null;
-			while (st.hasMoreElements()) {
-				switch (i) {
-				case 0:
-					user = (String) st.nextElement();// sb.append((String)st.nextElement());
-                    if ( !isNumeric(user))
-                        continue;
-					break;
-
-				case 1:
-					folder = Integer.parseInt((String) st.nextElement());// sb.append((String)st.nextElement());
-					break;
-
-				case 2:
-					threadId = (String) st.nextElement();
-					break;
-
-				case 3:
-					lastUpdated = Integer.parseInt((String) st.nextElement());
-					break;
-
-				case 4:
-					isDeleted = Integer.parseInt((String) st.nextElement());// (String)st.nextElement();
-					break;
-
-				default:
-					break;
-				}
-				++i;
-			}
-			String key = null;
-			if (folder == 0) {
-				key = user + ":0";
-			} else {
-				key = user + ":1";
-			}
-
-			nextuser = key;
-			if(firstuser == null || firstuser.compareTo(nextuser) != 0)
-			{
-				ArrayList<column_t> columns = null;
-				firstuser = key;
-				try {
-                    Thread.sleep(1000/requestsPerSecond_, 1000%requestsPerSecond_);
-					long t = System.currentTimeMillis();
-					
-					peerstorageClient_.remove(tablename_,key,(columnFamilyHack_%divideby_)+":"+threadId);
-					numReqs_++;
-					totalTime_ = totalTime_ + (System.currentTimeMillis() - t);
-					logger_.debug("Numreqs:" + numReqs_ + " Average: " + totalTime_/numReqs_+  "   Time taken for thrift..."
-							+ (System.currentTimeMillis() - t));
-				} catch (Exception e) {
-						e.printStackTrace();
-					}
-			}
-		}
-
-	}
-
 	public void run(String[] args) throws Throwable
     {
 		if (args[0].compareTo("-testWriteMailbox") == 0  ||
@@ -1489,11 +1410,6 @@ public class DataImporter {
 				if ( args[0].compareTo("-testReadSuper") == 0 )
 				{
 					testSuperReadThrift(args[2]
-							+ System.getProperty("file.separator") + fileName);
-				}
-				if ( args[0].compareTo("-testRemove") == 0 )
-				{
-					testRemove(args[2]
 							+ System.getProperty("file.separator") + fileName);
 				}
 				if ( args[0].compareTo("-testPhp") == 0 )

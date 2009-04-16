@@ -60,7 +60,7 @@ service Cassandra  {
   async void     insert(string tablename,string key,string columnFamily_column, string cellData,i64 timestamp),
   async void     batch_insert(batch_mutation_t batchMutation),
   bool           batch_insert_blocking(batch_mutation_t batchMutation) throws (1:CassandraException e),
-  async void     remove(string tablename,string key,string columnFamily_column),
+  bool           remove(string tablename,string key,string columnFamily_column, i64 timestamp, bool block),
   list<column_t> get_columns_since(string tablename, string key, string columnFamily_column, i64 timeStamp) throws (1:CassandraException e),
 
   list<superColumn_t> get_slice_super(string tablename, string key, string columnFamily_superColumnName, i32 start = -1 , i32 count = -1) throws (1:CassandraException e),
