@@ -26,15 +26,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.Arrays;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 
-import com.facebook.fb303.FacebookBase;
-import com.facebook.fb303.fb_status;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.common.CqlResult;
@@ -43,41 +37,26 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.RowMutationMessage;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.thrift.TException;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class CassandraServer extends FacebookBase implements Cassandra.Iface
+public class CassandraServer implements Cassandra.Iface
 {
 
 	private static Logger logger_ = Logger.getLogger(CassandraServer.class);
-	/*
-	 * Handle to the storage service to interact with the other machines in the
-	 * cluster.
-	 */
+
+    /*
+      * Handle to the storage service to interact with the other machines in the
+      * cluster.
+      */
 	protected StorageService storageService;
 
-	protected CassandraServer(String name)
+	protected CassandraServer()
 	{
-		super(name);
-		// Create the instance of the storage service
-		storageService = StorageService.instance();
-	}
-
-	public CassandraServer()
-	{
-		super("CassandraServer");
-		// Create the instance of the storage service
 		storageService = StorageService.instance();
 	}
 
@@ -751,7 +730,7 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
         }
         else if (propertyName.equals("version"))
         {
-            return getVersion();
+            return "1";
         }
         else
         {
@@ -824,21 +803,5 @@ public class CassandraServer extends FacebookBase implements Cassandra.Iface
     	}
 	}
     
-    
-	public String getVersion()
-	{
-		return "1";
-	}
-
-	public int getStatus()
-	{
-		return fb_status.ALIVE;
-	}
-
-	public String getStatusDetails()
-	{
-		return null;
-	}
-
     // main method moved to CassandraDaemon
 }
