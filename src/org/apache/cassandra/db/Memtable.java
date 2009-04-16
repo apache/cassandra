@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -210,15 +211,8 @@ public class Memtable implements Comparable<Memtable>
                 if (!isFrozen_)
                 {
                     isFrozen_ = true;
-                    Runnable flushQueuer = new Runnable()
-                    {
-                        public void run()
-                        {
-                            MemtableManager.instance().submit(cfStore.getColumnFamilyName(), Memtable.this, cLogCtx);
-                        }
-                    };
                     cfStore.switchMemtable(key, columnFamily, cLogCtx);
-                    executor_.runOnTermination(flushQueuer);
+                    executor_.flushWhenTerminated(cLogCtx);
                     executor_.shutdown();
                 }
                 else
@@ -242,7 +236,8 @@ public class Memtable implements Comparable<Memtable>
 
     /*
      * This version is used to switch memtable and force flush.
-     * Flushing is still done in a separate executor -- forceFlush does not block.
+     * Flushing is still done in a separate executor -- forceFlush only blocks
+     * until the flush runnable is queued.
     */
     public void forceflush(ColumnFamilyStore cfStore) throws IOException
     {
@@ -257,10 +252,11 @@ public class Memtable implements Comparable<Memtable>
                 rm.add(cfStore.getColumnFamilyName() + ":Column", "0".getBytes(), 0);
             }
             rm.apply();
+            executor_.flushQueuer.get();
         }
-        catch(ColumnFamilyNotDefinedException ex)
+        catch (Exception ex)
         {
-            logger_.debug(LogUtil.throwableToString(ex));
+            throw new RuntimeException(ex);
         }
     }
 
@@ -413,9 +409,9 @@ public class Memtable implements Comparable<Memtable>
         columnFamilies_.clear();
     }
 
-    private static class MemtableThreadPoolExecutor extends DebuggableThreadPoolExecutor
+    private class MemtableThreadPoolExecutor extends DebuggableThreadPoolExecutor
     {
-        private ArrayList<Runnable> terminatedHooks = new ArrayList<Runnable>();
+        FutureTask flushQueuer;
 
         public MemtableThreadPoolExecutor()
         {
@@ -426,13 +422,22 @@ public class Memtable implements Comparable<Memtable>
         {
             super.terminated();
             runningExecutorServices_.remove(this);
-            for (Runnable hook : terminatedHooks) {
-                hook.run();
+            if (flushQueuer != null)
+            {
+                flushQueuer.run();
             }
         }
 
-        public void runOnTermination(Runnable runnable) {
-            terminatedHooks.add(runnable);
+        public void flushWhenTerminated(final CommitLog.CommitLogContext cLogCtx)
+        {
+            Runnable runnable = new Runnable()
+            {
+                public void run()
+                {
+                    MemtableManager.instance().submit(cfName_, Memtable.this, cLogCtx);
+                }
+            };
+            flushQueuer = new FutureTask(runnable, null);
         }
     }
 }
