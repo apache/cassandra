@@ -185,18 +185,18 @@ public class RowMutation implements Serializable
 
         ColumnFamily columnFamily = modifications_.get(cfName);
         if (columnFamily == null)
-            columnFamily = new ColumnFamily(cfName);
+            columnFamily = new ColumnFamily(cfName, DatabaseDescriptor.getColumnType(cfName));
         if (values.length == 2)
         {
-            if (DatabaseDescriptor.getColumnFamilyType(cfName).equals("Standard"))
-            {
-                columnFamily.addColumn(values[1], ArrayUtils.EMPTY_BYTE_ARRAY, timestamp, true);
-            }
-            else
+            if (columnFamily.isSuper())
             {
                 SuperColumn sc = new SuperColumn(values[1]);
                 sc.markForDeleteAt(timestamp);
                 columnFamily.addColumn(sc);
+            }
+            else
+            {
+                columnFamily.addColumn(values[1], ArrayUtils.EMPTY_BYTE_ARRAY, timestamp, true);
             }
         }
         else if (values.length == 3)

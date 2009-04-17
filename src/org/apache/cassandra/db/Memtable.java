@@ -314,7 +314,7 @@ public class Memtable implements Comparable<Memtable>
                 IColumn column = cFamily.getColumn(values[1]); // super or normal column
                 if (column != null )
                 {
-                    columnFamily = new ColumnFamily(cfName_);
+                    columnFamily = new ColumnFamily(cfName_, cFamily.type());
                     columnFamily.addColumn(column);
                 }
         	}
@@ -327,7 +327,7 @@ public class Memtable implements Comparable<Memtable>
                     IColumn subColumn = superColumn.getSubColumn(values[2]);
                     if (subColumn != null)
                     {
-                        columnFamily = new ColumnFamily(cfName_);
+                        columnFamily = new ColumnFamily(cfName_, cFamily.type());
                         columnFamily.addColumn(values[1] + ":" + values[2], subColumn.value(), subColumn.timestamp(), subColumn.isMarkedForDelete());
                     }
                 }

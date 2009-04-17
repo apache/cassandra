@@ -70,8 +70,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static int compactionMemoryThreshold_ = 1 << 30;
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
-    private String table_;
-    public String columnFamily_;
+    private final String table_;
+    public final String columnFamily_;
+    private final boolean isSuper_;
     
     private volatile Integer memtableSwitchCount = 0;
 
@@ -91,10 +92,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* Flag indicates if a compaction is in process */
     private AtomicBoolean isCompacting_ = new AtomicBoolean(false);
 
-    ColumnFamilyStore(String table, String columnFamily, int indexValue) throws IOException
+    ColumnFamilyStore(String table, String columnFamily, boolean isSuper, int indexValue) throws IOException
     {
         table_ = table;
         columnFamily_ = columnFamily;
+        isSuper_ = isSuper;
         fileIndexGenerator_.set(indexValue);
         memtable_ = new AtomicReference<Memtable>(new Memtable(table_, columnFamily_));
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(table_, columnFamily_));
@@ -130,7 +132,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(indices);
         int value = (indices.size() > 0) ? (indices.get(indices.size() - 1)) : 0;
 
-        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, value);
+        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(columnFamily)), value);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -579,8 +581,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
 
         // start from nothing so that we don't include potential deleted columns from the first instance
-        String cfname = columnFamilies.get(0).name();
-        ColumnFamily cf = new ColumnFamily(cfname);
+        ColumnFamily cf0 = columnFamilies.get(0);
+        ColumnFamily cf = new ColumnFamily(cf0.name(), cf0.type());
 
         // merge
         for (ColumnFamily cf2 : columnFamilies)
@@ -1383,7 +1385,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean isSuper()
     {
-        return DatabaseDescriptor.getColumnType(getColumnFamilyName()).equals("Super");
+        return isSuper_;
     }
 
     public void flushMemtableOnRecovery() throws IOException

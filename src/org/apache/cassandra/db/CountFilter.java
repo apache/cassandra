@@ -49,8 +49,7 @@ public class CountFilter implements IFilter
         if ( columnFamily == null )
             return columnFamily;
 
-		String cfName = columnFamily.name();
-		ColumnFamily filteredCf = new ColumnFamily(cfName);
+        ColumnFamily filteredCf = new ColumnFamily(columnFamily.name(), columnFamily.type());
 		if( countLimit_ <= 0 )
 		{
 			isDone_ = true;

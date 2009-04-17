@@ -49,6 +49,7 @@ public final class ColumnFamily
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
     private static Map<String, String> columnTypes_ = new HashMap<String, String>();
     private static Map<String, String> indexTypes_ = new HashMap<String, String>();
+    private String type_;
 
     static
     {
@@ -122,15 +123,10 @@ public final class ColumnFamily
 		return columnComparator_;
 	}
 
-    public ColumnFamily(String cfName)
-    {
-        name_ = cfName;
-        createColumnFactoryAndColumnSerializer();
-    }
-
     public ColumnFamily(String cfName, String columnType)
     {
-        this(cfName);
+        name_ = cfName;
+        type_ = columnType;
         createColumnFactoryAndColumnSerializer(columnType);
     }
 
@@ -162,7 +158,7 @@ public final class ColumnFamily
 
     ColumnFamily cloneMe()
     {
-    	ColumnFamily cf = new ColumnFamily(name_);
+    	ColumnFamily cf = new ColumnFamily(name_, type_);
     	cf.markedForDeleteAt = markedForDeleteAt;
     	cf.columns_ = columns_.cloneMe();
     	return cf;
@@ -220,7 +216,7 @@ public final class ColumnFamily
 
     public boolean isSuper()
     {
-        return DatabaseDescriptor.getColumnType(name_).equals("Super");
+        return type_.equals("Super");
     }
 
     public void addColumn(String name, byte[] value)
@@ -329,7 +325,7 @@ public final class ColumnFamily
      */
     ColumnFamily diff(ColumnFamily columnFamily)
     {
-    	ColumnFamily cfDiff = new ColumnFamily(columnFamily.name());
+    	ColumnFamily cfDiff = new ColumnFamily(columnFamily.name(), columnFamily.type_);
         Map<String, IColumn> columns = columnFamily.getColumns();
         Set<String> cNames = columns.keySet();
 
@@ -421,6 +417,11 @@ public final class ColumnFamily
         return markedForDeleteAt;
     }
 
+    public String type()
+    {
+        return type_;
+    }
+
     public static class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
         /*
@@ -473,7 +474,7 @@ public final class ColumnFamily
         private ColumnFamily defreezeColumnFamily(DataInputStream dis) throws IOException
         {
             String name = dis.readUTF();
-            ColumnFamily cf = new ColumnFamily(name);
+            ColumnFamily cf = new ColumnFamily(name, DatabaseDescriptor.getColumnFamilyType(name));
             cf.delete(dis.readLong());
             return cf;
         }

@@ -35,9 +35,8 @@ public class ColumnFamilyFormatter extends HTMLFormatter
     	// first print the column family specific data
     	sb.append("ColumnFamily = " + cf.name() + "<br>");
 
-    	String columnFamilyType = DatabaseDescriptor.getColumnType(cf.name());
     	Collection<IColumn> cols = cf.getAllColumns();
-    	if("Super".equals(columnFamilyType))
+    	if (cf.isSuper())
     	{
     		printSuperColumns(sb, cols);
     	}

@@ -120,7 +120,7 @@ public class Row
             ColumnFamily cf = columnFamilies_.get(cfName);
             if (cf == null)
             {
-                cf = new ColumnFamily(cfName);
+                cf = new ColumnFamily(cfName, cf.type());
                 columnFamilies_.put(cfName, cf);
             }
             cf.repair(columnFamilies.get(cfName));

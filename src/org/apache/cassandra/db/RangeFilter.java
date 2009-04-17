@@ -63,7 +63,7 @@ public class RangeFilter implements IFilter
             return null;
         }
 
-        ColumnFamily filteredColumnFamily = new ColumnFamily(cfName);
+        ColumnFamily filteredColumnFamily = new ColumnFamily(cfName, cf.type());
 
         Collection<IColumn> columns = cf.getAllColumns();
         for (IColumn c : columns)

@@ -130,7 +130,7 @@ public class DBManager
 
             String key = FBUtilities.getHostName();
             row = new Row(key);
-            ColumnFamily cf = new ColumnFamily(SystemTable.cfName_);
+            ColumnFamily cf = new ColumnFamily(SystemTable.cfName_, "Standard");
             cf.addColumn(new Column(SystemTable.token_, token.toByteArray()));
             cf.addColumn(new Column(SystemTable.generation_, BasicUtilities.intToByteArray(generation)));
             row.addColumnFamily(cf);

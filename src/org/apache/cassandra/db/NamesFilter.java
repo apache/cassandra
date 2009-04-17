@@ -46,8 +46,7 @@ public class NamesFilter implements IFilter
             return columnFamily;
         }
     	String[] values = RowMutation.getColumnAndColumnFamily(cf);
-		String cfName = columnFamily.name();
-		ColumnFamily filteredCf = new ColumnFamily(cfName);
+        ColumnFamily filteredCf = new ColumnFamily(columnFamily.name(), columnFamily.type());
 		if( values.length == 1 )
 		{
 			Collection<IColumn> columns = columnFamily.getAllColumns();
@@ -64,7 +63,7 @@ public class NamesFilter implements IFilter
 				}
 			}
 		}
-		else if ( values.length == 2 && DatabaseDescriptor.getColumnType(cfName).equals("Super"))
+		else if (values.length == 2 && columnFamily.isSuper())
 		{
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
