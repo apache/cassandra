@@ -203,7 +203,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemove() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveColumn() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -222,6 +222,29 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily("key1", "Standard1", new IdentityFilter());
+        assert retrieved.getColumnCount() == 0;
+    }
+
+    @Test
+    public void testRemoveSubColumn() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
+        RowMutation rm;
+
+        // add data
+        rm = new RowMutation("Table1", "key1");
+        rm.add("Super1:SC1:Column1", "asdf".getBytes(), 0);
+        rm.apply();
+        store.forceFlush();
+        waitForFlush();
+
+        // remove
+        rm = new RowMutation("Table1", "key1");
+        rm.delete("Super1:SC1:Column1", 1);
+        rm.apply();
+
+        ColumnFamily retrieved = store.getColumnFamily("key1", "Super1:SC1", new IdentityFilter());
         assert retrieved.getColumnCount() == 0;
     }
 
@@ -253,6 +276,29 @@ public class ColumnFamilyStoreTest extends ServerTest
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 0;
         assert ColumnFamilyStore.removeDeleted(resolved).getColumnCount() == 0;
+    }
+
+    @Test
+    public void testRemoveColumnFamily() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        RowMutation rm;
+
+        // add data
+        rm = new RowMutation("Table1", "key1");
+        rm.add("Standard1:Column1", "asdf".getBytes(), 0);
+        rm.add("Standard1:Column2", "asdf".getBytes(), 0);
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // remove
+        rm = new RowMutation("Table1", "key1");
+        rm.delete("Standard1", 1);
+        rm.apply();
+
+        ColumnFamily retrieved = store.getColumnFamily("key1", "Standard1", new IdentityFilter());
+        assert retrieved.getColumnCount() == 0;
     }
 
     @Test
