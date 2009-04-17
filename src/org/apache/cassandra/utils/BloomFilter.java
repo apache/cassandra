@@ -41,170 +41,7 @@ import org.apache.cassandra.io.SSTable;
  */
 
 public class BloomFilter implements Serializable
-{
-    public static class CountingBloomFilter implements Serializable
-    {
-        private static ICompactSerializer<CountingBloomFilter> serializer_;
-        static
-        {
-            serializer_ = new CountingBloomFilterSerializer();
-        }
-        
-        public static ICompactSerializer<CountingBloomFilter> serializer()
-        {
-            return serializer_;
-        }
-        
-        @XmlElement(name="Filter")
-        private byte[] filter_ = new byte[0];
-        
-        @XmlElement(name="Size")
-        private int size_;
-        
-        @XmlElement(name="Hashes")
-        private int hashes_;
-        
-        /* Keeps count of number of keys added to CBF */
-        private transient int count_ = 0;                
-        private transient Random random_ = new Random(System.currentTimeMillis());
-        
-        /*
-         * This is just for JAXB. 
-        */
-        private CountingBloomFilter()
-        {
-        }
-        
-        public CountingBloomFilter(int numElements, int bitsPerElement)
-        {
-            // TODO -- think about the trivial cases more.
-            // Note that it should indeed be possible to send a bloom filter that
-            // encodes the empty set.
-            if (numElements < 0 || bitsPerElement < 1)
-                throw new IllegalArgumentException("Number of elements and bits "
-                        + "must be non-negative.");
-            // Adding a small random number of bits so that even if the set
-            // of elements hasn't changed, we'll get different false positives.              
-            size_ = numElements * bitsPerElement + 20 + random_.nextInt(64);            
-            filter_ = new byte[size_];
-            hashes_ = BloomCalculations.computeBestK(bitsPerElement);
-        }
-        
-        CountingBloomFilter(int size, int hashes, byte[] filter)
-        {
-            size_ = size;
-            hashes_ = hashes;
-            filter_ = filter;
-        }
-        
-        public CountingBloomFilter cloneMe()
-        {
-            byte[] filter = new byte[filter_.length];
-            System.arraycopy(filter_, 0, filter, 0, filter_.length);
-            return new BloomFilter.CountingBloomFilter(size_, hashes_, filter);                        
-        }
-        
-        int size()
-        {
-            return size_;
-        }
-        
-        int hashes()
-        {
-            return hashes_;
-        }
-        
-        byte[] filter()
-        {
-            return filter_;
-        }
-        
-        public BloomFilter.CountingBloomFilter merge(BloomFilter.CountingBloomFilter cbf)
-        {
-            if ( cbf == null )
-                return this;
-            
-            if ( size_ >= cbf.size_ )
-            {
-                for ( int i = 0; i < cbf.filter_.length; ++i )
-                {
-                    filter_[i] |= cbf.filter_[i];                    
-                }
-                return this;
-            }
-            else
-            {
-                for ( int i = 0; i < filter_.length; ++i )
-                {
-                    cbf.filter_[i] |= filter_[i];
-                }
-                return cbf;
-            }
-        }
-        
-        public boolean isPresent(String key)
-        {
-            boolean bVal = true;
-            for (int i = 0; i < hashes_; ++i)
-            {
-                ISimpleHash hash = hashLibrary_.get(i);
-                int hashValue = hash.hash(key);
-                int index = Math.abs(hashValue % size_);
-                if (filter_[index] == 0)
-                {
-                    bVal = false;
-                    break;
-                }
-            }
-            return bVal;
-        }
-
-        /*
-         param@ key -- value whose hash is used to fill
-         the filter_.
-         This is a general purpose API.
-         */
-        public void add(String key)
-        {         
-            if ( !isPresent(key) )
-                ++count_;
-            for (int i = 0; i < hashes_; ++i)
-            {
-                ISimpleHash hash = hashLibrary_.get(i);
-                int hashValue = hash.hash(key);
-                int index = Math.abs(hashValue % size_);
-                byte value = (filter_[index] == 0xFF) ? filter_[index] : (byte)( (++filter_[index]) & 0xFF );
-                filter_[index] = value;
-            }
-        }
-
-        public boolean delete(String key)
-        {
-            boolean bVal = isPresent(key);
-            if ( !bVal )
-            {
-                --count_;
-                return bVal;
-            }
-            
-            for (int i = 0; i < hashes_; ++i)
-            {
-                ISimpleHash hash = hashLibrary_.get(i);
-                int hashValue = hash.hash(key);
-                int index = Math.abs(hashValue % size_);
-                byte value = (filter_[index] == 0) ? filter_[index] : (byte)( (--filter_[index]) & 0xFF );
-                filter_[index] = value;
-            }
-            
-            return bVal;
-        }
-        
-        public int count()
-        {
-           return count_;
-        }
-    }
-    
+{    
     private static List<ISimpleHash> hashLibrary_ = new ArrayList<ISimpleHash>();
     private static ICompactSerializer<BloomFilter> serializer_;
 
@@ -234,18 +71,6 @@ public class BloomFilter implements Serializable
     private int size_;
     private int hashes_;
     private Random random_ = new Random(System.currentTimeMillis());
-    
-    public BloomFilter(int bitsPerElement)
-    {
-        if (bitsPerElement < 1)
-            throw new IllegalArgumentException("Number of bitsPerElement "
-                    + "must be non-negative.");
-        // Adding a small random number of bits so that even if the set
-        // of elements hasn't changed, we'll get different false positives.        
-        size_ = 20 + random_.nextInt(64);
-        filter_ = new BitSet(size_);
-        hashes_ = BloomCalculations.computeBestK(bitsPerElement);
-    }
 
     public BloomFilter(int numElements, int bitsPerElement)
     {
@@ -262,21 +87,6 @@ public class BloomFilter implements Serializable
         filter_ = new BitSet(size_);
         //hashes_ = BloomCalculations.computeBestK(bitsPerElement);
         hashes_ = 8;
-    }
-
-    public BloomFilter(int numElements, double maxFalsePosProbability)
-    {
-        if (numElements < 0)
-            throw new IllegalArgumentException("Number of elements must be "
-                    + "non-negative.");
-        BloomCalculations.BloomSpecification spec = BloomCalculations
-                .computeBitsAndK(maxFalsePosProbability);
-        // Add a small random number of bits so that even if the set
-        // of elements hasn't changed, we'll get different false positives.
-        count_ = numElements;
-        size_ = numElements * spec.bitsPerElement + 20 + random_.nextInt(64);
-        filter_ = new BitSet(size_);
-        hashes_ = spec.K;
     }
 
     /*
@@ -308,22 +118,6 @@ public class BloomFilter implements Serializable
     BitSet filter()
     {
         return filter_;
-    }
-
-    public BloomFilter merge(BloomFilter bf)
-    {
-        BloomFilter mergedBf = null;
-        if ( filter_.size() >= bf.filter_.size() )
-        {
-            filter_.or(bf.filter_);
-            mergedBf = this;
-        }
-        else
-        {
-            bf.filter_.or(filter_);
-            mergedBf = bf;
-        }
-        return mergedBf;
     }
 
     public boolean isPresent(String key)
@@ -363,21 +157,6 @@ public class BloomFilter implements Serializable
     {
         return filter_.toString();
     }
-
-    public static void main(String[] args) throws Throwable
-    { 
-        BloomFilter bf = new BloomFilter(64*1024*1024, 15);        
-        for ( int i = 0; i < 64*1024*1024; ++i )
-        {
-            bf.fill(Integer.toString(i));
-        }
-        System.out.println("Done filling ...");
-        for ( int i = 0; i < 64*1024*1024; ++i )
-        {
-        	if ( !bf.isPresent(Integer.toString(i)) )
-        		System.out.println("Oops");
-        }
-    }
 }
 
 class BloomFilterSerializer implements ICompactSerializer<BloomFilter>
@@ -411,44 +190,6 @@ class BloomFilterSerializer implements ICompactSerializer<BloomFilter>
         int size = dis.readInt();
         BitSet bs = BitSet.serializer().deserialize(dis);
         return new BloomFilter(count, hashes, size, bs);
-    }
-}
-
-class CountingBloomFilterSerializer implements ICompactSerializer<BloomFilter.CountingBloomFilter>
-{
-    /* 
-     * The following methods are used for compact representation
-     * of BloomFilter. This is essential, since we want to determine
-     * the size of the serialized Bloom Filter blob before it is
-     * populated armed with the knowledge of how many elements are
-     * going to reside in it.
-     */
-
-    public void serialize(BloomFilter.CountingBloomFilter cbf, DataOutputStream dos)
-            throws IOException
-    {        
-        /* write the size of the BloomFilter */
-        dos.writeInt(cbf.size());
-        /* write the number of hash functions used */
-        dos.writeInt(cbf.hashes());
-        
-        byte[] filter = cbf.filter();
-        /* write length of the filter */
-        dos.writeInt(filter.length);
-        dos.write(filter);
-    }
-
-    public BloomFilter.CountingBloomFilter deserialize(DataInputStream dis) throws IOException
-    {
-        /* read the size of the bloom filter */
-        int size = dis.readInt();
-        /* read the number of hash functions */
-        int hashes = dis.readInt();
-        /* read the length of the filter */
-        int length = dis.readInt();
-        byte[] filter = new byte[length];
-        dis.readFully(filter);
-        return new BloomFilter.CountingBloomFilter(size, hashes, filter);
     }
 }
 
