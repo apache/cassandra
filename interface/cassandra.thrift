@@ -11,7 +11,7 @@ php_namespace   cassandra
 
 struct column_t {
    1: string                        columnName,
-   2: string                        value,
+   2: binary                        value,
    3: i64                           timestamp,
 }
 
@@ -57,7 +57,7 @@ service Cassandra  {
   list<column_t> get_slice_by_names(string tablename,string key,string columnFamily, list<string> columnNames) throws (1:CassandraException e),
   column_t       get_column(string tablename,string key,string columnFamily_column) throws (1:CassandraException e),
   i32            get_column_count(string tablename,string key,string columnFamily_column) throws (1:CassandraException e),
-  async void     insert(string tablename,string key,string columnFamily_column, string cellData,i64 timestamp),
+  async void     insert(string tablename,string key,string columnFamily_column, binary cellData,i64 timestamp),
   async void     batch_insert(batch_mutation_t batchMutation),
   bool           batch_insert_blocking(batch_mutation_t batchMutation) throws (1:CassandraException e),
   bool           remove(string tablename,string key,string columnFamily_column, i64 timestamp, bool block),

@@ -286,7 +286,7 @@ public class RowMutation implements Serializable
             for (column_t columnData : list)
             {
                 rm.add(cfname + ":" + columnData.columnName,
-                       columnData.value.getBytes(), columnData.timestamp);
+                       columnData.value, columnData.timestamp);
 
             }
         }
@@ -310,7 +310,7 @@ public class RowMutation implements Serializable
                     for (column_t columnData : superColumnData.columns)
                     {
                         rm.add(key.toString() + ":" + superColumnData.name + ":" + columnData.columnName,
-                               columnData.value.getBytes(), columnData.timestamp);
+                               columnData.value, columnData.timestamp);
                     }
                 }
                 else

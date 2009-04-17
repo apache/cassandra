@@ -30,7 +30,7 @@ public class Cassandra {
 
     public int get_column_count(String tablename, String key, String columnFamily_column) throws CassandraException, TException;
 
-    public void insert(String tablename, String key, String columnFamily_column, String cellData, long timestamp) throws TException;
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws TException;
 
     public void batch_insert(batch_mutation_t batchMutation) throws TException;
 
@@ -244,12 +244,12 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column_count failed: unknown result");
     }
 
-    public void insert(String tablename, String key, String columnFamily_column, String cellData, long timestamp) throws TException
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws TException
     {
       send_insert(tablename, key, columnFamily_column, cellData, timestamp);
     }
 
-    public void send_insert(String tablename, String key, String columnFamily_column, String cellData, long timestamp) throws TException
+    public void send_insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
@@ -3858,7 +3858,7 @@ public class Cassandra {
     public static final int KEY = -2;
     public String columnFamily_column;
     public static final int COLUMNFAMILY_COLUMN = -3;
-    public String cellData;
+    public byte[] cellData;
     public static final int CELLDATA = -4;
     public long timestamp;
     public static final int TIMESTAMP = -5;
@@ -3896,7 +3896,7 @@ public class Cassandra {
       String tablename,
       String key,
       String columnFamily_column,
-      String cellData,
+      byte[] cellData,
       long timestamp)
     {
       this();
@@ -3930,7 +3930,8 @@ public class Cassandra {
       }
       __isset.cellData = other.__isset.cellData;
       if (other.cellData != null) {
-        this.cellData = other.cellData;
+        this.cellData = new byte[other.cellData.length];
+        System.arraycopy(other.cellData, 0, cellData, 0, other.cellData.length);
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
@@ -4007,11 +4008,11 @@ public class Cassandra {
       this.__isset.columnFamily_column = value;
     }
 
-    public String getCellData() {
+    public byte[] getCellData() {
       return this.cellData;
     }
 
-    public void setCellData(String cellData) {
+    public void setCellData(byte[] cellData) {
       this.cellData = cellData;
       this.__isset.cellData = (cellData != null);
     }
@@ -4066,7 +4067,7 @@ public class Cassandra {
         break;
 
       case CELLDATA:
-        setCellData((String)value);
+        setCellData((byte[])value);
         break;
 
       case TIMESTAMP:
@@ -4163,7 +4164,7 @@ public class Cassandra {
       if (this_present_cellData || that_present_cellData) {
         if (!(this_present_cellData && that_present_cellData))
           return false;
-        if (!this.cellData.equals(that.cellData))
+        if (!java.util.Arrays.equals(this.cellData, that.cellData))
           return false;
       }
 
@@ -4221,7 +4222,7 @@ public class Cassandra {
             break;
           case CELLDATA:
             if (field.type == TType.STRING) {
-              this.cellData = iprot.readString();
+              this.cellData = iprot.readBinary();
               this.__isset.cellData = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
@@ -4269,7 +4270,7 @@ public class Cassandra {
       }
       if (this.cellData != null) {
         oprot.writeFieldBegin(CELL_DATA_FIELD_DESC);
-        oprot.writeString(this.cellData);
+        oprot.writeBinary(this.cellData);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
@@ -4298,7 +4299,16 @@ public class Cassandra {
       first = false;
       if (!first) sb.append(", ");
       sb.append("cellData:");
-      sb.append(this.cellData);
+      if (cellData == null) { 
+        sb.append("null");
+      } else {
+        int __cellData_size = Math.min(this.cellData.length, 128);
+        for (int i = 0; i < __cellData_size; i++) {
+          if (i != 0) sb.append(" ");
+          sb.append(Integer.toHexString(this.cellData[i]).length() > 1 ? Integer.toHexString(this.cellData[i]).substring(Integer.toHexString(this.cellData[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.cellData[i]).toUpperCase());
+        }
+        if (this.cellData.length > 128) sb.append(" ...");
+      }
       first = false;
       if (!first) sb.append(", ");
       sb.append("timestamp:");

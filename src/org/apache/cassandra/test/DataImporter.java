@@ -131,7 +131,7 @@ public class DataImporter {
 		try {
 			long t = System.currentTimeMillis();
 			peerstorageClient_.insert(tablename_, rowKey, columnFamily_ + ":"
-					+ column, columnValue, ts);
+					+ column, columnValue.getBytes(), ts);
 			logger_.debug("Time taken for thrift..."
 					+ (System.currentTimeMillis() - t));
 		} catch (Exception e) {
@@ -304,7 +304,7 @@ public class DataImporter {
 			}
 			column_t columnData = new column_t();
 			columnData.columnName = threadId;
-			columnData.value = String.valueOf(isDeleted);
+			columnData.value = String.valueOf(isDeleted).getBytes();
 			columnData.timestamp = lastUpdated;
 			// List <MboxStruct> list = userthreadmap.get(rs.getString(1));
 			if (folder == 0) {
@@ -405,7 +405,7 @@ public class DataImporter {
 			}
 			column_t columnData = new column_t();
 			columnData.columnName = threadId;
-			columnData.value = String.valueOf(isDeleted);
+			columnData.value = String.valueOf(isDeleted).getBytes();
 			columnData.timestamp = lastUpdated;
 			List<column_t> list = rmInbox.cfmap.get("MailboxMailList"+(columnFamilyHack_%divideby_));
 			if (list == null) {
@@ -515,7 +515,7 @@ public class DataImporter {
 			}
 			column_t columnData = new column_t();
 			columnData.columnName = threadId;
-			columnData.value = String.valueOf(isDeleted);
+			columnData.value = String.valueOf(isDeleted).getBytes();
 			columnData.timestamp = lastUpdated;
 			// List <MboxStruct> list = userthreadmap.get(rs.getString(1));
 			if (folder == 0) {
@@ -697,7 +697,7 @@ public class DataImporter {
 			}
 			column_t columnData = new column_t();
 			columnData.columnName = threadId;
-			columnData.value = String.valueOf(isDeleted);
+			columnData.value = String.valueOf(isDeleted).getBytes();
 			columnData.timestamp = lastUpdated;
 			// List <MboxStruct> list = userthreadmap.get(rs.getString(1));
 			if (folder == 0) {

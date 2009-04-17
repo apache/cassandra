@@ -207,7 +207,7 @@ public class CliClient
 
             // do the insert
             thriftClient_.insert(tableName, key, columnFamily + ":" + columnName,
-                                 value, System.currentTimeMillis());
+                                 value.getBytes(), System.currentTimeMillis());
 
             css_.out.println("Value inserted.");
         }

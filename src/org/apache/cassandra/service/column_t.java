@@ -26,7 +26,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   public String columnName;
   public static final int COLUMNNAME = 1;
-  public String value;
+  public byte[] value;
   public static final int VALUE = 2;
   public long timestamp;
   public static final int TIMESTAMP = 3;
@@ -56,7 +56,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   public column_t(
     String columnName,
-    String value,
+    byte[] value,
     long timestamp)
   {
     this();
@@ -78,7 +78,8 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     }
     __isset.value = other.__isset.value;
     if (other.value != null) {
-      this.value = other.value;
+      this.value = new byte[other.value.length];
+      System.arraycopy(other.value, 0, value, 0, other.value.length);
     }
     __isset.timestamp = other.__isset.timestamp;
     this.timestamp = other.timestamp;
@@ -111,11 +112,11 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     this.__isset.columnName = value;
   }
 
-  public String getValue() {
+  public byte[] getValue() {
     return this.value;
   }
 
-  public void setValue(String value) {
+  public void setValue(byte[] value) {
     this.value = value;
     this.__isset.value = (value != null);
   }
@@ -162,7 +163,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
       break;
 
     case VALUE:
-      setValue((String)value);
+      setValue((byte[])value);
       break;
 
     case TIMESTAMP:
@@ -231,7 +232,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     if (this_present_value || that_present_value) {
       if (!(this_present_value && that_present_value))
         return false;
-      if (!this.value.equals(that.value))
+      if (!java.util.Arrays.equals(this.value, that.value))
         return false;
     }
 
@@ -273,7 +274,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
           break;
         case VALUE:
           if (field.type == TType.STRING) {
-            this.value = iprot.readString();
+            this.value = iprot.readBinary();
             this.__isset.value = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
@@ -311,7 +312,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     }
     if (this.value != null) {
       oprot.writeFieldBegin(VALUE_FIELD_DESC);
-      oprot.writeString(this.value);
+      oprot.writeBinary(this.value);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
@@ -332,7 +333,16 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     first = false;
     if (!first) sb.append(", ");
     sb.append("value:");
-    sb.append(this.value);
+    if (value == null) { 
+      sb.append("null");
+    } else {
+      int __value_size = Math.min(this.value.length, 128);
+      for (int i = 0; i < __value_size; i++) {
+        if (i != 0) sb.append(" ");
+        sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
+      }
+      if (this.value.length > 128) sb.append(" ...");
+    }
     first = false;
     if (!first) sb.append(", ");
     sb.append("timestamp:");

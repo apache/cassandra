@@ -129,7 +129,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 continue;
             }
-            column_t thrift_column = new column_t(column.name(), new String(column.value()), column.timestamp());
+            column_t thrift_column = new column_t(column.name(), column.value(), column.timestamp());
             thriftColumns.add(thrift_column);
         }
         return thriftColumns;
@@ -360,7 +360,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 return null;
             }
-            return new column_t(column.name(), new String(column.value()), column.timestamp());
+            return new column_t(column.name(), column.value(), column.timestamp());
 		}
 		catch (Exception ex)
 		{
@@ -436,13 +436,13 @@ public class CassandraServer implements Cassandra.Iface
 		return count;
 	}
 
-    public void insert(String tablename, String key, String columnFamily_column, String cellData, long timestamp)
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp)
 	{
 		try
 		{
 			validateTable(tablename);
 			RowMutation rm = new RowMutation(tablename, key.trim());
-			rm.add(columnFamily_column, cellData.getBytes(), timestamp);
+			rm.add(columnFamily_column, cellData, timestamp);
 			StorageProxy.insert(rm);
 		}
 		catch (Exception e)
