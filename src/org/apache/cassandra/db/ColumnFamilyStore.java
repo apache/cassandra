@@ -23,6 +23,10 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.management.InstanceAlreadyExistsException;
+import javax.management.MBeanRegistrationException;
+import javax.management.NotCompliantMBeanException;
+import javax.management.MalformedObjectNameException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -87,10 +91,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* Flag indicates if a compaction is in process */
     private AtomicBoolean isCompacting_ = new AtomicBoolean(false);
 
-    ColumnFamilyStore(String table, String columnFamily) throws IOException
+    ColumnFamilyStore(String table, String columnFamily, int indexValue) throws IOException
     {
         table_ = table;
         columnFamily_ = columnFamily;
+        fileIndexGenerator_.set(indexValue);
+        memtable_ = new AtomicReference<Memtable>(new Memtable(table_, columnFamily_));
+        binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(table_, columnFamily_));
+    }
+
+    public static ColumnFamilyStore getColumnFamilyStore(String table, String columnFamily) throws IOException
+    {
         /*
          * Get all data files associated with old Memtables for this table.
          * These files are named as follows <Table>-1.db, ..., <Table>-n.db. Get
@@ -107,8 +118,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 String filename = file.getName();
                 String[] tblCfName = getTableAndColumnFamilyName(filename);
-                
-                if (tblCfName[0].equals(table_)
+
+                if (tblCfName[0].equals(table)
                         && tblCfName[1].equals(columnFamily))
                 {
                     int index = getIndexFromFileName(filename);
@@ -118,20 +129,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         Collections.sort(indices);
         int value = (indices.size() > 0) ? (indices.get(indices.size() - 1)) : 0;
-        fileIndexGenerator_.set(value);
-        memtable_ = new AtomicReference<Memtable>( new Memtable(table_, columnFamily_) );
-        binaryMemtable_ = new AtomicReference<BinaryMemtable>( new BinaryMemtable(table_, columnFamily_) );
-        
+
+        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, value);
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName(
-                    "org.apache.cassandra.db:type=ColumnFamilyStore-" + columnFamily_));
+            mbs.registerMBean(cfs, new ObjectName(
+                    "org.apache.cassandra.db:type=ColumnFamilyStore-" + table + "." + columnFamily));
         }
         catch (Exception e)
         {
-            logger_.error(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
+
+        return cfs;
     }
 
     void onStart() throws IOException
@@ -303,7 +315,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columnFamily_;
     }
 
-    private String[] getTableAndColumnFamilyName(String filename)
+    private static String[] getTableAndColumnFamilyName(String filename)
     {
         StringTokenizer st = new StringTokenizer(filename, "-");
         String[] values = new String[2];

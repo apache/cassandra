@@ -588,7 +588,7 @@ public class Table
             Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
             for ( String columnFamily : columnFamilies )
             {
-                columnFamilyStores_.put( columnFamily, new ColumnFamilyStore(table, columnFamily) );
+                columnFamilyStores_.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
             }
         }
         catch ( IOException ex )
