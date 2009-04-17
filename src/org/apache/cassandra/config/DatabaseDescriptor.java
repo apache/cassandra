@@ -27,14 +27,11 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TypeInfo;
-import org.apache.cassandra.db.DBManager;
 import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table.TableMetadata;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.apache.cassandra.io.*;
 
 
 /**
@@ -116,10 +113,12 @@ public class DatabaseDescriptor
     private static String jobTrackerHost_;    
     /* Zookeeper session timeout. */
     private static int zkSessionTimeout_ = 30000;
-    
+    /* time to wait before garbage collecting tombstones (deletion markers) */
+    private static int gcGraceInSeconds_ = 10 * 24 * 3600; // 10 days
+
     // the path qualified config file (storage-conf.xml) name
     private static String configFileName_;
-    
+
     static
     {
         try
@@ -147,6 +146,10 @@ public class DatabaseDescriptor
 
             /* Job Jar file location */
             jobJarFileLocation_ = xmlUtils.getNodeValue("/Storage/JobJarFileLocation");
+
+            String gcGrace = xmlUtils.getNodeValue("/Storage/GCGraceSeconds");
+            if ( gcGrace != null )
+                gcGraceInSeconds_ = Integer.parseInt(gcGrace);
 
             /* Zookeeper's session timeout */
             String zkSessionTimeout = xmlUtils.getNodeValue("/Storage/ZookeeperSessionTimeout");
@@ -460,6 +463,11 @@ public class DatabaseDescriptor
                 idGenerator.set(0);
             }
         }
+    }
+
+    public static int getGcGraceInSeconds()
+    {
+        return gcGraceInSeconds_;
     }
 
     public static String getHashingStrategy()

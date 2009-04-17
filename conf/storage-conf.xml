@@ -45,6 +45,12 @@
    <BootstrapFileDirectory>/var/cassandra/bootstrap</BootstrapFileDirectory>
    <StagingFileDirectory>/var/cassandra/staging</StagingFileDirectory>
    <CommitLogFastSync>false</CommitLogFastSync>
+   <!-- Time to wait before garbage-collection deletion markers.
+        Set this to a large enough value that you are confident
+        that the deletion marker will be propagated to all replicas
+        by the time this many seconds has elapsed, even in the
+        face of hardware failures.  The default value is ten days. -->
+   <GCGraceSeconds>864000</GCGraceSeconds>
    <Tables>
      <Table Name = "Table1">
        <ColumnFamily ColumnSort="Name" Name="Standard1"/>

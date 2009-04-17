@@ -616,8 +616,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return removeDeleted(cf);
     }
 
-    static final int GC_GRACE_IN_SECONDS = 10 * 24 * 3600; // 10 days
-
     /*
      This is complicated because we need to preserve deleted columns, supercolumns, and columnfamilies
      until they have been deleted for at least GC_GRACE_IN_SECONDS.  But, we do not need to preserve
@@ -626,7 +624,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     static ColumnFamily removeDeleted(ColumnFamily cf)
     {
-        return removeDeleted(cf, (int)(System.currentTimeMillis() / 1000) - GC_GRACE_IN_SECONDS);
+        return removeDeleted(cf, (int)(System.currentTimeMillis() / 1000) - DatabaseDescriptor.getGcGraceInSeconds());
     }
 
     static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
