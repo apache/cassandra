@@ -398,7 +398,7 @@ public class Memtable implements Comparable<Memtable>
                 ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
                 /* Now write the key and value to disk */
                 ssTable.append(partitioner.decorateKey(key), buffer);
-                bf.fill(key);
+                bf.add(key);
                 columnFamily.clear();
             }
         }

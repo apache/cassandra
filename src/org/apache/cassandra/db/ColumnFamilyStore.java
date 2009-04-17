@@ -1147,7 +1147,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                        try
 	                        {
 		                        ssTableRange.append(lastkey, bufOut);
-		                        compactedRangeBloomFilter.fill(lastkey);                                
+		                        compactedRangeBloomFilter.add(lastkey);
 	                        }
 	                        catch(Exception ex)
 	                        {
@@ -1229,7 +1229,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private void doFill(BloomFilter bf, String decoratedKey)
     {
-        bf.fill(StorageService.getPartitioner().undecorateKey(decoratedKey));
+        bf.add(StorageService.getPartitioner().undecorateKey(decoratedKey));
     }
     
     /*

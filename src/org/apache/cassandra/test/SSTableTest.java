@@ -52,7 +52,7 @@ public class SSTableTest
             cf.addColumn("C", "Avinash Lakshman is a good man".getBytes(), i);
             ColumnFamily.serializerWithIndexes().serialize(cf, bufOut);
             ssTable.append(key, bufOut);            
-            bf.fill(key);
+            bf.add(key);
         }
         ssTable.close(bf);
     }
@@ -87,7 +87,7 @@ public class SSTableTest
         BloomFilter bf = new BloomFilter(1024*1024, 15);
         for ( int i = 0; i < 1024*1024; ++i )
         {
-            bf.fill(Integer.toString(i));
+            bf.add(Integer.toString(i));
         }
         
         DataOutputBuffer bufOut = new DataOutputBuffer();

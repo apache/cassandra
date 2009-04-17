@@ -21,7 +21,6 @@ package org.apache.cassandra.tools;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
@@ -69,7 +68,7 @@ public class ThreadListBuilder
                     bf = new BloomFilter(count_, 8);
                 }
                 line = line.trim();                
-                bf.fill(line);
+                bf.add(line);
                 ++keyCount;
             }
         }

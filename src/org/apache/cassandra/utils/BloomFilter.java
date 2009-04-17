@@ -142,7 +142,7 @@ public class BloomFilter implements Serializable
      the filter_.
      This is a general purpose API.
      */
-    public void fill(String key)
+    public void add(String key)
     {
         for (int i = 0; i < hashes_; ++i)
         {

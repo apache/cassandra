@@ -29,9 +29,6 @@ import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.BloomFilter;
 
-import org.apache.cassandra.io.*;
-import org.apache.cassandra.utils.*;
-
 public class IndexBuilder
 {
     private static final int bufferSize_ = 64*1024;
@@ -126,7 +123,7 @@ public class IndexBuilder
                     for ( int i = 0; i < blockSize; ++i )
                     {
                         String currentKey = bufIn.readUTF();
-                        bf.fill(currentKey);
+                        bf.add(currentKey);
                         if ( largestKey == null )
                         {
                             largestKey = currentKey;
