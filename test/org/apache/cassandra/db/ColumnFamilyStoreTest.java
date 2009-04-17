@@ -67,9 +67,8 @@ public class ColumnFamilyStoreTest extends ServerTest
 
         // validateNameSort(table);
 
-        table.getColumnFamilyStore("Standard1").forceFlush();
-        table.getColumnFamilyStore("Super1").forceFlush();
-        waitForFlush();
+        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        table.getColumnFamilyStore("Super1").forceBlockingFlush();
         validateNameSort(table);
     }
 
@@ -93,8 +92,7 @@ public class ColumnFamilyStoreTest extends ServerTest
 
         validateTimeSort(table);
 
-        table.getColumnFamilyStore("StandardByTime1").forceFlush();
-        waitForFlush();
+        table.getColumnFamilyStore("StandardByTime1").forceBlockingFlush();
         validateTimeSort(table);
 
         // interleave some new data to test memtable + sstable
@@ -154,18 +152,6 @@ public class ColumnFamilyStoreTest extends ServerTest
         }
     }
 
-    private void waitForFlush()
-            throws InterruptedException, ExecutionException
-    {
-        Future f = MemtableManager.instance().flusher_.submit(new Runnable()
-        {
-            public void run()
-            {
-            }
-        });
-        f.get();
-    }
-
     private void validateNameSort(Table table)
             throws ColumnFamilyNotDefinedException, IOException
     {
@@ -213,8 +199,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm = new RowMutation("Table1", "key1");
         rm.add("Standard1:Column1", "asdf".getBytes(), 0);
         rm.apply();
-        store.forceFlush();
-        waitForFlush();
+        store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Table1", "key1");
@@ -236,8 +221,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm = new RowMutation("Table1", "key1");
         rm.add("Super1:SC1:Column1", "asdf".getBytes(), 0);
         rm.apply();
-        store.forceFlush();
-        waitForFlush();
+        store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Table1", "key1");
@@ -259,8 +243,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm = new RowMutation("Table1", "key1");
         rm.add("Super1:SC1:Column1", "asdf".getBytes(), 0);
         rm.apply();
-        store.forceFlush();
-        waitForFlush();
+        store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Table1", "key1");
@@ -359,7 +342,6 @@ public class ColumnFamilyStoreTest extends ServerTest
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
-        store.ssTables_.clear(); // TODO integrate this better into test setup/teardown
 
         for (int j = 0; j < 5; j++) {
             for (int i = 0; i < 10; i++) {
@@ -369,8 +351,7 @@ public class ColumnFamilyStoreTest extends ServerTest
                 rm.add("Standard1:A", new byte[0], epoch);
                 rm.apply();
             }
-            store.forceFlush();
-            waitForFlush();
+            store.forceBlockingFlush();
         }
         Future ft = MinorCompactionManager.instance().submit(store);
         ft.get();

@@ -57,7 +57,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-class CommitLog
+public class CommitLog
 {
     private static final int bufSize_ = 128*1024*1024;
     private static Map<String, CommitLog> instances_ = new HashMap<String, CommitLog>();
@@ -621,6 +621,11 @@ class CommitLog
     public void setForcedRollOver()
     {
     	forcedRollOver_ = true;
+    }
+
+    public static void reset()
+    {
+        CommitLog.instances_.clear();
     }
 
     public static void main(String[] args) throws Throwable

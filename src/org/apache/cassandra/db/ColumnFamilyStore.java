@@ -84,7 +84,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    Set<String> ssTables_ = new HashSet<String>();
+    private Set<String> ssTables_ = new HashSet<String>();
 
     /* Modification lock used for protecting reads from compactions. */
     private ReentrantReadWriteLock lock_ = new ReentrantReadWriteLock(true);
@@ -433,9 +433,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceFlush() throws IOException
     {
-        //MemtableManager.instance().submit(getColumnFamilyName(), memtable_.get() , CommitLog.CommitLogContext.NULL);
-        //memtable_.get().flush(true, CommitLog.CommitLogContext.NULL);
         memtable_.get().forceflush(this);
+    }
+
+    void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
+    {
+        forceFlush();
+        // block for flush to finish by adding a no-op action to the flush executorservice
+        // and waiting for that to finish.  (this works since flush ES is single-threaded.)
+        Future f = MemtableManager.instance().flusher_.submit(new Runnable()
+        {
+            public void run()
+            {
+            }
+        });
+        f.get();
     }
 
     void forceFlushBinary()
@@ -1406,5 +1418,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public int getMemtableSwitchCount()
     {
         return memtableSwitchCount;
+    }
+
+    /**
+     * clears out all data associated with this ColumnFamily.
+     * For use in testing.
+     */
+    public void reset() throws IOException, ExecutionException, InterruptedException
+    {
+        forceBlockingFlush();
+        for (String fName : ssTables_)
+        {
+            new File(fName).delete();
+        }
+        ssTables_.clear();
     }
 }

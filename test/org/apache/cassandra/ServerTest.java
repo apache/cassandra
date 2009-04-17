@@ -3,15 +3,34 @@ package org.apache.cassandra;
 import org.testng.annotations.Test;
 import org.testng.annotations.BeforeMethod;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.CommitLog;
 
 import java.io.File;
+import java.io.IOException;
 
 @Test(groups={"serial"})
 public class ServerTest {
-    // TODO clean up static structures too (e.g. memtables)
     @BeforeMethod
     public void cleanup()
     {
+        Table table = Table.open("Table1");
+        for (String cfName : table.getColumnFamilies())
+        {
+            ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+            try
+            {
+                cfs.reset();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        CommitLog.reset();
+
         String[] directoryNames = {
                 DatabaseDescriptor.getBootstrapFileLocation(),
                 DatabaseDescriptor.getLogFileLocation(),

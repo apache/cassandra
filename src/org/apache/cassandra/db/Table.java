@@ -425,7 +425,7 @@ public class Table
         return columnFamilyStores_;
     }
 
-    ColumnFamilyStore getColumnFamilyStore(String cfName)
+    public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
         return columnFamilyStores_.get(cfName);
     }
