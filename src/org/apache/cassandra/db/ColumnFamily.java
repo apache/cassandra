@@ -96,6 +96,7 @@ public final class ColumnFamily
 
     private transient ICompactSerializer2<IColumn> columnSerializer_;
     private long markedForDeleteAt = Long.MIN_VALUE;
+    private int localDeletionTime = Integer.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
     private EfficientBidiMap columns_;
 
@@ -156,11 +157,18 @@ public final class ColumnFamily
         createColumnFactoryAndColumnSerializer(columnType);
     }
 
+    ColumnFamily cloneMeShallow()
+    {
+        ColumnFamily cf = new ColumnFamily(name_, type_);
+        cf.markedForDeleteAt = markedForDeleteAt;
+        cf.localDeletionTime = localDeletionTime;
+        return cf;
+    }
+
     ColumnFamily cloneMe()
     {
-    	ColumnFamily cf = new ColumnFamily(name_, type_);
-    	cf.markedForDeleteAt = markedForDeleteAt;
-    	cf.columns_ = columns_.cloneMe();
+        ColumnFamily cf = cloneMeShallow();
+        cf.columns_ = columns_.cloneMe();
     	return cf;
     }
 
@@ -292,8 +300,9 @@ public final class ColumnFamily
     	columns_.remove(columnName);
     }
 
-    void delete(long timestamp)
+    void delete(int localtime, long timestamp)
     {
+        localDeletionTime = localtime;
         markedForDeleteAt = timestamp;
     }
 
@@ -413,8 +422,14 @@ public final class ColumnFamily
     	return xorHash;
     }
 
-    public long getMarkedForDeleteAt() {
+    public long getMarkedForDeleteAt()
+    {
         return markedForDeleteAt;
+    }
+
+    public int getLocalDeletionTime()
+    {
+        return localDeletionTime;
     }
 
     public String type()
@@ -452,15 +467,11 @@ public final class ColumnFamily
         {
             Collection<IColumn> columns = columnFamily.getAllColumns();
 
-            /* write the column family id */
             dos.writeUTF(columnFamily.name());
-            /* write if this cf is marked for delete */
-            dos.writeLong(columnFamily.getMarkedForDeleteAt());
+            dos.writeInt(columnFamily.localDeletionTime);
+            dos.writeLong(columnFamily.markedForDeleteAt);
 
-            /* write the size is the number of columns */
             dos.writeInt(columns.size());
-
-            /* write the column data */
             for ( IColumn column : columns )
             {
                 columnFamily.getColumnSerializer().serialize(column, dos);
@@ -475,7 +486,7 @@ public final class ColumnFamily
         {
             String name = dis.readUTF();
             ColumnFamily cf = new ColumnFamily(name, DatabaseDescriptor.getColumnFamilyType(name));
-            cf.delete(dis.readLong());
+            cf.delete(dis.readInt(), dis.readLong());
             return cf;
         }
 

@@ -43,4 +43,5 @@ public interface IColumn
     public IColumn diff(IColumn column);
     public int getObjectCount();
     public byte[] digest();
+    public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
 }

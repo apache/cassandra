@@ -49,6 +49,7 @@ public final class SuperColumn implements IColumn, Serializable
 
 	private String name_;
     private EfficientBidiMap columns_ = new EfficientBidiMap(ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.TIMESTAMP));
+    private int localDeletionTime = Integer.MIN_VALUE;
 	private long markedForDeleteAt = Long.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
 
@@ -289,7 +290,14 @@ public final class SuperColumn implements IColumn, Serializable
         return sb.toString();
     }
 
-    public void markForDeleteAt(long timestamp) {
+    public int getLocalDeletionTime()
+    {
+        return localDeletionTime;
+    }
+
+    public void markForDeleteAt(int localDeleteTime, long timestamp)
+    {
+        this.localDeletionTime = localDeleteTime;
         this.markedForDeleteAt = timestamp;
     }
 }
@@ -300,20 +308,14 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     {
     	SuperColumn superColumn = (SuperColumn)column;
         dos.writeUTF(superColumn.name());
+        dos.writeInt(superColumn.getLocalDeletionTime());
         dos.writeLong(superColumn.getMarkedForDeleteAt());
 
         Collection<IColumn> columns  = column.getSubColumns();
         int size = columns.size();
         dos.writeInt(size);
 
-        /*
-         * Add the total size of the columns. This is useful
-         * to skip over all the columns in this super column
-         * if we are not interested in this super column.
-        */
         dos.writeInt(superColumn.getSizeOfAllColumns());
-        // dos.writeInt(superColumn.size());
-
         for ( IColumn subColumn : columns )
         {
             Column.serializer().serialize(subColumn, dos);
@@ -328,7 +330,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     {
         String name = dis.readUTF();
         SuperColumn superColumn = new SuperColumn(name);
-        superColumn.markForDeleteAt(dis.readLong());
+        superColumn.markForDeleteAt(dis.readInt(), dis.readLong());
         return superColumn;
     }
 

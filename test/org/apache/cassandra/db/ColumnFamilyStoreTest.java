@@ -19,6 +19,8 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.ServerTest;
 import org.testng.annotations.Test;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
 
 public class ColumnFamilyStoreTest extends ServerTest
 {
@@ -207,7 +209,8 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily("key1", "Standard1", new IdentityFilter());
-        assert retrieved.getColumnCount() == 0;
+        assert retrieved.getColumn("Column1").isMarkedForDelete();
+        assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
     }
 
     @Test
@@ -229,7 +232,8 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily("key1", "Super1:SC1", new IdentityFilter());
-        assert retrieved.getColumnCount() == 0;
+        assert retrieved.getColumn("SC1").getSubColumn("Column1").isMarkedForDelete();
+        assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
     }
 
     @Test
@@ -258,7 +262,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         Collection<IColumn> subColumns = resolved.getAllColumns().first().getSubColumns();
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 0;
-        assert ColumnFamilyStore.removeDeleted(resolved).getColumnCount() == 0;
+        assertNull(ColumnFamilyStore.removeDeleted(resolved, Integer.MAX_VALUE));
     }
 
     @Test
@@ -281,7 +285,9 @@ public class ColumnFamilyStoreTest extends ServerTest
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily("key1", "Standard1", new IdentityFilter());
-        assert retrieved.getColumnCount() == 0;
+        assert retrieved.isMarkedForDelete();
+        assertEquals(retrieved.getColumnCount(), 0);
+        assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
     }
 
     @Test

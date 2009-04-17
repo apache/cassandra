@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.nio.ByteBuffer;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -175,13 +176,15 @@ public class RowMutation implements Serializable
     {
         String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
         String cfName = values[0];
+
         if (modifications_.containsKey(cfName))
         {
             throw new IllegalArgumentException("ColumnFamily " + cfName + " is already being modified");
         }
-
         if (values.length == 0 || values.length > 3)
             throw new IllegalArgumentException("Column Family " + columnFamilyColumn + " in invalid format. Must be in <column family>:<column> format.");
+
+        int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
         ColumnFamily columnFamily = modifications_.get(cfName);
         if (columnFamily == null)
@@ -191,22 +194,26 @@ public class RowMutation implements Serializable
             if (columnFamily.isSuper())
             {
                 SuperColumn sc = new SuperColumn(values[1]);
-                sc.markForDeleteAt(timestamp);
+                sc.markForDeleteAt(localDeleteTime, timestamp);
                 columnFamily.addColumn(sc);
             }
             else
             {
-                columnFamily.addColumn(values[1], ArrayUtils.EMPTY_BYTE_ARRAY, timestamp, true);
+                ByteBuffer bytes = ByteBuffer.allocate(4);
+                bytes.putInt(localDeleteTime);
+                columnFamily.addColumn(values[1], bytes.array(), timestamp, true);
             }
         }
         else if (values.length == 3)
         {
-            columnFamily.addColumn(values[1] + ":" + values[2], ArrayUtils.EMPTY_BYTE_ARRAY, timestamp, true);
+            ByteBuffer bytes = ByteBuffer.allocate(4);
+            bytes.putInt(localDeleteTime);
+            columnFamily.addColumn(values[1] + ":" + values[2], bytes.array(), timestamp, true);
         }
         else
         {
             assert values.length == 1;
-            columnFamily.delete(timestamp);
+            columnFamily.delete(localDeleteTime, timestamp);
         }
         modifications_.put(cfName, columnFamily);
     }

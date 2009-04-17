@@ -22,6 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
+import java.nio.ByteBuffer;
 
 import org.apache.commons.lang.ArrayUtils;
 
@@ -192,6 +193,11 @@ public final class Column implements IColumn
         return stringBuilder.toString().getBytes();
     }
 
+    public int getLocalDeletionTime()
+    {
+        assert isMarkedForDelete;
+        return ByteBuffer.wrap(value).getInt();
+    }
 }
 
 class ColumnSerializer implements ICompactSerializer2<IColumn>

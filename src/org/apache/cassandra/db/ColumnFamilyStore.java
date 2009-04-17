@@ -23,10 +23,6 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-import javax.management.InstanceAlreadyExistsException;
-import javax.management.MBeanRegistrationException;
-import javax.management.NotCompliantMBeanException;
-import javax.management.MalformedObjectNameException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -594,14 +590,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // start from nothing so that we don't include potential deleted columns from the first instance
         ColumnFamily cf0 = columnFamilies.get(0);
-        ColumnFamily cf = new ColumnFamily(cf0.name(), cf0.type());
+        ColumnFamily cf = cf0.cloneMeShallow();
 
         // merge
         for (ColumnFamily cf2 : columnFamilies)
         {
             assert cf.name().equals(cf2.name());
             cf.addColumns(cf2);
-            cf.delete(Math.max(cf.getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
+            cf.delete(Math.max(cf.getLocalDeletionTime(), cf2.getLocalDeletionTime()),
+                      Math.max(cf.getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
         }
         return cf;
     }
@@ -619,28 +616,59 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return removeDeleted(cf);
     }
 
-    static ColumnFamily removeDeleted(ColumnFamily cf) {
-        if (cf == null) {
+    static final int GC_GRACE_IN_SECONDS = 10 * 24 * 3600; // 10 days
+
+    /*
+     This is complicated because we need to preserve deleted columns, supercolumns, and columnfamilies
+     until they have been deleted for at least GC_GRACE_IN_SECONDS.  But, we do not need to preserve
+     their contents; just the object itself as a "tombstone" that can be used to repair other
+     replicas that do not know about the deletion.
+     */
+    static ColumnFamily removeDeleted(ColumnFamily cf)
+    {
+        return removeDeleted(cf, (int)(System.currentTimeMillis() / 1000) - GC_GRACE_IN_SECONDS);
+    }
+
+    static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
+    {
+        if (cf == null)
             return null;
-        }
-        for (String cname : new ArrayList<String>(cf.getColumns().keySet())) {
+
+        for (String cname : new ArrayList<String>(cf.getColumns().keySet()))
+        {
             IColumn c = cf.getColumns().get(cname);
-            if (c instanceof SuperColumn) {
-                long min_timestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
+            if (c instanceof SuperColumn)
+            {
+                long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
                 // don't operate directly on the supercolumn, it could be the one in the memtable
                 cf.remove(cname);
-                IColumn sc = new SuperColumn(cname);
-                for (IColumn subColumn : c.getSubColumns()) {
-                    if (!subColumn.isMarkedForDelete() && subColumn.timestamp() >= min_timestamp) {
-                        sc.addColumn(subColumn.name(), subColumn);
+                SuperColumn sc = new SuperColumn(cname);
+                sc.markForDeleteAt(c.getLocalDeletionTime(), c.getMarkedForDeleteAt());
+                for (IColumn subColumn : c.getSubColumns())
+                {
+                    if (subColumn.timestamp() >= minTimestamp)
+                    {
+                        if (!subColumn.isMarkedForDelete() || subColumn.getLocalDeletionTime() > gcBefore)
+                        {
+                            sc.addColumn(subColumn.name(), subColumn);
+                        }
                     }
                 }
-                if (sc.getSubColumns().size() > 0) {
+                if (sc.getSubColumns().size() > 0 || sc.getLocalDeletionTime() > gcBefore)
+                {
                     cf.addColumn(sc);
                 }
-            } else if (c.isMarkedForDelete() || c.timestamp() < cf.getMarkedForDeleteAt()) {
+            }
+            else if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
+                     || c.timestamp() < cf.getMarkedForDeleteAt())
+            {
                 cf.remove(cname);
             }
+        }
+
+        if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
+        {
+            return null;
         }
         return cf;
     }
