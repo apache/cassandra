@@ -90,7 +90,7 @@ public class KeyGenerator {
                     WORDS++;
                 }
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                WORDS = 0;
             }
         }
 
