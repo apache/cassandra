@@ -37,6 +37,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.thrift.TException;
 
@@ -119,9 +120,23 @@ public class CassandraServer implements Cassandra.Iface
 		return cfamily;
 	}
 
-    public  ArrayList<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException,TException
+    public List<column_t> thriftifyColumns(Collection<IColumn> columns)
+    {
+        ArrayList<column_t> thriftColumns = new ArrayList<column_t>(columns.size());
+        for (IColumn column : columns)
+        {
+            if (column.isMarkedForDelete())
+            {
+                continue;
+            }
+            column_t thrift_column = new column_t(column.name(), new String(column.value()), column.timestamp());
+            thriftColumns.add(thrift_column);
+        }
+        return thriftColumns;
+    }
+
+    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException,TException
 	{
-		ArrayList<column_t> retlist = new ArrayList<column_t>();
         long startTime = System.currentTimeMillis();
 		try
 		{
@@ -168,14 +183,8 @@ public class CassandraServer implements Cassandra.Iface
 				logger_	.info("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 			}
-			for(IColumn column : columns)
-			{
-				column_t thrift_column = new column_t();
-				thrift_column.columnName = column.name();
-				thrift_column.value = new String(column.value()); // This needs to be Utf8ed
-				thrift_column.timestamp = column.timestamp();
-				retlist.add(thrift_column);
-			}
+
+            return thriftifyColumns(columns);
 		}
 		catch (Exception ex)
 		{
@@ -183,14 +192,15 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-        logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
-		return retlist;
+        finally
+        {
+            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+        }
 	}
 	
 
     public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws CassandraException, TException
     {
-		ArrayList<column_t> retlist = new ArrayList<column_t>();
         long startTime = System.currentTimeMillis();
 		try
 		{
@@ -212,15 +222,8 @@ public class CassandraServer implements Cassandra.Iface
 								+ "  ColumnFamily:" + columnFamily);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + columnFamily);
 			}
-			
-			for(IColumn column : columns)
-			{
-				column_t thrift_column = new column_t();
-				thrift_column.columnName = column.name();
-				thrift_column.value = new String(column.value()); // This needs to be Utf8ed
-				thrift_column.timestamp = column.timestamp();
-				retlist.add(thrift_column);
-			}
+
+            return thriftifyColumns(columns);
 		}
 		catch (Exception ex)
 		{
@@ -228,15 +231,14 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-		
-        logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime)
-                + " ms.");
-		return retlist;
+		finally
+        {
+            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+        }
     }
     
-    public ArrayList<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException,TException
+    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException,TException
 	{
-		ArrayList<column_t> retlist = new ArrayList<column_t>();
         long startTime = System.currentTimeMillis();
 		try
 		{
@@ -283,14 +285,8 @@ public class CassandraServer implements Cassandra.Iface
 				logger_	.info("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 			}
-			for(IColumn column : columns)
-			{
-				column_t thrift_column = new column_t();
-				thrift_column.columnName = column.name();
-				thrift_column.value = new String(column.value()); // This needs to be Utf8ed
-				thrift_column.timestamp = column.timestamp();
-				retlist.add(thrift_column);
-			}
+
+            return thriftifyColumns(columns);
 		}
 		catch (Exception ex)
 		{
@@ -298,14 +294,14 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-        logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime)
-                + " ms.");
-		return retlist;
+        finally
+        {
+            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+        }
 	}
     
     public column_t get_column(String tablename, String key, String columnFamily_column) throws CassandraException,TException
     {
-		column_t ret = null;
 		try
 		{
 			validateTable(tablename);
@@ -357,13 +353,14 @@ public class CassandraServer implements Cassandra.Iface
 								+ "  ColumnFamily:" + values[0]);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 			}
-			ret = new column_t();
-			for(IColumn column : columns)
-			{
-				ret.columnName = column.name();
-				ret.value = new String(column.value());
-				ret.timestamp = column.timestamp();
-			}
+
+            assert columns.size() == 1;
+            IColumn column = columns.iterator().next();
+            if (column.isMarkedForDelete())
+            {
+                return null;
+            }
+            return new column_t(column.name(), new String(column.value()), column.timestamp());
 		}
 		catch (Exception ex)
 		{
@@ -371,7 +368,6 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-		return ret;
     }
     
 
@@ -485,7 +481,6 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws CassandraException, TException
     {
-		ArrayList<superColumn_t> retlist = new ArrayList<superColumn_t>();
         long startTime = System.currentTimeMillis();
 		
 		try
@@ -505,26 +500,8 @@ public class CassandraServer implements Cassandra.Iface
 				logger_	.info("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + columnFamily);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + columnFamily);
 			}
-			
-			for(IColumn column : columns)
-			{
-				superColumn_t thrift_superColumn = new superColumn_t();
-				thrift_superColumn.name = column.name();
-				Collection<IColumn> subColumns = column.getSubColumns();
-				if(subColumns.size() != 0 )
-				{
-					thrift_superColumn.columns = new ArrayList<column_t>();
-					for( IColumn subColumn : subColumns )
-					{
-						column_t thrift_column = new column_t();
-						thrift_column.columnName = subColumn.name();
-						thrift_column.value = new String(subColumn.value());
-						thrift_column.timestamp = subColumn.timestamp();
-						thrift_superColumn.columns.add(thrift_column);
-					}
-				}
-				retlist.add(thrift_superColumn);
-			}
+
+            return thriftifySuperColumns(columns);
 		}
 		catch (Exception ex)
 		{
@@ -532,15 +509,29 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-        logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime)
-                + " ms.");
-		return retlist;
+        finally
+        {
+            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+        }
     }
 
-    
-    public ArrayList<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws CassandraException
+    private List<superColumn_t> thriftifySuperColumns(Collection<IColumn> columns)
     {
-		ArrayList<superColumn_t> retlist = new ArrayList<superColumn_t>();
+        ArrayList<superColumn_t> thriftSuperColumns = new ArrayList<superColumn_t>(columns.size());
+        for (IColumn column : columns)
+        {
+            if (column.getSubColumns().size() == 0)
+            {
+                continue;
+            }
+            thriftSuperColumns.add(new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns())));
+        }
+        return thriftSuperColumns;
+    }
+
+
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws CassandraException
+    {
 		try
 		{
 			validateTable(tablename);
@@ -581,26 +572,8 @@ public class CassandraServer implements Cassandra.Iface
 								+ "  ColumnFamily:" + values[0]);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 			}
-			
-			for(IColumn column : columns)
-			{
-				superColumn_t thrift_superColumn = new superColumn_t();
-				thrift_superColumn.name = column.name();
-				Collection<IColumn> subColumns = column.getSubColumns();
-				if(subColumns.size() != 0 )
-				{
-					thrift_superColumn.columns = new ArrayList<column_t>();
-					for( IColumn subColumn : subColumns )
-					{
-						column_t thrift_column = new column_t();
-						thrift_column.columnName = subColumn.name();
-						thrift_column.value = new String(subColumn.value());
-						thrift_column.timestamp = subColumn.timestamp();
-						thrift_superColumn.columns.add(thrift_column);
-					}
-				}
-				retlist.add(thrift_superColumn);
-			}
+
+            return thriftifySuperColumns(columns);
 		}
 		catch (Exception ex)
 		{
@@ -608,8 +581,6 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-		return retlist;
-    	
     }
     
     public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws CassandraException
@@ -656,25 +627,18 @@ public class CassandraServer implements Cassandra.Iface
 								+ "  ColumnFamily:" + values[0]);
 				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
 			}
-			
-			for(IColumn column : columns)
-			{
-				ret = new superColumn_t();
-				ret.name = column.name();
-				Collection<IColumn> subColumns = column.getSubColumns();
-				if(subColumns.size() != 0 )
-				{
-					ret.columns = new ArrayList<column_t>();
-					for(IColumn subColumn : subColumns)
-					{
-						column_t thrift_column = new column_t();
-						thrift_column.columnName = subColumn.name();
-						thrift_column.value = new String(subColumn.value());
-						thrift_column.timestamp = subColumn.timestamp();
-						ret.columns.add(thrift_column);
-					}
-				}
-			}
+
+            assert columns.size() == 1;
+            IColumn column = columns.iterator().next();
+            if (column.getSubColumns().size() == 0)
+            {
+                logger_	.info("ERROR Columns are missing.....: "
+                               + "   key:" + key
+                                + "  ColumnFamily:" + values[0]);
+                throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
+            }
+
+            return new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns()));
 		}
 		catch (Exception ex)
 		{
@@ -682,8 +646,6 @@ public class CassandraServer implements Cassandra.Iface
 			logger_.info( exception );
 			throw new CassandraException(exception);
 		}
-		return ret;
-    	
     }
     
     public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper)
