@@ -875,6 +875,10 @@ public class SequenceFile
             /* read the column family name */
             String cfName = file_.readUTF();
             dataSize -= (utfPrefix_ + cfName.length());
+            
+            /* read local deletion time */
+            int localDeletionTime = file_.readInt();
+            dataSize -=4;
 
             /* read if this cf is marked for delete */
             long markedForDeleteAt = file_.readLong();
@@ -902,6 +906,8 @@ public class SequenceFile
             bufOut.writeInt(dataSize + utfPrefix_ + cfName.length() + 4 + 1);
             /* write the column family name */
             bufOut.writeUTF(cfName);
+            /* write local deletion time */
+            bufOut.writeInt(localDeletionTime);
             /* write if this cf is marked for delete */
             bufOut.writeLong(markedForDeleteAt);
             /* write number of columns */
@@ -949,6 +955,10 @@ public class SequenceFile
                 String cfName = file_.readUTF();
                 dataSize -= (utfPrefix_ + cfName.length());
 
+                /* read local deletion time */
+                int localDeletionTime = file_.readInt();
+                dataSize -=4;
+
                 /* read if this cf is marked for delete */
                 long markedForDeleteAt = file_.readLong();
                 dataSize -= 8;
@@ -984,6 +994,8 @@ public class SequenceFile
                 bufOut.writeInt(dataSizeReturned + utfPrefix_ + cfName.length() + 4 + 1);
                 /* write the column family name */
                 bufOut.writeUTF(cfName);
+                /* write local deletion time */
+                bufOut.writeInt(localDeletionTime);
                 /* write if this cf is marked for delete */
                 bufOut.writeLong(markedForDeleteAt);
                 /* write number of columns */
