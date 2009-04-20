@@ -28,6 +28,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -99,8 +100,8 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            row = StorageProxy.readProtocol(cfMetaData_.tableName, key, columnFamily_column,
-                                            offset_, limit_, StorageService.ConsistencyLevel.WEAK);
+            ReadCommand readCommand = new ReadCommand(cfMetaData_.tableName, key, columnFamily_column, offset_, limit_);
+            row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)
         {

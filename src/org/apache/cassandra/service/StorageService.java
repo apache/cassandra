@@ -565,18 +565,28 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * sure that the N replicas are in sync. We do this in the
      * background when we do not care much about consistency.
      */
+    public void doConsistencyCheck(Row row, List<EndPoint> endpoints, ReadCommand message)
+    {
+        Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, message.columnFamilyColumn,
+                                                              message.start, message.count, message.sinceTimestamp, message.columnNames);
+        consistencyManager_.submit(consistencySentinel);
+    }
+
+    @Deprecated
     public void doConsistencyCheck(Row row, List<EndPoint> endpoints, String columnFamily, int start, int count)
 	{
 		Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, columnFamily, start, count);
 		consistencyManager_.submit(consistencySentinel);
 	}
-    
+
+    @Deprecated
     public void doConsistencyCheck(Row row, List<EndPoint> endpoints, String columnFamily, long sinceTimestamp)
 	{
 		Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, columnFamily, sinceTimestamp);
 		consistencyManager_.submit(consistencySentinel);
 	}
 
+    @Deprecated
     public void doConsistencyCheck(Row row, List<EndPoint> endpoints, String columnFamily, List<String> columns)
     {
     	Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, columnFamily, columns);

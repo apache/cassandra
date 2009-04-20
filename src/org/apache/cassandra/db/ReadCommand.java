@@ -126,6 +126,26 @@ public class ReadCommand
         return new ReadCommand(table, key, columnFamilyColumn, start, count, sinceTimestamp, columnNames);
     }
 
+    public Row getRow(Table table) throws IOException, ColumnFamilyNotDefinedException
+    {
+        if (columnNames != EMPTY_COLUMNS)
+        {
+            return table.getRow(key, columnFamilyColumn, columnNames);
+        }
+
+        if (sinceTimestamp > 0)
+        {
+            return table.getRow(key, columnFamilyColumn, sinceTimestamp);
+        }
+
+        if (start > 0 || (count > 0 && count < Integer.MAX_VALUE))
+        {
+            return table.getRow(key, columnFamilyColumn, start, count);
+        }
+
+        return table.getRow(key, columnFamilyColumn);
+    }
+
     public String toString()
     {
         return "ReadMessage(" +

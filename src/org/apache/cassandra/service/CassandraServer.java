@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
 
@@ -37,6 +38,9 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.thrift.TException;
 
@@ -80,43 +84,26 @@ public class CassandraServer implements Cassandra.Iface
 		}
 	}
     
-	protected ColumnFamily readColumnFamily(String tablename, String key, String columnFamily, List<String> columNames) throws CassandraException, TException
-	{
-    	ColumnFamily cfamily = null;
-		try
-		{
-			validateTable(tablename);
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily);
-	        // check for  values 
-	        if( values.length < 1 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily + " is invalid.");	        	
-	        }
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily, columNames, StorageService.ConsistencyLevel.WEAK);
-	        if (row == null)
-			{
-				throw new CassandraException("No row exists for key " + key);			
-			}
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{				
-				logger_	.info("ERROR ColumnFamily " + columnFamily + " map is missing.....: " + "   key:" + key );
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			cfamily = cfMap.get(values[0]);
-			if (cfamily == null)
-			{
-				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the column family " + values[0] +  " is not present.");
-			}
-		}
-		catch (Throwable ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
-		return cfamily;
+	protected ColumnFamily readColumnFamily(ReadCommand command) throws CassandraException, TException, IOException, ColumnFamilyNotDefinedException, TimeoutException
+    {
+        validateTable(command.table);
+        String[] values = RowMutation.getColumnAndColumnFamily(command.columnFamilyColumn);
+        if( values.length < 1 )
+        {
+            throw new CassandraException("Empty column Family is invalid.");
+        }
+        Table table = Table.open(command.table);
+        if (!table.getColumnFamilies().contains(values[0]))
+        {
+            throw new CassandraException("Column Family " + values[0] + " is invalid.");
+        }
+
+        Row row = StorageProxy.readProtocol(command, StorageService.ConsistencyLevel.WEAK);
+        if (row == null)
+        {
+            return null;
+        }
+        return row.getColumnFamily(values[0]);
 	}
 
     public List<column_t> thriftifyColumns(Collection<IColumn> columns)
@@ -139,27 +126,8 @@ public class CassandraServer implements Cassandra.Iface
         long startTime = System.currentTimeMillis();
 		try
 		{
-			validateTable(tablename);
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-	        // check for  values 
-	        if( values.length < 1 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily_column + " is invalid.");	        	
-	        }
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily_column, timeStamp, StorageService.ConsistencyLevel.WEAK);
-			if (row == null)
-			{
-				logger_.info("ERROR No row for this key .....: " + key);
-	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
-			}
-
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{
-				logger_	.info("ERROR ColumnFamily " + columnFamily_column + " map is missing.....: " + "   key:" + key);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			ColumnFamily cfamily = cfMap.get(values[0]);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, timeStamp));
+            String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily " + columnFamily_column + " is missing.....: "+"   key:" + key	+ "  ColumnFamily:" + values[0]);
@@ -204,7 +172,7 @@ public class CassandraServer implements Cassandra.Iface
 		try
 		{
 			validateTable(tablename);
-			ColumnFamily cfamily = readColumnFamily(tablename, key, columnFamily, columnNames);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, columnNames));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: "
@@ -241,27 +209,8 @@ public class CassandraServer implements Cassandra.Iface
         long startTime = System.currentTimeMillis();
 		try
 		{
-			validateTable(tablename);
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-	        // check for  values 
-	        if( values.length < 1 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily_column + " is invalid.");	        	
-	        }
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily_column, start, count, StorageService.ConsistencyLevel.WEAK);
-			if (row == null)
-			{
-				logger_.info("ERROR No row for this key .....: " + key);
-	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
-			}
-
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{
-				logger_	.info("ERROR ColumnFamily " + columnFamily_column + " map is missing.....: " + "   key:" + key);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			ColumnFamily cfamily = cfMap.get(values[0]);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, start, count));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily " + columnFamily_column + " is missing.....: "	+ "   key:" + key + "  ColumnFamily:" + values[0]);
@@ -303,29 +252,8 @@ public class CassandraServer implements Cassandra.Iface
     {
 		try
 		{
-			validateTable(tablename);
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-	        // check for  values 
-	        if( values.length < 2 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily_column + " is invalid.");	        	
-	        }
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE, StorageService.ConsistencyLevel.WEAK);
-			if (row == null)
-			{
-				logger_.info("ERROR No row for this key .....: " + key);
-	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
-			}
-			
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{
-				logger_	.info("ERROR ColumnFamily map is missing.....: "
-							   + "   key:" + key
-								);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			ColumnFamily cfamily = cfMap.get(values[0]);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily  is missing.....: "
@@ -375,29 +303,8 @@ public class CassandraServer implements Cassandra.Iface
     	int count = -1;
 		try
 		{
-			validateTable(tablename);
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-	        // check for  values 
-	        if( values.length < 1 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily_column + " is invalid.");	        	
-	        }
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE, StorageService.ConsistencyLevel.WEAK);
-			if (row == null)
-			{
-				logger_.info("ERROR No row for this key .....: " + key);
-	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
-			}
-
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{
-				logger_	.info("ERROR ColumnFamily map is missing.....: "
-							   + "   key:" + key
-								);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			ColumnFamily cfamily = cfMap.get(values[0]);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily  is missing.....: "
@@ -485,7 +392,7 @@ public class CassandraServer implements Cassandra.Iface
 		try
 		{
 			validateTable(tablename);
-			ColumnFamily cfamily = readColumnFamily(tablename, key, columnFamily, superColumnNames);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, superColumnNames));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: "+"   key:" + key
@@ -533,29 +440,8 @@ public class CassandraServer implements Cassandra.Iface
     {
 		try
 		{
-			validateTable(tablename);
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_superColumnName);
-	        // check for  values 
-	        if( values.length < 1 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily_superColumnName + " is invalid.");	        	
-	        }
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily_superColumnName, start, count, StorageService.ConsistencyLevel.WEAK);
-			if (row == null)
-			{
-				logger_.info("ERROR No row for this key .....: " + key);
-	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
-			}
-
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{
-				logger_	.info("ERROR ColumnFamily map is missing.....: "
-							   + "   key:" + key
-								);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			ColumnFamily cfamily = cfMap.get(values[0]);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_superColumnName, start, count));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily  is missing.....: "
@@ -584,33 +470,10 @@ public class CassandraServer implements Cassandra.Iface
     
     public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws CassandraException
     {
-    	superColumn_t ret = null;
 		try
 		{
-			validateTable(tablename);
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-	        // check for  values 
-	        if( values.length < 2 )
-	        {
-	        	throw new CassandraException("Column Family " + columnFamily_column + " is invalid.");	        	
-	        }
-
-	        Row row = StorageProxy.readProtocol(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE, StorageService.ConsistencyLevel.WEAK);
-			if (row == null)
-			{
-				logger_.info("ERROR No row for this key .....: " + key);
-	        	throw new CassandraException("ERROR No row for this key .....: " + key);	        	
-			}
-
-			Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-			if (cfMap == null || cfMap.size() == 0)
-			{
-				logger_	.info("ERROR ColumnFamily map is missing.....: "
-							   + "   key:" + key
-								);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested are not present.");
-			}
-			ColumnFamily cfamily = cfMap.get(values[0]);
+			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily  is missing.....: "

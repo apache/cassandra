@@ -155,29 +155,30 @@ class ConsistencyManager implements Runnable
 	private long sinceTimestamp_;
 	private List<String> columnNames_ = new ArrayList<String>();	
 	
-	ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, List<String> columns)
+    public ConsistencyManager(Row row_, List<EndPoint> replicas_, String columnFamily_, int start_, int count_, long sinceTimestamp_, List<String> columnNames_)
+    {
+        this.row_ = row_;
+        this.replicas_ = replicas_;
+        this.columnFamily_ = columnFamily_;
+        this.start_ = start_;
+        this.count_ = count_;
+        this.sinceTimestamp_ = sinceTimestamp_;
+        this.columnNames_ = columnNames_;
+    }
+
+    ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, List<String> columns)
 	{
-		row_ = row;
-		replicas_ = replicas;
-		columnFamily_ = columnFamily;
-		columnNames_ = columns;
+        this(row, replicas, columnFamily, 0, 0, 0, columns);
 	}
-	
+
 	ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, int start, int count)
 	{
-		row_ = row;
-		replicas_ = replicas;
-		columnFamily_ = columnFamily;
-		start_ = start;
-		count_ = count;
+        this(row, replicas, columnFamily, start, count, 0, null);
 	}
-	
+
 	ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, long sinceTimestamp)
 	{
-		row_ = row;
-		replicas_ = replicas;
-		columnFamily_ = columnFamily;
-		sinceTimestamp_ = sinceTimestamp;
+        this(row, replicas, columnFamily, 0, 0, sinceTimestamp, null);
 	}
 
 	public void run()
