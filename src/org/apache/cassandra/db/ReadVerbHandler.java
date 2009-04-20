@@ -94,21 +94,21 @@ public class ReadVerbHandler implements IVerbHandler
             }              
             logger_.info("getRow()  TIME: " + (System.currentTimeMillis() - start) + " ms.");
             start = System.currentTimeMillis();
-            ReadResponseMessage readResponseMessage = null;
+            ReadResponse readResponse = null;
             if(readCommand.isDigestQuery())
             {
-                readResponseMessage = new ReadResponseMessage(table.getTableName(), row.digest());
+                readResponse = new ReadResponse(table.getTableName(), row.digest());
             }
             else
             {
-                readResponseMessage = new ReadResponseMessage(table.getTableName(), row);
+                readResponse = new ReadResponse(table.getTableName(), row);
             }
-            readResponseMessage.setIsDigestQuery(readCommand.isDigestQuery());
+            readResponse.setIsDigestQuery(readCommand.isDigestQuery());
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
             start = System.currentTimeMillis();
-            ReadResponseMessage.serializer().serialize(readResponseMessage, readCtx.bufOut_);
+            ReadResponse.serializer().serialize(readResponse, readCtx.bufOut_);
             logger_.info("serialize  TIME: " + (System.currentTimeMillis() - start) + " ms.");
 
             byte[] bytes = new byte[readCtx.bufOut_.getLength()];

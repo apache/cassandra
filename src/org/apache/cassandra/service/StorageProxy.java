@@ -31,7 +31,7 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponseMessage;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
@@ -197,8 +197,8 @@ public class StorageProxy
             byte[] body = (byte[])result[0];
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
-            ReadResponseMessage responseMessage = ReadResponseMessage.serializer().deserialize(bufIn);
-            Row row = responseMessage.row();
+            ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
+            Row row = response.row();
             rows.put(row.key(), row);
         }        
         return rows;
@@ -217,8 +217,8 @@ public class StorageProxy
             byte[] body = (byte[])result[0];
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
-            ReadResponseMessage responseMessage = ReadResponseMessage.serializer().deserialize(bufIn);
-            row = responseMessage.row();            
+            ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
+            row = response.row();
         }
         else
         {

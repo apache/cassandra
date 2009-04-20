@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ReadResponseMessage;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
@@ -80,7 +80,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             try
             {
                 long start = System.currentTimeMillis();
-                ReadResponseMessage result = ReadResponseMessage.serializer().deserialize(bufIn);            
+                ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
                 logger_.debug( "Response deserialization time : " + (System.currentTimeMillis() - start) + " ms.");
     			if(!result.isDigestQuery())
     			{
@@ -168,7 +168,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             bufIn.reset(body, body.length);
             try
             {
-    			ReadResponseMessage result = ReadResponseMessage.serializer().deserialize(bufIn);
+    			ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
     			if(!result.isDigestQuery())
     			{
     				isDataPresent = true;

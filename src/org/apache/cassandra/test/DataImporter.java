@@ -44,7 +44,7 @@ import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponseMessage;
+import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
@@ -887,8 +887,8 @@ public class DataImporter {
 			IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(
 					message, to_);
 			Object[] result = iar.get();
-			ReadResponseMessage readResponseMessage = (ReadResponseMessage) result[0];
-			Row row = readResponseMessage.row();
+			ReadResponse readResponse = (ReadResponse) result[0];
+			Row row = readResponse.row();
 			if (row == null) {
 				logger_.debug("ERROR No row for this key .....: " + line);
                 Thread.sleep(1000/requestsPerSecond_, 1000%requestsPerSecond_);
