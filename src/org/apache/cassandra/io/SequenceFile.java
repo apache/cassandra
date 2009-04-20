@@ -903,7 +903,7 @@ public class SequenceFile
              *  one booleanfor deleted or not +
              *  one int for number of columns
             */
-            bufOut.writeInt(dataSize + utfPrefix_ + cfName.length() + 4 + 1);
+            bufOut.writeInt(dataSize + utfPrefix_ + cfName.length() + 4 + 8 + 4);
             /* write the column family name */
             bufOut.writeUTF(cfName);
             /* write local deletion time */
@@ -991,7 +991,7 @@ public class SequenceFile
                  * 	one booleanfor deleted or not +
                  * 	one int for number of columns
                 */
-                bufOut.writeInt(dataSizeReturned + utfPrefix_ + cfName.length() + 4 + 1);
+                bufOut.writeInt(dataSizeReturned + utfPrefix_ + cfName.length() + 4 + 8 + 4);
                 /* write the column family name */
                 bufOut.writeUTF(cfName);
                 /* write local deletion time */
