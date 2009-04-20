@@ -73,23 +73,23 @@ public class ReadVerbHandler implements IVerbHandler
         try
         {
             ReadCommand readCommand = ReadCommand.serializer().deserialize(readCtx.bufIn_);
-            Table table = Table.open(readCommand.table());
+            Table table = Table.open(readCommand.table);
             Row row = null;
             long start = System.currentTimeMillis();
-            if( readCommand.columnFamily_column() == null )
-            	row = table.get(readCommand.key());
+            if( readCommand.columnFamilyColumn == null )
+            	row = table.get(readCommand.key);
             else
             {
-            	if(readCommand.getColumnNames().size() == 0)
+            	if(readCommand.columnNames.size() == 0)
             	{
-	            	if(readCommand.count() > 0 && readCommand.start() >= 0)
-	            		row = table.getRow(readCommand.key(), readCommand.columnFamily_column(), readCommand.start(), readCommand.count());
+	            	if(readCommand.count > 0 && readCommand.start >= 0)
+	            		row = table.getRow(readCommand.key, readCommand.columnFamilyColumn, readCommand.start, readCommand.count);
 	            	else
-	            		row = table.getRow(readCommand.key(), readCommand.columnFamily_column());
+	            		row = table.getRow(readCommand.key, readCommand.columnFamilyColumn);
             	}
             	else
             	{
-            		row = table.getRow(readCommand.key(), readCommand.columnFamily_column(), readCommand.getColumnNames());
+            		row = table.getRow(readCommand.key, readCommand.columnFamilyColumn, readCommand.columnNames);
             	}
             }              
             logger_.info("getRow()  TIME: " + (System.currentTimeMillis() - start) + " ms.");
@@ -121,8 +121,8 @@ public class ReadVerbHandler implements IVerbHandler
             logger_.info("ReadVerbHandler  TIME 2: " + (System.currentTimeMillis() - start) + " ms.");
             
             /* Do read repair if header of the message says so */
-            String repair = new String( message.getHeader(ReadCommand.doRepair_) );
-            if ( repair.equals( ReadCommand.doRepair_ ) )
+            String repair = new String( message.getHeader(ReadCommand.DO_REPAIR) );
+            if ( repair.equals( ReadCommand.DO_REPAIR) )
                 doReadRepair(row, readCommand);
         }
         catch ( IOException ex)
@@ -139,25 +139,25 @@ public class ReadVerbHandler implements IVerbHandler
     {
         if ( DatabaseDescriptor.getConsistencyCheck() )
         {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readCommand.key());
+            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readCommand.key);
             /* Remove the local storage endpoint from the list. */ 
             endpoints.remove( StorageService.getLocalStorageEndPoint() );
             
-            if(readCommand.getColumnNames().size() == 0)
+            if(readCommand.columnNames.size() == 0)
             {
-                if( readCommand.start() >= 0 && readCommand.count() < Integer.MAX_VALUE)
+                if( readCommand.start >= 0 && readCommand.count < Integer.MAX_VALUE)
                 {                
-                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamily_column(), readCommand.start(), readCommand.count());
+                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamilyColumn, readCommand.start, readCommand.count);
                 }
                 
-                if( readCommand.sinceTimestamp() > 0)
+                if( readCommand.sinceTimestamp > 0)
                 {                    
-                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamily_column(), readCommand.sinceTimestamp());
+                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamilyColumn, readCommand.sinceTimestamp);
                 }                
             }
             else
             {
-                StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamily_column(), readCommand.getColumnNames());
+                StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamilyColumn, readCommand.columnNames);
             }
         }
     }     

@@ -22,9 +22,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Collections;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -37,197 +38,162 @@ import org.apache.cassandra.service.StorageService;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class ReadCommand implements Serializable
+public class ReadCommand
 {
-    private static ICompactSerializer<ReadCommand> serializer_;
-    public static final String doRepair_ = "READ-REPAIR";
+    public static final String DO_REPAIR = "READ-REPAIR";
 
-    static
+    private static ReadCommandSerializer serializer = new ReadCommandSerializer();
+
+    public static ReadCommandSerializer serializer()
     {
-        serializer_ = new ReadCommandSerializer();
+        return serializer;
     }
 
-    static ICompactSerializer<ReadCommand> serializer()
+    private static List<String> EMPTY_COLUMNS = Arrays.asList(new String[0]);
+
+    public Message makeReadMessage() throws IOException
     {
-        return serializer_;
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        ReadCommand.serializer().serialize(this, dos);
+        return new Message(StorageService.getLocalStorageEndPoint(), StorageService.readStage_, StorageService.readVerbHandler_, bos.toByteArray());
     }
-    
-    public static Message makeReadMessage(ReadCommand readCommand) throws IOException
+
+    public final String table;
+
+    public final String key;
+
+    public final String columnFamilyColumn;
+
+    public final int start;
+
+    public final int count;
+
+    public final long sinceTimestamp;
+
+    public final List<String> columnNames;
+
+    private boolean isDigestQuery = false;
+
+    public ReadCommand(String table, String key, String columnFamilyColumn, int start, int count, long sinceTimestamp, List<String> columnNames)
     {
-    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream( bos );
-        ReadCommand.serializer().serialize(readCommand, dos);
-        Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageService.readStage_, StorageService.readVerbHandler_, new Object[]{bos.toByteArray()});         
-        return message;
+        this.table = table;
+        this.key = key;
+        this.columnFamilyColumn = columnFamilyColumn;
+        this.start = start;
+        this.count = count;
+        this.sinceTimestamp = sinceTimestamp;
+        this.columnNames = Collections.unmodifiableList(columnNames);
     }
-    
-    private String table_;
-    private String key_;
-    private String columnFamily_column_ = null;
-    private int start_ = -1;
-    private int count_ = -1 ;
-    private long sinceTimestamp_ = -1 ;
-    private List<String> columns_ = new ArrayList<String>();
-    private boolean isDigestQuery_ = false;
-        
-    private ReadCommand()
-    {
-    }
-    
+
     public ReadCommand(String table, String key)
     {
-        table_ = table;
-        key_ = key;
+        this(table, key, null, -1, -1, -1, EMPTY_COLUMNS);
     }
 
-    public ReadCommand(String table, String key, String columnFamily_column)
+    public ReadCommand(String table, String key, String columnFamilyColumn)
     {
-        table_ = table;
-        key_ = key;
-        columnFamily_column_ = columnFamily_column;
-    }
-    
-    public ReadCommand(String table, String key, String columnFamily, List<String> columns)
-    {
-    	table_ = table;
-    	key_ = key;
-    	columnFamily_column_ = columnFamily;
-    	columns_ = columns;
-    }
-    
-    public ReadCommand(String table, String key, String columnFamily_column, int start, int count)
-    {
-        table_ = table;
-        key_ = key;
-        columnFamily_column_ = columnFamily_column;
-        start_ = start ;
-        count_ = count;
+        this(table, key, columnFamilyColumn, -1, -1, -1, EMPTY_COLUMNS);
     }
 
-    public ReadCommand(String table, String key, String columnFamily_column, long sinceTimestamp)
+    public ReadCommand(String table, String key, String columnFamilyColumn, List<String> columnNames)
     {
-        table_ = table;
-        key_ = key;
-        columnFamily_column_ = columnFamily_column;
-        sinceTimestamp_ = sinceTimestamp ;
+        this(table, key, columnFamilyColumn, -1, -1, -1, columnNames);
     }
 
-    String table()
+    public ReadCommand(String table, String key, String columnFamilyColumn, int start, int count)
     {
-        return table_;
-    }
-    
-    public String key()
-    {
-        return key_;
+        this(table, key, columnFamilyColumn, start, count, -1, EMPTY_COLUMNS);
     }
 
-    String columnFamily_column()
+    public ReadCommand(String table, String key, String columnFamilyColumn, long sinceTimestamp)
     {
-        return columnFamily_column_;
-    }
-
-    int start()
-    {
-        return start_;
-    }
-
-    int count()
-    {
-        return count_;
-    }
-
-    long sinceTimestamp()
-    {
-        return sinceTimestamp_;
+        this(table, key, columnFamilyColumn, -1, -1, sinceTimestamp, EMPTY_COLUMNS);
     }
 
     public boolean isDigestQuery()
     {
-    	return isDigestQuery_;
+        return isDigestQuery;
     }
-    
-    public void setIsDigestQuery(boolean isDigestQuery)
+
+    public void setDigestQuery(boolean isDigestQuery)
     {
-    	isDigestQuery_ = isDigestQuery;
+        this.isDigestQuery = isDigestQuery;
     }
-    
-    public List<String> getColumnNames()
+
+    public ReadCommand copy()
     {
-    	return columns_;
+        return new ReadCommand(table, key, columnFamilyColumn, start, count, sinceTimestamp, columnNames);
     }
 
     public String toString()
     {
         return "ReadMessage(" +
-               "table='" + table_ + '\'' +
-               ", key='" + key_ + '\'' +
-               ", columnFamily_column='" + columnFamily_column_ + '\'' +
-               ", start=" + start_ +
-               ", count=" + count_ +
-               ", sinceTimestamp=" + sinceTimestamp_ +
-               ", columns=[" + StringUtils.join(columns_, ", ") + "]" +
-               ", isDigestQuery=" + isDigestQuery_ +
+               "table='" + table + '\'' +
+               ", key='" + key + '\'' +
+               ", columnFamilyColumn='" + columnFamilyColumn + '\'' +
+               ", start=" + start +
+               ", count=" + count +
+               ", sinceTimestamp=" + sinceTimestamp +
+               ", columns=[" + StringUtils.join(columnNames, ", ") + "]" +
                ')';
     }
 }
 
 class ReadCommandSerializer implements ICompactSerializer<ReadCommand>
 {
-	public void serialize(ReadCommand rm, DataOutputStream dos) throws IOException
-	{
-		dos.writeUTF(rm.table());
-		dos.writeUTF(rm.key());
-		dos.writeUTF(rm.columnFamily_column());
-		dos.writeInt(rm.start());
-		dos.writeInt(rm.count());
-		dos.writeLong(rm.sinceTimestamp());
-		dos.writeBoolean(rm.isDigestQuery());
-		List<String> columns = rm.getColumnNames();
-		dos.writeInt(columns.size());
-		if ( columns.size() > 0 )
-		{
-			for ( String column : columns )
-			{
-				dos.writeInt(column.getBytes().length);
-				dos.write(column.getBytes());
-			}
-		}
-	}
-	
+    public void serialize(ReadCommand rm, DataOutputStream dos) throws IOException
+    {
+        dos.writeUTF(rm.table);
+        dos.writeUTF(rm.key);
+        dos.writeUTF(rm.columnFamilyColumn);
+        dos.writeInt(rm.start);
+        dos.writeInt(rm.count);
+        dos.writeLong(rm.sinceTimestamp);
+        dos.writeBoolean(rm.isDigestQuery());
+        dos.writeInt(rm.columnNames.size());
+        if (rm.columnNames.size() > 0)
+        {
+            for (String cName : rm.columnNames)
+            {
+                dos.writeInt(cName.getBytes().length);
+                dos.write(cName.getBytes());
+            }
+        }
+    }
+
     public ReadCommand deserialize(DataInputStream dis) throws IOException
     {
-		String table = dis.readUTF();
-		String key = dis.readUTF();
-		String columnFamily_column = dis.readUTF();
-		int start = dis.readInt();
-		int count = dis.readInt();
-		long sinceTimestamp = dis.readLong();
-		boolean isDigest = dis.readBoolean();
-		
-		int size = dis.readInt();
-		List<String> columns = new ArrayList<String>();		
-		for ( int i = 0; i < size; ++i )
-		{
-			byte[] bytes = new byte[dis.readInt()];
-			dis.readFully(bytes);
-			columns.add( new String(bytes) );
-		}
-		ReadCommand rm = null;
-		if ( columns.size() > 0 )
-		{
-			rm = new ReadCommand(table, key, columnFamily_column, columns);
-		}
-		else if( sinceTimestamp > 0 )
-		{
-			rm = new ReadCommand(table, key, columnFamily_column, sinceTimestamp);
-		}
-		else
-		{
-			rm = new ReadCommand(table, key, columnFamily_column, start, count);
-		}
-		rm.setIsDigestQuery(isDigest);
-    	return rm;
+        String table = dis.readUTF();
+        String key = dis.readUTF();
+        String columnFamily_column = dis.readUTF();
+        int start = dis.readInt();
+        int count = dis.readInt();
+        long sinceTimestamp = dis.readLong();
+        boolean isDigest = dis.readBoolean();
+
+        int size = dis.readInt();
+        List<String> columns = new ArrayList<String>();
+        for (int i = 0; i < size; ++i)
+        {
+            byte[] bytes = new byte[dis.readInt()];
+            dis.readFully(bytes);
+            columns.add(new String(bytes));
+        }
+        ReadCommand rm = null;
+        if (columns.size() > 0)
+        {
+            rm = new ReadCommand(table, key, columnFamily_column, columns);
+        }
+        else if (sinceTimestamp > 0)
+        {
+            rm = new ReadCommand(table, key, columnFamily_column, sinceTimestamp);
+        }
+        else
+        {
+            rm = new ReadCommand(table, key, columnFamily_column, start, count);
+        }
+        rm.setDigestQuery(isDigest);
+        return rm;
     }
 }
-

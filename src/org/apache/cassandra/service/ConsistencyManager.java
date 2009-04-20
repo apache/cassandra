@@ -94,7 +94,7 @@ class ConsistencyManager implements Runnable
 			String table = DatabaseDescriptor.getTables().get(0);
             ReadCommand readCommand = constructReadMessage(false);
 			// ReadMessage readMessage = new ReadMessage(table, row_.key(), columnFamily_);
-            Message message = ReadCommand.makeReadMessage(readCommand);
+            Message message = readCommand.makeReadMessage();
 			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray( new EndPoint[0] ), responseHandler);			
 		}
 	}
@@ -186,7 +186,7 @@ class ConsistencyManager implements Runnable
         ReadCommand readCommandDigestOnly = constructReadMessage(true);
 		try
 		{
-			Message messageDigestOnly = ReadCommand.makeReadMessage(readCommandDigestOnly);
+			Message messageDigestOnly = readCommandDigestOnly.makeReadMessage();
 			IAsyncCallback digestResponseHandler = new DigestResponseHandler();
 			MessagingService.getMessagingInstance().sendRR(messageDigestOnly, replicas_.toArray(new EndPoint[0]), digestResponseHandler);
 		}
@@ -221,7 +221,7 @@ class ConsistencyManager implements Runnable
             readCommand = new ReadCommand(table, row_.key(), columnFamily_, columnNames_);
             
         }
-        readCommand.setIsDigestQuery(isDigestQuery);
+        readCommand.setDigestQuery(isDigestQuery);
         return readCommand;
     }
 }

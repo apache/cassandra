@@ -130,9 +130,9 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
             if ( DatabaseDescriptor.getConsistencyCheck())
             {                                
                 ReadCommand readCommand = readMessages_.get(key);
-                readCommand.setIsDigestQuery(false);
-                Message messageRepair = ReadCommand.makeReadMessage(readCommand);
-                EndPoint[] endpoints = MultiQuorumResponseHandler.this.endpoints_.get( readCommand.key() );
+                readCommand.setDigestQuery(false);
+                Message messageRepair = readCommand.makeReadMessage();
+                EndPoint[] endpoints = MultiQuorumResponseHandler.this.endpoints_.get(readCommand.key);
                 Message[][] messages = new Message[][]{ {messageRepair, messageRepair, messageRepair} };
                 EndPoint[][] epList = new EndPoint[][]{ endpoints };
                 MessagingService.getMessagingInstance().sendRR(messages, epList, MultiQuorumResponseHandler.this);                

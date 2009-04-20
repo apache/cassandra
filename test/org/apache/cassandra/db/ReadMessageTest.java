@@ -25,7 +25,7 @@ public class ReadMessageTest
     private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm)
     {
         ReadCommand rm2 = null;
-        ReadCommandSerializer rms = (ReadCommandSerializer) ReadCommand.serializer();
+        ReadCommandSerializer rms = ReadCommand.serializer();
         DataOutputBuffer dos = new DataOutputBuffer();
         DataInputBuffer dis = new DataInputBuffer();
 

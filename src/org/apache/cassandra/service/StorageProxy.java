@@ -149,7 +149,7 @@ public class StorageProxy
         Set<String> keys = readMessages.keySet();        
         for ( String key : keys )
         {
-            Message message = ReadCommand.makeReadMessage( readMessages.get(key) );
+            Message message = readMessages.get(key).makeReadMessage();
             messages.put(key, message);
         }        
         return messages;
@@ -210,8 +210,8 @@ public class StorageProxy
         EndPoint endPoint = StorageService.instance().findSuitableEndPoint(key);        
         if(endPoint != null)
         {
-            Message message = ReadCommand.makeReadMessage(readCommand);
-            message.addHeader(ReadCommand.doRepair_, ReadCommand.doRepair_.getBytes());
+            Message message = readCommand.makeReadMessage();
+            message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
             IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
             Object[] result = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             byte[] body = (byte[])result[0];
@@ -437,7 +437,7 @@ public class StorageProxy
         ReadCommand readCommand = new ReadCommand(tablename, key, columnFamily, columns);
         
         ReadCommand readCommandDigestOnly = new ReadCommand(tablename, key, columnFamily, columns);
-        readCommandDigestOnly.setIsDigestQuery(true);
+        readCommandDigestOnly.setDigestQuery(true);
         
         Row row = StorageProxy.doStrongReadProtocol(key, readCommand, readCommandDigestOnly);
         logger_.debug("readProtocol: " + (System.currentTimeMillis() - startTime) + " ms.");     
@@ -474,7 +474,7 @@ public class StorageProxy
         {
             readCommand = new ReadCommand(tablename, key, columnFamily);
         }
-        Message message = ReadCommand.makeReadMessage(readCommand);
+        Message message = readCommand.makeReadMessage();
         if( start >= 0 && count < Integer.MAX_VALUE)
         {
             readCommandDigestOnly = new ReadCommand(tablename, key, columnFamily, start, count);
@@ -483,7 +483,7 @@ public class StorageProxy
         {
             readCommandDigestOnly = new ReadCommand(tablename, key, columnFamily);
         }
-        readCommandDigestOnly.setIsDigestQuery(true);
+        readCommandDigestOnly.setDigestQuery(true);
         Row row = doStrongReadProtocol(key, readCommand, readCommandDigestOnly);
         logger_.debug("readProtocol: " + (System.currentTimeMillis() - startTime) + " ms.");
         return row;
@@ -508,24 +508,24 @@ public class StorageProxy
         Map<String, ReadCommand[]> readMessages = new HashMap<String, ReadCommand[]>();
         for (String key : keys )
         {
-            ReadCommand[] readCommand = new ReadCommand[2];
+            ReadCommand[] readParameters = new ReadCommand[2];
             if( start >= 0 && count < Integer.MAX_VALUE)
             {
-                readCommand[0] = new ReadCommand(tablename, key, columnFamily, start, count);
+                readParameters[0] = new ReadCommand(tablename, key, columnFamily, start, count);
             }
             else
             {
-                readCommand[0] = new ReadCommand(tablename, key, columnFamily);
+                readParameters[0] = new ReadCommand(tablename, key, columnFamily);
             }            
             if( start >= 0 && count < Integer.MAX_VALUE)
             {
-                readCommand[1] = new ReadCommand(tablename, key, columnFamily, start, count);
+                readParameters[1] = new ReadCommand(tablename, key, columnFamily, start, count);
             }
             else
             {
-                readCommand[1] = new ReadCommand(tablename, key, columnFamily);
+                readParameters[1] = new ReadCommand(tablename, key, columnFamily);
             }
-            readCommand[1].setIsDigestQuery(true);
+            readParameters[1].setDigestQuery(true);
         }        
         rows = doStrongReadProtocol(readMessages);         
         logger_.debug("readProtocol: " + (System.currentTimeMillis() - startTime) + " ms.");
@@ -539,9 +539,9 @@ public class StorageProxy
         ReadCommand readCommand = null;
         ReadCommand readCommandDigestOnly = null;
         readCommand = new ReadCommand(tablename, key, columnFamily, sinceTimestamp);
-        Message message = ReadCommand.makeReadMessage(readCommand);
+        Message message = readCommand.makeReadMessage();
         readCommandDigestOnly = new ReadCommand(tablename, key, columnFamily, sinceTimestamp);
-        readCommandDigestOnly.setIsDigestQuery(true);
+        readCommandDigestOnly.setDigestQuery(true);
         Row row = doStrongReadProtocol(key, readCommand, readCommandDigestOnly);
         logger_.debug("readProtocol: " + (System.currentTimeMillis() - startTime) + " ms.");
         return row;
@@ -556,8 +556,8 @@ public class StorageProxy
     private static Row doStrongReadProtocol(String key, ReadCommand readCommand, ReadCommand readCommandDigest) throws IOException, TimeoutException
     {
         Row row = null;
-        Message message = ReadCommand.makeReadMessage(readCommand);
-        Message messageDigestOnly = ReadCommand.makeReadMessage(readCommandDigest);
+        Message message = readCommand.makeReadMessage();
+        Message messageDigestOnly = readCommandDigest.makeReadMessage();
         
         IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
         QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
@@ -605,9 +605,9 @@ public class StorageProxy
 	            QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
 	                    DatabaseDescriptor.getReplicationFactor(),
 	                    readResponseResolverRepair);
-	            readCommand.setIsDigestQuery(false);
+	            readCommand.setDigestQuery(false);
 	            logger_.info("DigestMismatchException: " + key);            
-	            Message messageRepair = ReadCommand.makeReadMessage(readCommand);
+	            Message messageRepair = readCommand.makeReadMessage();
 	            MessagingService.getMessagingInstance().sendRR(messageRepair, endPoints, quorumResponseHandlerRepair);
 	            try
 	            {
@@ -634,11 +634,11 @@ public class StorageProxy
         for ( String key : keys )
         {
             Message[] msg = new Message[DatabaseDescriptor.getReplicationFactor()];
-            ReadCommand[] readCommand = readMessages.get(key);
-            msg[0] = ReadCommand.makeReadMessage( readCommand[0] );
+            ReadCommand[] readParameters = readMessages.get(key);
+            msg[0] = readParameters[0].makeReadMessage();
             for ( int i = 1; i < msg.length; ++i )
             {
-                msg[i] = ReadCommand.makeReadMessage( readCommand[1] );
+                msg[i] = readParameters[1].makeReadMessage();
             }
         }        
         return messages;
