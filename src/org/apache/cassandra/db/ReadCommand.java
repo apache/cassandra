@@ -28,7 +28,6 @@ import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
@@ -38,26 +37,26 @@ import org.apache.cassandra.service.StorageService;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class ReadMessage implements Serializable
+public class ReadCommand implements Serializable
 {
-    private static ICompactSerializer<ReadMessage> serializer_;	
+    private static ICompactSerializer<ReadCommand> serializer_;
     public static final String doRepair_ = "READ-REPAIR";
-	
+
     static
     {
-        serializer_ = new ReadMessageSerializer();
+        serializer_ = new ReadCommandSerializer();
     }
 
-    static ICompactSerializer<ReadMessage> serializer()
+    static ICompactSerializer<ReadCommand> serializer()
     {
         return serializer_;
     }
     
-    public static Message makeReadMessage(ReadMessage readMessage) throws IOException
+    public static Message makeReadMessage(ReadCommand readCommand) throws IOException
     {
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        ReadMessage.serializer().serialize(readMessage, dos);
+        ReadCommand.serializer().serialize(readCommand, dos);
         Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageService.readStage_, StorageService.readVerbHandler_, new Object[]{bos.toByteArray()});         
         return message;
     }
@@ -71,24 +70,24 @@ public class ReadMessage implements Serializable
     private List<String> columns_ = new ArrayList<String>();
     private boolean isDigestQuery_ = false;
         
-    private ReadMessage()
+    private ReadCommand()
     {
     }
     
-    public ReadMessage(String table, String key)
+    public ReadCommand(String table, String key)
     {
         table_ = table;
         key_ = key;
     }
 
-    public ReadMessage(String table, String key, String columnFamily_column)
+    public ReadCommand(String table, String key, String columnFamily_column)
     {
         table_ = table;
         key_ = key;
         columnFamily_column_ = columnFamily_column;
     }
     
-    public ReadMessage(String table, String key, String columnFamily, List<String> columns)
+    public ReadCommand(String table, String key, String columnFamily, List<String> columns)
     {
     	table_ = table;
     	key_ = key;
@@ -96,7 +95,7 @@ public class ReadMessage implements Serializable
     	columns_ = columns;
     }
     
-    public ReadMessage(String table, String key, String columnFamily_column, int start, int count)
+    public ReadCommand(String table, String key, String columnFamily_column, int start, int count)
     {
         table_ = table;
         key_ = key;
@@ -105,7 +104,7 @@ public class ReadMessage implements Serializable
         count_ = count;
     }
 
-    public ReadMessage(String table, String key, String columnFamily_column, long sinceTimestamp)
+    public ReadCommand(String table, String key, String columnFamily_column, long sinceTimestamp)
     {
         table_ = table;
         key_ = key;
@@ -173,9 +172,9 @@ public class ReadMessage implements Serializable
     }
 }
 
-class ReadMessageSerializer implements ICompactSerializer<ReadMessage>
+class ReadCommandSerializer implements ICompactSerializer<ReadCommand>
 {
-	public void serialize(ReadMessage rm, DataOutputStream dos) throws IOException
+	public void serialize(ReadCommand rm, DataOutputStream dos) throws IOException
 	{
 		dos.writeUTF(rm.table());
 		dos.writeUTF(rm.key());
@@ -196,7 +195,7 @@ class ReadMessageSerializer implements ICompactSerializer<ReadMessage>
 		}
 	}
 	
-    public ReadMessage deserialize(DataInputStream dis) throws IOException
+    public ReadCommand deserialize(DataInputStream dis) throws IOException
     {
 		String table = dis.readUTF();
 		String key = dis.readUTF();
@@ -214,18 +213,18 @@ class ReadMessageSerializer implements ICompactSerializer<ReadMessage>
 			dis.readFully(bytes);
 			columns.add( new String(bytes) );
 		}
-		ReadMessage rm = null;
+		ReadCommand rm = null;
 		if ( columns.size() > 0 )
 		{
-			rm = new ReadMessage(table, key, columnFamily_column, columns);
+			rm = new ReadCommand(table, key, columnFamily_column, columns);
 		}
 		else if( sinceTimestamp > 0 )
 		{
-			rm = new ReadMessage(table, key, columnFamily_column, sinceTimestamp);
+			rm = new ReadCommand(table, key, columnFamily_column, sinceTimestamp);
 		}
 		else
 		{
-			rm = new ReadMessage(table, key, columnFamily_column, start, count);
+			rm = new ReadCommand(table, key, columnFamily_column, start, count);
 		}
 		rm.setIsDigestQuery(isDigest);
     	return rm;

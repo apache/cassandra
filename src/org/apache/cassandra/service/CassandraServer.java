@@ -37,7 +37,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.thrift.TException;
 
@@ -81,7 +80,7 @@ public class CassandraServer implements Cassandra.Iface
 		}
 	}
     
-	protected ColumnFamily get_cf(String tablename, String key, String columnFamily, List<String> columNames) throws CassandraException, TException
+	protected ColumnFamily readColumnFamily(String tablename, String key, String columnFamily, List<String> columNames) throws CassandraException, TException
 	{
     	ColumnFamily cfamily = null;
 		try
@@ -205,7 +204,7 @@ public class CassandraServer implements Cassandra.Iface
 		try
 		{
 			validateTable(tablename);
-			ColumnFamily cfamily = get_cf(tablename, key, columnFamily, columnNames);
+			ColumnFamily cfamily = readColumnFamily(tablename, key, columnFamily, columnNames);
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: "
@@ -486,7 +485,7 @@ public class CassandraServer implements Cassandra.Iface
 		try
 		{
 			validateTable(tablename);
-			ColumnFamily cfamily = get_cf(tablename, key, columnFamily, superColumnNames);
+			ColumnFamily cfamily = readColumnFamily(tablename, key, columnFamily, superColumnNames);
 			if (cfamily == null)
 			{
 				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: "+"   key:" + key

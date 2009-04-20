@@ -43,7 +43,7 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ReadMessage;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponseMessage;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
@@ -880,10 +880,10 @@ public class DataImporter {
 				key = user + ":1";
 			}
 
-			ReadMessage readMessage = new ReadMessage(tablename_, key);
+			ReadCommand readCommand = new ReadCommand(tablename_, key);
 			Message message = new Message(from_, StorageService.readStage_,
 					StorageService.readVerbHandler_,
-					new Object[] { readMessage });
+					new Object[] {readCommand});
 			IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(
 					message, to_);
 			Object[] result = iar.get();

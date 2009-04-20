@@ -19,12 +19,9 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.EndPoint;
@@ -34,8 +31,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.net.*;
-import org.apache.cassandra.utils.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -77,30 +72,30 @@ public class ReadVerbHandler implements IVerbHandler
 
         try
         {
-            ReadMessage readMessage = ReadMessage.serializer().deserialize(readCtx.bufIn_);
-            Table table = Table.open(readMessage.table());
+            ReadCommand readCommand = ReadCommand.serializer().deserialize(readCtx.bufIn_);
+            Table table = Table.open(readCommand.table());
             Row row = null;
             long start = System.currentTimeMillis();
-            if( readMessage.columnFamily_column() == null )
-            	row = table.get(readMessage.key());
+            if( readCommand.columnFamily_column() == null )
+            	row = table.get(readCommand.key());
             else
             {
-            	if(readMessage.getColumnNames().size() == 0)
+            	if(readCommand.getColumnNames().size() == 0)
             	{
-	            	if(readMessage.count() > 0 && readMessage.start() >= 0)
-	            		row = table.getRow(readMessage.key(), readMessage.columnFamily_column(), readMessage.start(), readMessage.count());
+	            	if(readCommand.count() > 0 && readCommand.start() >= 0)
+	            		row = table.getRow(readCommand.key(), readCommand.columnFamily_column(), readCommand.start(), readCommand.count());
 	            	else
-	            		row = table.getRow(readMessage.key(), readMessage.columnFamily_column());
+	            		row = table.getRow(readCommand.key(), readCommand.columnFamily_column());
             	}
             	else
             	{
-            		row = table.getRow(readMessage.key(), readMessage.columnFamily_column(), readMessage.getColumnNames());            		
+            		row = table.getRow(readCommand.key(), readCommand.columnFamily_column(), readCommand.getColumnNames());
             	}
             }              
             logger_.info("getRow()  TIME: " + (System.currentTimeMillis() - start) + " ms.");
             start = System.currentTimeMillis();
             ReadResponseMessage readResponseMessage = null;
-            if(readMessage.isDigestQuery())
+            if(readCommand.isDigestQuery())
             {
                 readResponseMessage = new ReadResponseMessage(table.getTableName(), row.digest());
             }
@@ -108,7 +103,7 @@ public class ReadVerbHandler implements IVerbHandler
             {
                 readResponseMessage = new ReadResponseMessage(table.getTableName(), row);
             }
-            readResponseMessage.setIsDigestQuery(readMessage.isDigestQuery());
+            readResponseMessage.setIsDigestQuery(readCommand.isDigestQuery());
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
@@ -126,9 +121,9 @@ public class ReadVerbHandler implements IVerbHandler
             logger_.info("ReadVerbHandler  TIME 2: " + (System.currentTimeMillis() - start) + " ms.");
             
             /* Do read repair if header of the message says so */
-            String repair = new String( message.getHeader(ReadMessage.doRepair_) );
-            if ( repair.equals( ReadMessage.doRepair_ ) )
-                doReadRepair(row, readMessage);
+            String repair = new String( message.getHeader(ReadCommand.doRepair_) );
+            if ( repair.equals( ReadCommand.doRepair_ ) )
+                doReadRepair(row, readCommand);
         }
         catch ( IOException ex)
         {
@@ -140,29 +135,29 @@ public class ReadVerbHandler implements IVerbHandler
         }
     }
     
-    private void doReadRepair(Row row, ReadMessage readMessage)
+    private void doReadRepair(Row row, ReadCommand readCommand)
     {
         if ( DatabaseDescriptor.getConsistencyCheck() )
         {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readMessage.key());
+            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readCommand.key());
             /* Remove the local storage endpoint from the list. */ 
             endpoints.remove( StorageService.getLocalStorageEndPoint() );
             
-            if(readMessage.getColumnNames().size() == 0)
+            if(readCommand.getColumnNames().size() == 0)
             {
-                if( readMessage.start() >= 0 && readMessage.count() < Integer.MAX_VALUE)
+                if( readCommand.start() >= 0 && readCommand.count() < Integer.MAX_VALUE)
                 {                
-                    StorageService.instance().doConsistencyCheck(row, endpoints, readMessage.columnFamily_column(), readMessage.start(), readMessage.count());                    
+                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamily_column(), readCommand.start(), readCommand.count());
                 }
                 
-                if( readMessage.sinceTimestamp() > 0)
+                if( readCommand.sinceTimestamp() > 0)
                 {                    
-                    StorageService.instance().doConsistencyCheck(row, endpoints, readMessage.columnFamily_column(), readMessage.sinceTimestamp());                    
+                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamily_column(), readCommand.sinceTimestamp());
                 }                
             }
             else
             {
-                StorageService.instance().doConsistencyCheck(row, endpoints, readMessage.columnFamily_column(), readMessage.getColumnNames());                                
+                StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamily_column(), readCommand.getColumnNames());
             }
         }
     }     

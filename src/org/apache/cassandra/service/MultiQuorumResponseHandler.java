@@ -28,7 +28,7 @@ import java.util.concurrent.locks.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ReadMessage;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -47,7 +47,7 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
     private Lock lock_ = new ReentrantLock();
     private Condition condition_;
     /* This maps the keys to the original data read messages */
-    private Map<String, ReadMessage> readMessages_ = new HashMap<String, ReadMessage>();
+    private Map<String, ReadCommand> readMessages_ = new HashMap<String, ReadCommand>();
     /* This maps the key to its set of replicas */
     private Map<String, EndPoint[]> endpoints_ = new HashMap<String, EndPoint[]>();
     /* This maps the groupId to the individual callback for the set of messages */
@@ -129,10 +129,10 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
         {
             if ( DatabaseDescriptor.getConsistencyCheck())
             {                                
-                ReadMessage readMessage = readMessages_.get(key);
-                readMessage.setIsDigestQuery(false);            
-                Message messageRepair = ReadMessage.makeReadMessage(readMessage);
-                EndPoint[] endpoints = MultiQuorumResponseHandler.this.endpoints_.get( readMessage.key() );
+                ReadCommand readCommand = readMessages_.get(key);
+                readCommand.setIsDigestQuery(false);
+                Message messageRepair = ReadCommand.makeReadMessage(readCommand);
+                EndPoint[] endpoints = MultiQuorumResponseHandler.this.endpoints_.get( readCommand.key() );
                 Message[][] messages = new Message[][]{ {messageRepair, messageRepair, messageRepair} };
                 EndPoint[][] epList = new EndPoint[][]{ endpoints };
                 MessagingService.getMessagingInstance().sendRR(messages, epList, MultiQuorumResponseHandler.this);                
@@ -140,7 +140,7 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
         }
     }
     
-    public MultiQuorumResponseHandler(Map<String, ReadMessage> readMessages, Map<String, EndPoint[]> endpoints)
+    public MultiQuorumResponseHandler(Map<String, ReadCommand> readMessages, Map<String, EndPoint[]> endpoints)
     {        
         condition_ = lock_.newCondition();
         readMessages_ = readMessages;

@@ -22,13 +22,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ReadMessage;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponseMessage;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -96,9 +92,9 @@ class ConsistencyManager implements Runnable
             replicas_.add(StorageService.getLocalStorageEndPoint());
 			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
 			String table = DatabaseDescriptor.getTables().get(0);
-            ReadMessage readMessage = constructReadMessage(false);
+            ReadCommand readCommand = constructReadMessage(false);
 			// ReadMessage readMessage = new ReadMessage(table, row_.key(), columnFamily_);
-            Message message = ReadMessage.makeReadMessage(readMessage);
+            Message message = ReadCommand.makeReadMessage(readCommand);
 			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray( new EndPoint[0] ), responseHandler);			
 		}
 	}
@@ -187,10 +183,10 @@ class ConsistencyManager implements Runnable
 	public void run()
 	{
 		logger_.debug(" Run the consistency checks for " + columnFamily_);		
-        ReadMessage readMessageDigestOnly = constructReadMessage(true);
+        ReadCommand readCommandDigestOnly = constructReadMessage(true);
 		try
 		{
-			Message messageDigestOnly = ReadMessage.makeReadMessage(readMessageDigestOnly);
+			Message messageDigestOnly = ReadCommand.makeReadMessage(readCommandDigestOnly);
 			IAsyncCallback digestResponseHandler = new DigestResponseHandler();
 			MessagingService.getMessagingInstance().sendRR(messageDigestOnly, replicas_.toArray(new EndPoint[0]), digestResponseHandler);
 		}
@@ -200,32 +196,32 @@ class ConsistencyManager implements Runnable
 		}
 	}
     
-    private ReadMessage constructReadMessage(boolean isDigestQuery)
+    private ReadCommand constructReadMessage(boolean isDigestQuery)
     {
-        ReadMessage readMessage = null;
+        ReadCommand readCommand = null;
         String table = DatabaseDescriptor.getTables().get(0);
         
         if(columnNames_.size() == 0)
         {
             if( start_ >= 0 && count_ < Integer.MAX_VALUE)
             {
-                readMessage = new ReadMessage(table, row_.key(), columnFamily_, start_, count_);
+                readCommand = new ReadCommand(table, row_.key(), columnFamily_, start_, count_);
             }
             else if(sinceTimestamp_ > 0)
             {
-                readMessage = new ReadMessage(table, row_.key(), columnFamily_, sinceTimestamp_);
+                readCommand = new ReadCommand(table, row_.key(), columnFamily_, sinceTimestamp_);
             }
             else
             {
-                readMessage = new ReadMessage(table, row_.key(), columnFamily_);
+                readCommand = new ReadCommand(table, row_.key(), columnFamily_);
             }
         }
         else
         {
-            readMessage = new ReadMessage(table, row_.key(), columnFamily_, columnNames_);
+            readCommand = new ReadCommand(table, row_.key(), columnFamily_, columnNames_);
             
         }
-        readMessage.setIsDigestQuery(isDigestQuery);
-        return readMessage;
+        readCommand.setIsDigestQuery(isDigestQuery);
+        return readCommand;
     }
 }

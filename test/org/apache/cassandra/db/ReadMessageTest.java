@@ -16,16 +16,16 @@ public class ReadMessageTest
         colList.add("col1");
         colList.add("col2");
 
-        ReadMessage rm = new ReadMessage("Table1", "row1", "foo", colList);
-        ReadMessage rm2 = serializeAndDeserializeReadMessage(rm);
+        ReadCommand rm = new ReadCommand("Table1", "row1", "foo", colList);
+        ReadCommand rm2 = serializeAndDeserializeReadMessage(rm);
 
         assert rm2.toString().equals(rm.toString());
     }
 
-    private ReadMessage serializeAndDeserializeReadMessage(ReadMessage rm)
+    private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm)
     {
-        ReadMessage rm2 = null;
-        ReadMessageSerializer rms = (ReadMessageSerializer) ReadMessage.serializer();
+        ReadCommand rm2 = null;
+        ReadCommandSerializer rms = (ReadCommandSerializer) ReadCommand.serializer();
         DataOutputBuffer dos = new DataOutputBuffer();
         DataInputBuffer dis = new DataInputBuffer();
 

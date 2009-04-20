@@ -19,10 +19,7 @@
 package org.apache.cassandra.test;
 
 import java.io.IOException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
@@ -30,17 +27,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.analytics.AnalyticsContext;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.ReadMessage;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.Cassandra;
@@ -147,7 +140,7 @@ public class StressTest
         
     }	
 	
-    public void readLoad(ReadMessage readMessage)
+    public void readLoad(ReadCommand readCommand)
     {
 		IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
 		QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
@@ -155,7 +148,7 @@ public class StressTest
 				readResponseResolver);
 		Message message = new Message(from_, StorageService.readStage_,
 				StorageService.readVerbHandler_,
-				new Object[] { readMessage });
+				new Object[] {readCommand});
 		MessagingService.getMessagingInstance().sendOneWay(message, to_);
 		/*IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, to_);
 		try
@@ -187,7 +180,7 @@ public class StressTest
 	            String stringKey = new Integer(key).toString();
 	            stringKey = stringKey + keyFix_ ;
             	int j = random.nextInt(columns) + 1;
-	            ReadMessage rm = new ReadMessage(tablename_, stringKey, columnFamilyColumn_ + ":" + columnFix_ + j);
+	            ReadCommand rm = new ReadCommand(tablename_, stringKey, columnFamilyColumn_ + ":" + columnFix_ + j);
 	            readLoad(rm);
 				if ( requestsPerSecond_ > 1000)
 					Thread.sleep(0, 1000000000/requestsPerSecond_);
@@ -257,7 +250,7 @@ public class StressTest
 	            stringKey = stringKey + keyFix_ ;
             	int i = random.nextInt(superColumns) + 1;
             	int j = random.nextInt(columns) + 1;
-	            ReadMessage rm = new ReadMessage(tablename_, stringKey, columnFamilySuperColumn_ + ":" + superColumnFix_ + i + ":" + columnFix_ + j);
+	            ReadCommand rm = new ReadCommand(tablename_, stringKey, columnFamilySuperColumn_ + ":" + superColumnFix_ + i + ":" + columnFix_ + j);
 	            readLoad(rm);
 			}
 		}
