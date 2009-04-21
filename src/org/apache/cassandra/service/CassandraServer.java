@@ -254,7 +254,7 @@ public class CassandraServer implements Cassandra.Iface
 		{
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
 			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
-			if (cfamily == null)
+			if (cfamily == null || values.length < 2)
 			{
 				logger_.info("ERROR ColumnFamily  is missing.....: "
 							+"   key:" + key
