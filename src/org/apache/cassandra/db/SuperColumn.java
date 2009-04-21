@@ -80,7 +80,7 @@ public final class SuperColumn implements IColumn, Serializable
     public IColumn getSubColumn(String columnName)
     {
         IColumn column = columns_.get(columnName);
-        assert column instanceof Column;
+        assert column == null || column instanceof Column;
         return column;
     }
 
@@ -169,7 +169,6 @@ public final class SuperColumn implements IColumn, Serializable
     public byte[] value(String key)
     {
     	IColumn column = columns_.get(key);
-    	assert column instanceof Column;
     	if ( column != null )
     		return column.value();
     	throw new IllegalArgumentException("Value was requested for a column that does not exist.");
