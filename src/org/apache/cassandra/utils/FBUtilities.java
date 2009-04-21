@@ -40,6 +40,8 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -148,6 +150,10 @@ public class FBUtilities
 
     public static String getHostName() throws UnknownHostException
     {
+        if (DatabaseDescriptor.getListenAddress() != null)
+        {
+            return DatabaseDescriptor.getListenAddress();
+        }
         return getLocalAddress().getCanonicalHostName();
     }
 

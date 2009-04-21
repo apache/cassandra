@@ -20,6 +20,9 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.InetSocketAddress;
+import java.net.InetAddress;
 
 import org.apache.log4j.Logger;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -30,6 +33,7 @@ import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TTransportFactory;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class supports two methods for creating a Cassandra node daemon, 
@@ -65,7 +69,7 @@ public class CassandraDaemon
         Cassandra.Processor processor = new Cassandra.Processor(peerStorageServer);
 
         // Transport
-        TServerSocket tServerSocket =  new TServerSocket(listenPort);
+        TServerSocket tServerSocket = new TServerSocket(new InetSocketAddress(FBUtilities.getHostName(), listenPort));
 
         // Protocol factory
         TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();

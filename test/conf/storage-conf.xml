@@ -14,6 +14,7 @@
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <JobTrackerHost>tdsearch001.sf2p.facebook.com</JobTrackerHost>
    <JobJarFileLocation>C:\Engagements\Cassandra-Nexus</JobJarFileLocation>
+   <ListenAddress>127.0.0.1</ListenAddress>
    <StoragePort>7000</StoragePort>
    <ControlPort>7001</ControlPort>
    <ThriftPort>7001</ThriftPort>
