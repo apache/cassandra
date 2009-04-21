@@ -76,22 +76,7 @@ public class ReadVerbHandler implements IVerbHandler
             Table table = Table.open(readCommand.table);
             Row row = null;
             long start = System.currentTimeMillis();
-            if( readCommand.columnFamilyColumn == null )
-            	row = table.get(readCommand.key);
-            else
-            {
-            	if(readCommand.columnNames.size() == 0)
-            	{
-	            	if(readCommand.count > 0 && readCommand.start >= 0)
-	            		row = table.getRow(readCommand.key, readCommand.columnFamilyColumn, readCommand.start, readCommand.count);
-	            	else
-	            		row = table.getRow(readCommand.key, readCommand.columnFamilyColumn);
-            	}
-            	else
-            	{
-            		row = table.getRow(readCommand.key, readCommand.columnFamilyColumn, readCommand.columnNames);
-            	}
-            }              
+            row = readCommand.getRow(table);
             logger_.info("getRow()  TIME: " + (System.currentTimeMillis() - start) + " ms.");
             start = System.currentTimeMillis();
             ReadResponse readResponse = null;
