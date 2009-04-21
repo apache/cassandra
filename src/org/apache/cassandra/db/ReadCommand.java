@@ -128,7 +128,7 @@ public class ReadCommand
 
     public Row getRow(Table table) throws IOException, ColumnFamilyNotDefinedException
     {
-        if (columnNames != EMPTY_COLUMNS)
+        if (!columnNames.isEmpty())
         {
             return table.getRow(key, columnFamilyColumn, columnNames);
         }

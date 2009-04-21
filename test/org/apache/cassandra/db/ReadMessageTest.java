@@ -1,7 +1,10 @@
 package org.apache.cassandra.db;
 
+import static org.testng.Assert.assertNull;
+
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
@@ -40,5 +43,23 @@ public class ReadMessageTest
             throw new RuntimeException(e);
         }
         return rm2;
+    }
+    
+    @Test
+    public void testGetColumn() throws IOException, ColumnFamilyNotDefinedException
+    {
+        Table table = Table.open("Table1");
+        RowMutation rm;
+
+        // add data
+        rm = new RowMutation("Table1", "key1");
+        rm.add("Standard1:Column1", "abcd".getBytes(), 0);
+        rm.apply();
+
+        ReadCommand command = new ReadCommand("Table1", "key1", "Standard1:Column1", -1, Integer.MAX_VALUE);
+        Row row = command.getRow(table);
+        ColumnFamily cf = row.getColumnFamily("Standard1");
+        IColumn col = cf.getColumn("Column1");
+        assert Arrays.equals(((Column)col).value(), "abcd".getBytes());  
     }
 }
