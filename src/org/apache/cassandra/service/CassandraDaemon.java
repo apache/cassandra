@@ -20,6 +20,9 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.InetSocketAddress;
+import java.net.InetAddress;
 
 import org.apache.log4j.Logger;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -65,7 +68,22 @@ public class CassandraDaemon
         Cassandra.Processor processor = new Cassandra.Processor(peerStorageServer);
 
         // Transport
-        TServerSocket tServerSocket =  new TServerSocket(listenPort);
+        TServerSocket tServerSocket =  null;
+        try
+        {
+            // Make server socket
+            ServerSocket serverSocket = new ServerSocket();
+            // Prevent 2MSL delay problem on server restarts
+            serverSocket.setReuseAddress(true);
+            // Bind to listening port
+            serverSocket.bind(new InetSocketAddress(DatabaseDescriptor.getListenAddress(), listenPort));
+            tServerSocket =  new TServerSocket(serverSocket);
+        }
+        catch (IOException ioe)
+        {
+            throw new TTransportException("Could not create ServerSocket on address "
+                    + DatabaseDescriptor.getListenAddress() + ".");
+        }
 
         // Protocol factory
         TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();

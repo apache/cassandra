@@ -30,6 +30,7 @@ import java.util.Map;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -80,7 +81,14 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
     {
         try
         {
-            host_ = FBUtilities.getHostName();
+            if(DatabaseDescriptor.getListenAddress() != null)
+            {
+                host_ = DatabaseDescriptor.getListenAddress();
+            }
+            else
+            {
+                host_ = FBUtilities.getHostName();
+            }
             port_ = port;
         }
         catch (UnknownHostException e)

@@ -48,6 +48,7 @@ public class DatabaseDescriptor
     private static int controlPort_ = 7001;
     private static int httpPort_ = 7002;
     private static int thriftPort_ = 9160;
+    private static String listenAddress_ = "localhost";
     private static String clusterName_ = "Test";
     private static int replicationFactor_ = 3;
     private static long rpcTimeoutInMillis_ = 2000;
@@ -176,6 +177,11 @@ public class DatabaseDescriptor
             if ( port != null )
                 storagePort_ = Integer.parseInt(port);
 
+            /* Local IP or hostname to bind services to */
+            String listenAddress = xmlUtils.getNodeValue("/Storage/ListenAddress");
+            if ( listenAddress != null)
+                listenAddress_ = listenAddress;
+            
             /* UDP port for control messages */
             port = xmlUtils.getNodeValue("/Storage/ControlPort");
             if ( port != null )
@@ -799,5 +805,10 @@ public class DatabaseDescriptor
         {
             super(message);
         }
+    }
+
+    public static String getListenAddress()
+    {
+        return listenAddress_;
     }
 }
