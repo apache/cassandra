@@ -696,9 +696,21 @@ public class Table
         long start1 = System.currentTimeMillis();
         if ( cfStore != null )
         {
-            ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new CountFilter(count));
+            ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
             if ( columnFamily != null )
-                row.addColumnFamily(columnFamily);
+            {
+                
+                ColumnFamily filteredCf = null;
+                if ((count <=0 || count == Integer.MAX_VALUE) && start <= 0) //Don't need to filter
+                {
+                    filteredCf = columnFamily;
+                }
+                else 
+                {
+                    filteredCf = new CountFilter(count, start).filter(cf, columnFamily);                    
+                }
+                row.addColumnFamily(filteredCf);
+            }
             long timeTaken = System.currentTimeMillis() - start1;
             dbAnalyticsSource_.updateReadStatistics(timeTaken);
             return row;

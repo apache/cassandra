@@ -36,12 +36,20 @@ public class CountFilter implements IFilter
 {
 	private long countLimit_;
 	private boolean isDone_;
+	private int offset_;
 
 	CountFilter(int countLimit)
 	{
 		countLimit_ = countLimit;
 		isDone_ = false;
+		offset_ = 0;
 	}
+	
+	CountFilter(int countLimit, int offset)
+    {
+        this(countLimit);
+        offset_ = offset;
+    }
 
 	public ColumnFamily filter(String cfNameParam, ColumnFamily columnFamily)
 	{
@@ -60,8 +68,11 @@ public class CountFilter implements IFilter
     		Collection<IColumn> columns = columnFamily.getAllColumns();
     		for(IColumn column : columns)
     		{
-    			filteredCf.addColumn(column);
-    			countLimit_--;
+    			if (offset_ <= 0) {
+    				filteredCf.addColumn(column);
+    				countLimit_--;
+    			} else
+    				offset_ --;
     			if( countLimit_ <= 0 )
     			{
     				isDone_ = true;
@@ -80,8 +91,12 @@ public class CountFilter implements IFilter
         		Collection<IColumn> subColumns = superColumn.getSubColumns();
         		for(IColumn subColumn : subColumns)
         		{
-		            filteredSuperColumn.addColumn(subColumn.name(), subColumn);
-	    			countLimit_--;
+        			if (offset_ <=0 ){
+        				filteredSuperColumn.addColumn(subColumn.name(), subColumn);
+        				countLimit_--;
+        			} else
+        				offset_--;
+        			
 	    			if( countLimit_ <= 0 )
 	    			{
 	    				isDone_ = true;
