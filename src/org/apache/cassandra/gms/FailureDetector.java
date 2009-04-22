@@ -250,11 +250,15 @@ class ArrivalWindow
             arrivalIntervals_.remove(0);            
         }
         
-        double interArrivalTime = 0;
+        double interArrivalTime;
         if ( tLast_ > 0L )
         {                        
             interArrivalTime = (value - tLast_);            
-        }   
+        }
+        else
+        {
+            interArrivalTime = Gossiper.intervalInMillis_ / 2;
+        }
         tLast_ = value;            
         arrivalIntervals_.add(interArrivalTime);        
     }
