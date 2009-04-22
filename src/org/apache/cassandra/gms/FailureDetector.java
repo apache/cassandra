@@ -27,12 +27,13 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
 
 /**
  * This FailureDetector is an implementation of the paper titled
@@ -234,20 +235,20 @@ class ArrivalWindow
 {
     private static Logger logger_ = Logger.getLogger(ArrivalWindow.class);
     private double tLast_ = 0L;
-    private List<Double> arrivalIntervals_;
+    private Deque<Double> arrivalIntervals_;
     private int size_;
     
     ArrivalWindow(int size)
     {
         size_ = size;
-        arrivalIntervals_ = new ArrayList<Double>(size);        
+        arrivalIntervals_ = new ArrayDeque<Double>(size);
     }
     
     synchronized void add(double value)
     {
         if ( arrivalIntervals_.size() == size_ )
         {                          
-            arrivalIntervals_.remove(0);            
+            arrivalIntervals_.remove();            
         }
         
         double interArrivalTime;
@@ -266,10 +267,9 @@ class ArrivalWindow
     synchronized double sum()
     {
         double sum = 0d;
-        int size = arrivalIntervals_.size();
-        for( int i = 0; i < size; ++i )
+        for (Double interval : arrivalIntervals_)
         {
-            sum += arrivalIntervals_.get(i);
+            sum += interval;
         }
         return sum;
     }
@@ -278,12 +278,13 @@ class ArrivalWindow
     {
         double sumOfDeviations = 0d;
         double mean = mean();
-        int size = arrivalIntervals_.size();
-        
-        for( int i = 0; i < size; ++i )
+
+        for (Double interval : arrivalIntervals_)
         {
-            sumOfDeviations += (arrivalIntervals_.get(i) - mean)*(arrivalIntervals_.get(i) - mean);
+            double v = interval - mean;
+            sumOfDeviations += v * v;
         }
+
         return sumOfDeviations;
     }
     
@@ -333,15 +334,7 @@ class ArrivalWindow
     
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();    
-        List<Double> arrivalIntervals = new ArrayList<Double>(arrivalIntervals_);
-        int size = arrivalIntervals.size();
-        for ( int i = 0; i < size; ++i )
-        {
-            sb.append(arrivalIntervals.get(i));
-            sb.append(" ");    
-        }
-        return sb.toString();
+        return StringUtils.join(arrivalIntervals_, " ");
     }
 }
 
