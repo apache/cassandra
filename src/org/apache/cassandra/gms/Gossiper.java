@@ -470,7 +470,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     void doStatusCheck()
     {
-        long now = System.currentTimeMillis();
         Set<EndPoint> eps = endPointStateMap_.keySet();
 
         for ( EndPoint endpoint : eps )
@@ -482,8 +481,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             EndPointState epState = endPointStateMap_.get(endpoint);
             if ( epState != null )
             {
-                long l = now - epState.getUpdateTimestamp();
-                long duration = now - l;
+                long duration = System.currentTimeMillis() - epState.getUpdateTimestamp();
                 if ( !epState.isAlive() && (duration > aVeryLongTime_) )
                 {
                     evictFromMembership(endpoint);
