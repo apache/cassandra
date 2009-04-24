@@ -275,7 +275,7 @@ public class RowMutation implements Serializable
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos);
         EndPoint local = StorageService.getLocalStorageEndPoint();
-        EndPoint from = (local != null) ? local : new EndPoint(FBUtilities.getHostName(), 7000);
+        EndPoint from = (local != null) ? local : new EndPoint(FBUtilities.getHostAddress(), 7000);
         return new Message(from, StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
     }
 

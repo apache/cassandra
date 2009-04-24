@@ -23,14 +23,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.*;
 
 import javax.xml.bind.annotation.XmlElement;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -66,7 +64,7 @@ public class RowMutationMessage implements Serializable
         DataOutputStream dos = new DataOutputStream( bos );
         RowMutationMessage.serializer().serialize(rowMutationMessage, dos);
         EndPoint local = StorageService.getLocalStorageEndPoint();
-        EndPoint from = ( local != null ) ? local : new EndPoint(FBUtilities.getHostName(), 7000); 
+        EndPoint from = ( local != null ) ? local : new EndPoint(FBUtilities.getHostAddress(), 7000);
         Message message = new Message(from, StorageService.mutationStage_, verbHandlerName, new Object[]{bos.toByteArray()});         
         return message;
     }

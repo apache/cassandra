@@ -739,7 +739,7 @@ public class StressTest
 	                System.err.println("**********Errors*************");
 	    		}
 	            if ( jsap.messagePrinted() ) return null;		
-	    		String hostName = FBUtilities.getHostName();
+	    		String hostName = FBUtilities.getHostAddress();
 	    		from_ = new EndPoint(hostName,10001);
 	    		MessagingService.getMessagingInstance().listen(from_, false);
 		}

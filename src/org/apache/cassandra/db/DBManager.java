@@ -23,11 +23,9 @@ import java.math.BigInteger;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BasicUtilities;
@@ -115,7 +113,7 @@ public class DBManager
         StorageMetadata storageMetadata = null;
         /* Read the system table to retrieve the storage ID and the generation */
         SystemTable sysTable = SystemTable.openSystemTable(SystemTable.name_);
-        Row row = sysTable.get(FBUtilities.getHostName());
+        Row row = sysTable.get(FBUtilities.getHostAddress());
 
         Random random = new Random();
         if ( row == null )
@@ -128,7 +126,7 @@ public class DBManager
 
             int generation = 1;
 
-            String key = FBUtilities.getHostName();
+            String key = FBUtilities.getHostAddress();
             row = new Row(key);
             ColumnFamily cf = new ColumnFamily(SystemTable.cfName_, "Standard");
             cf.addColumn(new Column(SystemTable.token_, token.toByteArray()));

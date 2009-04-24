@@ -148,7 +148,7 @@ public class FBUtilities
         return localInetAddress_;
     }
 
-    public static String getHostName() throws UnknownHostException
+    public static String getHostAddress() throws UnknownHostException
     {
         InetAddress inetAddr = getLocalAddress();
         if (DatabaseDescriptor.getListenAddress() != null)

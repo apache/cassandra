@@ -30,7 +30,6 @@ import java.util.Map;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -49,7 +48,7 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
     {
         try
         {
-            randomLocalEndPoint_ = new EndPoint(FBUtilities.getHostName(), EndPoint.randomPort_);
+            randomLocalEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), EndPoint.randomPort_);
         }        
         catch ( IOException ex )
         {
@@ -74,7 +73,7 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
     {
         try
         {
-            host_ = FBUtilities.getHostName();
+            host_ = FBUtilities.getHostAddress();
         }
         catch (UnknownHostException e)
         {

@@ -65,7 +65,7 @@ public class KeyChecker
         /* Sleep for proper discovery */
         Thread.sleep(240000);
         /* Create the file for the missing keys */
-        RandomAccessFile raf = new RandomAccessFile( "Missing-" + FBUtilities.getHostName() + ".dat", "rw");
+        RandomAccessFile raf = new RandomAccessFile( "Missing-" + FBUtilities.getHostAddress() + ".dat", "rw");
         
         /* Start reading the file that contains the keys */
         BufferedReader bufReader = new BufferedReader( new InputStreamReader( new FileInputStream(args[0]) ), KeyChecker.bufSize_ );
