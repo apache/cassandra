@@ -512,7 +512,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                         if (remoteEp_ == null)
                         {             
                             int port = ( pH.isListening_ ) ? DatabaseDescriptor.getStoragePort() : EndPoint.randomPort_;
-                            remoteEp_ = new EndPoint( socketChannel_.socket().getInetAddress().getHostName(), port );                            
+                            remoteEp_ = new EndPoint( socketChannel_.socket().getInetAddress().getHostAddress(), port );                            
                             // put connection into pool if possible
                             pool_ = MessagingService.getConnectionPool(localEp_, remoteEp_);                            
                             pool_.addToPool(TcpConnection.this);                            

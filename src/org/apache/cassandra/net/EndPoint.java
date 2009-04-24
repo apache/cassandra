@@ -62,16 +62,9 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
 
     private transient InetSocketAddress ia_;
 
-    /* Ctor for JAXB. DO NOT DELETE */
-    private EndPoint()
-    {
-    }
-
     public EndPoint(String host, int port)
     {
-        /*
-         * Attempts to resolve the host, but does not fail if it cannot.
-         */
+        assert host.matches("\\d+\\.\\d+\\.\\d+\\.\\d+") : host;
         host_ = host;
         port_ = port;
     }
@@ -166,7 +159,7 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
             String host = hostNames_.get(charBuffer);
             if (host == null)
             {               
-                host = InetAddress.getByAddress(buffer.array()).getHostName();              
+                host = InetAddress.getByAddress(buffer.array()).getHostAddress();              
                 hostNames_.put(charBuffer, host);
             }
             int port = (int) MessagingService.byteArrayToShort(portBytes);

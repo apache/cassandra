@@ -39,18 +39,6 @@ public class CompactEndPointSerializationHelper
         return EndPoint.fromBytes(bytes);       
     }
     
-    private static byte[] getIPAddress(String host) throws UnknownHostException
-    {
-        InetAddress ia = InetAddress.getByName(host);         
-        return ia.getAddress();
-    }
-    
-    private static String getHostName(byte[] ipAddr) throws UnknownHostException
-    {
-        InetAddress ia = InetAddress.getByAddress(ipAddr);
-        return ia.getCanonicalHostName();
-    }
-    
     public static void main(String[] args) throws Throwable
     {
         EndPoint ep = new EndPoint(7000);

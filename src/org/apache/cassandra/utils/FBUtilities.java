@@ -150,11 +150,12 @@ public class FBUtilities
 
     public static String getHostName() throws UnknownHostException
     {
+        InetAddress inetAddr = getLocalAddress();
         if (DatabaseDescriptor.getListenAddress() != null)
         {
-            return DatabaseDescriptor.getListenAddress();
+            inetAddr = InetAddress.getByName(DatabaseDescriptor.getListenAddress());
         }
-        return getLocalAddress().getCanonicalHostName();
+        return inetAddr.getHostAddress();
     }
 
     public static boolean isHostLocalHost(InetAddress host)

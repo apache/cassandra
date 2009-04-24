@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 
 import java.io.*;
 import java.util.*;
+import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -895,7 +896,8 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         Set<String> seedHosts = DatabaseDescriptor.getSeeds();
         for( String seedHost : seedHosts )
         {
-            EndPoint seed = new EndPoint(seedHost, DatabaseDescriptor.getControlPort());
+            EndPoint seed = new EndPoint(InetAddress.getByName(seedHost).getHostAddress(),
+                                         DatabaseDescriptor.getControlPort());
             if ( seed.equals(localEndPoint) )
                 continue;
             seeds_.add(seed);
