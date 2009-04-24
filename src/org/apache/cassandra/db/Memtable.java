@@ -399,15 +399,12 @@ public class Memtable implements Comparable<Memtable>
                 /* Now write the key and value to disk */
                 ssTable.append(partitioner.decorateKey(key), buffer);
                 bf.add(key);
-                columnFamily.clear();
             }
         }
         ssTable.close(bf);
         cfStore.onMemtableFlush(cLogCtx);
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         buffer.close();
-
-        columnFamilies_.clear();
     }
 
     private class MemtableThreadPoolExecutor extends DebuggableThreadPoolExecutor
