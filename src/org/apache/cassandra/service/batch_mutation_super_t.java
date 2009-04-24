@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
+
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
-
 import org.apache.thrift.protocol.*;
-import org.apache.thrift.transport.*;
 
 public class batch_mutation_super_t implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("batch_mutation_super_t");
@@ -33,9 +32,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
-    public boolean table = false;
-    public boolean key = false;
-    public boolean cfmap = false;
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -61,27 +57,21 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   {
     this();
     this.table = table;
-    this.__isset.table = (table != null);
     this.key = key;
-    this.__isset.key = (key != null);
     this.cfmap = cfmap;
-    this.__isset.cfmap = (cfmap != null);
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
   public batch_mutation_super_t(batch_mutation_super_t other) {
-    __isset.table = other.__isset.table;
-    if (other.table != null) {
+    if (other.isSetTable()) {
       this.table = other.table;
     }
-    __isset.key = other.__isset.key;
-    if (other.key != null) {
+    if (other.isSetKey()) {
       this.key = other.key;
     }
-    __isset.cfmap = other.__isset.cfmap;
-    if (other.cfmap != null) {
+    if (other.isSetCfmap()) {
       this.cfmap = other.cfmap;
     }
   }
@@ -97,20 +87,21 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   public void setTable(String table) {
     this.table = table;
-    this.__isset.table = (table != null);
   }
 
   public void unsetTable() {
-    this.__isset.table = false;
+    this.table = null;
   }
 
   // Returns true if field table is set (has been asigned a value) and false otherwise
   public boolean isSetTable() {
-    return this.__isset.table;
+    return this.table != null;
   }
 
   public void setTableIsSet(boolean value) {
-    this.__isset.table = value;
+    if (!value) {
+      this.table = null;
+    }
   }
 
   public String getKey() {
@@ -119,20 +110,21 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   public void setKey(String key) {
     this.key = key;
-    this.__isset.key = (key != null);
   }
 
   public void unsetKey() {
-    this.__isset.key = false;
+    this.key = null;
   }
 
   // Returns true if field key is set (has been asigned a value) and false otherwise
   public boolean isSetKey() {
-    return this.__isset.key;
+    return this.key != null;
   }
 
   public void setKeyIsSet(boolean value) {
-    this.__isset.key = value;
+    if (!value) {
+      this.key = null;
+    }
   }
 
   public int getCfmapSize() {
@@ -144,7 +136,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
       this.cfmap = new HashMap<String,List<superColumn_t>>();
     }
     this.cfmap.put(key, val);
-    this.__isset.cfmap = true;
   }
 
   public Map<String,List<superColumn_t>> getCfmap() {
@@ -153,35 +144,47 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   public void setCfmap(Map<String,List<superColumn_t>> cfmap) {
     this.cfmap = cfmap;
-    this.__isset.cfmap = (cfmap != null);
   }
 
   public void unsetCfmap() {
     this.cfmap = null;
-    this.__isset.cfmap = false;
   }
 
   // Returns true if field cfmap is set (has been asigned a value) and false otherwise
   public boolean isSetCfmap() {
-    return this.__isset.cfmap;
+    return this.cfmap != null;
   }
 
   public void setCfmapIsSet(boolean value) {
-    this.__isset.cfmap = value;
+    if (!value) {
+      this.cfmap = null;
+    }
   }
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
     case TABLE:
-      setTable((String)value);
+      if (value == null) {
+        unsetTable();
+      } else {
+        setTable((String)value);
+      }
       break;
 
     case KEY:
-      setKey((String)value);
+      if (value == null) {
+        unsetKey();
+      } else {
+        setKey((String)value);
+      }
       break;
 
     case CFMAP:
-      setCfmap((Map<String,List<superColumn_t>>)value);
+      if (value == null) {
+        unsetCfmap();
+      } else {
+        setCfmap((Map<String,List<superColumn_t>>)value);
+      }
       break;
 
     default:
@@ -209,11 +212,11 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   public boolean isSet(int fieldID) {
     switch (fieldID) {
     case TABLE:
-      return this.__isset.table;
+      return isSetTable();
     case KEY:
-      return this.__isset.key;
+      return isSetKey();
     case CFMAP:
-      return this.__isset.cfmap;
+      return isSetCfmap();
     default:
       throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
@@ -232,8 +235,8 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
     if (that == null)
       return false;
 
-    boolean this_present_table = true && (this.table != null);
-    boolean that_present_table = true && (that.table != null);
+    boolean this_present_table = true && this.isSetTable();
+    boolean that_present_table = true && that.isSetTable();
     if (this_present_table || that_present_table) {
       if (!(this_present_table && that_present_table))
         return false;
@@ -241,8 +244,8 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
         return false;
     }
 
-    boolean this_present_key = true && (this.key != null);
-    boolean that_present_key = true && (that.key != null);
+    boolean this_present_key = true && this.isSetKey();
+    boolean that_present_key = true && that.isSetKey();
     if (this_present_key || that_present_key) {
       if (!(this_present_key && that_present_key))
         return false;
@@ -250,8 +253,8 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
         return false;
     }
 
-    boolean this_present_cfmap = true && (this.cfmap != null);
-    boolean that_present_cfmap = true && (that.cfmap != null);
+    boolean this_present_cfmap = true && this.isSetCfmap();
+    boolean that_present_cfmap = true && that.isSetCfmap();
     if (this_present_cfmap || that_present_cfmap) {
       if (!(this_present_cfmap && that_present_cfmap))
         return false;
@@ -281,7 +284,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
         case TABLE:
           if (field.type == TType.STRING) {
             this.table = iprot.readString();
-            this.__isset.table = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -289,7 +291,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
         case KEY:
           if (field.type == TType.STRING) {
             this.key = iprot.readString();
-            this.__isset.key = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -320,7 +321,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
               }
               iprot.readMapEnd();
             }
-            this.__isset.cfmap = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -379,17 +379,28 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
     StringBuilder sb = new StringBuilder("batch_mutation_super_t(");
     boolean first = true;
 
-    if (!first) sb.append(", ");
     sb.append("table:");
-    sb.append(this.table);
+    if (this.table == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.table);
+    }
     first = false;
     if (!first) sb.append(", ");
     sb.append("key:");
-    sb.append(this.key);
+    if (this.key == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.key);
+    }
     first = false;
     if (!first) sb.append(", ");
     sb.append("cfmap:");
-    sb.append(this.cfmap);
+    if (this.cfmap == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.cfmap);
+    }
     first = false;
     sb.append(")");
     return sb.toString();

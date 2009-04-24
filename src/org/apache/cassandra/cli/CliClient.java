@@ -22,12 +22,10 @@ import org.apache.thrift.*;
 import org.antlr.runtime.tree.*;
 import org.apache.cassandra.cql.common.Utils;
 import org.apache.cassandra.service.Cassandra;
-import org.apache.cassandra.service.CassandraException;
 import org.apache.cassandra.service.CqlResult_t;
 import org.apache.cassandra.service.column_t;
 import org.apache.cassandra.service.NotFoundException;
 import org.apache.cassandra.service.InvalidRequestException;
-import org.apache.cassandra.service.Cassandra.Client;
 import org.apache.cassandra.utils.LogUtil;
 
 import java.util.*;
@@ -141,14 +139,7 @@ public class CliClient
         {
             // table.cf['key']
         	List<column_t> columns = new ArrayList<column_t>();
-        	try
-        	{
-        		columns = thriftClient_.get_slice(tableName, key, columnFamily, -1, 1000000);
-        	}
-        	catch(CassandraException cex)
-        	{
-        		css_.out.println(LogUtil.throwableToString(cex));
-        	}
+      		columns = thriftClient_.get_slice(tableName, key, columnFamily, -1, 1000000);
             int size = columns.size();
             for (Iterator<column_t> colIter = columns.iterator(); colIter.hasNext(); )
             {
@@ -163,15 +154,7 @@ public class CliClient
             // table.cf['key']['column']
             String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
             column_t col = new column_t();
-            try
-            {
-            	col = thriftClient_.get_column(tableName, key, columnFamily + ":" + columnName);
-	    	}
-	    	catch(CassandraException cex)
-	    	{
-	    		css_.out.println(LogUtil.throwableToString(cex));
-	    	}
-            
+           	col = thriftClient_.get_column(tableName, key, columnFamily + ":" + columnName);
             css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
                             col.columnName, col.value, col.timestamp);
         }

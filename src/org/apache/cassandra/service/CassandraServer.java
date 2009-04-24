@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
@@ -51,8 +52,10 @@ import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
 {
-
 	private static Logger logger_ = Logger.getLogger(CassandraServer.class);
+
+    private final static List<column_t> EMPTY_COLUMNS = Arrays.asList();
+    private final static List<superColumn_t> EMPTY_SUPERCOLUMNS = Arrays.asList();
 
     /*
       * Handle to the storage service to interact with the other machines in the
@@ -97,7 +100,7 @@ public class CassandraServer implements Cassandra.Iface
         }
 	}
     
-	protected ColumnFamily readColumnFamily(ReadCommand command) throws CassandraException, TException, IOException, InvalidRequestException, TimeoutException
+	protected ColumnFamily readColumnFamily(ReadCommand command) throws InvalidRequestException
     {
         String[] values = RowMutation.getColumnAndColumnFamily(command.columnFamilyColumn);
         if( values.length < 1 )
@@ -105,7 +108,21 @@ public class CassandraServer implements Cassandra.Iface
             throw new ColumnFamilyNotDefinedException("Empty column Family is invalid.");
         }
         validateCommand(command.key, command.table, values[0]);
-        Row row = StorageProxy.readProtocol(command, StorageService.ConsistencyLevel.WEAK);
+
+        Row row;
+        try
+        {
+            row = StorageProxy.readProtocol(command, StorageService.ConsistencyLevel.WEAK);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         if (row == null)
         {
             return null;
@@ -115,6 +132,11 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<column_t> thriftifyColumns(Collection<IColumn> columns)
     {
+        if (columns == null || columns.isEmpty())
+        {
+            return EMPTY_COLUMNS;
+        }
+
         ArrayList<column_t> thriftColumns = new ArrayList<column_t>(columns.size());
         for (IColumn column : columns)
         {
@@ -125,47 +147,35 @@ public class CassandraServer implements Cassandra.Iface
             column_t thrift_column = new column_t(column.name(), column.value(), column.timestamp());
             thriftColumns.add(thrift_column);
         }
+
         return thriftColumns;
     }
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException, TException
-	{
+    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws InvalidRequestException
+    {
         long startTime = System.currentTimeMillis();
-		try
-		{
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, timeStamp));
+        try
+        {
+            ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, timeStamp));
             String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-			if (cfamily == null)
-			{
-				logger_.info("ERROR ColumnFamily " + columnFamily_column + " is missing.....: "+"   key:" + key	+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested" + columnFamily_column + "are not present.");
-			}
-			Collection<IColumn> columns = null;
-			if( values.length > 1 )
-			{
-				// this is the super column case 
-				IColumn column = cfamily.getColumn(values[1]);
-				if(column != null)
-					columns = column.getSubColumns();
-			}
-			else
-			{
-				columns = cfamily.getAllColumns();
-			}
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-			}
-
+            if (cfamily == null)
+            {
+                return EMPTY_COLUMNS;
+            }
+            Collection<IColumn> columns = null;
+            if( values.length > 1 )
+            {
+                // this is the super column case
+                IColumn column = cfamily.getColumn(values[1]);
+                if(column != null)
+                    columns = column.getSubColumns();
+            }
+            else
+            {
+                columns = cfamily.getAllColumns();
+            }
             return thriftifyColumns(columns);
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
+        }
         finally
         {
             logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
@@ -173,54 +183,36 @@ public class CassandraServer implements Cassandra.Iface
 	}
 	
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws CassandraException, TException
+    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws InvalidRequestException
     {
         long startTime = System.currentTimeMillis();
-		try
-		{
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, columnNames));
-			if (cfamily == null)
-			{
-				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: "
-							+"   key:" + key
-							+ "  ColumnFamily:" + columnFamily);
-				throw new CassandraException("Either the key " + key + " is not present or the columnFamily requested" + columnFamily + "is not present.");
-			}
-			Collection<IColumn> columns = null;
-			columns = cfamily.getAllColumns();
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: "
-							   + "   key:" + key
-								+ "  ColumnFamily:" + columnFamily);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + columnFamily);
-			}
-
+        try
+        {
+            ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, columnNames));
+            if (cfamily == null)
+            {
+                return EMPTY_COLUMNS;
+            }
+            Collection<IColumn> columns = null;
+            columns = cfamily.getAllColumns();
             return thriftifyColumns(columns);
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
-		finally
+        }
+        finally
         {
             logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
         }
     }
     
-    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException,TException
-	{
+    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws InvalidRequestException
+    {
         long startTime = System.currentTimeMillis();
 		try
 		{
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, start, count));
-			if (cfamily == null)
+            ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, start, count));
+            if (cfamily == null)
 			{
-				logger_.info("ERROR ColumnFamily " + columnFamily_column + " is missing.....: "	+ "   key:" + key + "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested" + columnFamily_column + "are not present.");
+                return EMPTY_COLUMNS;
 			}
 			Collection<IColumn> columns = null;
 			if( values.length > 1 )
@@ -234,19 +226,7 @@ public class CassandraServer implements Cassandra.Iface
 			{
 				columns = cfamily.getAllColumns();
 			}
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-			}
-
             return thriftifyColumns(columns);
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
 		}
         finally
         {
@@ -254,116 +234,96 @@ public class CassandraServer implements Cassandra.Iface
         }
 	}
     
-    public column_t get_column(String tablename, String key, String columnFamily_column) throws CassandraException,TException
+    public column_t get_column(String tablename, String key, String columnFamily_column) throws NotFoundException, InvalidRequestException
     {
-		try
-		{
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
-			if (cfamily == null || values.length < 2)
-			{
-				logger_.info("ERROR ColumnFamily  is missing.....: "
-							+"   key:" + key
-							+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested" + columnFamily_column + "are not present.");
-			}
-			Collection<IColumn> columns = null;
-			if( values.length > 2 )
-			{
-				// this is the super column case 
-				IColumn column = cfamily.getColumn(values[1]);
-				if(column != null)
-					columns = column.getSubColumns();
-			}
-			else
-			{
-				columns = cfamily.getAllColumns();
-			}
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: "
-							   + "   key:" + key
-								+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-			}
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        if (values.length < 2)
+        {
+            throw new InvalidRequestException("get_column requires both parts of columnfamily:column");
+        }
+        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        if (cfamily == null)
+        {
+            throw new NotFoundException();
+        }
+        Collection<IColumn> columns = null;
+        if( values.length > 2 )
+        {
+            // this is the super column case
+            IColumn column = cfamily.getColumn(values[1]);
+            if(column != null)
+                columns = column.getSubColumns();
+        }
+        else
+        {
+            columns = cfamily.getAllColumns();
+        }
+        if (columns == null || columns.size() == 0)
+        {
+            throw new NotFoundException();
+        }
 
-            assert columns.size() == 1;
-            IColumn column = columns.iterator().next();
-            if (column.isMarkedForDelete())
-            {
-                return null;
-            }
-            return new column_t(column.name(), column.value(), column.timestamp());
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
+        assert columns.size() == 1;
+        IColumn column = columns.iterator().next();
+        if (column.isMarkedForDelete())
+        {
+            throw new NotFoundException();
+        }
+
+        return new column_t(column.name(), column.value(), column.timestamp());
     }
     
 
-    public int get_column_count(String tablename, String key, String columnFamily_column) throws CassandraException
-	{
-    	int count = -1;
-		try
-		{
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
-			if (cfamily == null)
-			{
-				logger_.info("ERROR ColumnFamily  is missing.....: "
-							+"   key:" + key
-							+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested" + columnFamily_column + "are not present.");
-			}
-			Collection<IColumn> columns = null;
-			if( values.length > 1 )
-			{
-				// this is the super column case 
-				IColumn column = cfamily.getColumn(values[1]);
-				if(column != null)
-					columns = column.getSubColumns();
-			}
-			else
-			{
-				columns = cfamily.getAllColumns();
-			}
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: "
-							   + "   key:" + key
-								+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-			}
-			count = columns.size();
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
-		return count;
+    public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException
+    {
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        if (cfamily == null)
+        {
+            return 0;
+        }
+        Collection<IColumn> columns = null;
+        if( values.length > 1 )
+        {
+            // this is the super column case
+            IColumn column = cfamily.getColumn(values[1]);
+            if(column != null)
+                columns = column.getSubColumns();
+        }
+        else
+        {
+            columns = cfamily.getAllColumns();
+        }
+        if (columns == null || columns.size() == 0)
+        {
+            return 0;
+        }
+        return columns.size();
 	}
 
     public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp)
 	{
-		try
-		{
-			RowMutation rm = new RowMutation(tablename, key.trim());
-			rm.add(columnFamily_column, cellData, timestamp);
+        RowMutation rm = new RowMutation(tablename, key.trim());
+        rm.add(columnFamily_column, cellData, timestamp);
+        try
+        {
             validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
-			StorageProxy.insert(rm);
-		}
-		catch (Exception e)
-		{
-			logger_.debug( LogUtil.throwableToString(e) );
-		}
-		return;
+        }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+        StorageProxy.insert(rm);
 	}
     
+    public boolean insert_blocking(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws InvalidRequestException
+    {
+        RowMutation rm = new RowMutation(tablename, key.trim());
+        rm.add(columnFamily_column, cellData, timestamp);
+        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
+        return StorageProxy.insertBlocking(rm);
+    }
+
     public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws InvalidRequestException
     {
         logger_.debug("batch_insert_blocking");
@@ -402,34 +362,19 @@ public class CassandraServer implements Cassandra.Iface
         }
 	}
 
-    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws CassandraException, TException
+    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException
     {
         long startTime = System.currentTimeMillis();
-		
 		try
 		{
 			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, superColumnNames));
 			if (cfamily == null)
 			{
-				logger_.info("ERROR ColumnFamily " + columnFamily + " is missing.....: "+"   key:" + key
-							+ "  ColumnFamily:" + columnFamily);
-				throw new CassandraException("Either the key " + key + " is not present or the column family requested" + columnFamily + "is not present.");
+                return EMPTY_SUPERCOLUMNS;
 			}
 			Collection<IColumn> columns = null;
 			columns = cfamily.getAllColumns();
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + columnFamily);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + columnFamily);
-			}
-
             return thriftifySuperColumns(columns);
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
 		}
         finally
         {
@@ -439,91 +384,57 @@ public class CassandraServer implements Cassandra.Iface
 
     private List<superColumn_t> thriftifySuperColumns(Collection<IColumn> columns)
     {
+        if (columns == null || columns.isEmpty())
+        {
+            return EMPTY_SUPERCOLUMNS;
+        }
+
         ArrayList<superColumn_t> thriftSuperColumns = new ArrayList<superColumn_t>(columns.size());
         for (IColumn column : columns)
         {
-            if (column.getSubColumns().size() == 0)
+            List<column_t> subcolumns = thriftifyColumns(column.getSubColumns());
+            if (subcolumns.isEmpty())
             {
                 continue;
             }
-            thriftSuperColumns.add(new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns())));
+            thriftSuperColumns.add(new superColumn_t(column.name(), subcolumns));
         }
+
         return thriftSuperColumns;
     }
 
-
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws CassandraException
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws InvalidRequestException
     {
-		try
-		{
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_superColumnName);
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_superColumnName, start, count));
-			if (cfamily == null)
-			{
-				logger_.info("ERROR ColumnFamily  is missing.....: "
-							+"   key:" + key
-							+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested" + columnFamily_superColumnName + "are not present.");
-			}
-			Collection<IColumn> columns = cfamily.getAllColumns();
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: "
-							   + "   key:" + key
-								+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-			}
-
-            return thriftifySuperColumns(columns);
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
+        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_superColumnName, start, count));
+        if (cfamily == null)
+        {
+            return EMPTY_SUPERCOLUMNS;
+        }
+        Collection<IColumn> columns = cfamily.getAllColumns();
+        return thriftifySuperColumns(columns);
     }
     
-    public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws CassandraException
+    public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException
     {
-		try
-		{
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
-			if (cfamily == null)
-			{
-				logger_.info("ERROR ColumnFamily  is missing.....: "
-							+"   key:" + key
-							+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("Either the key " + key + " is not present or the columns requested" + columnFamily_column + "are not present.");
-			}
-			Collection<IColumn> columns = cfamily.getAllColumns();
-			if (columns == null || columns.size() == 0)
-			{
-				logger_	.info("ERROR Columns are missing.....: "
-							   + "   key:" + key
-								+ "  ColumnFamily:" + values[0]);
-				throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-			}
+        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        if (cfamily == null)
+        {
+            throw new NotFoundException();
+        }
+        Collection<IColumn> columns = cfamily.getAllColumns();
+        if (columns == null || columns.size() == 0)
+        {
+            throw new NotFoundException();
+        }
 
-            assert columns.size() == 1;
-            IColumn column = columns.iterator().next();
-            if (column.getSubColumns().size() == 0)
-            {
-                logger_	.info("ERROR Columns are missing.....: "
-                               + "   key:" + key
-                                + "  ColumnFamily:" + values[0]);
-                throw new CassandraException("ERROR Columns are missing.....: " + "   key:" + key + "  ColumnFamily:" + values[0]);
-            }
+        assert columns.size() == 1;
+        IColumn column = columns.iterator().next();
+        if (column.getSubColumns().size() == 0)
+        {
+            throw new NotFoundException();
+        }
 
-            return new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns()));
-		}
-		catch (Exception ex)
-		{
-			String exception = LogUtil.throwableToString(ex);
-			logger_.info( exception );
-			throw new CassandraException(exception);
-		}
+        return new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns()));
     }
     
     public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws InvalidRequestException
@@ -550,7 +461,7 @@ public class CassandraServer implements Cassandra.Iface
         StorageProxy.insert(rm);
     }
 
-    public String getStringProperty(String propertyName) throws TException
+    public String getStringProperty(String propertyName)
     {
         if (propertyName.equals("cluster name"))
         {
@@ -588,7 +499,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public List<String> getStringListProperty(String propertyName) throws TException
+    public List<String> getStringListProperty(String propertyName)
     {
         if (propertyName.equals("tables"))
         {
@@ -600,7 +511,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String describeTable(String tableName) throws TException
+    public String describeTable(String tableName)
     {
         String desc = "";
         Map<String, CFMetaData> tableMetaData = DatabaseDescriptor.getTableMetaData(tableName);

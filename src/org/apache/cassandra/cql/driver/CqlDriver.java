@@ -17,12 +17,6 @@
  */
 package org.apache.cassandra.cql.driver;
 
-import org.apache.cassandra.cql.compiler.common.*;
-import org.apache.cassandra.cql.compiler.parse.*;
-import org.apache.cassandra.cql.compiler.sem.*;
-import org.apache.cassandra.cql.common.*;
-import org.apache.thrift.*;
-
 import org.apache.cassandra.cql.common.CqlResult;
 import org.apache.cassandra.cql.common.Plan;
 import org.apache.cassandra.cql.compiler.common.CqlCompiler;
@@ -37,7 +31,7 @@ public class CqlDriver
     private final static Logger logger_ = Logger.getLogger(CqlDriver.class);
 
     // Execute a CQL Statement 
-    public static CqlResult executeQuery(String query) throws TException 
+    public static CqlResult executeQuery(String query)
     {
         CqlCompiler compiler = new CqlCompiler();
 

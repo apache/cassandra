@@ -64,57 +64,55 @@ exception InvalidRequestException {
     1: string why
 }
 
-# internal server error
-exception CassandraException {
-    1: string why
-}
-
 
 #
 # service api
 #
 
 service Cassandra {
-  list<column_t> get_slice(string tablename,string key,string columnFamily_column, i32 start = -1 , i32 count = -1) 
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: CassandraException ce),
+  list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i32 start=-1, 5:i32 count=-1)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice_by_names(string tablename,string key,string columnFamily, list<string> columnNames) 
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: CassandraException ce),
+  list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> columnNames)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  column_t       get_column(string tablename,string key,string columnFamily_column) 
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: CassandraException ce),
+  column_t       get_column(1:string tablename, 2:string key, 3:string columnFamily_column)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  i32            get_column_count(string tablename,string key,string columnFamily_column) 
-  throws (1: InvalidRequestException ire, 2: CassandraException ce),
+  i32            get_column_count(1:string tablename, 2:string key, 3:string columnFamily_column)
+  throws (1: InvalidRequestException ire),
 
-  async void     insert(string tablename,string key,string columnFamily_column, binary cellData,i64 timestamp),
+  async void     insert(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp),
 
   async void     batch_insert(batch_mutation_t batchMutation),
+
+  bool           insert_blocking(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp)
+  throws (1: InvalidRequestException ire),
 
   bool           batch_insert_blocking(batch_mutation_t batchMutation)
   throws (1: InvalidRequestException ire),
 
-  bool           remove(string tablename,string key,string columnFamily_column, i64 timestamp, bool block)
+  bool           remove(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timestamp, 5:bool block)
   throws (1: InvalidRequestException ire),
 
-  list<column_t> get_columns_since(string tablename, string key, string columnFamily_column, i64 timeStamp) 
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: CassandraException ce),
+  list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timeStamp)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  list<superColumn_t> get_slice_super(string tablename, string key, string columnFamily_superColumnName, i32 start = -1 , i32 count = -1) 
-  throws (1: InvalidRequestException ire, 2: CassandraException ce),
+  list<superColumn_t> get_slice_super(1:string tablename, 2:string key, 3:string columnFamily_superColumnName, 4:i32 start=-1, 5:i32 count=-1)
+  throws (1: InvalidRequestException ire),
 
-  list<superColumn_t> get_slice_super_by_names(string tablename,string key,string columnFamily, list<string> superColumnNames) 
-  throws (1: InvalidRequestException ire, 2: CassandraException ce),
+  list<superColumn_t> get_slice_super_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> superColumnNames)
+  throws (1: InvalidRequestException ire),
 
-  superColumn_t  get_superColumn(string tablename,string key,string columnFamily) 
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: CassandraException ce),
+  superColumn_t  get_superColumn(1:string tablename, 2:string key, 3:string columnFamily)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
   async void     batch_insert_superColumn(batch_mutation_super_t batchMutationSuper),
 
   bool           batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper)
   throws (1: InvalidRequestException ire),
 
-  async void     touch(string key,bool fData),
+  async void     touch(1:string key, 2:bool fData),
 
   /////////////////////////////////////////////////////////////////////////////////////
   // The following are beta APIs being introduced for CLI and/or CQL support.        //

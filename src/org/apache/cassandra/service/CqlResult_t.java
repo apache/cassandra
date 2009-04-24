@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
+
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
-
 import org.apache.thrift.protocol.*;
-import org.apache.thrift.transport.*;
 
 public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("CqlResult_t");
@@ -34,8 +33,6 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
     public boolean errorCode = false;
-    public boolean errorTxt = false;
-    public boolean resultSet = false;
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -63,9 +60,7 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
     this.errorCode = errorCode;
     this.__isset.errorCode = true;
     this.errorTxt = errorTxt;
-    this.__isset.errorTxt = (errorTxt != null);
     this.resultSet = resultSet;
-    this.__isset.resultSet = (resultSet != null);
   }
 
   /**
@@ -74,12 +69,10 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
   public CqlResult_t(CqlResult_t other) {
     __isset.errorCode = other.__isset.errorCode;
     this.errorCode = other.errorCode;
-    __isset.errorTxt = other.__isset.errorTxt;
-    if (other.errorTxt != null) {
+    if (other.isSetErrorTxt()) {
       this.errorTxt = other.errorTxt;
     }
-    __isset.resultSet = other.__isset.resultSet;
-    if (other.resultSet != null) {
+    if (other.isSetResultSet()) {
       this.resultSet = other.resultSet;
     }
   }
@@ -117,20 +110,21 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setErrorTxt(String errorTxt) {
     this.errorTxt = errorTxt;
-    this.__isset.errorTxt = (errorTxt != null);
   }
 
   public void unsetErrorTxt() {
-    this.__isset.errorTxt = false;
+    this.errorTxt = null;
   }
 
   // Returns true if field errorTxt is set (has been asigned a value) and false otherwise
   public boolean isSetErrorTxt() {
-    return this.__isset.errorTxt;
+    return this.errorTxt != null;
   }
 
   public void setErrorTxtIsSet(boolean value) {
-    this.__isset.errorTxt = value;
+    if (!value) {
+      this.errorTxt = null;
+    }
   }
 
   public int getResultSetSize() {
@@ -146,7 +140,6 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
       this.resultSet = new ArrayList<Map<String,String>>();
     }
     this.resultSet.add(elem);
-    this.__isset.resultSet = true;
   }
 
   public List<Map<String,String>> getResultSet() {
@@ -155,35 +148,47 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setResultSet(List<Map<String,String>> resultSet) {
     this.resultSet = resultSet;
-    this.__isset.resultSet = (resultSet != null);
   }
 
   public void unsetResultSet() {
     this.resultSet = null;
-    this.__isset.resultSet = false;
   }
 
   // Returns true if field resultSet is set (has been asigned a value) and false otherwise
   public boolean isSetResultSet() {
-    return this.__isset.resultSet;
+    return this.resultSet != null;
   }
 
   public void setResultSetIsSet(boolean value) {
-    this.__isset.resultSet = value;
+    if (!value) {
+      this.resultSet = null;
+    }
   }
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
     case ERRORCODE:
-      setErrorCode((Integer)value);
+      if (value == null) {
+        unsetErrorCode();
+      } else {
+        setErrorCode((Integer)value);
+      }
       break;
 
     case ERRORTXT:
-      setErrorTxt((String)value);
+      if (value == null) {
+        unsetErrorTxt();
+      } else {
+        setErrorTxt((String)value);
+      }
       break;
 
     case RESULTSET:
-      setResultSet((List<Map<String,String>>)value);
+      if (value == null) {
+        unsetResultSet();
+      } else {
+        setResultSet((List<Map<String,String>>)value);
+      }
       break;
 
     default:
@@ -211,11 +216,11 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
   public boolean isSet(int fieldID) {
     switch (fieldID) {
     case ERRORCODE:
-      return this.__isset.errorCode;
+      return isSetErrorCode();
     case ERRORTXT:
-      return this.__isset.errorTxt;
+      return isSetErrorTxt();
     case RESULTSET:
-      return this.__isset.resultSet;
+      return isSetResultSet();
     default:
       throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
@@ -243,8 +248,8 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
         return false;
     }
 
-    boolean this_present_errorTxt = true && (this.errorTxt != null);
-    boolean that_present_errorTxt = true && (that.errorTxt != null);
+    boolean this_present_errorTxt = true && this.isSetErrorTxt();
+    boolean that_present_errorTxt = true && that.isSetErrorTxt();
     if (this_present_errorTxt || that_present_errorTxt) {
       if (!(this_present_errorTxt && that_present_errorTxt))
         return false;
@@ -252,8 +257,8 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
         return false;
     }
 
-    boolean this_present_resultSet = true && (this.resultSet != null);
-    boolean that_present_resultSet = true && (that.resultSet != null);
+    boolean this_present_resultSet = true && this.isSetResultSet();
+    boolean that_present_resultSet = true && that.isSetResultSet();
     if (this_present_resultSet || that_present_resultSet) {
       if (!(this_present_resultSet && that_present_resultSet))
         return false;
@@ -291,7 +296,6 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
         case ERRORTXT:
           if (field.type == TType.STRING) {
             this.errorTxt = iprot.readString();
-            this.__isset.errorTxt = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -321,7 +325,6 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
               }
               iprot.readListEnd();
             }
-            this.__isset.resultSet = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -378,17 +381,24 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
     StringBuilder sb = new StringBuilder("CqlResult_t(");
     boolean first = true;
 
-    if (!first) sb.append(", ");
     sb.append("errorCode:");
     sb.append(this.errorCode);
     first = false;
     if (!first) sb.append(", ");
     sb.append("errorTxt:");
-    sb.append(this.errorTxt);
+    if (this.errorTxt == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.errorTxt);
+    }
     first = false;
     if (!first) sb.append(", ");
     sb.append("resultSet:");
-    sb.append(this.resultSet);
+    if (this.resultSet == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.resultSet);
+    }
     first = false;
     sb.append(")");
     return sb.toString();

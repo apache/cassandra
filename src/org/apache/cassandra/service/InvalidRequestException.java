@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
+
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
-
 import org.apache.thrift.protocol.*;
-import org.apache.thrift.transport.*;
 
 public class InvalidRequestException extends Exception implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("InvalidRequestException");
@@ -27,7 +26,6 @@ public class InvalidRequestException extends Exception implements TBase, java.io
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
-    public boolean why = false;
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -47,15 +45,13 @@ public class InvalidRequestException extends Exception implements TBase, java.io
   {
     this();
     this.why = why;
-    this.__isset.why = (why != null);
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
   public InvalidRequestException(InvalidRequestException other) {
-    __isset.why = other.__isset.why;
-    if (other.why != null) {
+    if (other.isSetWhy()) {
       this.why = other.why;
     }
   }
@@ -71,26 +67,31 @@ public class InvalidRequestException extends Exception implements TBase, java.io
 
   public void setWhy(String why) {
     this.why = why;
-    this.__isset.why = (why != null);
   }
 
   public void unsetWhy() {
-    this.__isset.why = false;
+    this.why = null;
   }
 
   // Returns true if field why is set (has been asigned a value) and false otherwise
   public boolean isSetWhy() {
-    return this.__isset.why;
+    return this.why != null;
   }
 
   public void setWhyIsSet(boolean value) {
-    this.__isset.why = value;
+    if (!value) {
+      this.why = null;
+    }
   }
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
     case WHY:
-      setWhy((String)value);
+      if (value == null) {
+        unsetWhy();
+      } else {
+        setWhy((String)value);
+      }
       break;
 
     default:
@@ -112,7 +113,7 @@ public class InvalidRequestException extends Exception implements TBase, java.io
   public boolean isSet(int fieldID) {
     switch (fieldID) {
     case WHY:
-      return this.__isset.why;
+      return isSetWhy();
     default:
       throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
@@ -131,8 +132,8 @@ public class InvalidRequestException extends Exception implements TBase, java.io
     if (that == null)
       return false;
 
-    boolean this_present_why = true && (this.why != null);
-    boolean that_present_why = true && (that.why != null);
+    boolean this_present_why = true && this.isSetWhy();
+    boolean that_present_why = true && that.isSetWhy();
     if (this_present_why || that_present_why) {
       if (!(this_present_why && that_present_why))
         return false;
@@ -162,7 +163,6 @@ public class InvalidRequestException extends Exception implements TBase, java.io
         case WHY:
           if (field.type == TType.STRING) {
             this.why = iprot.readString();
-            this.__isset.why = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -198,9 +198,12 @@ public class InvalidRequestException extends Exception implements TBase, java.io
     StringBuilder sb = new StringBuilder("InvalidRequestException(");
     boolean first = true;
 
-    if (!first) sb.append(", ");
     sb.append("why:");
-    sb.append(this.why);
+    if (this.why == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.why);
+    }
     first = false;
     sb.append(")");
     return sb.toString();

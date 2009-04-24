@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
+
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
-
 import org.apache.thrift.protocol.*;
-import org.apache.thrift.transport.*;
 
 public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("superColumn_t");
@@ -30,8 +29,6 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
-    public boolean name = false;
-    public boolean columns = false;
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -55,21 +52,17 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
   {
     this();
     this.name = name;
-    this.__isset.name = (name != null);
     this.columns = columns;
-    this.__isset.columns = (columns != null);
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
   public superColumn_t(superColumn_t other) {
-    __isset.name = other.__isset.name;
-    if (other.name != null) {
+    if (other.isSetName()) {
       this.name = other.name;
     }
-    __isset.columns = other.__isset.columns;
-    if (other.columns != null) {
+    if (other.isSetColumns()) {
       List<column_t> __this__columns = new ArrayList<column_t>();
       for (column_t other_element : other.columns) {
         __this__columns.add(new column_t(other_element));
@@ -89,20 +82,21 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setName(String name) {
     this.name = name;
-    this.__isset.name = (name != null);
   }
 
   public void unsetName() {
-    this.__isset.name = false;
+    this.name = null;
   }
 
   // Returns true if field name is set (has been asigned a value) and false otherwise
   public boolean isSetName() {
-    return this.__isset.name;
+    return this.name != null;
   }
 
   public void setNameIsSet(boolean value) {
-    this.__isset.name = value;
+    if (!value) {
+      this.name = null;
+    }
   }
 
   public int getColumnsSize() {
@@ -118,7 +112,6 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
       this.columns = new ArrayList<column_t>();
     }
     this.columns.add(elem);
-    this.__isset.columns = true;
   }
 
   public List<column_t> getColumns() {
@@ -127,31 +120,39 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setColumns(List<column_t> columns) {
     this.columns = columns;
-    this.__isset.columns = (columns != null);
   }
 
   public void unsetColumns() {
     this.columns = null;
-    this.__isset.columns = false;
   }
 
   // Returns true if field columns is set (has been asigned a value) and false otherwise
   public boolean isSetColumns() {
-    return this.__isset.columns;
+    return this.columns != null;
   }
 
   public void setColumnsIsSet(boolean value) {
-    this.__isset.columns = value;
+    if (!value) {
+      this.columns = null;
+    }
   }
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
     case NAME:
-      setName((String)value);
+      if (value == null) {
+        unsetName();
+      } else {
+        setName((String)value);
+      }
       break;
 
     case COLUMNS:
-      setColumns((List<column_t>)value);
+      if (value == null) {
+        unsetColumns();
+      } else {
+        setColumns((List<column_t>)value);
+      }
       break;
 
     default:
@@ -176,9 +177,9 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
   public boolean isSet(int fieldID) {
     switch (fieldID) {
     case NAME:
-      return this.__isset.name;
+      return isSetName();
     case COLUMNS:
-      return this.__isset.columns;
+      return isSetColumns();
     default:
       throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
@@ -197,8 +198,8 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
     if (that == null)
       return false;
 
-    boolean this_present_name = true && (this.name != null);
-    boolean that_present_name = true && (that.name != null);
+    boolean this_present_name = true && this.isSetName();
+    boolean that_present_name = true && that.isSetName();
     if (this_present_name || that_present_name) {
       if (!(this_present_name && that_present_name))
         return false;
@@ -206,8 +207,8 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
         return false;
     }
 
-    boolean this_present_columns = true && (this.columns != null);
-    boolean that_present_columns = true && (that.columns != null);
+    boolean this_present_columns = true && this.isSetColumns();
+    boolean that_present_columns = true && that.isSetColumns();
     if (this_present_columns || that_present_columns) {
       if (!(this_present_columns && that_present_columns))
         return false;
@@ -237,7 +238,6 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
         case NAME:
           if (field.type == TType.STRING) {
             this.name = iprot.readString();
-            this.__isset.name = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -256,7 +256,6 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
               }
               iprot.readListEnd();
             }
-            this.__isset.columns = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -303,13 +302,20 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
     StringBuilder sb = new StringBuilder("superColumn_t(");
     boolean first = true;
 
-    if (!first) sb.append(", ");
     sb.append("name:");
-    sb.append(this.name);
+    if (this.name == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.name);
+    }
     first = false;
     if (!first) sb.append(", ");
     sb.append("columns:");
-    sb.append(this.columns);
+    if (this.columns == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.columns);
+    }
     first = false;
     sb.append(")");
     return sb.toString();

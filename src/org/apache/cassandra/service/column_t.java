@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
+
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
-
 import org.apache.thrift.protocol.*;
-import org.apache.thrift.transport.*;
 
 public class column_t implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("column_t");
@@ -33,8 +32,6 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
-    public boolean columnName = false;
-    public boolean value = false;
     public boolean timestamp = false;
   }
 
@@ -61,9 +58,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   {
     this();
     this.columnName = columnName;
-    this.__isset.columnName = (columnName != null);
     this.value = value;
-    this.__isset.value = (value != null);
     this.timestamp = timestamp;
     this.__isset.timestamp = true;
   }
@@ -72,12 +67,10 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
    * Performs a deep copy on <i>other</i>.
    */
   public column_t(column_t other) {
-    __isset.columnName = other.__isset.columnName;
-    if (other.columnName != null) {
+    if (other.isSetColumnName()) {
       this.columnName = other.columnName;
     }
-    __isset.value = other.__isset.value;
-    if (other.value != null) {
+    if (other.isSetValue()) {
       this.value = new byte[other.value.length];
       System.arraycopy(other.value, 0, value, 0, other.value.length);
     }
@@ -96,20 +89,21 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setColumnName(String columnName) {
     this.columnName = columnName;
-    this.__isset.columnName = (columnName != null);
   }
 
   public void unsetColumnName() {
-    this.__isset.columnName = false;
+    this.columnName = null;
   }
 
   // Returns true if field columnName is set (has been asigned a value) and false otherwise
   public boolean isSetColumnName() {
-    return this.__isset.columnName;
+    return this.columnName != null;
   }
 
   public void setColumnNameIsSet(boolean value) {
-    this.__isset.columnName = value;
+    if (!value) {
+      this.columnName = null;
+    }
   }
 
   public byte[] getValue() {
@@ -118,20 +112,21 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setValue(byte[] value) {
     this.value = value;
-    this.__isset.value = (value != null);
   }
 
   public void unsetValue() {
-    this.__isset.value = false;
+    this.value = null;
   }
 
   // Returns true if field value is set (has been asigned a value) and false otherwise
   public boolean isSetValue() {
-    return this.__isset.value;
+    return this.value != null;
   }
 
   public void setValueIsSet(boolean value) {
-    this.__isset.value = value;
+    if (!value) {
+      this.value = null;
+    }
   }
 
   public long getTimestamp() {
@@ -159,15 +154,27 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
     case COLUMNNAME:
-      setColumnName((String)value);
+      if (value == null) {
+        unsetColumnName();
+      } else {
+        setColumnName((String)value);
+      }
       break;
 
     case VALUE:
-      setValue((byte[])value);
+      if (value == null) {
+        unsetValue();
+      } else {
+        setValue((byte[])value);
+      }
       break;
 
     case TIMESTAMP:
-      setTimestamp((Long)value);
+      if (value == null) {
+        unsetTimestamp();
+      } else {
+        setTimestamp((Long)value);
+      }
       break;
 
     default:
@@ -195,11 +202,11 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   public boolean isSet(int fieldID) {
     switch (fieldID) {
     case COLUMNNAME:
-      return this.__isset.columnName;
+      return isSetColumnName();
     case VALUE:
-      return this.__isset.value;
+      return isSetValue();
     case TIMESTAMP:
-      return this.__isset.timestamp;
+      return isSetTimestamp();
     default:
       throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
@@ -218,8 +225,8 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     if (that == null)
       return false;
 
-    boolean this_present_columnName = true && (this.columnName != null);
-    boolean that_present_columnName = true && (that.columnName != null);
+    boolean this_present_columnName = true && this.isSetColumnName();
+    boolean that_present_columnName = true && that.isSetColumnName();
     if (this_present_columnName || that_present_columnName) {
       if (!(this_present_columnName && that_present_columnName))
         return false;
@@ -227,8 +234,8 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
         return false;
     }
 
-    boolean this_present_value = true && (this.value != null);
-    boolean that_present_value = true && (that.value != null);
+    boolean this_present_value = true && this.isSetValue();
+    boolean that_present_value = true && that.isSetValue();
     if (this_present_value || that_present_value) {
       if (!(this_present_value && that_present_value))
         return false;
@@ -267,7 +274,6 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
         case COLUMNNAME:
           if (field.type == TType.STRING) {
             this.columnName = iprot.readString();
-            this.__isset.columnName = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -275,7 +281,6 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
         case VALUE:
           if (field.type == TType.STRING) {
             this.value = iprot.readBinary();
-            this.__isset.value = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -327,21 +332,24 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     StringBuilder sb = new StringBuilder("column_t(");
     boolean first = true;
 
-    if (!first) sb.append(", ");
     sb.append("columnName:");
-    sb.append(this.columnName);
+    if (this.columnName == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.columnName);
+    }
     first = false;
     if (!first) sb.append(", ");
     sb.append("value:");
-    if (value == null) { 
+    if (this.value == null) {
       sb.append("null");
     } else {
-      int __value_size = Math.min(this.value.length, 128);
-      for (int i = 0; i < __value_size; i++) {
-        if (i != 0) sb.append(" ");
-        sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
-      }
-      if (this.value.length > 128) sb.append(" ...");
+        int __value_size = Math.min(this.value.length, 128);
+        for (int i = 0; i < __value_size; i++) {
+          if (i != 0) sb.append(" ");
+          sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
+        }
+        if (this.value.length > 128) sb.append(" ...");
     }
     first = false;
     if (!first) sb.append(", ");
