@@ -94,11 +94,6 @@ public class RowMutationVerbHandler implements IVerbHandler
             logger_.debug("Mutation applied in " + (end - start) + "ms.  Sending response to " +  message.getFrom() + " for key :" + rm.key());
             MessagingService.getMessagingInstance().sendOneWay(responseMessage, message.getFrom());
         }
-        catch(ColumnFamilyNotDefinedException ex)
-        {
-            // TODO shouldn't this be checked before it's sent to us?
-            logger_.warn("column family not defined, and no way to tell the client", ex);
-        }
         catch (IOException e)
         {
             logger_.error("Error in row mutation", e);

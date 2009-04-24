@@ -36,7 +36,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testNameSort() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testNameSort() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
 
@@ -75,7 +75,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testTimeSort() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testTimeSort() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
 
@@ -135,7 +135,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         }
     }
 
-    private void validateTimeSort(Table table) throws IOException, ColumnFamilyNotDefinedException
+    private void validateTimeSort(Table table) throws IOException
     {
         for (int i = 900; i < 1000; ++i)
         {
@@ -154,8 +154,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         }
     }
 
-    private void validateNameSort(Table table)
-            throws ColumnFamilyNotDefinedException, IOException
+    private void validateNameSort(Table table) throws IOException
     {
         for (int i = 900; i < 1000; ++i)
         {
@@ -191,7 +190,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveColumn() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveColumn() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -214,7 +213,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveSubColumn() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveSubColumn() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
@@ -237,7 +236,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveSuperColumn() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveSuperColumn() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
@@ -266,7 +265,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveColumnFamily() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveColumnFamily() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -289,7 +288,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveColumnFamilyWithFlush1() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveColumnFamilyWithFlush1() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -314,7 +313,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testRemoveColumnFamilyWithFlush2() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testRemoveColumnFamilyWithFlush2() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
@@ -390,7 +389,7 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testCompaction() throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    public void testCompaction() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");

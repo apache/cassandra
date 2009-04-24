@@ -41,6 +41,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
+import org.apache.cassandra.db.TableNotDefinedException;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.thrift.TException;
 
@@ -76,28 +77,34 @@ public class CassandraServer implements Cassandra.Iface
 		storageService.start();
 	}
 	
-	private void validateTable(String table) throws CassandraException
+	private void validateCommand(String key, String tablename, String... columnFamilyNames) throws InvalidRequestException
 	{
-		if ( !DatabaseDescriptor.getTables().contains(table) )
+        if (key.isEmpty())
+        {
+            throw new InvalidRequestException("Key may not be empty");
+        }
+		if ( !DatabaseDescriptor.getTables().contains(tablename) )
 		{
-			throw new CassandraException("Table " + table + " does not exist in this schema.");
+			throw new TableNotDefinedException("Table " + tablename + " does not exist in this schema.");
 		}
+        Table table = Table.open(tablename);
+        for (String cfName : columnFamilyNames)
+        {
+            if (!table.getColumnFamilies().contains(cfName))
+            {
+                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " is invalid.");
+            }
+        }
 	}
     
-	protected ColumnFamily readColumnFamily(ReadCommand command) throws CassandraException, TException, IOException, ColumnFamilyNotDefinedException, TimeoutException
+	protected ColumnFamily readColumnFamily(ReadCommand command) throws CassandraException, TException, IOException, InvalidRequestException, TimeoutException
     {
-        validateTable(command.table);
         String[] values = RowMutation.getColumnAndColumnFamily(command.columnFamilyColumn);
         if( values.length < 1 )
         {
-            throw new CassandraException("Empty column Family is invalid.");
+            throw new ColumnFamilyNotDefinedException("Empty column Family is invalid.");
         }
-        Table table = Table.open(command.table);
-        if (!table.getColumnFamilies().contains(values[0]))
-        {
-            throw new CassandraException("Column Family " + values[0] + " is invalid.");
-        }
-
+        validateCommand(command.key, command.table, values[0]);
         Row row = StorageProxy.readProtocol(command, StorageService.ConsistencyLevel.WEAK);
         if (row == null)
         {
@@ -121,7 +128,7 @@ public class CassandraServer implements Cassandra.Iface
         return thriftColumns;
     }
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException,TException
+    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException, TException
 	{
         long startTime = System.currentTimeMillis();
 		try
@@ -171,7 +178,6 @@ public class CassandraServer implements Cassandra.Iface
         long startTime = System.currentTimeMillis();
 		try
 		{
-			validateTable(tablename);
 			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, columnNames));
 			if (cfamily == null)
 			{
@@ -346,9 +352,9 @@ public class CassandraServer implements Cassandra.Iface
 	{
 		try
 		{
-			validateTable(tablename);
 			RowMutation rm = new RowMutation(tablename, key.trim());
 			rm.add(columnFamily_column, cellData, timestamp);
+            validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
 			StorageProxy.insert(rm);
 		}
 		catch (Exception e)
@@ -358,25 +364,36 @@ public class CassandraServer implements Cassandra.Iface
 		return;
 	}
     
-    public boolean batch_insert_blocking(batch_mutation_t batchMutation)
+    public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws InvalidRequestException
     {
         logger_.debug("batch_insert_blocking");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
+        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
         return StorageProxy.insertBlocking(rm);
     }
 
 	public void batch_insert(batch_mutation_t batchMutation)
-	{
+    {
         logger_.debug("batch_insert");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
+        try
+        {
+            validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
+        }
+        catch (InvalidRequestException e)
+        {
+            // it would be confusing to declare an exception in thrift that can't be returned to the client
+            throw new RuntimeException(e);
+        }
         StorageProxy.insert(rm);
 	}
 
-    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block)
-	{
+    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException
+    {
         logger_.debug("remove");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.delete(columnFamily_column, timestamp);
+        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
         if (block) {
             return StorageProxy.insertBlocking(rm);
         } else {
@@ -391,7 +408,6 @@ public class CassandraServer implements Cassandra.Iface
 		
 		try
 		{
-			validateTable(tablename);
 			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, superColumnNames));
 			if (cfamily == null)
 			{
@@ -510,10 +526,11 @@ public class CassandraServer implements Cassandra.Iface
 		}
     }
     
-    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper)
+    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws InvalidRequestException
     {
         logger_.debug("batch_insert_SuperColumn_blocking");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
+        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
         return StorageProxy.insertBlocking(rm);
     }
 
@@ -521,6 +538,15 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger_.debug("batch_insert_SuperColumn");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
+        try
+        {
+            validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
+        }
+        catch (InvalidRequestException e)
+        {
+            // it would be confusing to declare an exception in thrift that can't be returned to the client
+            throw new RuntimeException(e);
+        }
         StorageProxy.insert(rm);
     }
 

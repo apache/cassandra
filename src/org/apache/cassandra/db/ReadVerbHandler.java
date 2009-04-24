@@ -114,10 +114,6 @@ public class ReadVerbHandler implements IVerbHandler
         {
             logger_.info( LogUtil.throwableToString(ex) );
         }
-        catch ( ColumnFamilyNotDefinedException ex)
-        {
-            logger_.info( LogUtil.throwableToString(ex) );
-        }
     }
     
     private void doReadRepair(Row row, ReadCommand readCommand)

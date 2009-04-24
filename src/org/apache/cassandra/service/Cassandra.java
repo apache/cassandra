@@ -22,33 +22,33 @@ public class Cassandra {
 
   public interface Iface {
 
-    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException, TException;
+    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws InvalidRequestException, NotFoundException, CassandraException, TException;
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws CassandraException, TException;
+    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws InvalidRequestException, NotFoundException, CassandraException, TException;
 
-    public column_t get_column(String tablename, String key, String columnFamily_column) throws CassandraException, TException;
+    public column_t get_column(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException, CassandraException, TException;
 
-    public int get_column_count(String tablename, String key, String columnFamily_column) throws CassandraException, TException;
+    public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException, CassandraException, TException;
 
     public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws TException;
 
     public void batch_insert(batch_mutation_t batchMutation) throws TException;
 
-    public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws CassandraException, TException;
+    public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws InvalidRequestException, TException;
 
-    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws TException;
+    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException, TException;
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException, TException;
+    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws InvalidRequestException, NotFoundException, CassandraException, TException;
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws CassandraException, TException;
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws InvalidRequestException, CassandraException, TException;
 
-    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws CassandraException, TException;
+    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException, CassandraException, TException;
 
-    public superColumn_t get_superColumn(String tablename, String key, String columnFamily) throws CassandraException, TException;
+    public superColumn_t get_superColumn(String tablename, String key, String columnFamily) throws InvalidRequestException, NotFoundException, CassandraException, TException;
 
     public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper) throws TException;
 
-    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws CassandraException, TException;
+    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws InvalidRequestException, TException;
 
     public void touch(String key, boolean fData) throws TException;
 
@@ -89,7 +89,7 @@ public class Cassandra {
       return this.oprot_;
     }
 
-    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws CassandraException, TException
+    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       send_get_slice(tablename, key, columnFamily_column, start, count);
       return recv_get_slice();
@@ -109,7 +109,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<column_t> recv_get_slice() throws CassandraException, TException
+    public List<column_t> recv_get_slice() throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -123,13 +123,19 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.nfe) {
+        throw result.nfe;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice failed: unknown result");
     }
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws CassandraException, TException
+    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       send_get_slice_by_names(tablename, key, columnFamily, columnNames);
       return recv_get_slice_by_names();
@@ -148,7 +154,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<column_t> recv_get_slice_by_names() throws CassandraException, TException
+    public List<column_t> recv_get_slice_by_names() throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -162,13 +168,19 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.nfe) {
+        throw result.nfe;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_by_names failed: unknown result");
     }
 
-    public column_t get_column(String tablename, String key, String columnFamily_column) throws CassandraException, TException
+    public column_t get_column(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       send_get_column(tablename, key, columnFamily_column);
       return recv_get_column();
@@ -186,7 +198,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public column_t recv_get_column() throws CassandraException, TException
+    public column_t recv_get_column() throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -200,13 +212,19 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.nfe) {
+        throw result.nfe;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column failed: unknown result");
     }
 
-    public int get_column_count(String tablename, String key, String columnFamily_column) throws CassandraException, TException
+    public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException, CassandraException, TException
     {
       send_get_column_count(tablename, key, columnFamily_column);
       return recv_get_column_count();
@@ -224,7 +242,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public int recv_get_column_count() throws CassandraException, TException
+    public int recv_get_column_count() throws InvalidRequestException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -238,8 +256,11 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column_count failed: unknown result");
     }
@@ -278,7 +299,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws CassandraException, TException
+    public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws InvalidRequestException, TException
     {
       send_batch_insert_blocking(batchMutation);
       return recv_batch_insert_blocking();
@@ -294,7 +315,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public boolean recv_batch_insert_blocking() throws CassandraException, TException
+    public boolean recv_batch_insert_blocking() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -308,13 +329,13 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "batch_insert_blocking failed: unknown result");
     }
 
-    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws TException
+    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException, TException
     {
       send_remove(tablename, key, columnFamily_column, timestamp, block);
       return recv_remove();
@@ -334,7 +355,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public boolean recv_remove() throws TException
+    public boolean recv_remove() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -348,10 +369,13 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "remove failed: unknown result");
     }
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws CassandraException, TException
+    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       send_get_columns_since(tablename, key, columnFamily_column, timeStamp);
       return recv_get_columns_since();
@@ -370,7 +394,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<column_t> recv_get_columns_since() throws CassandraException, TException
+    public List<column_t> recv_get_columns_since() throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -384,13 +408,19 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.nfe) {
+        throw result.nfe;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_columns_since failed: unknown result");
     }
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws CassandraException, TException
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws InvalidRequestException, CassandraException, TException
     {
       send_get_slice_super(tablename, key, columnFamily_superColumnName, start, count);
       return recv_get_slice_super();
@@ -410,7 +440,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<superColumn_t> recv_get_slice_super() throws CassandraException, TException
+    public List<superColumn_t> recv_get_slice_super() throws InvalidRequestException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -424,13 +454,16 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super failed: unknown result");
     }
 
-    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws CassandraException, TException
+    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException, CassandraException, TException
     {
       send_get_slice_super_by_names(tablename, key, columnFamily, superColumnNames);
       return recv_get_slice_super_by_names();
@@ -449,7 +482,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<superColumn_t> recv_get_slice_super_by_names() throws CassandraException, TException
+    public List<superColumn_t> recv_get_slice_super_by_names() throws InvalidRequestException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -463,13 +496,16 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super_by_names failed: unknown result");
     }
 
-    public superColumn_t get_superColumn(String tablename, String key, String columnFamily) throws CassandraException, TException
+    public superColumn_t get_superColumn(String tablename, String key, String columnFamily) throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       send_get_superColumn(tablename, key, columnFamily);
       return recv_get_superColumn();
@@ -487,7 +523,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public superColumn_t recv_get_superColumn() throws CassandraException, TException
+    public superColumn_t recv_get_superColumn() throws InvalidRequestException, NotFoundException, CassandraException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -501,8 +537,14 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
+      }
+      if (result.__isset.nfe) {
+        throw result.nfe;
+      }
+      if (result.__isset.ce) {
+        throw result.ce;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_superColumn failed: unknown result");
     }
@@ -522,7 +564,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws CassandraException, TException
+    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws InvalidRequestException, TException
     {
       send_batch_insert_superColumn_blocking(batchMutationSuper);
       return recv_batch_insert_superColumn_blocking();
@@ -538,7 +580,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public boolean recv_batch_insert_superColumn_blocking() throws CassandraException, TException
+    public boolean recv_batch_insert_superColumn_blocking() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -552,8 +594,8 @@ public class Cassandra {
       if (result.__isset.success) {
         return result.success;
       }
-      if (result.__isset.e) {
-        throw result.e;
+      if (result.__isset.ire) {
+        throw result.ire;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "batch_insert_superColumn_blocking failed: unknown result");
     }
@@ -767,9 +809,15 @@ public class Cassandra {
         try {
           result.success = iface_.get_slice(args.tablename, args.key, args.columnFamily_column, args.start, args.count);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+          result.__isset.nfe = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_slice", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -789,9 +837,15 @@ public class Cassandra {
         try {
           result.success = iface_.get_slice_by_names(args.tablename, args.key, args.columnFamily, args.columnNames);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+          result.__isset.nfe = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_slice_by_names", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -811,9 +865,15 @@ public class Cassandra {
         try {
           result.success = iface_.get_column(args.tablename, args.key, args.columnFamily_column);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+          result.__isset.nfe = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_column", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -833,9 +893,12 @@ public class Cassandra {
         try {
           result.success = iface_.get_column_count(args.tablename, args.key, args.columnFamily_column);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_column_count", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -877,9 +940,9 @@ public class Cassandra {
         try {
           result.success = iface_.batch_insert_blocking(args.batchMutation);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
         }
         oprot.writeMessageBegin(new TMessage("batch_insert_blocking", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -896,8 +959,13 @@ public class Cassandra {
         args.read(iprot);
         iprot.readMessageEnd();
         remove_result result = new remove_result();
-        result.success = iface_.remove(args.tablename, args.key, args.columnFamily_column, args.timestamp, args.block);
-        result.__isset.success = true;
+        try {
+          result.success = iface_.remove(args.tablename, args.key, args.columnFamily_column, args.timestamp, args.block);
+          result.__isset.success = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        }
         oprot.writeMessageBegin(new TMessage("remove", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
@@ -916,9 +984,15 @@ public class Cassandra {
         try {
           result.success = iface_.get_columns_since(args.tablename, args.key, args.columnFamily_column, args.timeStamp);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+          result.__isset.nfe = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_columns_since", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -938,9 +1012,12 @@ public class Cassandra {
         try {
           result.success = iface_.get_slice_super(args.tablename, args.key, args.columnFamily_superColumnName, args.start, args.count);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_slice_super", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -960,9 +1037,12 @@ public class Cassandra {
         try {
           result.success = iface_.get_slice_super_by_names(args.tablename, args.key, args.columnFamily, args.superColumnNames);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_slice_super_by_names", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -982,9 +1062,15 @@ public class Cassandra {
         try {
           result.success = iface_.get_superColumn(args.tablename, args.key, args.columnFamily);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+          result.__isset.nfe = true;
+        } catch (CassandraException ce) {
+          result.ce = ce;
+          result.__isset.ce = true;
         }
         oprot.writeMessageBegin(new TMessage("get_superColumn", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -1015,9 +1101,9 @@ public class Cassandra {
         try {
           result.success = iface_.batch_insert_superColumn_blocking(args.batchMutationSuper);
           result.__isset.success = true;
-        } catch (CassandraException e) {
-          result.e = e;
-          result.__isset.e = true;
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+          result.__isset.ire = true;
         }
         oprot.writeMessageBegin(new TMessage("batch_insert_superColumn_blocking", TMessageType.REPLY, seqid));
         result.write(oprot);
@@ -1582,24 +1668,36 @@ public class Cassandra {
   public static class get_slice_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)3);
 
     public List<column_t> success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public NotFoundException nfe;
+    public static final int NFE = 2;
+    public CassandraException ce;
+    public static final int CE = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean nfe = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, column_t.class))));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -1612,13 +1710,19 @@ public class Cassandra {
 
     public get_slice_result(
       List<column_t> success,
-      CassandraException e)
+      InvalidRequestException ire,
+      NotFoundException nfe,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -1633,9 +1737,17 @@ public class Cassandra {
         }
         this.success = __this__success;
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.nfe = other.__isset.nfe;
+      if (other.nfe != null) {
+        this.nfe = new NotFoundException(other.nfe);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -1683,27 +1795,73 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+      this.__isset.nfe = false;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.__isset.nfe;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      this.__isset.nfe = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -1712,8 +1870,16 @@ public class Cassandra {
         setSuccess((List<column_t>)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case NFE:
+        setNfe((NotFoundException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -1726,8 +1892,14 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case NFE:
+        return getNfe();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -1739,8 +1911,12 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case NFE:
+        return this.__isset.nfe;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -1768,12 +1944,30 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_nfe = true && (this.nfe != null);
+      boolean that_present_nfe = true && (that.nfe != null);
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -1799,14 +1993,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list49 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list49.size);
-                for (int _i50 = 0; _i50 < _list49.size; ++_i50)
+                TList _list31 = iprot.readListBegin();
+                this.success = new ArrayList<column_t>(_list31.size);
+                for (int _i32 = 0; _i32 < _list31.size; ++_i32)
                 {
-                  column_t _elem51;
-                  _elem51 = new column_t();
-                  _elem51.read(iprot);
-                  this.success.add(_elem51);
+                  column_t _elem33;
+                  _elem33 = new column_t();
+                  _elem33.read(iprot);
+                  this.success.add(_elem33);
                 }
                 iprot.readListEnd();
               }
@@ -1815,11 +2009,29 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+              this.__isset.nfe = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -1845,17 +2057,29 @@ public class Cassandra {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-            for (column_t _iter52 : this.success)            {
-              _iter52.write(oprot);
+            for (column_t _iter34 : this.success)            {
+              _iter34.write(oprot);
             }
             oprot.writeListEnd();
           }
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.nfe) {
+        if (this.nfe != null) {
+          oprot.writeFieldBegin(NFE_FIELD_DESC);
+          this.nfe.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -1873,8 +2097,16 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      sb.append(this.nfe);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -2236,13 +2468,13 @@ public class Cassandra {
           case COLUMNNAMES:
             if (field.type == TType.LIST) {
               {
-                TList _list53 = iprot.readListBegin();
-                this.columnNames = new ArrayList<String>(_list53.size);
-                for (int _i54 = 0; _i54 < _list53.size; ++_i54)
+                TList _list35 = iprot.readListBegin();
+                this.columnNames = new ArrayList<String>(_list35.size);
+                for (int _i36 = 0; _i36 < _list35.size; ++_i36)
                 {
-                  String _elem55;
-                  _elem55 = iprot.readString();
-                  this.columnNames.add(_elem55);
+                  String _elem37;
+                  _elem37 = iprot.readString();
+                  this.columnNames.add(_elem37);
                 }
                 iprot.readListEnd();
               }
@@ -2287,8 +2519,8 @@ public class Cassandra {
         oprot.writeFieldBegin(COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.columnNames.size()));
-          for (String _iter56 : this.columnNames)          {
-            oprot.writeString(_iter56);
+          for (String _iter38 : this.columnNames)          {
+            oprot.writeString(_iter38);
           }
           oprot.writeListEnd();
         }
@@ -2333,24 +2565,36 @@ public class Cassandra {
   public static class get_slice_by_names_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_by_names_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)3);
 
     public List<column_t> success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public NotFoundException nfe;
+    public static final int NFE = 2;
+    public CassandraException ce;
+    public static final int CE = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean nfe = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, column_t.class))));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -2363,13 +2607,19 @@ public class Cassandra {
 
     public get_slice_by_names_result(
       List<column_t> success,
-      CassandraException e)
+      InvalidRequestException ire,
+      NotFoundException nfe,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -2384,9 +2634,17 @@ public class Cassandra {
         }
         this.success = __this__success;
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.nfe = other.__isset.nfe;
+      if (other.nfe != null) {
+        this.nfe = new NotFoundException(other.nfe);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -2434,27 +2692,73 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+      this.__isset.nfe = false;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.__isset.nfe;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      this.__isset.nfe = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -2463,8 +2767,16 @@ public class Cassandra {
         setSuccess((List<column_t>)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case NFE:
+        setNfe((NotFoundException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -2477,8 +2789,14 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case NFE:
+        return getNfe();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -2490,8 +2808,12 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case NFE:
+        return this.__isset.nfe;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -2519,12 +2841,30 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_nfe = true && (this.nfe != null);
+      boolean that_present_nfe = true && (that.nfe != null);
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -2550,14 +2890,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list57 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list57.size);
-                for (int _i58 = 0; _i58 < _list57.size; ++_i58)
+                TList _list39 = iprot.readListBegin();
+                this.success = new ArrayList<column_t>(_list39.size);
+                for (int _i40 = 0; _i40 < _list39.size; ++_i40)
                 {
-                  column_t _elem59;
-                  _elem59 = new column_t();
-                  _elem59.read(iprot);
-                  this.success.add(_elem59);
+                  column_t _elem41;
+                  _elem41 = new column_t();
+                  _elem41.read(iprot);
+                  this.success.add(_elem41);
                 }
                 iprot.readListEnd();
               }
@@ -2566,11 +2906,29 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+              this.__isset.nfe = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2596,17 +2954,29 @@ public class Cassandra {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-            for (column_t _iter60 : this.success)            {
-              _iter60.write(oprot);
+            for (column_t _iter42 : this.success)            {
+              _iter42.write(oprot);
             }
             oprot.writeListEnd();
           }
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.nfe) {
+        if (this.nfe != null) {
+          oprot.writeFieldBegin(NFE_FIELD_DESC);
+          this.nfe.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -2624,8 +2994,16 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      sb.append(this.nfe);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -2976,23 +3354,35 @@ public class Cassandra {
   public static class get_column_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_column_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)3);
 
     public column_t success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public NotFoundException nfe;
+    public static final int NFE = 2;
+    public CassandraException ce;
+    public static final int CE = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean nfe = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, column_t.class)));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -3005,13 +3395,19 @@ public class Cassandra {
 
     public get_column_result(
       column_t success,
-      CassandraException e)
+      InvalidRequestException ire,
+      NotFoundException nfe,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -3022,9 +3418,17 @@ public class Cassandra {
       if (other.success != null) {
         this.success = new column_t(other.success);
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.nfe = other.__isset.nfe;
+      if (other.nfe != null) {
+        this.nfe = new NotFoundException(other.nfe);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -3056,27 +3460,73 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+      this.__isset.nfe = false;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.__isset.nfe;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      this.__isset.nfe = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -3085,8 +3535,16 @@ public class Cassandra {
         setSuccess((column_t)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case NFE:
+        setNfe((NotFoundException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -3099,8 +3557,14 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case NFE:
+        return getNfe();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -3112,8 +3576,12 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case NFE:
+        return this.__isset.nfe;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -3141,12 +3609,30 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_nfe = true && (this.nfe != null);
+      boolean that_present_nfe = true && (that.nfe != null);
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -3178,11 +3664,29 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+              this.__isset.nfe = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3209,10 +3713,22 @@ public class Cassandra {
           this.success.write(oprot);
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.nfe) {
+        if (this.nfe != null) {
+          oprot.writeFieldBegin(NFE_FIELD_DESC);
+          this.nfe.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -3230,8 +3746,16 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      sb.append(this.nfe);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -3582,23 +4106,29 @@ public class Cassandra {
   public static class get_column_count_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_column_count_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.I32, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)2);
 
     public int success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public CassandraException ce;
+    public static final int CE = 2;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -3611,13 +4141,16 @@ public class Cassandra {
 
     public get_column_count_result(
       int success,
-      CassandraException e)
+      InvalidRequestException ire,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = true;
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -3626,9 +4159,13 @@ public class Cassandra {
     public get_column_count_result(get_column_count_result other) {
       __isset.success = other.__isset.success;
       this.success = other.success;
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -3659,27 +4196,50 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -3688,8 +4248,12 @@ public class Cassandra {
         setSuccess((Integer)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -3702,8 +4266,11 @@ public class Cassandra {
       case SUCCESS:
         return new Integer(getSuccess());
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -3715,8 +4282,10 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -3744,12 +4313,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -3780,11 +4358,20 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3809,10 +4396,16 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         oprot.writeI32(this.success);
         oprot.writeFieldEnd();
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -3830,8 +4423,12 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -4722,23 +5319,23 @@ public class Cassandra {
   public static class batch_insert_blocking_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_blocking_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.BOOL, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public boolean success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -4751,13 +5348,13 @@ public class Cassandra {
 
     public batch_insert_blocking_result(
       boolean success,
-      CassandraException e)
+      InvalidRequestException ire)
     {
       this();
       this.success = success;
       this.__isset.success = true;
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
     /**
@@ -4766,9 +5363,9 @@ public class Cassandra {
     public batch_insert_blocking_result(batch_insert_blocking_result other) {
       __isset.success = other.__isset.success;
       this.success = other.success;
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
       }
     }
 
@@ -4799,27 +5396,27 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -4828,8 +5425,8 @@ public class Cassandra {
         setSuccess((Boolean)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
         break;
 
       default:
@@ -4842,8 +5439,8 @@ public class Cassandra {
       case SUCCESS:
         return new Boolean(isSuccess());
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -4855,8 +5452,8 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -4884,12 +5481,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
           return false;
       }
 
@@ -4920,11 +5517,11 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4949,10 +5546,10 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         oprot.writeBool(this.success);
         oprot.writeFieldEnd();
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -4970,8 +5567,8 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -5454,18 +6051,24 @@ public class Cassandra {
   public static class remove_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("remove_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.BOOL, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public boolean success;
     public static final int SUCCESS = 0;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
+      public boolean ire = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
     }});
 
     static {
@@ -5476,11 +6079,14 @@ public class Cassandra {
     }
 
     public remove_result(
-      boolean success)
+      boolean success,
+      InvalidRequestException ire)
     {
       this();
       this.success = success;
       this.__isset.success = true;
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
     /**
@@ -5489,6 +6095,10 @@ public class Cassandra {
     public remove_result(remove_result other) {
       __isset.success = other.__isset.success;
       this.success = other.success;
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
     }
 
     @Override
@@ -5518,10 +6128,37 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
+    }
+
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
+    }
+
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
       case SUCCESS:
         setSuccess((Boolean)value);
+        break;
+
+      case IRE:
+        setIre((InvalidRequestException)value);
         break;
 
       default:
@@ -5534,6 +6171,9 @@ public class Cassandra {
       case SUCCESS:
         return new Boolean(isSuccess());
 
+      case IRE:
+        return getIre();
+
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -5544,6 +6184,8 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
+      case IRE:
+        return this.__isset.ire;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -5568,6 +6210,15 @@ public class Cassandra {
         if (!(this_present_success && that_present_success))
           return false;
         if (this.success != that.success)
+          return false;
+      }
+
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
           return false;
       }
 
@@ -5598,6 +6249,15 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case IRE:
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           default:
             TProtocolUtil.skip(iprot, field.type);
             break;
@@ -5618,6 +6278,12 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         oprot.writeBool(this.success);
         oprot.writeFieldEnd();
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
       }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -5631,6 +6297,10 @@ public class Cassandra {
       if (!first) sb.append(", ");
       sb.append("success:");
       sb.append(this.success);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      sb.append(this.ire);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -6047,24 +6717,36 @@ public class Cassandra {
   public static class get_columns_since_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_columns_since_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)3);
 
     public List<column_t> success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public NotFoundException nfe;
+    public static final int NFE = 2;
+    public CassandraException ce;
+    public static final int CE = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean nfe = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, column_t.class))));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -6077,13 +6759,19 @@ public class Cassandra {
 
     public get_columns_since_result(
       List<column_t> success,
-      CassandraException e)
+      InvalidRequestException ire,
+      NotFoundException nfe,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -6098,9 +6786,17 @@ public class Cassandra {
         }
         this.success = __this__success;
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.nfe = other.__isset.nfe;
+      if (other.nfe != null) {
+        this.nfe = new NotFoundException(other.nfe);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -6148,27 +6844,73 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+      this.__isset.nfe = false;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.__isset.nfe;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      this.__isset.nfe = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -6177,8 +6919,16 @@ public class Cassandra {
         setSuccess((List<column_t>)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case NFE:
+        setNfe((NotFoundException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -6191,8 +6941,14 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case NFE:
+        return getNfe();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -6204,8 +6960,12 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case NFE:
+        return this.__isset.nfe;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -6233,12 +6993,30 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_nfe = true && (this.nfe != null);
+      boolean that_present_nfe = true && (that.nfe != null);
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -6264,14 +7042,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list61 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list61.size);
-                for (int _i62 = 0; _i62 < _list61.size; ++_i62)
+                TList _list43 = iprot.readListBegin();
+                this.success = new ArrayList<column_t>(_list43.size);
+                for (int _i44 = 0; _i44 < _list43.size; ++_i44)
                 {
-                  column_t _elem63;
-                  _elem63 = new column_t();
-                  _elem63.read(iprot);
-                  this.success.add(_elem63);
+                  column_t _elem45;
+                  _elem45 = new column_t();
+                  _elem45.read(iprot);
+                  this.success.add(_elem45);
                 }
                 iprot.readListEnd();
               }
@@ -6280,11 +7058,29 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+              this.__isset.nfe = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -6310,17 +7106,29 @@ public class Cassandra {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-            for (column_t _iter64 : this.success)            {
-              _iter64.write(oprot);
+            for (column_t _iter46 : this.success)            {
+              _iter46.write(oprot);
             }
             oprot.writeListEnd();
           }
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.nfe) {
+        if (this.nfe != null) {
+          oprot.writeFieldBegin(NFE_FIELD_DESC);
+          this.nfe.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -6338,8 +7146,16 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      sb.append(this.nfe);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -6826,24 +7642,30 @@ public class Cassandra {
   public static class get_slice_super_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_super_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)2);
 
     public List<superColumn_t> success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public CassandraException ce;
+    public static final int CE = 2;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, superColumn_t.class))));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -6856,13 +7678,16 @@ public class Cassandra {
 
     public get_slice_super_result(
       List<superColumn_t> success,
-      CassandraException e)
+      InvalidRequestException ire,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -6877,9 +7702,13 @@ public class Cassandra {
         }
         this.success = __this__success;
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -6927,27 +7756,50 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -6956,8 +7808,12 @@ public class Cassandra {
         setSuccess((List<superColumn_t>)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -6970,8 +7826,11 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -6983,8 +7842,10 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -7012,12 +7873,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -7043,14 +7913,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list65 = iprot.readListBegin();
-                this.success = new ArrayList<superColumn_t>(_list65.size);
-                for (int _i66 = 0; _i66 < _list65.size; ++_i66)
+                TList _list47 = iprot.readListBegin();
+                this.success = new ArrayList<superColumn_t>(_list47.size);
+                for (int _i48 = 0; _i48 < _list47.size; ++_i48)
                 {
-                  superColumn_t _elem67;
-                  _elem67 = new superColumn_t();
-                  _elem67.read(iprot);
-                  this.success.add(_elem67);
+                  superColumn_t _elem49;
+                  _elem49 = new superColumn_t();
+                  _elem49.read(iprot);
+                  this.success.add(_elem49);
                 }
                 iprot.readListEnd();
               }
@@ -7059,11 +7929,20 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7089,17 +7968,23 @@ public class Cassandra {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-            for (superColumn_t _iter68 : this.success)            {
-              _iter68.write(oprot);
+            for (superColumn_t _iter50 : this.success)            {
+              _iter50.write(oprot);
             }
             oprot.writeListEnd();
           }
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -7117,8 +8002,12 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -7480,13 +8369,13 @@ public class Cassandra {
           case SUPERCOLUMNNAMES:
             if (field.type == TType.LIST) {
               {
-                TList _list69 = iprot.readListBegin();
-                this.superColumnNames = new ArrayList<String>(_list69.size);
-                for (int _i70 = 0; _i70 < _list69.size; ++_i70)
+                TList _list51 = iprot.readListBegin();
+                this.superColumnNames = new ArrayList<String>(_list51.size);
+                for (int _i52 = 0; _i52 < _list51.size; ++_i52)
                 {
-                  String _elem71;
-                  _elem71 = iprot.readString();
-                  this.superColumnNames.add(_elem71);
+                  String _elem53;
+                  _elem53 = iprot.readString();
+                  this.superColumnNames.add(_elem53);
                 }
                 iprot.readListEnd();
               }
@@ -7531,8 +8420,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUPER_COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.superColumnNames.size()));
-          for (String _iter72 : this.superColumnNames)          {
-            oprot.writeString(_iter72);
+          for (String _iter54 : this.superColumnNames)          {
+            oprot.writeString(_iter54);
           }
           oprot.writeListEnd();
         }
@@ -7577,24 +8466,30 @@ public class Cassandra {
   public static class get_slice_super_by_names_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_super_by_names_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)2);
 
     public List<superColumn_t> success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public CassandraException ce;
+    public static final int CE = 2;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, superColumn_t.class))));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -7607,13 +8502,16 @@ public class Cassandra {
 
     public get_slice_super_by_names_result(
       List<superColumn_t> success,
-      CassandraException e)
+      InvalidRequestException ire,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -7628,9 +8526,13 @@ public class Cassandra {
         }
         this.success = __this__success;
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -7678,27 +8580,50 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -7707,8 +8632,12 @@ public class Cassandra {
         setSuccess((List<superColumn_t>)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -7721,8 +8650,11 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -7734,8 +8666,10 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -7763,12 +8697,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -7794,14 +8737,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list73 = iprot.readListBegin();
-                this.success = new ArrayList<superColumn_t>(_list73.size);
-                for (int _i74 = 0; _i74 < _list73.size; ++_i74)
+                TList _list55 = iprot.readListBegin();
+                this.success = new ArrayList<superColumn_t>(_list55.size);
+                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
                 {
-                  superColumn_t _elem75;
-                  _elem75 = new superColumn_t();
-                  _elem75.read(iprot);
-                  this.success.add(_elem75);
+                  superColumn_t _elem57;
+                  _elem57 = new superColumn_t();
+                  _elem57.read(iprot);
+                  this.success.add(_elem57);
                 }
                 iprot.readListEnd();
               }
@@ -7810,11 +8753,20 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7840,17 +8792,23 @@ public class Cassandra {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-            for (superColumn_t _iter76 : this.success)            {
-              _iter76.write(oprot);
+            for (superColumn_t _iter58 : this.success)            {
+              _iter58.write(oprot);
             }
             oprot.writeListEnd();
           }
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -7868,8 +8826,12 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -8220,23 +9182,35 @@ public class Cassandra {
   public static class get_superColumn_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_superColumn_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
+    private static final TField CE_FIELD_DESC = new TField("ce", TType.STRUCT, (short)3);
 
     public superColumn_t success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public NotFoundException nfe;
+    public static final int NFE = 2;
+    public CassandraException ce;
+    public static final int CE = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
+      public boolean nfe = false;
+      public boolean ce = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, superColumn_t.class)));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(CE, new FieldMetaData("ce", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -8249,13 +9223,19 @@ public class Cassandra {
 
     public get_superColumn_result(
       superColumn_t success,
-      CassandraException e)
+      InvalidRequestException ire,
+      NotFoundException nfe,
+      CassandraException ce)
     {
       this();
       this.success = success;
       this.__isset.success = (success != null);
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
     }
 
     /**
@@ -8266,9 +9246,17 @@ public class Cassandra {
       if (other.success != null) {
         this.success = new superColumn_t(other.success);
       }
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      __isset.nfe = other.__isset.nfe;
+      if (other.nfe != null) {
+        this.nfe = new NotFoundException(other.nfe);
+      }
+      __isset.ce = other.__isset.ce;
+      if (other.ce != null) {
+        this.ce = new CassandraException(other.ce);
       }
     }
 
@@ -8300,27 +9288,73 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
+    }
+
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+      this.__isset.nfe = (nfe != null);
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+      this.__isset.nfe = false;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.__isset.nfe;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      this.__isset.nfe = value;
+    }
+
+    public CassandraException getCe() {
+      return this.ce;
+    }
+
+    public void setCe(CassandraException ce) {
+      this.ce = ce;
+      this.__isset.ce = (ce != null);
+    }
+
+    public void unsetCe() {
+      this.ce = null;
+      this.__isset.ce = false;
+    }
+
+    // Returns true if field ce is set (has been asigned a value) and false otherwise
+    public boolean isSetCe() {
+      return this.__isset.ce;
+    }
+
+    public void setCeIsSet(boolean value) {
+      this.__isset.ce = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -8329,8 +9363,16 @@ public class Cassandra {
         setSuccess((superColumn_t)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
+        break;
+
+      case NFE:
+        setNfe((NotFoundException)value);
+        break;
+
+      case CE:
+        setCe((CassandraException)value);
         break;
 
       default:
@@ -8343,8 +9385,14 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
+
+      case NFE:
+        return getNfe();
+
+      case CE:
+        return getCe();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -8356,8 +9404,12 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
+      case NFE:
+        return this.__isset.nfe;
+      case CE:
+        return this.__isset.ce;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -8385,12 +9437,30 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_nfe = true && (this.nfe != null);
+      boolean that_present_nfe = true && (that.nfe != null);
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
+      boolean this_present_ce = true && (this.ce != null);
+      boolean that_present_ce = true && (that.ce != null);
+      if (this_present_ce || that_present_ce) {
+        if (!(this_present_ce && that_present_ce))
+          return false;
+        if (!this.ce.equals(that.ce))
           return false;
       }
 
@@ -8422,11 +9492,29 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+              this.__isset.nfe = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CE:
+            if (field.type == TType.STRUCT) {
+              this.ce = new CassandraException();
+              this.ce.read(iprot);
+              this.__isset.ce = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8453,10 +9541,22 @@ public class Cassandra {
           this.success.write(oprot);
           oprot.writeFieldEnd();
         }
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.nfe) {
+        if (this.nfe != null) {
+          oprot.writeFieldBegin(NFE_FIELD_DESC);
+          this.nfe.write(oprot);
+          oprot.writeFieldEnd();
+        }
+      } else if (this.__isset.ce) {
+        if (this.ce != null) {
+          oprot.writeFieldBegin(CE_FIELD_DESC);
+          this.ce.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -8474,8 +9574,16 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      sb.append(this.nfe);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ce:");
+      sb.append(this.ce);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -8885,23 +9993,23 @@ public class Cassandra {
   public static class batch_insert_superColumn_blocking_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_superColumn_blocking_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.BOOL, (short)0);
-    private static final TField E_FIELD_DESC = new TField("e", TType.STRUCT, (short)1);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public boolean success;
     public static final int SUCCESS = 0;
-    public CassandraException e;
-    public static final int E = 1;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean success = false;
-      public boolean e = false;
+      public boolean ire = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
-      put(E, new FieldMetaData("e", TFieldRequirementType.DEFAULT, 
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
 
@@ -8914,13 +10022,13 @@ public class Cassandra {
 
     public batch_insert_superColumn_blocking_result(
       boolean success,
-      CassandraException e)
+      InvalidRequestException ire)
     {
       this();
       this.success = success;
       this.__isset.success = true;
-      this.e = e;
-      this.__isset.e = (e != null);
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
     /**
@@ -8929,9 +10037,9 @@ public class Cassandra {
     public batch_insert_superColumn_blocking_result(batch_insert_superColumn_blocking_result other) {
       __isset.success = other.__isset.success;
       this.success = other.success;
-      __isset.e = other.__isset.e;
-      if (other.e != null) {
-        this.e = new CassandraException(other.e);
+      __isset.ire = other.__isset.ire;
+      if (other.ire != null) {
+        this.ire = new InvalidRequestException(other.ire);
       }
     }
 
@@ -8962,27 +10070,27 @@ public class Cassandra {
       this.__isset.success = value;
     }
 
-    public CassandraException getE() {
-      return this.e;
+    public InvalidRequestException getIre() {
+      return this.ire;
     }
 
-    public void setE(CassandraException e) {
-      this.e = e;
-      this.__isset.e = (e != null);
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      this.__isset.ire = (ire != null);
     }
 
-    public void unsetE() {
-      this.e = null;
-      this.__isset.e = false;
+    public void unsetIre() {
+      this.ire = null;
+      this.__isset.ire = false;
     }
 
-    // Returns true if field e is set (has been asigned a value) and false otherwise
-    public boolean isSetE() {
-      return this.__isset.e;
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.__isset.ire;
     }
 
-    public void setEIsSet(boolean value) {
-      this.__isset.e = value;
+    public void setIreIsSet(boolean value) {
+      this.__isset.ire = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -8991,8 +10099,8 @@ public class Cassandra {
         setSuccess((Boolean)value);
         break;
 
-      case E:
-        setE((CassandraException)value);
+      case IRE:
+        setIre((InvalidRequestException)value);
         break;
 
       default:
@@ -9005,8 +10113,8 @@ public class Cassandra {
       case SUCCESS:
         return new Boolean(isSuccess());
 
-      case E:
-        return getE();
+      case IRE:
+        return getIre();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -9018,8 +10126,8 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return this.__isset.success;
-      case E:
-        return this.__isset.e;
+      case IRE:
+        return this.__isset.ire;
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -9047,12 +10155,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_e = true && (this.e != null);
-      boolean that_present_e = true && (that.e != null);
-      if (this_present_e || that_present_e) {
-        if (!(this_present_e && that_present_e))
+      boolean this_present_ire = true && (this.ire != null);
+      boolean that_present_ire = true && (that.ire != null);
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
           return false;
-        if (!this.e.equals(that.e))
+        if (!this.ire.equals(that.ire))
           return false;
       }
 
@@ -9083,11 +10191,11 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case E:
+          case IRE:
             if (field.type == TType.STRUCT) {
-              this.e = new CassandraException();
-              this.e.read(iprot);
-              this.__isset.e = true;
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+              this.__isset.ire = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9112,10 +10220,10 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         oprot.writeBool(this.success);
         oprot.writeFieldEnd();
-      } else if (this.__isset.e) {
-        if (this.e != null) {
-          oprot.writeFieldBegin(E_FIELD_DESC);
-          this.e.write(oprot);
+      } else if (this.__isset.ire) {
+        if (this.ire != null) {
+          oprot.writeFieldBegin(IRE_FIELD_DESC);
+          this.ire.write(oprot);
           oprot.writeFieldEnd();
         }
       }
@@ -9133,8 +10241,8 @@ public class Cassandra {
       sb.append(this.success);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("e:");
-      sb.append(this.e);
+      sb.append("ire:");
+      sb.append(this.ire);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -10160,13 +11268,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list77 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list77.size);
-                for (int _i78 = 0; _i78 < _list77.size; ++_i78)
+                TList _list59 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list59.size);
+                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
                 {
-                  String _elem79;
-                  _elem79 = iprot.readString();
-                  this.success.add(_elem79);
+                  String _elem61;
+                  _elem61 = iprot.readString();
+                  this.success.add(_elem61);
                 }
                 iprot.readListEnd();
               }
@@ -10196,8 +11304,8 @@ public class Cassandra {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-            for (String _iter80 : this.success)            {
-              oprot.writeString(_iter80);
+            for (String _iter62 : this.success)            {
+              oprot.writeString(_iter62);
             }
             oprot.writeListEnd();
           }

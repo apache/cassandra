@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.service.InvalidRequestException;
+
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class ColumnFamilyNotDefinedException extends Exception
+public class ColumnFamilyNotDefinedException extends InvalidRequestException
 {
     public ColumnFamilyNotDefinedException(String message)
     {

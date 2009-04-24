@@ -245,14 +245,14 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
         case COLUMNS:
           if (field.type == TType.LIST) {
             {
-              TList _list18 = iprot.readListBegin();
-              this.columns = new ArrayList<column_t>(_list18.size);
-              for (int _i19 = 0; _i19 < _list18.size; ++_i19)
+              TList _list9 = iprot.readListBegin();
+              this.columns = new ArrayList<column_t>(_list9.size);
+              for (int _i10 = 0; _i10 < _list9.size; ++_i10)
               {
-                column_t _elem20;
-                _elem20 = new column_t();
-                _elem20.read(iprot);
-                this.columns.add(_elem20);
+                column_t _elem11;
+                _elem11 = new column_t();
+                _elem11.read(iprot);
+                this.columns.add(_elem11);
               }
               iprot.readListEnd();
             }
@@ -287,8 +287,8 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
-        for (column_t _iter21 : this.columns)        {
-          _iter21.write(oprot);
+        for (column_t _iter12 : this.columns)        {
+          _iter12.write(oprot);
         }
         oprot.writeListEnd();
       }

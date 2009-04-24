@@ -57,9 +57,8 @@ public class Scanner implements IScanner<IColumn>
      * @param key key we are interested in.
      * @param cf column family we are interested in.
      * @throws IOException
-     * @throws ColumnFamilyNotDefinedException
      */
-    public void fetch(String key, String cf) throws IOException, ColumnFamilyNotDefinedException
+    public void fetch(String key, String cf) throws IOException
     {        
         if ( cf != null )
         {

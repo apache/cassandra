@@ -126,7 +126,7 @@ public class ReadCommand
         return new ReadCommand(table, key, columnFamilyColumn, start, count, sinceTimestamp, columnNames);
     }
 
-    public Row getRow(Table table) throws IOException, ColumnFamilyNotDefinedException
+    public Row getRow(Table table) throws IOException
     {
         if (!columnNames.isEmpty())
         {

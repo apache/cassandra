@@ -25,6 +25,8 @@ import org.apache.cassandra.service.Cassandra;
 import org.apache.cassandra.service.CassandraException;
 import org.apache.cassandra.service.CqlResult_t;
 import org.apache.cassandra.service.column_t;
+import org.apache.cassandra.service.NotFoundException;
+import org.apache.cassandra.service.InvalidRequestException;
 import org.apache.cassandra.service.Cassandra.Client;
 import org.apache.cassandra.utils.LogUtil;
 
@@ -43,7 +45,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement 
-    public void executeCLIStmt(String stmt) throws TException 
+    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException
     {
         CommonTree ast = null;
 
@@ -118,7 +120,7 @@ public class CliClient
     }
 
     // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException
+    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException
     {
         if (!CliMain.isConnected())
             return;

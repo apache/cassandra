@@ -299,25 +299,25 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
         case RESULTSET:
           if (field.type == TType.LIST) {
             {
-              TList _list40 = iprot.readListBegin();
-              this.resultSet = new ArrayList<Map<String,String>>(_list40.size);
-              for (int _i41 = 0; _i41 < _list40.size; ++_i41)
+              TList _list22 = iprot.readListBegin();
+              this.resultSet = new ArrayList<Map<String,String>>(_list22.size);
+              for (int _i23 = 0; _i23 < _list22.size; ++_i23)
               {
-                Map<String,String> _elem42;
+                Map<String,String> _elem24;
                 {
-                  TMap _map43 = iprot.readMapBegin();
-                  _elem42 = new HashMap<String,String>(2*_map43.size);
-                  for (int _i44 = 0; _i44 < _map43.size; ++_i44)
+                  TMap _map25 = iprot.readMapBegin();
+                  _elem24 = new HashMap<String,String>(2*_map25.size);
+                  for (int _i26 = 0; _i26 < _map25.size; ++_i26)
                   {
-                    String _key45;
-                    String _val46;
-                    _key45 = iprot.readString();
-                    _val46 = iprot.readString();
-                    _elem42.put(_key45, _val46);
+                    String _key27;
+                    String _val28;
+                    _key27 = iprot.readString();
+                    _val28 = iprot.readString();
+                    _elem24.put(_key27, _val28);
                   }
                   iprot.readMapEnd();
                 }
-                this.resultSet.add(_elem42);
+                this.resultSet.add(_elem24);
               }
               iprot.readListEnd();
             }
@@ -355,12 +355,12 @@ public class CqlResult_t implements TBase, java.io.Serializable, Cloneable {
       oprot.writeFieldBegin(RESULT_SET_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.MAP, this.resultSet.size()));
-        for (Map<String,String> _iter47 : this.resultSet)        {
+        for (Map<String,String> _iter29 : this.resultSet)        {
           {
-            oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter47.size()));
-            for (Map.Entry<String, String> _iter48 : _iter47.entrySet())            {
-              oprot.writeString(_iter48.getKey());
-              oprot.writeString(_iter48.getValue());
+            oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter29.size()));
+            for (Map.Entry<String, String> _iter30 : _iter29.entrySet())            {
+              oprot.writeString(_iter30.getKey());
+              oprot.writeString(_iter30.getValue());
             }
             oprot.writeMapEnd();
           }

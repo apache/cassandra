@@ -50,10 +50,6 @@ public class ReadRepairVerbHandler implements IVerbHandler
             RowMutation rm = rmMsg.getRowMutation();
             rm.apply();                                   
         }
-        catch( ColumnFamilyNotDefinedException ex )
-        {
-            logger_.debug(LogUtil.throwableToString(ex));
-        }
         catch ( IOException e )
         {
             logger_.debug(LogUtil.throwableToString(e));            

@@ -18,8 +18,8 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 import org.apache.thrift.transport.*;
 
-public class CassandraException extends Exception implements TBase, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("CassandraException");
+public class InvalidRequestException extends Exception implements TBase, java.io.Serializable, Cloneable {
+  private static final TStruct STRUCT_DESC = new TStruct("InvalidRequestException");
   private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
 
   public String why;
@@ -36,13 +36,13 @@ public class CassandraException extends Exception implements TBase, java.io.Seri
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(CassandraException.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(InvalidRequestException.class, metaDataMap);
   }
 
-  public CassandraException() {
+  public InvalidRequestException() {
   }
 
-  public CassandraException(
+  public InvalidRequestException(
     String why)
   {
     this();
@@ -53,7 +53,7 @@ public class CassandraException extends Exception implements TBase, java.io.Seri
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public CassandraException(CassandraException other) {
+  public InvalidRequestException(InvalidRequestException other) {
     __isset.why = other.__isset.why;
     if (other.why != null) {
       this.why = other.why;
@@ -61,8 +61,8 @@ public class CassandraException extends Exception implements TBase, java.io.Seri
   }
 
   @Override
-  public CassandraException clone() {
-    return new CassandraException(this);
+  public InvalidRequestException clone() {
+    return new InvalidRequestException(this);
   }
 
   public String getWhy() {
@@ -122,12 +122,12 @@ public class CassandraException extends Exception implements TBase, java.io.Seri
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof CassandraException)
-      return this.equals((CassandraException)that);
+    if (that instanceof InvalidRequestException)
+      return this.equals((InvalidRequestException)that);
     return false;
   }
 
-  public boolean equals(CassandraException that) {
+  public boolean equals(InvalidRequestException that) {
     if (that == null)
       return false;
 
@@ -195,7 +195,7 @@ public class CassandraException extends Exception implements TBase, java.io.Seri
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("CassandraException(");
+    StringBuilder sb = new StringBuilder("InvalidRequestException(");
     boolean first = true;
 
     if (!first) sb.append(", ");

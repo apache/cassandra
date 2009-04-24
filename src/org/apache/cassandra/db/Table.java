@@ -43,6 +43,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.IStreamComplete;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.CassandraServer;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
@@ -655,28 +656,22 @@ public class Table
     /**
      * Selects the specified column family for the specified key.
     */
-    public ColumnFamily get(String key, String cf) throws ColumnFamilyNotDefinedException, IOException
+    public ColumnFamily get(String key, String cf) throws IOException
     {
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         long start = System.currentTimeMillis();
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-        if ( cfStore != null )
-        {
-            ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
-            long timeTaken = System.currentTimeMillis() - start;
-            dbAnalyticsSource_.updateReadStatistics(timeTaken);
-            return columnFamily;
-        }
-        else
-        {
-            throw new ColumnFamilyNotDefinedException("Column family " + cf + " has not been defined");
-        }
+        assert cfStore != null : "Column family " + cf + " has not been defined";
+        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
+        long timeTaken = System.currentTimeMillis() - start;
+        dbAnalyticsSource_.updateReadStatistics(timeTaken);
+        return columnFamily;
     }
 
     /**
      * Selects only the specified column family for the specified key.
     */
-    public Row getRow(String key, String cf) throws ColumnFamilyNotDefinedException, IOException
+    public Row getRow(String key, String cf) throws IOException
     {
         Row row = new Row(key);
         ColumnFamily columnFamily = get(key, cf);
@@ -688,54 +683,46 @@ public class Table
     /**
      * Selects only the specified column family for the specified key.
     */
-    public Row getRow(String key, String cf, int start, int count) throws ColumnFamilyNotDefinedException, IOException
+    public Row getRow(String key, String cf, int start, int count) throws IOException
     {
         Row row = new Row(key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
         long start1 = System.currentTimeMillis();
-        if ( cfStore != null )
+        assert cfStore != null : "Column family " + cf + " has not been defined";
+        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
+        if ( columnFamily != null )
         {
-            ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
-            if ( columnFamily != null )
+
+            ColumnFamily filteredCf = null;
+            if ((count <=0 || count == Integer.MAX_VALUE) && start <= 0) //Don't need to filter
             {
-                
-                ColumnFamily filteredCf = null;
-                if ((count <=0 || count == Integer.MAX_VALUE) && start <= 0) //Don't need to filter
-                {
-                    filteredCf = columnFamily;
-                }
-                else 
-                {
-                    filteredCf = new CountFilter(count, start).filter(cf, columnFamily);                    
-                }
-                row.addColumnFamily(filteredCf);
+                filteredCf = columnFamily;
             }
-            long timeTaken = System.currentTimeMillis() - start1;
-            dbAnalyticsSource_.updateReadStatistics(timeTaken);
-            return row;
+            else
+            {
+                filteredCf = new CountFilter(count, start).filter(cf, columnFamily);
+            }
+            row.addColumnFamily(filteredCf);
         }
-        else
-            throw new ColumnFamilyNotDefinedException("Column family " + cf + " has not been defined");
+        long timeTaken = System.currentTimeMillis() - start1;
+        dbAnalyticsSource_.updateReadStatistics(timeTaken);
+        return row;
     }
     
-    public Row getRow(String key, String cf, long sinceTimeStamp) throws ColumnFamilyNotDefinedException, IOException
+    public Row getRow(String key, String cf, long sinceTimeStamp) throws IOException
     {
         Row row = new Row(key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
         long start1 = System.currentTimeMillis();
-        if ( cfStore != null )
-        {
-            ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new TimeFilter(sinceTimeStamp));
-            if ( columnFamily != null )
-                row.addColumnFamily(columnFamily);
-            long timeTaken = System.currentTimeMillis() - start1;
-            dbAnalyticsSource_.updateReadStatistics(timeTaken);
-            return row;
-        }
-        else
-            throw new ColumnFamilyNotDefinedException("Column family " + cf + " has not been defined");
+        assert cfStore != null : "Column family " + cf + " has not been defined";
+        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new TimeFilter(sinceTimeStamp));
+        if ( columnFamily != null )
+            row.addColumnFamily(columnFamily);
+        long timeTaken = System.currentTimeMillis() - start1;
+        dbAnalyticsSource_.updateReadStatistics(timeTaken);
+        return row;
     }
 
     /**

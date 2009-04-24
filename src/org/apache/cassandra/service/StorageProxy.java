@@ -36,7 +36,6 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TouchMessage;
-import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IAsyncResult;
@@ -88,13 +87,14 @@ public class StorageProxy
     */
     public static void insert(RowMutation rm)
 	{
+        // TODO check for valid Table, ColumnFamily
+
         /*
          * Get the N nodes from storage service where the data needs to be
          * replicated
          * Construct a message for write
          * Send them asynchronously to the replicas.
         */
-        assert rm.key() != null;
 
 		try
 		{
@@ -116,8 +116,6 @@ public class StorageProxy
 
     public static boolean insertBlocking(RowMutation rm)
     {
-        assert rm.key() != null;
-
         try
         {
             Message message = rm.makeRowMutationMessage();
@@ -308,9 +306,8 @@ public class StorageProxy
      * a specific set of column names from a given column family.
      */
     public static Row readProtocol(ReadCommand command, StorageService.ConsistencyLevel consistencyLevel)
-    throws IOException, ColumnFamilyNotDefinedException, TimeoutException
+    throws IOException, TimeoutException
     {
-        assert command.key != null;
         long startTime = System.currentTimeMillis();
         Row row = null;
         EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
@@ -622,7 +619,7 @@ public class StorageProxy
     * one of the other replicas (in the same data center if possible) till we get the data. In the event we get
     * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
     */
-    private static Row weakReadLocal(ReadCommand command) throws IOException, ColumnFamilyNotDefinedException
+    private static Row weakReadLocal(ReadCommand command) throws IOException
     {
         logger_.debug("weakreadlocal for " + command);
         List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(command.key);

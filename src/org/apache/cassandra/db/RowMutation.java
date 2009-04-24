@@ -102,7 +102,7 @@ public class RowMutation implements Serializable
         return cf.split(":");
     }
 
-    String table()
+    public String table()
     {
         return table_;
     }
@@ -112,7 +112,12 @@ public class RowMutation implements Serializable
         return key_;
     }
 
-    void addHints(String hint) throws IOException, ColumnFamilyNotDefinedException
+    public Set<String> columnFamilyNames()
+    {
+        return modifications_.keySet();
+    }
+
+    void addHints(String hint) throws IOException
     {
         String cfName = Table.hints_ + ":" + hint;
         add(cfName, ArrayUtils.EMPTY_BYTE_ARRAY, 0);
@@ -222,7 +227,7 @@ public class RowMutation implements Serializable
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
     */
-    public void apply() throws IOException, ColumnFamilyNotDefinedException
+    public void apply() throws IOException
     {
         Row row = new Row(key_);
         apply(row);
@@ -231,14 +236,13 @@ public class RowMutation implements Serializable
     /*
      * Allows RowMutationVerbHandler to optimize by re-using a single Row object.
     */
-    void apply(Row emptyRow) throws IOException, ColumnFamilyNotDefinedException
+    void apply(Row emptyRow) throws IOException
     {
         assert emptyRow.getColumnFamilyMap().size() == 0;
         Table table = Table.open(table_);
         for (String cfName : modifications_.keySet())
         {
-            if (!table.isValidColumnFamily(cfName))
-                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " has not been defined.");
+            assert table.isValidColumnFamily(cfName);
             emptyRow.addColumnFamily(modifications_.get(cfName));
         }
         table.apply(emptyRow);
@@ -248,14 +252,13 @@ public class RowMutation implements Serializable
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
     */
-    void load(Row row) throws IOException, ColumnFamilyNotDefinedException, ExecutionException, InterruptedException
+    void load(Row row) throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open(table_);
         Set<String> cfNames = modifications_.keySet();
         for (String cfName : cfNames)
         {
-            if (!table.isValidColumnFamily(cfName))
-                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " has not been defined.");
+            assert table.isValidColumnFamily(cfName);
             row.addColumnFamily(modifications_.get(cfName));
         }
         table.load(row);
