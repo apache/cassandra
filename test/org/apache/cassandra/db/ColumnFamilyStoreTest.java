@@ -257,7 +257,7 @@ public class ColumnFamilyStoreTest extends ServerTest
         List<ColumnFamily> families = store.getColumnFamilies("key1", "Super1", new IdentityFilter());
         assert families.get(0).getAllColumns().first().getMarkedForDeleteAt() == 1; // delete marker, just added
         assert !families.get(1).getAllColumns().first().isMarkedForDelete(); // flushed old version
-        ColumnFamily resolved = ColumnFamilyStore.resolve(families);
+        ColumnFamily resolved = ColumnFamily.resolve(families);
         assert resolved.getAllColumns().first().getMarkedForDeleteAt() == 1;
         Collection<IColumn> subColumns = resolved.getAllColumns().first().getSubColumns();
         assert subColumns.size() == 1;

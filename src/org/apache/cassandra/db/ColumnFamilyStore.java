@@ -580,39 +580,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             columnFamilies.add(columnFamily);
         }
     }
-    
-    /** merge all columnFamilies into a single instance, with only the newest versions of columns preserved. */
-    static ColumnFamily resolve(List<ColumnFamily> columnFamilies)
-    {
-        int size = columnFamilies.size();
-        if (size == 0)
-            return null;
-
-        // start from nothing so that we don't include potential deleted columns from the first instance
-        ColumnFamily cf0 = columnFamilies.get(0);
-        ColumnFamily cf = cf0.cloneMeShallow();
-
-        // merge
-        for (ColumnFamily cf2 : columnFamilies)
-        {
-            assert cf.name().equals(cf2.name());
-            cf.addColumns(cf2);
-            cf.delete(Math.max(cf.getLocalDeletionTime(), cf2.getLocalDeletionTime()),
-                      Math.max(cf.getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
-        }
-        return cf;
-    }
 
     /** like resolve, but leaves the resolved CF as the only item in the list */
     private static void merge(List<ColumnFamily> columnFamilies)
     {
-        ColumnFamily cf = resolve(columnFamilies);
+        ColumnFamily cf = ColumnFamily.resolve(columnFamilies);
         columnFamilies.clear();
         columnFamilies.add(cf);
     }
 
     private static ColumnFamily resolveAndRemoveDeleted(List<ColumnFamily> columnFamilies) {
-        ColumnFamily cf = resolve(columnFamilies);
+        ColumnFamily cf = ColumnFamily.resolve(columnFamilies);
         return removeDeleted(cf);
     }
 

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
+import java.util.Arrays;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -110,22 +111,21 @@ public class Row
      * what that means is that if there are any differences between the 2 rows then
      * this fn will make the current row take the latest changes .
      */
-    public void repair(Row row)
+    public void repair(Row rowOther)
     {
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-        Set<String> cfNames = columnFamilies.keySet();
-
-        for (String cfName : cfNames)
+        for (ColumnFamily cfOld : rowOther.getColumnFamilies())
         {
-            ColumnFamily cf = columnFamilies_.get(cfName);
+            ColumnFamily cf = columnFamilies_.get(cfOld.name());
             if (cf == null)
             {
-                cf = new ColumnFamily(cfName, cf.type());
-                columnFamilies_.put(cfName, cf);
+                addColumnFamily(cfOld);
             }
-            cf.repair(columnFamilies.get(cfName));
+            else
+            {
+                columnFamilies_.remove(cf.name());
+                addColumnFamily(ColumnFamily.resolve(Arrays.asList(cfOld, cf)));
+            }
         }
-
     }
 
     /*
@@ -136,19 +136,18 @@ public class Row
      * difference and does not take care of what needs to be removed from the current row to make
      * it same as the input row.
      */
-    public Row diff(Row rowNew)
+    public Row diff(Row rowComposite)
     {
         Row rowDiff = new Row(key_);
 
-        for (ColumnFamily cfNew : rowNew.getColumnFamilies())
+        for (ColumnFamily cfComposite : rowComposite.getColumnFamilies())
         {
-            ColumnFamily cf = columnFamilies_.get(cfNew.name());
-            ColumnFamily cfDiff = null;
+            ColumnFamily cf = columnFamilies_.get(cfComposite.name());
             if (cf == null)
-                rowDiff.addColumnFamily(cfNew);
+                rowDiff.addColumnFamily(cfComposite);
             else
             {
-                cfDiff = cf.diff(cfNew);
+                ColumnFamily cfDiff = cf.diff(cfComposite);
                 if (cfDiff != null)
                     rowDiff.addColumnFamily(cfDiff);
             }
