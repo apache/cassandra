@@ -133,32 +133,30 @@ public class Row
      * and return the resultant row. This assumes that the row that
      * is being submitted is a super set of the current row so
      * it only calculates additional
-     * difference and does not take care of what needs to be delted from the current row to make
+     * difference and does not take care of what needs to be removed from the current row to make
      * it same as the input row.
      */
-    public Row diff(Row row)
+    public Row diff(Row rowNew)
     {
         Row rowDiff = new Row(key_);
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-        Set<String> cfNames = columnFamilies.keySet();
 
-        for (String cfName : cfNames)
+        for (ColumnFamily cfNew : rowNew.getColumnFamilies())
         {
-            ColumnFamily cf = columnFamilies_.get(cfName);
+            ColumnFamily cf = columnFamilies_.get(cfNew.name());
             ColumnFamily cfDiff = null;
             if (cf == null)
-                rowDiff.getColumnFamilyMap().put(cfName, columnFamilies.get(cfName));
+                rowDiff.addColumnFamily(cfNew);
             else
             {
-                cfDiff = cf.diff(columnFamilies.get(cfName));
+                cfDiff = cf.diff(cfNew);
                 if (cfDiff != null)
-                    rowDiff.getColumnFamilyMap().put(cfName, cfDiff);
+                    rowDiff.addColumnFamily(cfDiff);
             }
         }
-        if (rowDiff.getColumnFamilyMap().size() != 0)
-            return rowDiff;
-        else
+        if (rowDiff.getColumnFamilies().isEmpty())
             return null;
+        else
+            return rowDiff;
     }
 
     public Row cloneMe()

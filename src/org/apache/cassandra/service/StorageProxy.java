@@ -415,7 +415,7 @@ public class StorageProxy
     private static Row strongRead(ReadCommand command) throws IOException, TimeoutException
     {
         // TODO: throw a thrift exception if we do not have N nodes
-
+        assert !command.isDigestQuery();
         ReadCommand readMessageDigestOnly = command.copy();
         readMessageDigestOnly.setDigestQuery(true);
 
@@ -464,7 +464,6 @@ public class StorageProxy
                 QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
                         DatabaseDescriptor.getReplicationFactor(),
                         readResponseResolverRepair);
-                command.setDigestQuery(false);
                 logger_.info("DigestMismatchException: " + command.key);
                 Message messageRepair = command.makeReadMessage();
                 MessagingService.getMessagingInstance().sendRR(messageRepair, endPoints,

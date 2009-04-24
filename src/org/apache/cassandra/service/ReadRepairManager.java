@@ -106,18 +106,12 @@ class ReadRepairManager
 	}
 
 	/*
-	 * This is the fn that should be used to scheule a read repair 
-	 * specify a endpoint on whcih the read repair should happen and the row mutaion
-	 * message that has the repaired row.
+	 * Schedules a read repair.
+	 * @param target endpoint on whcih the read repair should happen
+	 * @param rowMutationMessage the row mutation message that has the repaired row.
 	 */
 	public void schedule(EndPoint target, RowMutationMessage rowMutationMessage)
 	{
-        /*
-		Message message = new Message(StorageService.getLocalStorageEndPoint(),
-				StorageService.mutationStage_,
-				StorageService.readRepairVerbHandler_, new Object[]
-				{ rowMutationMessage });
-        */
         try
         {
             Message message = RowMutationMessage.makeRowMutationMessage(rowMutationMessage, StorageService.readRepairVerbHandler_);
@@ -126,7 +120,7 @@ class ReadRepairManager
         }
         catch ( IOException ex )
         {
-            logger_.info(LogUtil.throwableToString(ex));
+            logger_.error(LogUtil.throwableToString(ex));
         }
 	}
 }

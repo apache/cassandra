@@ -232,10 +232,9 @@ public final class SuperColumn implements IColumn, Serializable
 
     public IColumn diff(IColumn column)
     {
-    	IColumn  columnDiff = new SuperColumn(column.name());
-    	Collection<IColumn> columns = column.getSubColumns();
+    	IColumn columnDiff = new SuperColumn(column.name());
 
-        for ( IColumn subColumn : columns )
+        for (IColumn subColumn : column.getSubColumns())
         {
         	IColumn columnInternal = columns_.get(subColumn.name());
         	if(columnInternal == null )
@@ -251,7 +250,8 @@ public final class SuperColumn implements IColumn, Serializable
         		}
         	}
         }
-        if(columnDiff.getSubColumns().size() != 0)
+
+        if (!columnDiff.getSubColumns().isEmpty())
         	return columnDiff;
         else
         	return null;

@@ -126,35 +126,26 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		{
 			retRow.repair(rowList.get(i));			
 		}
+
         // At  this point  we have the return row .
 		// Now we need to calculate the differnce 
 		// so that we can schedule read repairs 
-		
 		for (int i = 0 ; i < rowList.size(); i++)
 		{
-			// calculate the difference , since retRow is the resolved
-			// row it can be used as the super set , remember no deletes 
-			// will happen with diff its only for additions so far 
-			// TODO : handle deletes 
+			// since retRow is the resolved row it can be used as the super set
 			Row diffRow = rowList.get(i).diff(retRow);
 			if(diffRow == null) // no repair needs to happen
 				continue;
 			// create the row mutation message based on the diff and schedule a read repair 
 			RowMutation rowMutation = new RowMutation(table, key);            			
-	    	Map<String, ColumnFamily> columnFamilies = diffRow.getColumnFamilyMap();
-	        Set<String> cfNames = columnFamilies.keySet();
-	        
-	        for ( String cfName : cfNames )
+	        for (ColumnFamily cf : diffRow.getColumnFamilies())
 	        {
-	            ColumnFamily cf = columnFamilies.get(cfName);
 	            rowMutation.add(cf);
 	        }
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
-	        // schedule the read repair
 	        ReadRepairManager.instance().schedule(endPoints.get(i),rowMutationMessage);
 		}
-        logger_.info("resolve: " + (System.currentTimeMillis() - startTime)
-                + " ms.");
+        logger_.info("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
 		return retRow;
 	}
 
