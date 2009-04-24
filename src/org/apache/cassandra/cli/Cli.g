@@ -150,7 +150,7 @@ value: StringLiteral;
 
 columnOrSuperColumn: StringLiteral;
 
-host: id+=Identifier (id+=DOT id+=Identifier)* -> ^(NODE_ID_LIST $id+);
+host: id+=HostIdentifier -> ^(NODE_ID_LIST $id+);
 
 ip: id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral -> ^(NODE_ID_LIST $id+);
 
@@ -200,7 +200,6 @@ Identifier
     : Letter ( Letter | Digit | '_')*
     ;
 
-
 // literals
 StringLiteral
     :
@@ -210,6 +209,10 @@ StringLiteral
 IntegerLiteral
    : Digit+;
 
+
+HostIdentifier
+    : ( Letter | Digit ) ( Letter | Digit | DOT | '-' )* ( Letter | Digit )
+    ;
 
 //
 // syntactic elements
