@@ -334,21 +334,21 @@ public class StorageProxy
         return row;
     }
 
-    public static Map<String, Row> readProtocol(String tablename, String[] keys, String columnFamily, int start, int count, StorageService.ConsistencyLevel consistencyLevel) throws Exception
+    public static Map<String, Row> readProtocol(String[] keys, ReadCommand readCommand, StorageService.ConsistencyLevel consistencyLevel) throws Exception
     {
         Map<String, Row> rows = new HashMap<String, Row>();        
         switch ( consistencyLevel )
         {
             case WEAK:
-                rows = weakReadProtocol(tablename, keys, columnFamily, start, count);
+                rows = weakReadProtocol(keys, readCommand);
                 break;
                 
             case STRONG:
-                rows = strongReadProtocol(tablename, keys, columnFamily, start, count);
+                rows = strongReadProtocol(keys, readCommand);
                 break;
                 
             default:
-                rows = weakReadProtocol(tablename, keys, columnFamily, start, count);
+                rows = weakReadProtocol(keys, readCommand);
                 break;
         }
         return rows;
@@ -365,7 +365,7 @@ public class StorageProxy
      * @throws IOException
      * @throws TimeoutException
      */
-    public static Map<String, Row> strongReadProtocol(String tablename, String[] keys, String columnFamily, int start, int count) throws IOException, TimeoutException
+    public static Map<String, Row> strongReadProtocol(String[] keys, ReadCommand readCommand) throws IOException, TimeoutException
     {       
         Map<String, Row> rows = new HashMap<String, Row>();
         long startTime = System.currentTimeMillis();        
@@ -374,23 +374,10 @@ public class StorageProxy
         for (String key : keys )
         {
             ReadCommand[] readParameters = new ReadCommand[2];
-            if( start >= 0 && count < Integer.MAX_VALUE)
-            {
-                readParameters[0] = new ReadCommand(tablename, key, columnFamily, start, count);
-            }
-            else
-            {
-                readParameters[0] = new ReadCommand(tablename, key, columnFamily);
-            }            
-            if( start >= 0 && count < Integer.MAX_VALUE)
-            {
-                readParameters[1] = new ReadCommand(tablename, key, columnFamily, start, count);
-            }
-            else
-            {
-                readParameters[1] = new ReadCommand(tablename, key, columnFamily);
-            }
+            readParameters[0] = readCommand.copy();
+            readParameters[1] = readCommand.copy();
             readParameters[1].setDigestQuery(true);
+            readMessages.put(key, readParameters);
         }        
         rows = doStrongReadProtocol(readMessages);         
         logger_.debug("readProtocol: " + (System.currentTimeMillis() - startTime) + " ms.");
@@ -586,15 +573,15 @@ public class StorageProxy
      * @return a mapping of key --> Row
      * @throws Exception
      */
-    public static Map<String, Row> weakReadProtocol(String tablename, String[] keys, String columnFamily, List<String> columns) throws Exception
+    public static Map<String, Row> weakReadProtocol(String[] keys, ReadCommand readCommand) throws Exception
     {
         Row row = null;
         long startTime = System.currentTimeMillis();
         Map<String, ReadCommand> readMessages = new HashMap<String, ReadCommand>();
         for ( String key : keys )
         {
-            ReadCommand readCommand = new ReadCommand(tablename, key, columnFamily, columns);
-            readMessages.put(key, readCommand);
+            ReadCommand readCmd = readCommand.copy();
+            readMessages.put(key, readCmd);
         }
         /* Performs the multiget in parallel */
         Map<String, Row> rows = doReadProtocol(readMessages);
@@ -608,7 +595,7 @@ public class StorageProxy
             /* Remove the local storage endpoint from the list. */
             endpoints.remove( StorageService.getLocalStorageEndPoint() );
             if ( endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                StorageService.instance().doConsistencyCheck(row, endpoints, columnFamily, columns);
+                StorageService.instance().doConsistencyCheck(row, endpoints, readMessages.get(key));
         }
         return rows;
     }
@@ -637,82 +624,5 @@ public class StorageProxy
         if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
             StorageService.instance().doConsistencyCheck(row, endpoints, command);
         return row;
-    }
-
-    /**
-     * This version is used when results for multiple keys needs to be
-     * retrieved.
-     * 
-     * @param tablename name of the table that needs to be queried
-     * @param keys keys whose values we are interested in 
-     * @param columnFamily name of the "column" we are interested in
-     * @param start start index
-     * @param count the number of columns we are interested in
-     * @return a mapping of key --> Row
-     * @throws Exception
-     */
-    public static Map<String, Row> weakReadProtocol(String tablename, String[] keys, String columnFamily, int start, int count) throws Exception
-    {
-        Row row = null;
-        long startTime = System.currentTimeMillis();
-        Map<String, ReadCommand> readMessages = new HashMap<String, ReadCommand>();
-        for ( String key : keys )
-        {
-            ReadCommand readCommand = new ReadCommand(tablename, key, columnFamily, start, count);
-            readMessages.put(key, readCommand);
-        }
-        /* Performs the multiget in parallel */
-        Map<String, Row> rows = doReadProtocol(readMessages);
-        /*
-         * Do the consistency checks for the keys that are being queried
-         * in the background.
-        */
-        for ( String key : keys )
-        {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(key);
-            /* Remove the local storage endpoint from the list. */ 
-            endpoints.remove( StorageService.getLocalStorageEndPoint() );
-            if ( endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                StorageService.instance().doConsistencyCheck(row, endpoints, columnFamily, start, count);
-        }
-        return rows;         
-    }
-
-    /**
-     * This version is used when results for multiple keys needs to be
-     * retrieved.
-     * 
-     * @param tablename name of the table that needs to be queried
-     * @param keys keys whose values we are interested in 
-     * @param columnFamily name of the "column" we are interested in
-     * @param sinceTimestamp this is lower bound of the timestamp
-     * @return a mapping of key --> Row
-     * @throws Exception
-     */
-    public static Map<String, Row> weakReadProtocol(String tablename, String[] keys, String columnFamily, long sinceTimestamp) throws Exception
-    {
-        Row row = null;
-        long startTime = System.currentTimeMillis();
-        Map<String, ReadCommand> readMessages = new HashMap<String, ReadCommand>();
-        for ( String key : keys )
-        {
-            ReadCommand readCommand = new ReadCommand(tablename, key, columnFamily, sinceTimestamp);
-            readMessages.put(key, readCommand);
-        }
-        /* Performs the multiget in parallel */
-        Map<String, Row> rows = doReadProtocol(readMessages);
-        /*
-         * Do the consistency checks for the keys that are being queried
-         * in the background.
-        */
-        for ( String key : keys )
-        {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(key);
-            /* Remove the local storage endpoint from the list. */ 
-            endpoints.remove( StorageService.getLocalStorageEndPoint() );
-            if ( endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                StorageService.instance().doConsistencyCheck(row, endpoints, columnFamily, sinceTimestamp);
-        }
-        return rows;         
     }
 }

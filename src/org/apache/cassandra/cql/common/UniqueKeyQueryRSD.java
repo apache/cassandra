@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnReadCommand;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.ReadCommand;
@@ -85,7 +86,7 @@ public class UniqueKeyQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new ReadCommand(cfMetaData_.tableName, key, columnFamily_column, -1, Integer.MAX_VALUE);
+            ReadCommand readCommand = new ColumnReadCommand(cfMetaData_.tableName, key, columnFamily_column);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)

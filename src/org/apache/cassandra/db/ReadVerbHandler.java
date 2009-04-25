@@ -118,28 +118,11 @@ public class ReadVerbHandler implements IVerbHandler
     
     private void doReadRepair(Row row, ReadCommand readCommand)
     {
-        if ( DatabaseDescriptor.getConsistencyCheck() )
-        {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readCommand.key);
-            /* Remove the local storage endpoint from the list. */ 
-            endpoints.remove( StorageService.getLocalStorageEndPoint() );
+        List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readCommand.key);
+        /* Remove the local storage endpoint from the list. */ 
+        endpoints.remove( StorageService.getLocalStorageEndPoint() );
             
-            if(readCommand.columnNames.size() == 0)
-            {
-                if( readCommand.start >= 0 && readCommand.count < Integer.MAX_VALUE)
-                {                
-                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamilyColumn, readCommand.start, readCommand.count);
-                }
-                
-                if( readCommand.sinceTimestamp > 0)
-                {                    
-                    StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamilyColumn, readCommand.sinceTimestamp);
-                }                
-            }
-            else
-            {
-                StorageService.instance().doConsistencyCheck(row, endpoints, readCommand.columnFamilyColumn, readCommand.columnNames);
-            }
-        }
+        if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
+            StorageService.instance().doConsistencyCheck(row, endpoints, readCommand);
     }     
 }

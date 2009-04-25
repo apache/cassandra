@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.db.ColumnReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
@@ -180,7 +181,7 @@ public class StressTest
 	            String stringKey = new Integer(key).toString();
 	            stringKey = stringKey + keyFix_ ;
             	int j = random.nextInt(columns) + 1;
-	            ReadCommand rm = new ReadCommand(tablename_, stringKey, columnFamilyColumn_ + ":" + columnFix_ + j);
+	            ReadCommand rm = new ColumnReadCommand(tablename_, stringKey, columnFamilyColumn_ + ":" + columnFix_ + j);
 	            readLoad(rm);
 				if ( requestsPerSecond_ > 1000)
 					Thread.sleep(0, 1000000000/requestsPerSecond_);
@@ -250,7 +251,7 @@ public class StressTest
 	            stringKey = stringKey + keyFix_ ;
             	int i = random.nextInt(superColumns) + 1;
             	int j = random.nextInt(columns) + 1;
-	            ReadCommand rm = new ReadCommand(tablename_, stringKey, columnFamilySuperColumn_ + ":" + superColumnFix_ + i + ":" + columnFix_ + j);
+	            ReadCommand rm = new ColumnReadCommand(tablename_, stringKey, columnFamilySuperColumn_ + ":" + superColumnFix_ + i + ":" + columnFix_ + j);
 	            readLoad(rm);
 			}
 		}

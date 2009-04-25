@@ -36,6 +36,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.common.CqlResult;
 import org.apache.cassandra.cql.driver.CqlDriver;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnReadCommand;
+import org.apache.cassandra.db.ColumnsSinceReadCommand;
+import org.apache.cassandra.db.SliceByNamesReadCommand;
+import org.apache.cassandra.db.SliceReadCommand;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
@@ -102,12 +106,8 @@ public class CassandraServer implements Cassandra.Iface
     
 	protected ColumnFamily readColumnFamily(ReadCommand command) throws InvalidRequestException
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(command.columnFamilyColumn);
-        if( values.length < 1 )
-        {
-            throw new ColumnFamilyNotDefinedException("Empty column Family is invalid.");
-        }
-        validateCommand(command.key, command.table, values[0]);
+        String cfName = command.getColumnFamilyName();
+        validateCommand(command.key, command.table, cfName);
 
         Row row;
         try
@@ -127,7 +127,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             return null;
         }
-        return row.getColumnFamily(values[0]);
+        return row.getColumnFamily(cfName);
 	}
 
     public List<column_t> thriftifyColumns(Collection<IColumn> columns)
@@ -156,7 +156,7 @@ public class CassandraServer implements Cassandra.Iface
         long startTime = System.currentTimeMillis();
         try
         {
-            ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, timeStamp));
+            ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnFamily_column, timeStamp));
             String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
             if (cfamily == null)
             {
@@ -188,7 +188,7 @@ public class CassandraServer implements Cassandra.Iface
         long startTime = System.currentTimeMillis();
         try
         {
-            ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, columnNames));
+            ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, columnNames));
             if (cfamily == null)
             {
                 return EMPTY_COLUMNS;
@@ -209,7 +209,7 @@ public class CassandraServer implements Cassandra.Iface
 		try
 		{
 	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-            ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, start, count));
+            ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, start, count));
             if (cfamily == null)
 			{
                 return EMPTY_COLUMNS;
@@ -241,7 +241,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("get_column requires both parts of columnfamily:column");
         }
-        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnFamily_column));
         if (cfamily == null)
         {
             throw new NotFoundException();
@@ -277,7 +277,7 @@ public class CassandraServer implements Cassandra.Iface
     public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException
     {
         String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
         if (cfamily == null)
         {
             return 0;
@@ -367,7 +367,7 @@ public class CassandraServer implements Cassandra.Iface
         long startTime = System.currentTimeMillis();
 		try
 		{
-			ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily, superColumnNames));
+			ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, superColumnNames));
 			if (cfamily == null)
 			{
                 return EMPTY_SUPERCOLUMNS;
@@ -405,7 +405,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws InvalidRequestException
     {
-        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_superColumnName, start, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_superColumnName, start, count));
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;
@@ -416,7 +416,7 @@ public class CassandraServer implements Cassandra.Iface
     
     public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException
     {
-        ColumnFamily cfamily = readColumnFamily(new ReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnFamily_column));
         if (cfamily == null)
         {
             throw new NotFoundException();

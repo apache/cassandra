@@ -18,10 +18,27 @@ public class ReadMessageTest
         ArrayList<String> colList = new ArrayList<String>();
         colList.add("col1");
         colList.add("col2");
+        
+        ReadCommand rm, rm2;
+        
+        rm = new SliceByNamesReadCommand("Table1", "row1", "foo", colList);
+        rm2 = serializeAndDeserializeReadMessage(rm);
+        assert rm2.toString().equals(rm.toString());
 
-        ReadCommand rm = new ReadCommand("Table1", "row1", "foo", colList);
-        ReadCommand rm2 = serializeAndDeserializeReadMessage(rm);
+        rm = new ColumnReadCommand("Table1", "row1", "foo:col1");
+        rm2 = serializeAndDeserializeReadMessage(rm);
+        assert rm2.toString().equals(rm.toString());
 
+        rm = new RowReadCommand("Table1", "row1");
+        rm2 = serializeAndDeserializeReadMessage(rm);
+        assert rm2.toString().equals(rm.toString());
+
+        rm = new ColumnsSinceReadCommand("Table1", "row1", "foo", 1);
+        rm2 = serializeAndDeserializeReadMessage(rm);
+        assert rm2.toString().equals(rm.toString());
+
+        rm = new SliceReadCommand("Table1", "row1", "foo", 1, 2);
+        rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
     }
 
@@ -56,7 +73,7 @@ public class ReadMessageTest
         rm.add("Standard1:Column1", "abcd".getBytes(), 0);
         rm.apply();
 
-        ReadCommand command = new ReadCommand("Table1", "key1", "Standard1:Column1", -1, Integer.MAX_VALUE);
+        ReadCommand command = new ColumnReadCommand("Table1", "key1", "Standard1:Column1");
         Row row = command.getRow(table);
         ColumnFamily cf = row.getColumnFamily("Standard1");
         IColumn col = cf.getColumn("Column1");

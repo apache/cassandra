@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.RowReadCommand;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
@@ -880,7 +881,7 @@ public class DataImporter {
 				key = user + ":1";
 			}
 
-			ReadCommand readCommand = new ReadCommand(tablename_, key);
+			ReadCommand readCommand = new RowReadCommand(tablename_, key);
 			Message message = new Message(from_, StorageService.readStage_,
 					StorageService.readVerbHandler_,
 					new Object[] {readCommand});

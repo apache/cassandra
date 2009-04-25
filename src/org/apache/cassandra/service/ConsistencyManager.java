@@ -149,41 +149,17 @@ class ConsistencyManager implements Runnable
 	private static ICachetable<String, String> readRepairTable_ = new Cachetable<String, String>(scheduledTimeMillis_);
 	private Row row_;
 	protected List<EndPoint> replicas_;
-	private String columnFamily_;
-	private int start_;
-	private int count_;
-	private long sinceTimestamp_;
-	private List<String> columnNames_ = new ArrayList<String>();	
 	
-    public ConsistencyManager(Row row_, List<EndPoint> replicas_, String columnFamily_, int start_, int count_, long sinceTimestamp_, List<String> columnNames_)
+	private ReadCommand readCommand_;
+	
+    public ConsistencyManager(Row row_, List<EndPoint> replicas_, ReadCommand readCommand)
     {
-        this.row_ = row_;
-        this.replicas_ = replicas_;
-        this.columnFamily_ = columnFamily_;
-        this.start_ = start_;
-        this.count_ = count_;
-        this.sinceTimestamp_ = sinceTimestamp_;
-        this.columnNames_ = columnNames_;
+        this.readCommand_ = readCommand;
     }
-
-    ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, List<String> columns)
-	{
-        this(row, replicas, columnFamily, 0, 0, 0, columns);
-	}
-
-	ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, int start, int count)
-	{
-        this(row, replicas, columnFamily, start, count, 0, null);
-	}
-
-	ConsistencyManager(Row row, List<EndPoint> replicas, String columnFamily, long sinceTimestamp)
-	{
-        this(row, replicas, columnFamily, 0, 0, sinceTimestamp, null);
-	}
 
 	public void run()
 	{
-		logger_.debug(" Run the consistency checks for " + columnFamily_);		
+		logger_.debug(" Run the consistency checks for " + readCommand_.getColumnFamilyName());		
         ReadCommand readCommandDigestOnly = constructReadMessage(true);
 		try
 		{
@@ -199,29 +175,7 @@ class ConsistencyManager implements Runnable
     
     private ReadCommand constructReadMessage(boolean isDigestQuery)
     {
-        ReadCommand readCommand = null;
-        String table = DatabaseDescriptor.getTables().get(0);
-        
-        if(columnNames_.size() == 0)
-        {
-            if( start_ >= 0 && count_ < Integer.MAX_VALUE)
-            {
-                readCommand = new ReadCommand(table, row_.key(), columnFamily_, start_, count_);
-            }
-            else if(sinceTimestamp_ > 0)
-            {
-                readCommand = new ReadCommand(table, row_.key(), columnFamily_, sinceTimestamp_);
-            }
-            else
-            {
-                readCommand = new ReadCommand(table, row_.key(), columnFamily_);
-            }
-        }
-        else
-        {
-            readCommand = new ReadCommand(table, row_.key(), columnFamily_, columnNames_);
-            
-        }
+        ReadCommand readCommand = readCommand_.copy();
         readCommand.setDigestQuery(isDigestQuery);
         return readCommand;
     }
