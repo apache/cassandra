@@ -106,9 +106,10 @@ public class ReadVerbHandler implements IVerbHandler
             logger_.info("ReadVerbHandler  TIME 2: " + (System.currentTimeMillis() - start) + " ms.");
             
             /* Do read repair if header of the message says so */
-            String repair = new String( message.getHeader(ReadCommand.DO_REPAIR) );
-            if ( repair.equals( ReadCommand.DO_REPAIR) )
+            if (message.getHeader(ReadCommand.DO_REPAIR) != null)
+            {
                 doReadRepair(row, readCommand);
+            }
         }
         catch ( IOException ex)
         {
