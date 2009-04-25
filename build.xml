@@ -10,6 +10,8 @@
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
+    <property name="interface.dir" value="${basedir}/interface"/>
+    <property name="interface.src.dir" value="${interface.dir}/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
@@ -108,6 +110,7 @@
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
+            <src path="${interface.src.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
     </target>
