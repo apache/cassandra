@@ -16,7 +16,9 @@
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
-    <property name="final.name" value="cassandra"/>
+    <property name="dist.dir" value="${build.dir}/dist"/>
+    <property name="version" value="0.3.0-dev"/>
+    <property name="final.name" value="${ant.project.name}-${version}"/>
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
@@ -124,7 +126,7 @@
       <manifest>
         <!-- <section name="org/apache/cassandra/infrastructure"> -->
           <attribute name="Implementation-Title" value="Cassandra"/>
-          <attribute name="Implementation-Version" value="1.1"/>
+          <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Facebook"/>
 	        <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
         <!-- </section> -->
@@ -132,6 +134,50 @@
     </jar>
   </target>
 
+    <!-- creates a release tarball -->	
+    <target name="release" depends="jar,javadoc">
+      <mkdir dir="${dist.dir}"/>
+      <copy todir="${dist.dir}/lib">
+        <fileset dir="${build.lib}"/>
+        <fileset dir="${build.dir}">
+          <include name="*.jar" />
+        </fileset>
+      </copy>
+      <copy todir="${dist.dir}/javadoc">
+        <fileset dir="${javadoc.dir}"/>
+      </copy>
+      <copy todir="${dist.dir}/bin">
+        <fileset dir="bin"/>
+      </copy>
+      <copy todir="${dist.dir}/conf">
+        <fileset dir="conf"/>
+      </copy>   
+      <copy todir="${dist.dir}/interface">
+        <fileset dir="interface">
+          <include name="**/*.thrift" />
+        </fileset>
+      </copy>      
+      <copy todir="${dist.dir}/">
+        <fileset dir="${basedir}">
+          <include name="*.txt" />
+        </fileset>
+      </copy> 
+      
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}.tgz">
+
+        <tarfileset dir="${dist.dir}"
+          prefix="${final.name}">
+          <include name="**"/>
+          <exclude name="bin/cassandra" />
+        </tarfileset>
+        <tarfileset dir="${dist.dir}"
+          prefix="${final.name}"
+          mode="755">
+          <include name="bin/cassandra"/>
+        </tarfileset>	
+      </tar>
+    </target>
 
   <target name="build-test" depends="build" description="Build the Cassandra classes">
     <javac
