@@ -146,6 +146,7 @@
     <mkdir dir="${build.test.dir}/cassandra"/>
     <testng outputDir="${build.dir}/test/output"
             haltOnFailure="true"
+            listeners="org.uncommons.reportng.JUnitXMLReporter"
             verbose="2">
       <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
