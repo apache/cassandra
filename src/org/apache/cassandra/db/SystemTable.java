@@ -178,12 +178,4 @@ public class SystemTable
     {
         throw new UnsupportedOperationException("This operation is not supported for System tables");
     }
-
-    public static void main(String[] args) throws Throwable
-    {
-        LogUtil.init();
-        StorageService.instance().start();
-        SystemTable.openSystemTable(SystemTable.cfName_).updateToken(StorageService.token("503545744:0"));
-        System.out.println("Done");
-    }
 }

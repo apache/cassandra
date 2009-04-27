@@ -9,8 +9,8 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.EndPoint;
 
@@ -22,14 +22,20 @@ import org.apache.cassandra.net.EndPoint;
 public abstract class AbstractStrategy implements IReplicaPlacementStrategy
 {
     protected static Logger logger_ = Logger.getLogger(AbstractStrategy.class);
-    
+
     protected TokenMetadata tokenMetadata_;
-    
-    AbstractStrategy(TokenMetadata tokenMetadata)
+    protected IPartitioner partitioner_;
+    protected int replicas_;
+    protected int storagePort_;
+
+    AbstractStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
     {
         tokenMetadata_ = tokenMetadata;
+        partitioner_ = partitioner;
+        replicas_ = replicas;
+        storagePort_ = storagePort;
     }
-    
+
     /*
      * This method changes the ports of the endpoints from
      * the control port to the storage ports.
@@ -38,7 +44,7 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
     {
         for ( EndPoint ep : eps )
         {
-            ep.setPort(DatabaseDescriptor.getStoragePort());
+            ep.setPort(storagePort_);
         }
     }
 
@@ -108,5 +114,4 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
     }
 
     public abstract EndPoint[] getStorageEndPoints(Token token);
-
 }

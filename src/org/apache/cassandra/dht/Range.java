@@ -134,11 +134,10 @@ public class Range implements Comparable<Range>
     }
     
 
-    public static boolean isKeyInRanges(String key, List<Range> ranges)
+    public static boolean isTokenInRanges(Token token, List<Range> ranges)
     {
         assert ranges != null;
 
-        Token token = StorageService.token(key);
         for (Range range : ranges)
         {
             if(range.contains(token))
@@ -165,7 +164,7 @@ public class Range implements Comparable<Range>
     public String toString()
     {
         return "(" + left_ + "," + right_ + "]";
-    } 
+    }
 }
 
 class RangeSerializer implements ICompactSerializer<Range>

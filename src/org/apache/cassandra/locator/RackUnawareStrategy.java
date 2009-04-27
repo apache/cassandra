@@ -6,11 +6,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.service.StorageService;
-
 
 /**
  * This class returns the nodes responsible for a given
@@ -19,12 +17,12 @@ import org.apache.cassandra.service.StorageService;
  * on the ring.
  */
 public class RackUnawareStrategy extends AbstractStrategy
-{   
-    public RackUnawareStrategy(TokenMetadata tokenMetadata)
+{
+    public RackUnawareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
     {
-        super(tokenMetadata);
+        super(tokenMetadata, partitioner, replicas, storagePort);
     }
-    
+
     public EndPoint[] getStorageEndPoints(Token token)
     {
         return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());            
@@ -35,7 +33,6 @@ public class RackUnawareStrategy extends AbstractStrategy
         int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
         int foundCount = 0;
-        int N = DatabaseDescriptor.getReplicationFactor();
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
@@ -52,7 +49,7 @@ public class RackUnawareStrategy extends AbstractStrategy
         startIndex = (index + 1)%totalNodes;
         // If we found N number of nodes we are good. This loop will just exit. Otherwise just
         // loop through the list and add until we have N nodes.
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < N; ++count, i = (i+1)%totalNodes)
+        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i+1)%totalNodes)
         {
             if( ! list.contains(tokenToEndPointMap.get(tokens.get(i))))
             {
@@ -70,7 +67,7 @@ public class RackUnawareStrategy extends AbstractStrategy
 
         for ( String key : keys )
         {
-            results.put(key, getStorageEndPoints(StorageService.token(key)));
+            results.put(key, getStorageEndPoints(partitioner_.getTokenForKey(key)));
         }
 
         return results;

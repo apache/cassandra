@@ -6,14 +6,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.math.BigInteger;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
-
 
 /*
  * This class returns the nodes responsible for a given
@@ -24,11 +22,11 @@ import org.apache.cassandra.utils.LogUtil;
  */
 public class RackAwareStrategy extends AbstractStrategy
 {
-    public RackAwareStrategy(TokenMetadata tokenMetadata)
+    public RackAwareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
     {
-        super(tokenMetadata);
+        super(tokenMetadata, partitioner, replicas, storagePort);
     }
-    
+
     public EndPoint[] getStorageEndPoints(Token token)
     {
         int startIndex;
@@ -36,7 +34,6 @@ public class RackAwareStrategy extends AbstractStrategy
         boolean bDataCenter = false;
         boolean bOtherRack = false;
         int foundCount = 0;
-        int N = DatabaseDescriptor.getReplicationFactor();
         Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         List tokens = new ArrayList(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
@@ -51,14 +48,14 @@ public class RackAwareStrategy extends AbstractStrategy
         // Add the node at the index by default
         list.add(tokenToEndPointMap.get(tokens.get(index)));
         foundCount++;
-        if( N == 1 )
+        if( replicas_ == 1 )
         {
             return list.toArray(new EndPoint[list.size()]);
         }
         startIndex = (index + 1)%totalNodes;
         IEndPointSnitch endPointSnitch = StorageService.instance().getEndPointSnitch();
         
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < N; ++count, i = (i+1)%totalNodes)
+        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i+1)%totalNodes)
         {
             try
             {
@@ -95,7 +92,7 @@ public class RackAwareStrategy extends AbstractStrategy
         }
         // If we found N number of nodes we are good. This loop wil just exit. Otherwise just
         // loop through the list and add until we have N nodes.
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < N; ++count, i = (i+1)%totalNodes)
+        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i+1)%totalNodes)
         {
             if( ! list.contains(tokenToEndPointMap.get(tokens.get(i))))
             {
@@ -113,7 +110,7 @@ public class RackAwareStrategy extends AbstractStrategy
 
         for ( String key : keys )
         {
-            results.put(key, getStorageEndPoints(StorageService.token(key)));
+            results.put(key, getStorageEndPoints(partitioner_.getTokenForKey(key)));
         }
 
         return results;
