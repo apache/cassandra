@@ -103,7 +103,7 @@ public class RandomPartitioner implements IPartitioner
         return tokenFactory;
     }
 
-    public Token getTokenForKey(String key)
+    public Token getInitialToken(String key)
     {
         return new BigIntegerToken(FBUtilities.hash(key));
     }

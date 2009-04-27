@@ -774,7 +774,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 	        Token[] tokens = tokenToEndPointMap.keySet().toArray(new Token[tokenToEndPointMap.keySet().size()]);
 	        Arrays.sort(tokens);
 	        int index = Arrays.binarySearch(tokens, token) * (keys.length/tokens.length);
-            Token newToken = partitioner_.getTokenForKey(keys[index]);
+            Token newToken = partitioner_.getInitialToken(keys[index]);
 	        /* update the token */
 	        updateToken(newToken);
     	}
@@ -1064,7 +1064,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public EndPoint getPrimary(String key)
     {
         EndPoint endpoint = StorageService.tcpAddr_;
-        Token token = partitioner_.getTokenForKey(key);
+        Token token = partitioner_.getInitialToken(key);
         Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         if (tokens.size() > 0)
@@ -1112,7 +1112,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public EndPoint[] getNStorageEndPoint(String key)
     {
-        return nodePicker_.getStorageEndPoints(partitioner_.getTokenForKey(key));
+        return nodePicker_.getStorageEndPoints(partitioner_.getInitialToken(key));
     }
     
     private Map<String, EndPoint[]> getNStorageEndPoints(String[] keys)
@@ -1151,7 +1151,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public Map<EndPoint, EndPoint> getNStorageEndPointMap(String key)
     {
-        return nodePicker_.getHintedStorageEndPoints(partitioner_.getTokenForKey(key));
+        return nodePicker_.getHintedStorageEndPoints(partitioner_.getInitialToken(key));
     }
 
     /**

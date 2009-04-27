@@ -2,7 +2,6 @@ package org.apache.cassandra.locator;
 
 import java.util.List;
 import java.util.ArrayList;
-import java.math.BigInteger;
 
 import org.testng.annotations.Test;
 import org.apache.cassandra.dht.IPartitioner;
@@ -42,7 +41,7 @@ public class RackUnawareStrategyTest
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endPointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
-            keyTokens.add(partitioner.getTokenForKey(String.valueOf((char)('a' + i * 2 + 1))));
+            keyTokens.add(partitioner.getInitialToken(String.valueOf((char)('a' + i * 2 + 1))));
         }
         testGetStorageEndPoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }

@@ -1113,7 +1113,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                            continue;
 	                    	}
 	                    }
-                        if (Range.isTokenInRanges(StorageService.getPartitioner().getTokenForKey(lastkey), ranges))
+                        if (Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(lastkey), ranges))
 	                    {
 	                        if(ssTableRange == null )
 	                        {
@@ -1143,7 +1143,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                    			continue;
 	                    		}
 	                    		/* keep on looping until we find a key in the range */
-                                while (!Range.isTokenInRanges(StorageService.getPartitioner().getTokenForKey(filestruct.getKey()), ranges))
+                                while (!Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(filestruct.getKey()), ranges))
 	                            {
                                     filestruct.advance();
                                     if (filestruct.isExhausted())

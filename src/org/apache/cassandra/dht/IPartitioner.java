@@ -37,7 +37,10 @@ public interface IPartitioner
 
     public Comparator<String> getReverseDecoratedKeyComparator();
 
-    public Token getTokenForKey(String key);
+    /**
+     * @return the token to use for this node if none was saved
+     */
+    public Token getInitialToken(String key);
 
     public Token getDefaultToken();
 
