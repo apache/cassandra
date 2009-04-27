@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.util.Comparator;

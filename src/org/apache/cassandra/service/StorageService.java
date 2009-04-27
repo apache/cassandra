@@ -28,7 +28,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.math.BigInteger;
-import java.net.UnknownHostException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -57,20 +56,20 @@ import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.BootstrapMetadataVerbHandler;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.OrderPreservingHashPartitioner;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndPointStateChangeSubscriber;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.locator.EndPointSnitch;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.IReplicaPlacementStrategy;
 import org.apache.cassandra.locator.RackAwareStrategy;
 import org.apache.cassandra.locator.RackUnawareStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.CompactEndPointSerializationHelper;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -81,14 +80,9 @@ import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.tools.TokenUpdateVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.commons.math.linear.RealMatrix;
-import org.apache.commons.math.linear.RealMatrixImpl;
+
 import org.apache.log4j.Logger;
-import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.net.io.*;
-import org.apache.cassandra.gms.*;
-import org.apache.cassandra.utils.*;
+
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -96,7 +90,6 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.data.Stat;
-import org.apache.zookeeper.proto.WatcherEvent;
 
 /*
  * This abstraction contains the token/identifier of this node

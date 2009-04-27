@@ -16,35 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.util.Comparator;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.dht.IPartitioner;
 
-/**
- * This class generates a MD5 hash of the key. It uses the standard technique
- * used in all DHT's.
- * 
- * @author alakshman
- * 
- */
-public class RandomPartitioner implements IPartitioner
+public class OrderPreservingHashPartitioner implements IPartitioner
 {
+    private final static int maxKeyHashLength_ = 36;
+    private final static BigInteger ONE = BigInteger.ONE;
+    private static final BigInteger prime_ = BigInteger.valueOf(Character.MAX_VALUE);
+    
     private static final Comparator<String> comparator = new Comparator<String>()
     {
         public int compare(String o1, String o2)
         {
-            String[] split1 = o1.split(":", 2);
-            String[] split2 = o2.split(":", 2);
-            BigInteger i1 = new BigInteger(split1[0]);
-            BigInteger i2 = new BigInteger(split2[0]);
-            int v = i1.compareTo(i2);
-            if (v != 0) {
-                return v;
-            }
-            return split1[1].compareTo(split2[1]);
+            return o1.compareTo(o2);
         }
     };
     private static final Comparator<String> rcomparator = new Comparator<String>()
@@ -56,27 +45,37 @@ public class RandomPartitioner implements IPartitioner
     };
 
     public BigInteger hash(String key)
-	{
-		return FBUtilities.hash(key);
-	}
+    {
+        BigInteger h = BigInteger.ZERO;
+        char val[] = key.toCharArray();
+       
+        for (int i = 0; i < maxKeyHashLength_; i++)
+        {
+            if( i < val.length )
+                h = prime_.multiply(h).add( BigInteger.valueOf(val[i]) );
+            else
+                h = prime_.multiply(h).add( ONE );
+        }
+        return h;
+    }
 
     public String decorateKey(String key)
     {
-        return hash(key).toString() + ":" + key;
+        return key;
     }
 
     public String undecorateKey(String decoratedKey)
     {
-        return decoratedKey.split(":", 2)[1];
-    }
-
-    public Comparator<String> getDecoratedKeyComparator()
-    {
-        return comparator;
+        return decoratedKey;
     }
 
     public Comparator<String> getReverseDecoratedKeyComparator()
     {
         return rcomparator;
+    }
+
+    public Comparator<String> getDecoratedKeyComparator()
+    {
+        return comparator;
     }
 }
