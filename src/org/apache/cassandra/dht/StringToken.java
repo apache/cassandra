@@ -2,7 +2,7 @@ package org.apache.cassandra.dht;
 
 public class StringToken extends Token<String>
 {
-    protected StringToken(String token)
+    public StringToken(String token)
     {
         super(token);
     }

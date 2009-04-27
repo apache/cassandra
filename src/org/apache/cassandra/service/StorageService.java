@@ -867,6 +867,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     
     public String getToken(EndPoint ep)
     {
+        // render a String representation of the Token corresponding to this endpoint
+        // for a human-facing UI.  If there is no such Token then we use "" since
+        // it is not a valid value either for BigIntegerToken or StringToken.
         EndPoint ep2 = new EndPoint(ep.getHost(), DatabaseDescriptor.getStoragePort());
         Token token = tokenMetadata_.getToken(ep2);
         // if there is no token for an endpoint, return an empty string to denote that
