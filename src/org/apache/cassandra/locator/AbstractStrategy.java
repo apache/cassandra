@@ -1,6 +1,5 @@
 package org.apache.cassandra.locator;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,11 +7,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.service.StorageService;
-import org.apache.log4j.Logger;
 
 /**
  * This class contains a helper method that will be used by
@@ -45,10 +45,10 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
     protected EndPoint getNextAvailableEndPoint(EndPoint startPoint, List<EndPoint> topN, List<EndPoint> liveNodes)
     {
         EndPoint endPoint = null;
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        List tokens = new ArrayList(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
-        BigInteger token = tokenMetadata_.getToken(startPoint);
+        Token token = tokenMetadata_.getToken(startPoint);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
         {
@@ -76,7 +76,7 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
      * endpoint which is in the top N.
      * Get the map of top N to the live nodes currently.
      */
-    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(BigInteger token)
+    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token)
     {
         List<EndPoint> liveList = new ArrayList<EndPoint>();
         Map<EndPoint, EndPoint> map = new HashMap<EndPoint, EndPoint>();
@@ -107,6 +107,6 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
         return map;
     }
 
-    public abstract EndPoint[] getStorageEndPoints(BigInteger token);
+    public abstract EndPoint[] getStorageEndPoints(Token token);
 
 }

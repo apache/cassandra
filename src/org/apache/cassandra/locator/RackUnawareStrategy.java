@@ -1,16 +1,13 @@
 package org.apache.cassandra.locator;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 
@@ -23,27 +20,23 @@ import org.apache.cassandra.service.StorageService;
  */
 public class RackUnawareStrategy extends AbstractStrategy
 {   
-    /* Use this flag to check if initialization is in order. */
-    private AtomicBoolean initialized_ = new AtomicBoolean(false);
-    private Map<Range, List<EndPoint>> rangeToEndPointMap_;
-    
     public RackUnawareStrategy(TokenMetadata tokenMetadata)
     {
         super(tokenMetadata);
     }
     
-    public EndPoint[] getStorageEndPoints(BigInteger token)
+    public EndPoint[] getStorageEndPoints(Token token)
     {
         return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());            
     }
     
-    public EndPoint[] getStorageEndPoints(BigInteger token, Map<BigInteger, EndPoint> tokenToEndPointMap)
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
         int foundCount = 0;
         int N = DatabaseDescriptor.getReplicationFactor();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
@@ -77,8 +70,7 @@ public class RackUnawareStrategy extends AbstractStrategy
 
         for ( String key : keys )
         {
-        	BigInteger token = StorageService.hash(key);
-            results.put(key, getStorageEndPoints(token));
+            results.put(key, getStorageEndPoints(StorageService.token(key)));
         }
 
         return results;

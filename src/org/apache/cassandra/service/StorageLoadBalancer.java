@@ -19,33 +19,30 @@
 package org.apache.cassandra.service;
 
 import java.io.Serializable;
-import java.math.BigInteger;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
-import org.apache.cassandra.dht.LeaveJoinProtocolImpl;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndPointStateChangeSubscriber;
-import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.log4j.Logger;
-import org.apache.cassandra.net.*;
-import org.apache.cassandra.utils.*;
 
 /*
  * The load balancing algorithm here is an implementation of
@@ -164,7 +161,6 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComp
             if ( isMoveable_.get() )
             {
                 MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];
-                BigInteger targetToken = moveMessage.getTargetToken();
                 /* Start the leave operation and join the ring at the position specified */
                 isMoveable_.set(false);
             }
@@ -396,18 +392,18 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComp
 
 class MoveMessage implements Serializable
 {
-    private BigInteger targetToken_;
+    private Token targetToken_;
 
     private MoveMessage()
     {
     }
 
-    MoveMessage(BigInteger targetToken)
+    MoveMessage(Token targetToken)
     {
         targetToken_ = targetToken;
     }
 
-    BigInteger getTargetToken()
+    Token getTargetToken()
     {
         return targetToken_;
     }

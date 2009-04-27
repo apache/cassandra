@@ -24,7 +24,7 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.service.IPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
 
 
 public class FileStruct implements Comparable<FileStruct>

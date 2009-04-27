@@ -18,14 +18,10 @@
 
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
 import java.util.Comparator;
-import java.util.Iterator;
 
 public interface IPartitioner
 {
-    public BigInteger hash(String key);
-
     /**
      * transform key to on-disk format s.t. keys are stored in node comparison order.
      * this lets bootstrap rip out parts of the sstable sequentially instead of doing random seeks.
@@ -40,4 +36,10 @@ public interface IPartitioner
     public Comparator<String> getDecoratedKeyComparator();
 
     public Comparator<String> getReverseDecoratedKeyComparator();
+
+    public Token getTokenForKey(String key);
+
+    public Token getDefaultToken();
+
+    public Token.TokenFactory getTokenFactory();
 }

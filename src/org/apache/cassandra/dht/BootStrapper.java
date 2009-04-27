@@ -18,24 +18,20 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.IOException;
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.HashMap;
+ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
 
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.log4j.Logger;
+ import org.apache.log4j.Logger;
+
+ import org.apache.cassandra.locator.TokenMetadata;
+ import org.apache.cassandra.net.EndPoint;
+ import org.apache.cassandra.service.StorageService;
+ import org.apache.cassandra.utils.LogUtil;
 
 
 /**
@@ -48,18 +44,18 @@ public class BootStrapper implements Runnable
     /* endpoints that need to be bootstrapped */
     protected EndPoint[] targets_ = new EndPoint[0];
     /* tokens of the nodes being bootstapped. */
-    protected BigInteger[] tokens_ = new BigInteger[0];
+    protected final Token[] tokens_;
     protected TokenMetadata tokenMetadata_ = null;
     private List<EndPoint> filters_ = new ArrayList<EndPoint>();
 
-    public BootStrapper(EndPoint[] target, BigInteger[] token)
+    public BootStrapper(EndPoint[] target, Token... token)
     {
         targets_ = target;
         tokens_ = token;
         tokenMetadata_ = StorageService.instance().getTokenMetadata();
     }
     
-    public BootStrapper(EndPoint[] target, BigInteger[] token, EndPoint[] filters)
+    public BootStrapper(EndPoint[] target, Token[] token, EndPoint[] filters)
     {
         this(target, token);
         Collections.addAll(filters_, filters);
@@ -71,14 +67,14 @@ public class BootStrapper implements Runnable
         {
             logger_.debug("Beginning bootstrap process for " + targets_ + " ...");                                                               
             /* copy the token to endpoint map */
-            Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+            Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* remove the tokens associated with the endpoints being bootstrapped */                
-            for ( BigInteger token : tokens_ )
+            for (Token token : tokens_)
             {
                 tokenToEndPointMap.remove(token);                    
             }
 
-            Set<BigInteger> oldTokens = new HashSet<BigInteger>( tokenToEndPointMap.keySet() );
+            Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
             Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
             logger_.debug("Total number of old ranges " + oldRanges.length);
             /* 

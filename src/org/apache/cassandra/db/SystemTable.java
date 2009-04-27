@@ -19,9 +19,10 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -31,7 +32,8 @@ import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.log4j.Logger;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.IPartitioner;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -148,8 +150,9 @@ public class SystemTable
      * This method is used to update the SystemTable with the
      * new token.
     */
-    public void updateToken(BigInteger token) throws IOException
+    public void updateToken(Token token) throws IOException
     {
+        IPartitioner p = StorageService.getPartitioner();
         if ( systemRow_ != null )
         {
             Map<String, ColumnFamily> columnFamilies = systemRow_.getColumnFamilyMap();
@@ -157,9 +160,9 @@ public class SystemTable
             ColumnFamily columnFamily = columnFamilies.get(SystemTable.cfName_);
             long oldTokenColumnTimestamp = columnFamily.getColumn(SystemTable.token_).timestamp();
             /* create the "Token" whose value is the new token. */
-            IColumn tokenColumn = new Column(SystemTable.token_, token.toByteArray(), oldTokenColumnTimestamp + 1);
+            IColumn tokenColumn = new Column(SystemTable.token_, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
             /* replace the old "Token" column with this new one. */
-            logger_.debug("Replacing old token " + new BigInteger( columnFamily.getColumn(SystemTable.token_).value() ).toString() + " with token " + token.toString());
+            logger_.debug("Replacing old token " + p.getTokenFactory().fromByteArray(columnFamily.getColumn(SystemTable.token_).value()) + " with " + token);
             columnFamily.addColumn(tokenColumn);
             reset(systemRow_);
         }
@@ -180,17 +183,7 @@ public class SystemTable
     {
         LogUtil.init();
         StorageService.instance().start();
-        SystemTable.openSystemTable(SystemTable.cfName_).updateToken( StorageService.hash("503545744:0") );
+        SystemTable.openSystemTable(SystemTable.cfName_).updateToken(StorageService.token("503545744:0"));
         System.out.println("Done");
-
-        /*
-        BigInteger hash = StorageService.hash("304700067:0");
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add( new Range(new BigInteger("1218069462158869448693347920504606362273788442553"), new BigInteger("1092770595533781724218060956188429069")) );
-        if ( Range.isKeyInRanges(ranges, "304700067:0") )
-        {
-            System.out.println("Done");
-        }
-        */
     }
 }

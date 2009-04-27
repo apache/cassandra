@@ -18,19 +18,19 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.IOException;
-import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+ import java.io.IOException;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
 
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.log4j.Logger;
+ import org.apache.log4j.Logger;
+
+ import org.apache.cassandra.net.EndPoint;
+ import org.apache.cassandra.net.Message;
+ import org.apache.cassandra.net.MessagingService;
 
 
 class LeaveJoinProtocolHelper
@@ -42,20 +42,20 @@ class LeaveJoinProtocolHelper
      * a-----x-----y-----b then we want a mapping from 
      * (a, b] --> (a, x], (x, y], (y, b] 
     */
-    protected static Map<Range, List<Range>> getRangeSplitRangeMapping(Range[] oldRanges, BigInteger[] allTokens)
+    protected static Map<Range, List<Range>> getRangeSplitRangeMapping(Range[] oldRanges, Token[] allTokens)
     {
         Map<Range, List<Range>> splitRanges = new HashMap<Range, List<Range>>();
-        BigInteger[] tokens = new BigInteger[allTokens.length];
+        Token[] tokens = new Token[allTokens.length];
         System.arraycopy(allTokens, 0, tokens, 0, tokens.length);
         Arrays.sort(tokens);
         
         Range prevRange = null;
-        BigInteger prevToken = null;
+        Token prevToken = null;
         boolean bVal = false;
         
         for ( Range oldRange : oldRanges )
         {
-            if ( bVal && prevRange != null )
+            if (bVal)
             {
                 bVal = false; 
                 List<Range> subRanges = splitRanges.get(prevRange);
@@ -65,7 +65,7 @@ class LeaveJoinProtocolHelper
             
             prevRange = oldRange;
             prevToken = oldRange.left();                
-            for ( BigInteger token : tokens )
+            for (Token token : tokens)
             {     
                 List<Range> subRanges = splitRanges.get(oldRange);
                 if ( oldRange.contains(token) )

@@ -43,6 +43,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IndexHelper;
@@ -50,7 +51,6 @@ import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
@@ -1113,7 +1113,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                            continue;
 	                    	}
 	                    }
-	                    if ( Range.isKeyInRanges(ranges, p.undecorateKey(lastkey)) )
+	                    if (Range.isKeyInRanges(p.undecorateKey(lastkey), ranges))
 	                    {
 	                        if(ssTableRange == null )
 	                        {
@@ -1143,7 +1143,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                    			continue;
 	                    		}
 	                    		/* keep on looping until we find a key in the range */
-	                            while ( !Range.isKeyInRanges(ranges, p.undecorateKey(filestruct.getKey())) )
+	                            while (!Range.isKeyInRanges(p.undecorateKey(filestruct.getKey()), ranges))
 	                            {
                                     filestruct.advance();
                                     if (filestruct.isExhausted())
@@ -1151,7 +1151,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 		                    			break;
 		                    		}
 	        	                    /* check if we need to continue , if we are done with ranges empty the queue and close all file handles and exit */
-	        	                    //if( !isLoop && StorageService.hash(filestruct.key).compareTo(maxRange.right()) > 0 && !filestruct.key.equals(""))
+	        	                    //if( !isLoop && StorageService.token(filestruct.key).compareTo(maxRange.right()) > 0 && !filestruct.key.equals(""))
 	        	                    //{
 	                                    //filestruct.reader.close();
 	                                    //filestruct = null;

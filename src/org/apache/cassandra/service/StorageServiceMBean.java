@@ -44,11 +44,6 @@ public interface StorageServiceMBean
     public void loadAll(String nodes);
     
     /**
-     * This method is used only for debug purpose.  
-    */
-    public void updateToken(String token);    
-    
-    /**
      * 
      */
     public void doGC();
