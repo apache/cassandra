@@ -52,6 +52,7 @@ import org.apache.cassandra.db.RowMutationVerbHandler;
 import org.apache.cassandra.db.SystemTable;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TouchVerbHandler;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.BootstrapMetadataVerbHandler;
@@ -562,42 +563,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, message);
         consistencyManager_.submit(consistencySentinel);
-    }
-
-    /*
-     * This method displays all the ranges and the replicas
-     * that are responsible for the individual ranges. The
-     * format of this string is the following:
-     *
-     *  R1 : A B C
-     *  R2 : D E F
-     *  R3 : G H I
-    */
-    public String showTheRing()
-    {
-        StringBuilder sb = new StringBuilder();
-        /* Get the token to endpoint map. */
-        Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Set<BigInteger> tokens = tokenToEndPointMap.keySet();
-        /* All the ranges for the tokens */
-        Range[] ranges = getAllRanges(tokens);
-        Map<Range, List<EndPoint>> oldRangeToEndPointMap = constructRangeToEndPointMap(ranges);
-
-        Set<Range> rangeSet = oldRangeToEndPointMap.keySet();
-        for ( Range range : rangeSet )
-        {
-            sb.append(range);
-            sb.append(" : ");
-
-            List<EndPoint> replicas = oldRangeToEndPointMap.get(range);
-            for ( EndPoint replica : replicas )
-            {
-                sb.append(replica);
-                sb.append(" ");
-            }
-            sb.append(System.getProperty("line.separator"));
-        }
-        return sb.toString();
     }
 
     public Map<Range, List<EndPoint>> getRangeToEndPointMap()

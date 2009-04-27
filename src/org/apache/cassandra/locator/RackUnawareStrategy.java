@@ -71,40 +71,7 @@ public class RackUnawareStrategy extends AbstractStrategy
         retrofitPorts(list);
         return list.toArray(new EndPoint[0]);
     }
-    
-    private void doInitialization()
-    {
-        if ( !initialized_.get() )
-        {
-            /* construct the mapping from the ranges to the replicas responsible for them */
-            rangeToEndPointMap_ = StorageService.instance().getRangeToEndPointMap();            
-            initialized_.set(true);
-        }
-    }
-    
-    /**
-     * This method determines which range in the array actually contains
-     * the hash of the key
-     * @param ranges
-     * @param key
-     * @return
-     */
-    private int findRangeIndexForKey(Range[] ranges, String key)
-    {
-        int index = 0;
-        BigInteger hash = StorageService.hash(key);
-        for ( int i = 0; i < ranges.length; ++i )
-        {
-            if ( ranges[i].contains(hash) )
-            {
-                index = i;
-                break;
-            }
-        }
-        
-        return index;
-    }
-    
+            
     public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
     {              
         Arrays.sort(keys);
