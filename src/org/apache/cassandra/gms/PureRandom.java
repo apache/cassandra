@@ -19,9 +19,7 @@
 package org.apache.cassandra.gms;
 
 import java.util.Random;
-
-import org.apache.cassandra.utils.BitSet;
-
+import java.util.BitSet;
 
 
 /**

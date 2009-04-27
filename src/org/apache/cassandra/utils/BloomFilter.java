@@ -21,6 +21,7 @@ package org.apache.cassandra.utils;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.BitSet;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
@@ -127,13 +128,13 @@ class BloomFilterSerializer implements ICompactSerializer<BloomFilter>
             throws IOException
     {
         dos.writeInt(bf.getHashCount());
-        BitSet.serializer().serialize(bf.filter(), dos);
+        BitSetSerializer.serialize(bf.filter(), dos);
     }
 
     public BloomFilter deserialize(DataInputStream dis) throws IOException
     {
         int hashes = dis.readInt();
-        BitSet bs = BitSet.serializer().deserialize(dis);
+        BitSet bs = BitSetSerializer.deserialize(dis);
         return new BloomFilter(hashes, bs);
     }
 }
