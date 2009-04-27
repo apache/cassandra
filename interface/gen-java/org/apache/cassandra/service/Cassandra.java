@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
+import org.apache.log4j.Logger;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
@@ -767,6 +768,7 @@ public class Cassandra {
 
   }
   public static class Processor implements TProcessor {
+    private static final Logger LOGGER = Logger.getLogger(Processor.class.getName());
     public Processor(Iface iface)
     {
       iface_ = iface;
@@ -831,6 +833,7 @@ public class Cassandra {
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_slice", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_slice");
           oprot.writeMessageBegin(new TMessage("get_slice", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -860,6 +863,7 @@ public class Cassandra {
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_slice_by_names", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_slice_by_names");
           oprot.writeMessageBegin(new TMessage("get_slice_by_names", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -889,6 +893,7 @@ public class Cassandra {
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_column", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_column");
           oprot.writeMessageBegin(new TMessage("get_column", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -917,6 +922,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_column_count", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_column_count");
           oprot.writeMessageBegin(new TMessage("get_column_count", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -967,6 +973,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing insert_blocking", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing insert_blocking");
           oprot.writeMessageBegin(new TMessage("insert_blocking", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -995,6 +1002,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing batch_insert_blocking", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing batch_insert_blocking");
           oprot.writeMessageBegin(new TMessage("batch_insert_blocking", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -1023,6 +1031,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing remove", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing remove");
           oprot.writeMessageBegin(new TMessage("remove", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -1052,6 +1061,7 @@ public class Cassandra {
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_columns_since", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_columns_since");
           oprot.writeMessageBegin(new TMessage("get_columns_since", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -1079,6 +1089,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_slice_super", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_slice_super");
           oprot.writeMessageBegin(new TMessage("get_slice_super", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -1106,6 +1117,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_slice_super_by_names", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_slice_super_by_names");
           oprot.writeMessageBegin(new TMessage("get_slice_super_by_names", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -1135,6 +1147,7 @@ public class Cassandra {
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_superColumn", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_superColumn");
           oprot.writeMessageBegin(new TMessage("get_superColumn", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
@@ -1174,6 +1187,7 @@ public class Cassandra {
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
+          LOGGER.error("Internal error processing batch_insert_superColumn_blocking", th);
           TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing batch_insert_superColumn_blocking");
           oprot.writeMessageBegin(new TMessage("batch_insert_superColumn_blocking", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
