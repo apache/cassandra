@@ -372,7 +372,7 @@ public class Memtable implements Comparable<Memtable>
 
         String directory = DatabaseDescriptor.getDataFileLocation();
         String filename = cfStore.getNextFileName();
-        SSTable ssTable = new SSTable(directory, filename);
+        SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
 
         // sort keys in the order they would be in when decorated
         final IPartitioner partitioner = StorageService.getPartitioner();

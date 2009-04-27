@@ -31,6 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.service.StorageService;
 
 import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -144,7 +145,7 @@ public class BinaryMemtable
          * Use the SSTable to write the contents of the TreeMap
          * to disk.
         */
-        SSTable ssTable = new SSTable(directory, filename);
+        SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
         Collections.sort(keys);        
         /* Use this BloomFilter to decide if a key exists in a SSTable */

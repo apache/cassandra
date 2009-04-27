@@ -267,7 +267,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 boolean bVal = SSTable.isKeyInFile(key, file);
                 if ( !bVal )
                     continue;
-                SSTable ssTable = new SSTable(file);
+                SSTable ssTable = new SSTable(file, StorageService.getPartitioner());
                 ssTable.touch(key, fData);
             }
         }
@@ -556,7 +556,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, String ssTableFile) throws IOException
 	{
-		SSTable ssTable = new SSTable(ssTableFile);
+		SSTable ssTable = new SSTable(ssTableFile, StorageService.getPartitioner());
 		long start = System.currentTimeMillis();
 		DataInputBuffer bufIn;
 		bufIn = filter.next(key, cf, ssTable);
@@ -1120,7 +1120,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                        	if( target != null )
 	                        		rangeFileLocation = rangeFileLocation + System.getProperty("file.separator") + "bootstrap";
 	                	        FileUtils.createDirectory(rangeFileLocation);
-	                            ssTableRange = new SSTable(rangeFileLocation, mergedFileName);
+	                            ssTableRange = new SSTable(rangeFileLocation, mergedFileName, StorageService.getPartitioner());
 	                        }	                        
 	                        try
 	                        {
@@ -1326,7 +1326,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                     if ( ssTable == null )
                     {
-                        ssTable = new SSTable(compactionFileLocation, mergedFileName);
+                        ssTable = new SSTable(compactionFileLocation, mergedFileName, StorageService.getPartitioner());
                     }
                     ssTable.append(lastkey, bufOut);
 

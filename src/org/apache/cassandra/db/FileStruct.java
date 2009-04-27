@@ -24,6 +24,7 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.Coordinate;
 import org.apache.cassandra.dht.IPartitioner;
 
 
@@ -72,6 +73,37 @@ public class FileStruct implements Comparable<FileStruct>
     public int compareTo(FileStruct f)
     {
         return partitioner.getDecoratedKeyComparator().compare(key, f.key);
+    }
+
+    public void seekTo(String seekKey)
+    {
+        try
+        {
+            Coordinate range = SSTable.getCoordinates(seekKey, reader, partitioner);
+            reader.seek(range.end_);
+            long position = reader.getPositionFromBlockIndex(seekKey);
+            if (position == -1)
+            {
+                reader.seek(range.start_);
+            }
+            else
+            {
+                reader.seek(position);
+            }
+
+            while (!exhausted)
+            {
+                advance();
+                if (key.compareTo(seekKey) >= 0)
+                {
+                    break;
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("corrupt sstable", e);
+        }
     }
 
     /*

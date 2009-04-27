@@ -5,7 +5,7 @@ import org.testng.annotations.Test;
 import java.util.Comparator;
 
 public class ColumnComparatorFactoryTest {
-    public Comparator<IColumn> nameComparator  = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
+    public Comparator<IColumn> nameComparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
 
     @Test
     public void testLT() {

@@ -153,15 +153,17 @@ public class SSTable
     {
         private final String decoratedKey;
         private long position_;
+        private IPartitioner partitioner;
 
-        public KeyPositionInfo(String decoratedKey)
+        public KeyPositionInfo(String decoratedKey, IPartitioner partitioner)
         {
             this.decoratedKey = decoratedKey;
+            this.partitioner = partitioner;
         }
 
-        public KeyPositionInfo(String decoratedKey, long position)
+        public KeyPositionInfo(String decoratedKey, IPartitioner partitioner, long position)
         {
-            this(decoratedKey);
+            this(decoratedKey, partitioner);
             position_ = position;
         }
 
@@ -177,8 +179,7 @@ public class SSTable
 
         public int compareTo(KeyPositionInfo kPosInfo)
         {
-            IPartitioner p = StorageService.getPartitioner();
-            return p.getDecoratedKeyComparator().compare(decoratedKey, kPosInfo.decoratedKey);
+            return partitioner.getDecoratedKeyComparator().compare(decoratedKey, kPosInfo.decoratedKey);
         }
 
         public String toString()
@@ -197,7 +198,7 @@ public class SSTable
      * We do this so that we don't read the index file into memory multiple
      * times.
     */
-    private static Map<String, List<KeyPositionInfo>> indexMetadataMap_ = new Hashtable<String, List<KeyPositionInfo>>();
+    static Map<String, List<KeyPositionInfo>> indexMetadataMap_ = new Hashtable<String, List<KeyPositionInfo>>();
     
     /** 
      * This method deletes both the specified data file
@@ -287,7 +288,7 @@ public class SSTable
             SSTable ssTable = null;
             try
             {
-                ssTable = new SSTable(filename);                                
+                ssTable = new SSTable(filename, StorageService.getPartitioner());
             }
             catch ( IOException ex )
             {
@@ -336,7 +337,7 @@ public class SSTable
         return bVal;
     }
 
-    private String dataFile_;    
+    String dataFile_;
     private IFileWriter dataWriter_;
     private String lastWrittenKey_;    
     private long firstBlockPosition_ = 0L;    
@@ -345,15 +346,17 @@ public class SSTable
     private SortedMap<String, BlockMetadata> blockIndex_;    
     /* Holds all the block indicies for this SSTable */
     private List<SortedMap<String, BlockMetadata>> blockIndexes_;
+    private IPartitioner partitioner_;
     
     /**
      * This ctor basically gets passed in the full path name
      * of the data file associated with this SSTable. Use this
      * ctor to read the data in this file.
     */
-    public SSTable(String dataFileName) throws IOException
+    public SSTable(String dataFileName, IPartitioner partitioner) throws IOException
     {        
         dataFile_ = dataFileName;
+        partitioner_ = partitioner;
         init();
     }
 
@@ -361,10 +364,11 @@ public class SSTable
      * This ctor is used for writing data into the SSTable. Use this
      * version for non DB writes to the SSTable.
     */
-    public SSTable(String directory, String filename) throws IOException
+    public SSTable(String directory, String filename, IPartitioner partitioner) throws IOException
     {  
-        dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";                
-        blockIndex_ = new TreeMap<String, BlockMetadata>(StorageService.getPartitioner().getReverseDecoratedKeyComparator());
+        dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";
+        partitioner_ = partitioner;
+        blockIndex_ = new TreeMap<String, BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
         blockIndexes_ = new ArrayList<SortedMap<String, BlockMetadata>>();
         dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4*1024*1024);
         SSTable.positionAfterFirstBlockIndex_ = dataWriter_.getCurrentPosition();
@@ -461,7 +465,7 @@ public class SSTable
                             /* size of data associated with the key */
                             bufIn.readLong();
                             /* load the actual position of the block index into the index map */
-                            keyPositionInfos.add( new KeyPositionInfo(largestKeyInBlock, currentPosition) );
+                            keyPositionInfos.add( new KeyPositionInfo(largestKeyInBlock, partitioner_, currentPosition) );
                         }
                         else
                         {
@@ -532,8 +536,8 @@ public class SSTable
         try
         {
         	/* Morph the key */
-            String decoratedKey = StorageService.getPartitioner().decorateKey(clientKey);
-            Coordinate fileCoordinate = getCoordinates(decoratedKey, dataReader);
+            String decoratedKey = partitioner_.decorateKey(clientKey);
+            Coordinate fileCoordinate = getCoordinates(decoratedKey, dataReader, partitioner_);
             /* Get offset of key from block Index */
             dataReader.seek(fileCoordinate.end_);
             BlockMetadata blockMetadata = dataReader.getBlockMetadata(decoratedKey);
@@ -566,7 +570,7 @@ public class SSTable
     {
     	if (decoratedKey == null )
             throw new IOException("Keys must not be null.");
-        Comparator<String> c = StorageService.getPartitioner().getDecoratedKeyComparator();
+        Comparator<String> c = partitioner_.getDecoratedKeyComparator();
         if ( lastWrittenKey_ != null && c.compare(lastWrittenKey_, decoratedKey) > 0 )
         {
             logger_.info("Last written key : " + lastWrittenKey_);
@@ -585,7 +589,7 @@ public class SSTable
         if ( indexKeysWritten_ == indexInterval_ )
         {
         	blockIndexes_.add(blockIndex_);
-        	blockIndex_ = new TreeMap<String, BlockMetadata>(StorageService.getPartitioner().getReverseDecoratedKeyComparator());
+        	blockIndex_ = new TreeMap<String, BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
             indexKeysWritten_ = 0;
         }                
     }
@@ -638,7 +642,7 @@ public class SSTable
         	SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
         }
         
-        keyPositionInfos.add(new KeyPositionInfo(blockIndex.firstKey(), position));        
+        keyPositionInfos.add(new KeyPositionInfo(blockIndex.firstKey(), partitioner_, position));
         blockIndex.clear();        
     }
 
@@ -656,7 +660,7 @@ public class SSTable
         afterAppend(decoratedKey, currentPosition, value.length );
     }
 
-    public static Coordinate getCoordinates(String decoratedKey, IFileReader dataReader) throws IOException
+    public static Coordinate getCoordinates(String decoratedKey, IFileReader dataReader, IPartitioner partitioner) throws IOException
     {
     	List<KeyPositionInfo> indexInfo = indexMetadataMap_.get(dataReader.getFileName());
     	int size = (indexInfo == null) ? 0 : indexInfo.size();
@@ -664,7 +668,7 @@ public class SSTable
     	long end = dataReader.getEOF();
         if ( size > 0 )
         {
-            int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey));
+            int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey, partitioner));
             if ( index < 0 )
             {
                 /*
@@ -728,8 +732,8 @@ public class SSTable
             // dataReader = SequenceFile.chksumReader(dataFile_, 4*1024*1024);
 
             /* Morph key into actual key based on the partition type. */
-            String decoratedKey = StorageService.getPartitioner().decorateKey(clientKey);
-            Coordinate fileCoordinate = getCoordinates(decoratedKey, dataReader);
+            String decoratedKey = partitioner_.decorateKey(clientKey);
+            Coordinate fileCoordinate = getCoordinates(decoratedKey, dataReader, partitioner_);
             /*
              * we have the position we have to read from in order to get the
              * column family, get the column family and column(s) needed.
