@@ -39,7 +39,7 @@ public class RackUnawareStrategy extends AbstractStrategy
     
     public EndPoint[] getStorageEndPoints(BigInteger token, Map<BigInteger, EndPoint> tokenToEndPointMap)
     {
-        int startIndex = 0 ;
+        int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
         int foundCount = 0;
         int N = DatabaseDescriptor.getReplicationFactor();
@@ -65,57 +65,22 @@ public class RackUnawareStrategy extends AbstractStrategy
             {
                 list.add(tokenToEndPointMap.get(tokens.get(i)));
                 foundCount++;
-                continue;
             }
         }
         retrofitPorts(list);
-        return list.toArray(new EndPoint[0]);
+        return list.toArray(new EndPoint[list.size()]);
     }
             
     public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
-    {              
-        Arrays.sort(keys);
-        Range[] ranges = StorageService.instance().getAllRanges();
-        
+    {
     	Map<String, EndPoint[]> results = new HashMap<String, EndPoint[]>();
-    	List<EndPoint> list = new ArrayList<EndPoint>();
-    	int startIndex = 0 ;
-    	int foundCount = 0;
-    	
-    	Map<BigInteger, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-    	int N = DatabaseDescriptor.getReplicationFactor();
-        List<BigInteger> tokens = new ArrayList<BigInteger>(tokenToEndPointMap.keySet());
-        Collections.sort(tokens);
+
         for ( String key : keys )
         {
         	BigInteger token = StorageService.hash(key);
-        	int index = Collections.binarySearch(tokens, token);
-            if(index < 0)
-            {
-                index = (index + 1) * (-1);
-                if (index >= tokens.size())
-                    index = 0;
-            }
-            int totalNodes = tokens.size();
-            // Add the node at the index by default
-            list.add(tokenToEndPointMap.get(tokens.get(index)));
-            foundCount++;
-            startIndex = (index + 1)%totalNodes;
-            // If we found N number of nodes we are good. This loop will just exit. Otherwise just
-            // loop through the list and add until we have N nodes.
-            for (int i = startIndex, count = 1; count < totalNodes && foundCount < N; ++count, i = (i+1)%totalNodes)
-            {
-                if( ! list.contains(tokenToEndPointMap.get(tokens.get(i))))
-                {
-                    list.add(tokenToEndPointMap.get(tokens.get(i)));
-                    foundCount++;
-                    continue;
-                }
-            }
-            retrofitPorts(list);
-            results.put(key, list.toArray(new EndPoint[0]));
+            results.put(key, getStorageEndPoints(token));
         }
-        
+
         return results;
     }
 }
