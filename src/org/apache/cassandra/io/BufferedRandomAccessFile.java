@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.io;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
-
-import org.apache.log4j.Logger;
 
 /**
  * A <code>BufferedRandomAccessFile</code> is like a
@@ -38,7 +39,6 @@ import org.apache.log4j.Logger;
 
 public final class BufferedRandomAccessFile extends RandomAccessFile
 {
-    private static final Logger logger_ = Logger.getLogger(BufferedRandomAccessFile.class);
     static final int LogBuffSz_ = 16; // 64K buffer
     public static final int BuffSz_ = (1 << LogBuffSz_);
     static final long BuffMask_ = ~(((long) BuffSz_) - 1L);
@@ -48,7 +48,6 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
      * "Rd", "Wr", "RdClass", and "WrClass" interfaces.
      */
     private boolean dirty_; // true iff unflushed bytes exist
-    private boolean closed_; // true iff the file is closed
     private long curr_; // current position in file
     private long lo_, hi_; // bounds on characters in "buff"
     private byte[] buff_; // local buffer
@@ -145,7 +144,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     
     private void init(int size)
     {
-        this.dirty_ = this.closed_ = false;
+        this.dirty_ = false;
         this.lo_ = this.curr_ = this.hi_ = 0;
         this.buff_ = (size > BuffSz_) ? new byte[size] : new byte[BuffSz_];
         this.maxHi_ = (long) BuffSz_;
@@ -156,7 +155,6 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     public void close() throws IOException
     {
         this.flush();
-        this.closed_ = true;
         super.close();
     }
     

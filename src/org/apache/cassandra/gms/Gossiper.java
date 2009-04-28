@@ -117,8 +117,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     private EndPoint localEndPoint_;
     private long aVeryLongTime_;
     private Random random_ = new Random();
-    /* index used previously */
-    private int prevIndex_ = 0;
     /* round robin index through live endpoint set */
     private int rrIndex_ = 0;
 
@@ -320,7 +318,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         int maxVersion = getMaxEndPointStateVersion(epState);
         gDigests.add( new GossipDigest(localEndPoint_, generation, maxVersion) );
 
-        int size = liveEndpoints_.size();
         List<EndPoint> endpoints = new ArrayList<EndPoint>( liveEndpoints_ );
         Collections.shuffle(endpoints, random_);
         for ( EndPoint liveEndPoint : endpoints )

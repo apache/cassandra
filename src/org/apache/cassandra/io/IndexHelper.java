@@ -160,9 +160,6 @@ public class IndexHelper
 		/* now deserialize the index list */
         DataInputBuffer indexIn = new DataInputBuffer();
         indexIn.reset(indexOut.getData(), indexOut.getLength());
-        String columnName;
-        int position;
-        int numCols;
         
         TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(cfName);
         if ( DatabaseDescriptor.getColumnFamilyType(cfName).equals("Super") || DatabaseDescriptor.isNameSortingEnabled(cfName) )

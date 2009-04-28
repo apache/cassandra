@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.db;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.io.ByteArrayInputStream;
-import java.io.DataOutputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
@@ -36,7 +34,6 @@ import org.apache.cassandra.io.ICompactSerializer;
  */
 class CommitLogEntry
 {    
-    private static AtomicInteger lsnGenerator_ = new AtomicInteger(0);
     private static ICompactSerializer<CommitLogEntry> serializer_;
     static
     {

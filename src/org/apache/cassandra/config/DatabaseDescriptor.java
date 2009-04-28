@@ -125,7 +125,6 @@ public class DatabaseDescriptor
         try
         {
             String file = System.getProperty("storage-config") + System.getProperty("file.separator") + "storage-conf.xml";
-            String os = System.getProperty("os.name");
             XMLUtils xmlUtils = new XMLUtils(file);
 
             /* Cluster Name */

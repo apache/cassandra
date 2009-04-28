@@ -117,7 +117,7 @@ public class Table
                     bufIn.reset(bufOut.getData(), bufOut.getLength());
 
                     /* The key is the table name */
-                    String key = bufIn.readUTF();
+                    bufIn.readUTF();
                     /* read the size of the data we ignore this value */
                     bufIn.readInt();
                     tableMetadata_ = Table.TableMetadata.serializer().deserialize(bufIn);

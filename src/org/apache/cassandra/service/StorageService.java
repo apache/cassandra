@@ -188,14 +188,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    private class ShutdownTimerTask extends TimerTask
-    {
-    	public void run()
-    	{
-    		StorageService.instance().shutdown();
-    	}
-    }
-
     /*
      * Factory method that gets an instance of the StorageService
      * class.
@@ -235,8 +227,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      *
      */
     private IEndPointSnitch endPointSnitch_;
-    /* Uptime of this node - we use this to determine if a bootstrap can be performed by this node */
-    private long uptime_ = 0L;
 
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
@@ -247,11 +237,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * for a clean exit.
     */
     private Set<IComponentShutdown> components_ = new HashSet<IComponentShutdown>();
-    /*
-     * This boolean indicates if we are in loading state. If we are then we do not want any
-     * distributed algorithms w.r.t change in token state to kick in.
-    */
-    private boolean isLoadState_ = false;
     /* Timer is used to disseminate load information */
     private Timer loadTimer_ = new Timer(false);
 
@@ -298,7 +283,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public StorageService()
     {
         init();
-        uptime_ = System.currentTimeMillis();        
         storageLoadBalancer_ = new StorageLoadBalancer(this);
         endPointSnitch_ = new EndPointSnitch();
         
@@ -768,7 +752,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
     	if ( keys.length > 0 )
     	{
-	        isLoadState_ = true;
             Token token = tokenMetadata_.getToken(StorageService.tcpAddr_);
 	        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
 	        Token[] tokens = tokenToEndPointMap.keySet().toArray(new Token[tokenToEndPointMap.keySet().size()]);
@@ -778,15 +761,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 	        /* update the token */
 	        updateToken(newToken);
     	}
-    }
-
-    /*
-     * This is used to indicate that this node is done
-     * with the loading of data.
-    */
-    public void resetLoadState()
-    {
-        isLoadState_ = false;
     }
     
     /**

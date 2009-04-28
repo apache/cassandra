@@ -117,7 +117,6 @@ public class PreLoad
          * the SSTables and reset the load state in the StorageService. 
         */
         SSTable.delete(ssTables.get(0));
-        storageService_.resetLoadState();
         logger_.info("Finished all the requisite clean up ...");
     }
 

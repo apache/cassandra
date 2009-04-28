@@ -338,7 +338,6 @@ public class CommitLog
             IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
             try
             {
-                Map<String, Row> rows = new HashMap<String, Row>();
                 reader.readDirect(header);
                 /* deserialize the commit log header */
                 bufIn.reset(header, 0, header.length);

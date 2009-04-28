@@ -24,7 +24,7 @@ public class IdentityFilter implements IFilter
     	String[] values = RowMutation.getColumnAndColumnFamily(cfString);
     	if( columnFamily == null )
     		return columnFamily;
-		String cfName = columnFamily.name();
+
 		if (values.length == 2 && !columnFamily.isSuper())
 		{
 			Collection<IColumn> columns = columnFamily.getAllColumns();

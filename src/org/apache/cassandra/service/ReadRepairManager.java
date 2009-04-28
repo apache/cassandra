@@ -64,7 +64,6 @@ class ReadRepairManager
 	static class ReadRepairPerformer implements
 			ICacheExpungeHook<String, Message>
 	{
-		private static Logger logger_ = Logger.getLogger(ReadRepairPerformer.class);
 		/*
 		 * The hook fn which takes the end point and the row mutation that 
 		 * needs to be sent to the end point in order 

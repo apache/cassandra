@@ -50,7 +50,6 @@ public class FBUtilities
 {
 
     private static InetAddress localInetAddress_;
-    private static String host_;
 
     public static String getTimestamp()
     {

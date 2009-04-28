@@ -95,7 +95,6 @@ public class SystemTable
     */
     public Row get(String key) throws IOException
     {
-        String file = getFileName();
         DataOutputBuffer bufOut = new DataOutputBuffer();
         reader_.next(bufOut);
 
