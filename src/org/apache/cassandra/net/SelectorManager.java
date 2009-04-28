@@ -23,14 +23,11 @@ import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.TreeSet;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
+
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -38,12 +35,11 @@ import org.apache.cassandra.utils.*;
 public class SelectorManager extends Thread
 {
     private static final Logger logger_ = Logger.getLogger(SelectorManager.class); 
+
     // the underlying selector used
-    /**
-     * DESCRIBE THE FIELD
-     */
-    protected Selector selector_;   
-    protected HashSet<SelectionKey> modifyKeysForRead_;    
+    protected Selector selector_;
+
+    protected HashSet<SelectionKey> modifyKeysForRead_;
     protected HashSet<SelectionKey> modifyKeysForWrite_;
     
     // the list of keys waiting to be cancelled
@@ -55,27 +51,20 @@ public class SelectorManager extends Thread
     // The static UDP selector manager which is used by all applications
     private static SelectorManager udpManager_;
 
-    /**
-     * Constructor, which is private since there is only one selector per JVM.
-     * 
-     * @param name name of thread. 
-     */
-    protected SelectorManager(String name)
+    private SelectorManager(String name)
     {
         super(name);                        
         this.modifyKeysForRead_ = new HashSet<SelectionKey>();
         this.modifyKeysForWrite_ = new HashSet<SelectionKey>();
         this.cancelledKeys_ = new HashSet<SelectionKey>();
 
-        // attempt to create selector
         try
         {
             selector_ = Selector.open();
         }
         catch (IOException e)
         {
-            logger_.error("SEVERE ERROR (SelectorManager): Error creating selector "
-                            + e);
+            throw new RuntimeException(e);
         }
 
         setDaemon(false);
@@ -117,7 +106,6 @@ public class SelectorManager extends Thread
      *            The initial interest operations
      * @return The SelectionKey which uniquely identifies this channel
      * @exception IOException
-     *                DESCRIBE THE EXCEPTION
      */
     public SelectionKey register(SelectableChannel channel,
             SelectionKeyHandler handler, int ops) throws IOException
@@ -218,15 +206,9 @@ public class SelectorManager extends Thread
         doSelections();
     }
     
-    /**
-     * DESCRIBE THE METHOD
-     * 
-     * @exception IOException
-     *                DESCRIBE THE EXCEPTION
-     */
     protected void doSelections() throws IOException
     {
-        SelectionKey[] keys = selectedKeys();
+        SelectionKey[] keys = selector_.selectedKeys().toArray(new SelectionKey[0]);
 
         for (int i = 0; i < keys.length; i++)
         {
@@ -311,20 +293,6 @@ public class SelectorManager extends Thread
     }
 
     /**
-     * Selects all of the currenlty selected keys on the selector and returns
-     * the result as an array of keys.
-     * 
-     * @return The array of keys
-     * @exception IOException
-     *                DESCRIBE THE EXCEPTION
-     */
-    protected SelectionKey[] selectedKeys() throws IOException
-    {
-        return (SelectionKey[]) selector_.selectedKeys().toArray(
-                new SelectionKey[0]);
-    }
-    
-    /**
      * Returns the SelectorManager applications should use.
      * 
      * @return The SelectorManager which applications should use
@@ -351,15 +319,5 @@ public class SelectorManager extends Thread
             }            
         }
         return udpManager_;
-    }
-    
-    /**
-     * Returns whether or not this thread of execution is the selector thread
-     * 
-     * @return Whether or not this is the selector thread
-     */
-    public static boolean isSelectorThread()
-    {
-        return (Thread.currentThread() == manager_);
     }
 }
