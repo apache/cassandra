@@ -26,21 +26,6 @@ import java.nio.channels.*;
 
 public class SelectionKeyHandler 
 {
-    public void modifyKey(SelectionKey key)
-    {
-        throw new UnsupportedOperationException("modifyKey() cannot be called on " + getClass().getName() + "!");
-    }
-    
-    public void modifyKeyForRead(SelectionKey key)
-    {
-        throw new UnsupportedOperationException("modifyKeyForRead() cannot be called on " + getClass().getName() + "!");
-    }
-    
-    public void modifyKeyForWrite(SelectionKey key)
-    {
-        throw new UnsupportedOperationException("modifyKeyForWrite() cannot be called on " + getClass().getName() + "!");
-    }
-    
     /**
      * Method which is called when the key becomes acceptable.
      *

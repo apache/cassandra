@@ -194,10 +194,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 if (buffer.remaining() > 0) 
                 {                   
                     pendingWrites_.add(buffer);
-                    if ((key_.interestOps() & SelectionKey.OP_WRITE) == 0)
-                    {                                    
-                        SelectorManager.getSelectorManager().modifyKeyForWrite(key_);                     
-                    }
+                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
                 }
             }
         }
@@ -254,10 +251,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 */
                 if ( bytesTransferred < limit && bytesWritten != total )
                 {                    
-                    if ((key_.interestOps() & SelectionKey.OP_WRITE) == 0)
-                    {                    
-                        SelectorManager.getSelectorManager().modifyKeyForWrite(key_);                     
-                    }
+                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
                     waitToContinueStreaming();
                 }
             }
@@ -273,10 +267,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         if (buffer.remaining() > 0) 
         {            
             pendingWrites_.add(buffer);
-            if ((key_.interestOps() & SelectionKey.OP_WRITE) == 0)
-            {                    
-                SelectorManager.getSelectorManager().modifyKeyForWrite(key_);                     
-            }
+            key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
             waitToContinueStreaming();
         }     
     }
@@ -382,25 +373,32 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private void cancel(SelectionKey key)
     {
         if ( key != null )
-            SelectorManager.getSelectorManager().cancel(key);
+        {
+            key.cancel();
+            try
+            {
+                key.channel().close();
+            }
+            catch (IOException e) {}
+        }
     }
     
     // called in the selector thread
     public void connect(SelectionKey key)
     {       
-        key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));        
+        key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));
         try
         {
             if (socketChannel_.finishConnect())
-            {                                
-                SelectorManager.getSelectorManager().modifyKeyForRead(key);
-                connected_.set(true);                
+            {
+                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+                connected_.set(true);
                 
                 // this will flush the pending                
                 if (!pendingWrites_.isEmpty()) 
-                {                    
-                    SelectorManager.getSelectorManager().modifyKeyForWrite(key_);  
-                } 
+                {
+                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                }
                 resumeStreaming();
             } 
             else 
@@ -457,30 +455,20 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         {    
             synchronized(this)
             {
-                if (!pendingWrites_.isEmpty() && (key_.interestOps() & SelectionKey.OP_WRITE) == 0)
+                if (!pendingWrites_.isEmpty())
                 {                    
-                    SelectorManager.getSelectorManager().modifyKeyForWrite(key_); 
-                }  
+                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                }
             }
         }
     }
     
     // called in the selector thread
     public void read(SelectionKey key)
-    {          
-        key.interestOps( key.interestOps() & ( ~SelectionKey.OP_READ ) );         
+    {
+        key.interestOps( key.interestOps() & ( ~SelectionKey.OP_READ ) );
         // publish this event onto to the TCPReadEvent Queue.
         MessagingService.getReadExecutor().execute(readWork_);
-    }
-    
-    public void modifyKeyForRead(SelectionKey key)
-    {
-        key.interestOps( key_.interestOps() | SelectionKey.OP_READ );
-    }
-    
-    public void modifyKeyForWrite(SelectionKey key)
-    {        
-        key.interestOps( key_.interestOps() | SelectionKey.OP_WRITE );
     }
     
     class ReadWorkItem implements Runnable
@@ -539,8 +527,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 handleException(th);
             }
             finally
-            {                                     
-                SelectorManager.getSelectorManager().modifyKeyForRead(key_);                
+            {
+                key_.interestOps(key_.interestOps() | SelectionKey.OP_READ);
             }
         }
         

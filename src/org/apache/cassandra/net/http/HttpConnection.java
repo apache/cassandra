@@ -165,12 +165,6 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
         /* Add a task to process the HTTP request */
         MessagingService.getReadExecutor().execute(httpReader_);
     }
-
-    public void modifyKeyForRead(SelectionKey key)
-    {
-        key.interestOps( httpKey_.interestOps() | SelectionKey.OP_READ );
-    }
-
     private void resetParserState()
     {
         startLineParser_.resetParserState();
@@ -187,7 +181,14 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
     {        
         logger_.info("Closing HTTP socket ...");
         if ( httpKey_ != null )
-            SelectorManager.getSelectorManager().cancel(httpKey_);
+        {
+            httpKey_.cancel();
+            try
+            {
+                httpKey_.channel().close();
+            }
+            catch (IOException e) {}
+        }
     }
 
     /*
@@ -356,7 +357,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
         }
         finally
         {
-            SelectorManager.getSelectorManager().modifyKeyForRead(httpKey_);
+            httpKey_.interestOps(httpKey_.interestOps() | SelectionKey.OP_READ);
         }
     }
 

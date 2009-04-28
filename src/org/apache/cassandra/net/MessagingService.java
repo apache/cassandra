@@ -547,7 +547,12 @@ public class MessagingService implements IMessagingService, MessagingServiceMBea
             /* Stop listening on any socket */            
             for( SelectionKey skey : listenSockets_.values() )
             {
-                SelectorManager.getSelectorManager().cancel(skey);
+                skey.cancel();
+                try
+                {
+                    skey.channel().close();
+                }
+                catch (IOException e) {}
             }
             listenSockets_.clear();
             

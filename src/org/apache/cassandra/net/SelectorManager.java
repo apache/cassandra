@@ -22,9 +22,6 @@ import java.io.IOException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
 
 import org.apache.log4j.Logger;
 
@@ -39,12 +36,6 @@ public class SelectorManager extends Thread
     // the underlying selector used
     protected Selector selector_;
 
-    protected HashSet<SelectionKey> modifyKeysForRead_;
-    protected HashSet<SelectionKey> modifyKeysForWrite_;
-    
-    // the list of keys waiting to be cancelled
-    protected HashSet<SelectionKey> cancelledKeys_;    
-
     // The static selector manager which is used by all applications
     private static SelectorManager manager_;
     
@@ -53,10 +44,7 @@ public class SelectorManager extends Thread
 
     private SelectorManager(String name)
     {
-        super(name);                        
-        this.modifyKeysForRead_ = new HashSet<SelectionKey>();
-        this.modifyKeysForWrite_ = new HashSet<SelectionKey>();
-        this.cancelledKeys_ = new HashSet<SelectionKey>();
+        super(name);
 
         try
         {
@@ -69,28 +57,6 @@ public class SelectorManager extends Thread
 
         setDaemon(false);
         start();
-    }
-
-    /**
-     * Method which asks the Selector Manager to add the given key to the
-     * cancelled set. If noone calls register on this key during the rest of
-     * this select() operation, the key will be cancelled. Otherwise, it will be
-     * returned as a result of the register operation.
-     * 
-     * @param key
-     *            The key to cancel
-     */
-    public void cancel(SelectionKey key)
-    {
-        if (key == null)
-        {
-            throw new NullPointerException();
-        }
-
-        synchronized ( cancelledKeys_ )
-        {
-            cancelledKeys_.add(key);
-        }
     }
 
     /**
@@ -115,43 +81,10 @@ public class SelectorManager extends Thread
             throw new NullPointerException();
         }
 
-        selector_.wakeup();
         SelectionKey key = channel.register(selector_, ops, handler);
-        synchronized(cancelledKeys_)
-        {
-            cancelledKeys_.remove(key);
-        }
         selector_.wakeup();
         return key;
     }      
-    
-    public void modifyKeyForRead(SelectionKey key)
-    {
-        if (key == null)
-        {
-            throw new NullPointerException();
-        }
-
-        synchronized(modifyKeysForRead_)
-        {
-            modifyKeysForRead_.add(key);
-        }
-        selector_.wakeup();
-    }
-    
-    public void modifyKeyForWrite(SelectionKey key)
-    {
-        if (key == null)
-        {
-            throw new NullPointerException();
-        }
-
-        synchronized( modifyKeysForWrite_ )
-        {
-            modifyKeysForWrite_.add(key);
-        }
-        selector_.wakeup();
-    }
 
     /**
      * This method starts the socket manager listening for events. It is
@@ -159,54 +92,21 @@ public class SelectorManager extends Thread
      */
     public void run()
     {
-        try
-        {              
-            // loop while waiting for activity
-            while (true && !Thread.currentThread().interrupted() )
-            { 
-                try
-                {
-                    doProcess();                                                                          
-                    selector_.select(1000); 
-                    synchronized( cancelledKeys_ )
-                    {
-                        if (cancelledKeys_.size() > 0)
-                        {
-                            SelectionKey[] keys = cancelledKeys_.toArray( new SelectionKey[0]);                        
-                            
-                            for ( SelectionKey key : keys )
-                            {
-                                key.cancel();
-                                key.channel().close();
-                            }                                                
-                            cancelledKeys_.clear();
-                        }
-                    }
-                }
-                catch ( IOException e )
-                {
-                    logger_.warn(LogUtil.throwableToString(e));
-                }
-            }
-                         
-            manager_ = null;
-        }
-        catch (Throwable t)
+        while (true)
         {
-            logger_.error("ERROR (SelectorManager.run): " + t);
-            logger_.error(LogUtil.throwableToString(t));
-            System.exit(-1);
+            try
+            {
+                selector_.select(1000);
+                doProcess();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
-    }    
+    }
 
     protected void doProcess() throws IOException
-    {
-        doInvocationsForRead();
-        doInvocationsForWrite();
-        doSelections();
-    }
-    
-    protected void doSelections() throws IOException
     {
         SelectionKey[] keys = selector_.selectedKeys().toArray(new SelectionKey[0]);
 
@@ -250,44 +150,6 @@ public class SelectorManager extends Thread
                     keys[i].channel().close();
                     keys[i].cancel();
                 }
-            }
-        }
-    }
-    
-    private void doInvocationsForRead()
-    {
-        Iterator<SelectionKey> it;
-        synchronized (modifyKeysForRead_)
-        {
-            it = new ArrayList<SelectionKey>(modifyKeysForRead_).iterator();
-            modifyKeysForRead_.clear();
-        }
-
-        while (it.hasNext())
-        {
-            SelectionKey key = it.next();
-            if (key.isValid() && (key.attachment() != null))
-            {
-                ((SelectionKeyHandler) key.attachment()).modifyKeyForRead(key);
-            }
-        }
-    }
-    
-    private void doInvocationsForWrite()
-    {
-        Iterator<SelectionKey> it;
-        synchronized (modifyKeysForWrite_)
-        {
-            it = new ArrayList<SelectionKey>(modifyKeysForWrite_).iterator();
-            modifyKeysForWrite_.clear();
-        }
-
-        while (it.hasNext())
-        {
-            SelectionKey key = it.next();
-            if (key.isValid() && (key.attachment() != null))
-            {
-                ((SelectionKeyHandler) key.attachment()).modifyKeyForWrite(key);
             }
         }
     }
