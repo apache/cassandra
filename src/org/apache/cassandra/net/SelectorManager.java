@@ -25,22 +25,18 @@ import java.nio.channels.Selector;
 
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class SelectorManager extends Thread
 {
-    private static final Logger logger_ = Logger.getLogger(SelectorManager.class); 
+    private static final Logger logger = Logger.getLogger(SelectorManager.class); 
 
     // the underlying selector used
-    protected Selector selector_;
+    protected Selector selector;
 
     // The static selector manager which is used by all applications
-    private static SelectorManager manager_;
+    private static SelectorManager manager;
     
     // The static UDP selector manager which is used by all applications
-    private static SelectorManager udpManager_;
+    private static SelectorManager udpManager;
 
     private SelectorManager(String name)
     {
@@ -48,7 +44,7 @@ public class SelectorManager extends Thread
 
         try
         {
-            selector_ = Selector.open();
+            selector = Selector.open();
         }
         catch (IOException e)
         {
@@ -71,7 +67,7 @@ public class SelectorManager extends Thread
      * @param ops
      *            The initial interest operations
      * @return The SelectionKey which uniquely identifies this channel
-     * @exception IOException
+     * @exception IOException if the channel is closed
      */
     public SelectionKey register(SelectableChannel channel,
             SelectionKeyHandler handler, int ops) throws IOException
@@ -81,9 +77,7 @@ public class SelectorManager extends Thread
             throw new NullPointerException();
         }
 
-        SelectionKey key = channel.register(selector_, ops, handler);
-        selector_.wakeup();
-        return key;
+        return channel.register(selector, ops, handler);
     }      
 
     /**
@@ -96,7 +90,7 @@ public class SelectorManager extends Thread
         {
             try
             {
-                selector_.select(1000);
+                selector.select(100);
                 doProcess();
             }
             catch (IOException e)
@@ -108,47 +102,41 @@ public class SelectorManager extends Thread
 
     protected void doProcess() throws IOException
     {
-        SelectionKey[] keys = selector_.selectedKeys().toArray(new SelectionKey[0]);
+        SelectionKey[] keys = selector.selectedKeys().toArray(new SelectionKey[0]);
 
-        for (int i = 0; i < keys.length; i++)
+        for (SelectionKey key : keys)
         {
-            selector_.selectedKeys().remove(keys[i]);
+            selector.selectedKeys().remove(key);
 
-            synchronized (keys[i])
+            synchronized (key)
             {
-                SelectionKeyHandler skh = (SelectionKeyHandler) keys[i]
-                        .attachment();
+                SelectionKeyHandler skh = (SelectionKeyHandler) key.attachment();
 
                 if (skh != null)
                 {
                     // accept
-                    if (keys[i].isValid() && keys[i].isAcceptable())
+                    if (key.isValid() && key.isAcceptable())
                     {
-                        skh.accept(keys[i]);
+                        skh.accept(key);
                     }
 
                     // connect
-                    if (keys[i].isValid() && keys[i].isConnectable())
+                    if (key.isValid() && key.isConnectable())
                     {
-                        skh.connect(keys[i]);
+                        skh.connect(key);
                     }
 
                     // read
-                    if (keys[i].isValid() && keys[i].isReadable())
+                    if (key.isValid() && key.isReadable())
                     {
-                        skh.read(keys[i]);
+                        skh.read(key);
                     }
 
                     // write
-                    if (keys[i].isValid() && keys[i].isWritable())
+                    if (key.isValid() && key.isWritable())
                     {
-                        skh.write(keys[i]);
+                        skh.write(key);
                     }
-                }
-                else
-                {
-                    keys[i].channel().close();
-                    keys[i].cancel();
                 }
             }
         }
@@ -163,23 +151,23 @@ public class SelectorManager extends Thread
     {
         synchronized (SelectorManager.class)
         {
-            if (manager_ == null)
+            if (manager == null)
             {
-                manager_ = new SelectorManager("TCP Selector Manager");
+                manager = new SelectorManager("TCP Selector Manager");
             }            
         }
-        return manager_;
+        return manager;
     }
     
     public static SelectorManager getUdpSelectorManager()
     {
         synchronized (SelectorManager.class)
         {
-            if (udpManager_ == null)
+            if (udpManager == null)
             {
-                udpManager_ = new SelectorManager("UDP Selector Manager");
+                udpManager = new SelectorManager("UDP Selector Manager");
             }            
         }
-        return udpManager_;
+        return udpManager;
     }
 }

@@ -61,7 +61,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private TcpReader tcpReader_;    
     private ReadWorkItem readWork_ = new ReadWorkItem(); 
     private List<ByteBuffer> pendingWrites_ = new Vector<ByteBuffer>();  
-    private AtomicBoolean connected_ = new AtomicBoolean(false);    
     private EndPoint localEp_;
     private EndPoint remoteEp_;
     boolean inUse_ = false;
@@ -94,8 +93,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         else
         {
             key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
-            connected_.set(true);     
-        }         
+        }
     }
     
     /*
@@ -116,8 +114,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         else
         {
             key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
-            connected_.set(true);     
-        }        
+        }
         bStream_ = true;
         lock_ = new ReentrantLock();
         condition_ = lock_.newCondition();
@@ -144,8 +141,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         socketChannel_ = socketChannel;
         socketChannel_.configureBlocking(false);                           
         isIncoming_ = isIncoming;
-        connected_.set(true);       
-        localEp_ = localEp;           
+        localEp_ = localEp;
     }
     
     EndPoint getLocalEp()
@@ -182,7 +178,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             ByteBuffer buffer = MessagingService.packIt( data , false, false, listening);   
             synchronized(this)
             {
-                if (!pendingWrites_.isEmpty() || !connected_.get()) 
+                if (!pendingWrites_.isEmpty() || !socketChannel_.isConnected())
                 {                     
                     pendingWrites_.add(buffer);                
                     return;
@@ -223,7 +219,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             */
             long waitTime = 2;
             int retry = 0;
-            while ( !connected_.get() )
+            while (!socketChannel_.isConnected())
             {
                 if ( retry == 3 )
                     throw new IOException("Unable to connect to " + remoteEp_ + " after " + retry + " attempts.");
@@ -392,7 +388,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             if (socketChannel_.finishConnect())
             {
                 key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-                connected_.set(true);
                 
                 // this will flush the pending                
                 if (!pendingWrites_.isEmpty()) 
