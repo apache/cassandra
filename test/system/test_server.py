@@ -39,8 +39,8 @@ def _insert_super():
     client.insert('Table1', 'key1', 'Super1:sc2:c6', 'value6', 0)
     time.sleep(0.1)
 
-def _verify_super():
-    assert client.get_column('Table1', 'key1', 'Super1:sc1:c4') == \
+def _verify_super(supercolumn='Super1'):
+    assert client.get_column('Table1', 'key1', supercolumn + ':sc1:c4') == \
         column_t(columnName='c4', value='value4', timestamp=0)
     slice = client.get_slice_super('Table1', 'key1', 'Super1', -1, -1)
     assert slice == _SUPER_COLUMNS, slice
@@ -88,6 +88,21 @@ class TestMutations(CassandraTester):
     def test_batch_insert_blocking(self):
         _insert_batch(client.batch_insert_blocking)
         _verify_batch()
+
+    def test_batch_insert_super(self):
+         cfmap = {'Super1': _SUPER_COLUMNS,
+                  'Super2': _SUPER_COLUMNS}
+         client.batch_insert_superColumn(batch_mutation_t(table='Table1', key='key1', cfmap=cfmap))
+         time.sleep(0.1)
+         _verify_super('Super1')
+         _verify_super('Super2')
+
+    def test_batch_insert_super_blocking(self):
+         cfmap = {'Super1': _SUPER_COLUMNS,
+                  'Super2': _SUPER_COLUMNS}
+         client.batch_insert_superColumn_blocking(batch_mutation_t(table='Table1', key='key1', cfmap=cfmap))
+         _verify_super('Super1')
+         _verify_super('Super2')
 
     def test_cf_remove_column(self):
         _insert_simple()
