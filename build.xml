@@ -4,7 +4,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <property name="basedir" value="."/>
-    <property name="build.src" value="${basedir}/src"/>
+    <property name="build.src" value="${basedir}/src/java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
