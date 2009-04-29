@@ -197,7 +197,7 @@ class TestMutations(CassandraTester):
         client.remove('Table1', 'key1', 'Super1:sc2', 5, True)
         time.sleep(0.1)
         _expect_missing(lambda: client.get_column('Table1', 'key1', 'Super1:sc2:c5'))
-        actual = client.get_slice_super('Table1', 'key1', 'Super1:sc2', -1, -1)
+        actual = client.get_slice('Table1', 'key1', 'Super1:sc2', -1, -1)
         assert actual == [], actual
         scs = [superColumn_t(name='sc1', 
                              columns=[column_t(columnName='c4', value='value4', timestamp=0)])]
