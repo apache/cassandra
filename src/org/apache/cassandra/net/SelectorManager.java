@@ -52,7 +52,6 @@ public class SelectorManager extends Thread
         }
 
         setDaemon(false);
-        start();
     }
 
     /**

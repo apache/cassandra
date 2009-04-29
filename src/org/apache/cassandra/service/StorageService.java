@@ -82,8 +82,9 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.io.StreamContextManager;
+import org.apache.cassandra.net.SelectorManager;
 import org.apache.cassandra.net.http.HttpConnection;
+import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.locator.IReplicaPlacementStrategy;
@@ -427,11 +428,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     
     public void start() throws IOException
     {
-        /* Start the DB */
-        storageMetadata_ = DBManager.instance().start();  
-        /* Set up TCP endpoint */
+        storageMetadata_ = DBManager.instance().start();
         tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
-        /* Set up UDP endpoint */
         udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
         /* Listen for application messages */
         MessagingService.getMessagingInstance().listen(tcpAddr_, false);
@@ -439,6 +437,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().listenUDP(udpAddr_);
         /* Listen for HTTP messages */
         MessagingService.getMessagingInstance().listen( new EndPoint(DatabaseDescriptor.getHttpPort() ), true );
+
+        SelectorManager.getSelectorManager().start();
+        SelectorManager.getUdpSelectorManager().start();
+
         /* start the analytics context package */
         AnalyticsContext.instance().start();
         /* starts a load timer thread */
