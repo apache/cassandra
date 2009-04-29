@@ -213,7 +213,10 @@ public final class SuperColumn implements IColumn, Serializable
         {
         	addColumn(subColumn.name(), subColumn);
         }
-        markedForDeleteAt = Math.max(markedForDeleteAt, column.getMarkedForDeleteAt());
+        if (column.getMarkedForDeleteAt() > markedForDeleteAt)
+        {
+            markForDeleteAt(column.getLocalDeletionTime(),  column.getMarkedForDeleteAt());
+        }
     }
 
     public int getObjectCount()

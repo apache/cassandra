@@ -329,7 +329,10 @@ public class Memtable implements Comparable<Memtable>
                     if (subColumn != null)
                     {
                         columnFamily = cFamily.cloneMeShallow();
-                        columnFamily.addColumn(values[1] + ":" + values[2], subColumn.value(), subColumn.timestamp(), subColumn.isMarkedForDelete());
+                        SuperColumn container = new SuperColumn(superColumn.name());
+                        container.markForDeleteAt(superColumn.getLocalDeletionTime(), superColumn.getMarkedForDeleteAt());
+                        container.addColumn(subColumn.name(), subColumn);
+                        columnFamily.addColumn(container);
                     }
                 }
         	}
