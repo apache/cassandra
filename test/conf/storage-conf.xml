@@ -17,7 +17,7 @@
    <ListenAddress>127.0.0.1</ListenAddress>
    <StoragePort>7000</StoragePort>
    <ControlPort>7001</ControlPort>
-   <ThriftPort>7001</ThriftPort>
+   <ThriftPort>9160</ThriftPort>
    <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
    <HttpPort>7002</HttpPort>
    <MetadataDirectory>build/test/cassandra/system</MetadataDirectory>

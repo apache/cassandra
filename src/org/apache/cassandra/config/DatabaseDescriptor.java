@@ -249,7 +249,7 @@ public class DatabaseDescriptor
                 FileUtils.createDirectory(snapshotDirectory_);
             else
             {
-                    snapshotDirectory_ = metadataDirectory_ + System.getProperty("file.separator") + "snapshot";
+                snapshotDirectory_ = metadataDirectory_ + System.getProperty("file.separator") + "snapshot";
             }
 
             /* data file directory */
@@ -265,7 +265,7 @@ public class DatabaseDescriptor
             bootstrapFileDirectory_ = xmlUtils.getNodeValue("/Storage/BootstrapFileDirectory");
             if (bootstrapFileDirectory_ == null)
             {
-                throw new ConfigurationException("MetadataDirectory must be specified");
+                throw new ConfigurationException("BootstrapFileDirectory must be specified");
             }
             FileUtils.createDirectory(bootstrapFileDirectory_);
 
@@ -273,7 +273,7 @@ public class DatabaseDescriptor
             logFileDirectory_ = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
             if (logFileDirectory_ == null)
             {
-                throw new ConfigurationException("MetadataDirectory must be specified");
+                throw new ConfigurationException("CommitLogDirectory must be specified");
             }
             FileUtils.createDirectory(logFileDirectory_);
 

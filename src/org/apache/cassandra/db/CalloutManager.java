@@ -39,6 +39,8 @@ import javax.script.SimpleBindings;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.procedures.GroovyScriptRunner;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.FileUtils;
+
 import org.apache.log4j.Logger;
 
 public class CalloutManager
@@ -111,12 +113,9 @@ public class CalloutManager
     	if ( location == null )
     		return;
     	
-        File directory = new File(location);        
+        FileUtils.createDirectory(location);
         
-        if ( !directory.exists() )
-            directory.mkdir();
-        
-        File[] files = directory.listFiles();
+        File[] files = new File(location).listFiles();
         
         for ( File file : files )
         {

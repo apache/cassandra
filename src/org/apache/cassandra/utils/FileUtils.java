@@ -97,8 +97,13 @@ public class FileUtils
     public static void createDirectory(String directory) throws IOException
     {
         File file = new File(directory);
-        if ( !file.exists() )
-            file.mkdir();
+        if (!file.exists())
+        {
+            if (!file.mkdirs())
+            {
+                throw new IOException("unable to mkdirs " + directory);
+            }
+        }
     }
 
     public static void createFile(String directory) throws IOException
