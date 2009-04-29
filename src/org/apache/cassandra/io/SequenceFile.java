@@ -596,8 +596,6 @@ public class SequenceFile
             /* we do this because relative position of the key within a block is stored. */
             if (position != -1L)
                 position = blockIndexPosition - position;
-            else
-                throw new IOException("This key " + key + " does not exist in this file.");
             return position;
         }
 
@@ -712,6 +710,8 @@ public class SequenceFile
             /* Goto the Block Index */
             seek(section.end_);
             long position = getPositionFromBlockIndex(key);
+            if (position == -1)
+                throw new IOException("This key " + key + " does not exist in this file.");
             seek(position);
         }
 

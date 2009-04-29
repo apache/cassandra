@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 
@@ -47,7 +48,15 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.db.TableNotDefinedException;
+import org.apache.cassandra.db.RangeCommand;
+import org.apache.cassandra.db.RangeReply;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.IAsyncResult;
+import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.thrift.TException;
 
 /**
@@ -544,6 +553,33 @@ public class CassandraServer implements Cassandra.Iface
             result.errorCode = cqlResult.errorCode;
         }
         return result;
+    }
+
+    public List<String> get_key_range(String tablename, String startWith, String stopAt, int maxResults) throws InvalidRequestException
+    {
+        logger_.debug("get_range");
+
+        if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner))
+        {
+            throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
+        }
+
+        try
+        {
+            Message message = new RangeCommand(tablename, startWith, stopAt, maxResults).getMessage();
+            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(startWith);
+            IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
+
+            // read response
+            // TODO send more requests if we need to span multiple nodes
+            // double the usual timeout since range requests are expensive
+            byte[] responseBody = (byte[])iar.get(2 * DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS)[0];
+            return RangeReply.read(responseBody).keys;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /*

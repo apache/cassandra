@@ -54,6 +54,8 @@ public class Cassandra {
 
     public void touch(String key, boolean fData) throws TException;
 
+    public List<String> get_key_range(String tablename, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
+
     public String getStringProperty(String propertyName) throws TException;
 
     public List<String> getStringListProperty(String propertyName) throws TException;
@@ -634,6 +636,45 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
+    public List<String> get_key_range(String tablename, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
+    {
+      send_get_key_range(tablename, startWith, stopAt, maxResults);
+      return recv_get_key_range();
+    }
+
+    public void send_get_key_range(String tablename, String startWith, String stopAt, int maxResults) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("get_key_range", TMessageType.CALL, seqid_));
+      get_key_range_args args = new get_key_range_args();
+      args.tablename = tablename;
+      args.startWith = startWith;
+      args.stopAt = stopAt;
+      args.maxResults = maxResults;
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public List<String> recv_get_key_range() throws InvalidRequestException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      get_key_range_result result = new get_key_range_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_key_range failed: unknown result");
+    }
+
     public String getStringProperty(String propertyName) throws TException
     {
       send_getStringProperty(propertyName);
@@ -788,6 +829,7 @@ public class Cassandra {
       processMap_.put("batch_insert_superColumn", new batch_insert_superColumn());
       processMap_.put("batch_insert_superColumn_blocking", new batch_insert_superColumn_blocking());
       processMap_.put("touch", new touch());
+      processMap_.put("get_key_range", new get_key_range());
       processMap_.put("getStringProperty", new getStringProperty());
       processMap_.put("getStringListProperty", new getStringListProperty());
       processMap_.put("describeTable", new describeTable());
@@ -1212,6 +1254,34 @@ public class Cassandra {
         iface_.touch(args.key, args.fData);
         return;
       }
+    }
+
+    private class get_key_range implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        get_key_range_args args = new get_key_range_args();
+        args.read(iprot);
+        iprot.readMessageEnd();
+        get_key_range_result result = new get_key_range_result();
+        try {
+          result.success = iface_.get_key_range(args.tablename, args.startWith, args.stopAt, args.maxResults);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_key_range", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_key_range");
+          oprot.writeMessageBegin(new TMessage("get_key_range", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("get_key_range", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
     }
 
     private class getStringProperty implements ProcessFunction {
@@ -11033,6 +11103,740 @@ public class Cassandra {
 
   }
 
+  public static class get_key_range_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_key_range_args");
+    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField START_WITH_FIELD_DESC = new TField("startWith", TType.STRING, (short)2);
+    private static final TField STOP_AT_FIELD_DESC = new TField("stopAt", TType.STRING, (short)3);
+    private static final TField MAX_RESULTS_FIELD_DESC = new TField("maxResults", TType.I32, (short)4);
+
+    public String tablename;
+    public static final int TABLENAME = 1;
+    public String startWith;
+    public static final int STARTWITH = 2;
+    public String stopAt;
+    public static final int STOPAT = 3;
+    public int maxResults;
+    public static final int MAXRESULTS = 4;
+
+    private final Isset __isset = new Isset();
+    private static final class Isset implements java.io.Serializable {
+      public boolean maxResults = false;
+    }
+
+    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
+      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(STARTWITH, new FieldMetaData("startWith", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(STOPAT, new FieldMetaData("stopAt", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(MAXRESULTS, new FieldMetaData("maxResults", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(get_key_range_args.class, metaDataMap);
+    }
+
+    public get_key_range_args() {
+      this.startWith = "";
+
+      this.stopAt = "";
+
+      this.maxResults = 1000;
+
+    }
+
+    public get_key_range_args(
+      String tablename,
+      String startWith,
+      String stopAt,
+      int maxResults)
+    {
+      this();
+      this.tablename = tablename;
+      this.startWith = startWith;
+      this.stopAt = stopAt;
+      this.maxResults = maxResults;
+      this.__isset.maxResults = true;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public get_key_range_args(get_key_range_args other) {
+      if (other.isSetTablename()) {
+        this.tablename = other.tablename;
+      }
+      if (other.isSetStartWith()) {
+        this.startWith = other.startWith;
+      }
+      if (other.isSetStopAt()) {
+        this.stopAt = other.stopAt;
+      }
+      __isset.maxResults = other.__isset.maxResults;
+      this.maxResults = other.maxResults;
+    }
+
+    @Override
+    public get_key_range_args clone() {
+      return new get_key_range_args(this);
+    }
+
+    public String getTablename() {
+      return this.tablename;
+    }
+
+    public void setTablename(String tablename) {
+      this.tablename = tablename;
+    }
+
+    public void unsetTablename() {
+      this.tablename = null;
+    }
+
+    // Returns true if field tablename is set (has been asigned a value) and false otherwise
+    public boolean isSetTablename() {
+      return this.tablename != null;
+    }
+
+    public void setTablenameIsSet(boolean value) {
+      if (!value) {
+        this.tablename = null;
+      }
+    }
+
+    public String getStartWith() {
+      return this.startWith;
+    }
+
+    public void setStartWith(String startWith) {
+      this.startWith = startWith;
+    }
+
+    public void unsetStartWith() {
+      this.startWith = null;
+    }
+
+    // Returns true if field startWith is set (has been asigned a value) and false otherwise
+    public boolean isSetStartWith() {
+      return this.startWith != null;
+    }
+
+    public void setStartWithIsSet(boolean value) {
+      if (!value) {
+        this.startWith = null;
+      }
+    }
+
+    public String getStopAt() {
+      return this.stopAt;
+    }
+
+    public void setStopAt(String stopAt) {
+      this.stopAt = stopAt;
+    }
+
+    public void unsetStopAt() {
+      this.stopAt = null;
+    }
+
+    // Returns true if field stopAt is set (has been asigned a value) and false otherwise
+    public boolean isSetStopAt() {
+      return this.stopAt != null;
+    }
+
+    public void setStopAtIsSet(boolean value) {
+      if (!value) {
+        this.stopAt = null;
+      }
+    }
+
+    public int getMaxResults() {
+      return this.maxResults;
+    }
+
+    public void setMaxResults(int maxResults) {
+      this.maxResults = maxResults;
+      this.__isset.maxResults = true;
+    }
+
+    public void unsetMaxResults() {
+      this.__isset.maxResults = false;
+    }
+
+    // Returns true if field maxResults is set (has been asigned a value) and false otherwise
+    public boolean isSetMaxResults() {
+      return this.__isset.maxResults;
+    }
+
+    public void setMaxResultsIsSet(boolean value) {
+      this.__isset.maxResults = value;
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      switch (fieldID) {
+      case TABLENAME:
+        if (value == null) {
+          unsetTablename();
+        } else {
+          setTablename((String)value);
+        }
+        break;
+
+      case STARTWITH:
+        if (value == null) {
+          unsetStartWith();
+        } else {
+          setStartWith((String)value);
+        }
+        break;
+
+      case STOPAT:
+        if (value == null) {
+          unsetStopAt();
+        } else {
+          setStopAt((String)value);
+        }
+        break;
+
+      case MAXRESULTS:
+        if (value == null) {
+          unsetMaxResults();
+        } else {
+          setMaxResults((Integer)value);
+        }
+        break;
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    public Object getFieldValue(int fieldID) {
+      switch (fieldID) {
+      case TABLENAME:
+        return getTablename();
+
+      case STARTWITH:
+        return getStartWith();
+
+      case STOPAT:
+        return getStopAt();
+
+      case MAXRESULTS:
+        return new Integer(getMaxResults());
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+    public boolean isSet(int fieldID) {
+      switch (fieldID) {
+      case TABLENAME:
+        return isSetTablename();
+      case STARTWITH:
+        return isSetStartWith();
+      case STOPAT:
+        return isSetStopAt();
+      case MAXRESULTS:
+        return isSetMaxResults();
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof get_key_range_args)
+        return this.equals((get_key_range_args)that);
+      return false;
+    }
+
+    public boolean equals(get_key_range_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_tablename = true && this.isSetTablename();
+      boolean that_present_tablename = true && that.isSetTablename();
+      if (this_present_tablename || that_present_tablename) {
+        if (!(this_present_tablename && that_present_tablename))
+          return false;
+        if (!this.tablename.equals(that.tablename))
+          return false;
+      }
+
+      boolean this_present_startWith = true && this.isSetStartWith();
+      boolean that_present_startWith = true && that.isSetStartWith();
+      if (this_present_startWith || that_present_startWith) {
+        if (!(this_present_startWith && that_present_startWith))
+          return false;
+        if (!this.startWith.equals(that.startWith))
+          return false;
+      }
+
+      boolean this_present_stopAt = true && this.isSetStopAt();
+      boolean that_present_stopAt = true && that.isSetStopAt();
+      if (this_present_stopAt || that_present_stopAt) {
+        if (!(this_present_stopAt && that_present_stopAt))
+          return false;
+        if (!this.stopAt.equals(that.stopAt))
+          return false;
+      }
+
+      boolean this_present_maxResults = true;
+      boolean that_present_maxResults = true;
+      if (this_present_maxResults || that_present_maxResults) {
+        if (!(this_present_maxResults && that_present_maxResults))
+          return false;
+        if (this.maxResults != that.maxResults)
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id)
+        {
+          case TABLENAME:
+            if (field.type == TType.STRING) {
+              this.tablename = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case STARTWITH:
+            if (field.type == TType.STRING) {
+              this.startWith = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case STOPAT:
+            if (field.type == TType.STRING) {
+              this.stopAt = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case MAXRESULTS:
+            if (field.type == TType.I32) {
+              this.maxResults = iprot.readI32();
+              this.__isset.maxResults = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+            break;
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.tablename != null) {
+        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
+        oprot.writeString(this.tablename);
+        oprot.writeFieldEnd();
+      }
+      if (this.startWith != null) {
+        oprot.writeFieldBegin(START_WITH_FIELD_DESC);
+        oprot.writeString(this.startWith);
+        oprot.writeFieldEnd();
+      }
+      if (this.stopAt != null) {
+        oprot.writeFieldBegin(STOP_AT_FIELD_DESC);
+        oprot.writeString(this.stopAt);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldBegin(MAX_RESULTS_FIELD_DESC);
+      oprot.writeI32(this.maxResults);
+      oprot.writeFieldEnd();
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("get_key_range_args(");
+      boolean first = true;
+
+      sb.append("tablename:");
+      if (this.tablename == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.tablename);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("startWith:");
+      if (this.startWith == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.startWith);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("stopAt:");
+      if (this.stopAt == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.stopAt);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("maxResults:");
+      sb.append(this.maxResults);
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      // check that fields of type enum have valid values
+    }
+
+  }
+
+  public static class get_key_range_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_key_range_result");
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+
+    public List<String> success;
+    public static final int SUCCESS = 0;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+
+    private final Isset __isset = new Isset();
+    private static final class Isset implements java.io.Serializable {
+    }
+
+    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
+      put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new ListMetaData(TType.LIST, 
+              new FieldValueMetaData(TType.STRING))));
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(get_key_range_result.class, metaDataMap);
+    }
+
+    public get_key_range_result() {
+    }
+
+    public get_key_range_result(
+      List<String> success,
+      InvalidRequestException ire)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public get_key_range_result(get_key_range_result other) {
+      if (other.isSetSuccess()) {
+        List<String> __this__success = new ArrayList<String>();
+        for (String other_element : other.success) {
+          __this__success.add(other_element);
+        }
+        this.success = __this__success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+    }
+
+    @Override
+    public get_key_range_result clone() {
+      return new get_key_range_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<String> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(String elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<String>();
+      }
+      this.success.add(elem);
+    }
+
+    public List<String> getSuccess() {
+      return this.success;
+    }
+
+    public void setSuccess(List<String> success) {
+      this.success = success;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    // Returns true if field success is set (has been asigned a value) and false otherwise
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      switch (fieldID) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((List<String>)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    public Object getFieldValue(int fieldID) {
+      switch (fieldID) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+    public boolean isSet(int fieldID) {
+      switch (fieldID) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof get_key_range_result)
+        return this.equals((get_key_range_result)that);
+      return false;
+    }
+
+    public boolean equals(get_key_range_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id)
+        {
+          case SUCCESS:
+            if (field.type == TType.LIST) {
+              {
+                TList _list59 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list59.size);
+                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
+                {
+                  String _elem61;
+                  _elem61 = iprot.readString();
+                  this.success.add(_elem61);
+                }
+                iprot.readListEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case IRE:
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+            break;
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
+          for (String _iter62 : this.success)          {
+            oprot.writeString(_iter62);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("get_key_range_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      // check that fields of type enum have valid values
+    }
+
+  }
+
   public static class getStringProperty_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("getStringProperty_args");
     private static final TField PROPERTY_NAME_FIELD_DESC = new TField("propertyName", TType.STRING, (short)-1);
@@ -11795,13 +12599,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list59 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list59.size);
-                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
+                TList _list63 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list63.size);
+                for (int _i64 = 0; _i64 < _list63.size; ++_i64)
                 {
-                  String _elem61;
-                  _elem61 = iprot.readString();
-                  this.success.add(_elem61);
+                  String _elem65;
+                  _elem65 = iprot.readString();
+                  this.success.add(_elem65);
                 }
                 iprot.readListEnd();
               }
@@ -11829,8 +12633,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter62 : this.success)          {
-            oprot.writeString(_iter62);
+          for (String _iter66 : this.success)          {
+            oprot.writeString(_iter66);
           }
           oprot.writeListEnd();
         }

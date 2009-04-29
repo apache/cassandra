@@ -23,8 +23,13 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.Predicate;
+
 import org.apache.cassandra.analytics.DBAnalyticsSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
@@ -61,7 +66,7 @@ public class Table
      * is basically the column family name and the ID associated with
      * this column family. We use this ID in the Commit Log header to
      * determine when a log file that has been rolled can be deleted.
-    */    
+    */
     public static class TableMetadata
     {
         /* Name of the column family */
@@ -387,8 +392,10 @@ public class Table
     /* ColumnFamilyStore per column family */
     private Map<String, ColumnFamilyStore> columnFamilyStores_ = new HashMap<String, ColumnFamilyStore>();
     /* The AnalyticsSource instance which keeps track of statistics reported to Ganglia. */
-    private DBAnalyticsSource dbAnalyticsSource_;    
-    
+    private DBAnalyticsSource dbAnalyticsSource_;
+    // cache application CFs since Range queries ask for them a _lot_
+    private Set<String> applicationColumnFamilies_;
+
     public static Table open(String table)
     {
         Table tableInstance = instances_.get(table);
@@ -839,5 +846,101 @@ public class Table
         row.clear();
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateWriteStatistics(timeTaken);
+    }
+
+    public Set<String> getApplicationColumnFamilies()
+    {
+        if (applicationColumnFamilies_ == null)
+        {
+            applicationColumnFamilies_ = new HashSet<String>();
+            for (String cfName : getColumnFamilies())
+            {
+                if (DatabaseDescriptor.isApplicationColumnFamily(cfName))
+                {
+                    applicationColumnFamilies_.add(cfName);
+                }
+            }
+        }
+        return applicationColumnFamilies_;
+    }
+
+    /**
+     * @param startWith key to start with, inclusive.  empty string = start at beginning.
+     * @param stopAt key to stop at, inclusive.  empty string = stop only when keys are exhausted.
+     * @param maxResults
+     * @return list of keys between startWith and stopAt
+     */
+    public List<String> getKeyRange(final String startWith, final String stopAt, int maxResults) throws IOException
+    {
+        // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
+        final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
+
+        // create a CollatedIterator that will return unique keys from different sources
+        // (current memtable, historical memtables, and SSTables) in the correct order.
+        List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
+        for (String cfName : getApplicationColumnFamilies())
+        {
+            ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
+
+            // memtable keys: current and historical
+            Iterator<Memtable> memtables = (Iterator<Memtable>) IteratorUtils.chainedIterator(
+                    IteratorUtils.singletonIterator(cfs.getMemtable()),
+                    MemtableManager.instance().getUnflushedMemtables(cfName).iterator());
+            while (memtables.hasNext())
+            {
+                iterators.add(IteratorUtils.filteredIterator(memtables.next().sortedKeyIterator(), new Predicate()
+                {
+                    public boolean evaluate(Object key)
+                    {
+                        String st = (String)key;
+                        return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
+                    }
+                }));
+            }
+
+            // sstables
+            for (String filename : cfs.getSSTableFilenames())
+            {
+                FileStruct fs = new FileStruct(SequenceFile.reader(filename), StorageService.getPartitioner());
+                fs.seekTo(startWith);
+                iterators.add(fs);
+            }
+        }
+        Iterator<String> iter = IteratorUtils.collatedIterator(comparator, iterators);
+
+        // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
+        // so we set an arbitrary limit on how many we'll do at once.
+        List<String> keys = new ArrayList<String>();
+        String last = null, current = null;
+        while (keys.size() < maxResults)
+        {
+            if (!iter.hasNext())
+            {
+                break;
+            }
+            current = iter.next();
+            if (!current.equals(last))
+            {
+                if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
+                {
+                    break;
+                }
+                last = current;
+                // make sure there is actually non-tombstone content associated w/ this key
+                // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
+                for (String cfName : getApplicationColumnFamilies())
+                {
+                    ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
+                    ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);
+                    if (cf != null && cf.getColumns().size() > 0)
+                    {
+                        keys.add(current);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return keys;
     }
 }

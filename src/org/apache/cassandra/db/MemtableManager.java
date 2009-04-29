@@ -40,7 +40,7 @@ public class MemtableManager
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(MemtableManager.class);
     private ReentrantReadWriteLock rwLock_ = new ReentrantReadWriteLock(true);
-    static MemtableManager instance() 
+    public static MemtableManager instance()
     {
         if ( instance_ == null )
         {
@@ -157,7 +157,22 @@ public class MemtableManager
     	}
     }
 
-
-
+    public List<Memtable> getUnflushedMemtables(String cfName)
+    {
+        rwLock_.readLock().lock();
+        try
+        {
+            List<Memtable> memtables = history_.get(cfName);
+            if (memtables != null)
+            {
+                return new ArrayList<Memtable>(memtables);
+            }
+            return Arrays.asList(new Memtable[0]);
+        }
+        finally
+        {
+            rwLock_.readLock().unlock();
+        }
+    }
 
 }

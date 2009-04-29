@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
@@ -28,7 +29,7 @@ import org.apache.cassandra.io.Coordinate;
 import org.apache.cassandra.dht.IPartitioner;
 
 
-public class FileStruct implements Comparable<FileStruct>
+public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 {
     private String key = null; // decorated!
     private boolean exhausted = false;
@@ -36,6 +37,7 @@ public class FileStruct implements Comparable<FileStruct>
     private DataInputBuffer bufIn;
     private DataOutputBuffer bufOut;
     private IPartitioner partitioner;
+    private FileStructIterator iterator = new FileStructIterator();
 
     public FileStruct(IFileReader reader, IPartitioner partitioner)
     {
@@ -73,7 +75,7 @@ public class FileStruct implements Comparable<FileStruct>
     public int compareTo(FileStruct f)
     {
         return partitioner.getDecoratedKeyComparator().compare(key, f.key);
-    }
+    }    
 
     public void seekTo(String seekKey)
     {
@@ -110,6 +112,8 @@ public class FileStruct implements Comparable<FileStruct>
      * Read the next key from the data file, skipping block indexes.
      * Caller must check isExhausted after each call to see if further
      * reads are valid.
+     * Do not mix with calls to the iterator interface (next/hasnext).
+     * @deprecated -- prefer the iterator interface.
      */
     public void advance() throws IOException
     {
@@ -144,4 +148,63 @@ public class FileStruct implements Comparable<FileStruct>
         }
     }
 
+    public boolean hasNext()
+    {
+        return iterator.hasNext();
+    }
+
+    /** do not mix with manual calls to advance(). */
+    public String next()
+    {
+        return iterator.next();
+    }
+
+    public void remove()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    private class FileStructIterator
+    {
+        String saved;
+
+        private void forward()
+        {
+            try
+            {
+                advance();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            saved = isExhausted() ? null : key;
+        }
+
+        private void maybeInit()
+        {
+            if (key == null && !isExhausted())
+            {
+                forward();
+            }
+        }
+
+        public boolean hasNext()
+        {
+            maybeInit();
+            return saved != null;
+        }
+
+        public String next()
+        {
+            maybeInit();
+            if (saved == null)
+            {
+                throw new IndexOutOfBoundsException();
+            }
+            String key = saved;
+            forward();
+            return key;
+        }
+    }
 }

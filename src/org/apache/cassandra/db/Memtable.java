@@ -25,6 +25,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.PriorityQueue;
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -47,6 +50,7 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import org.apache.cassandra.utils.DestructivePQIterator;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -440,5 +444,18 @@ public class Memtable implements Comparable<Memtable>
             };
             flushQueuer = new FutureTask(runnable, null);
         }
+    }
+
+    public Iterator<String> sortedKeyIterator()
+    {
+        Set<String> keys = columnFamilies_.keySet();
+        if (keys.size() == 0)
+        {
+            // cannot create a PQ of size zero (wtf?)
+            return Arrays.asList(new String[0]).iterator();
+        }
+        PriorityQueue<String> pq = new PriorityQueue<String>(keys.size(), StorageService.getPartitioner().getDecoratedKeyComparator());
+        pq.addAll(keys);
+        return new DestructivePQIterator<String>(pq);
     }
 }

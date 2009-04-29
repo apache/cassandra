@@ -481,6 +481,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return resolveAndRemoveDeleted(columnFamilies);
     }
 
+    public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter, int gcBefore) throws IOException
+    {
+        List<ColumnFamily> columnFamilies = getColumnFamilies(key, columnFamilyColumn, filter);
+        ColumnFamily cf = ColumnFamily.resolve(columnFamilies);
+        return removeDeleted(cf, gcBefore);
+    }
+
     /**
      *
      * Get the column family in the most efficient order.
@@ -1436,5 +1443,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             new File(fName).delete();
         }
         ssTables_.clear();
+    }
+
+    public Object getMemtable()
+    {
+        return memtable_.get();
+    }
+
+    public Set<String> getSSTableFilenames()
+    {
+        return Collections.unmodifiableSet(ssTables_);
     }
 }

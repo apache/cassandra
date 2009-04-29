@@ -96,4 +96,9 @@ public final class DataInputBuffer extends DataInputStream
     {
         return buffer_.getLength();
     }
+
+    public int getPosition()
+    {
+        return buffer_.getPosition();
+    }
 }

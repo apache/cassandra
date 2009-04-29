@@ -87,7 +87,7 @@ public class DatabaseDescriptor
     */
     private static Map<String, Map<String, CFMetaData>> tableToCFMetaDataMap_;
     /* Hashing strategy Random or OPHF */
-    private static String hashingStrategy_ = DatabaseDescriptor.random_;
+    private static String partitionerClass_;
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     private static int columnIndexSizeInKB_;
     /* Size of touch key cache */
@@ -137,7 +137,7 @@ public class DatabaseDescriptor
             zkAddress_ = xmlUtils.getNodeValue("/Storage/ZookeeperAddress");
 
             /* Hashing strategy */
-            hashingStrategy_ = xmlUtils.getNodeValue("/Storage/HashingStrategy");
+            partitionerClass_ = xmlUtils.getNodeValue("/Storage/Partitioner");
             /* Callout location */
             calloutLocation_ = xmlUtils.getNodeValue("/Storage/CalloutLocation");
 
@@ -475,9 +475,9 @@ public class DatabaseDescriptor
         return gcGraceInSeconds_;
     }
 
-    public static String getHashingStrategy()
+    public static String getPartitionerClass()
     {
-        return hashingStrategy_;
+        return partitionerClass_;
     }
     
     public static String getZkAddress()

@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -138,6 +139,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String calloutDeployVerbHandler_ = "CALLOUT-DEPLOY-VERB-HANDLER";
     public final static String touchVerbHandler_ = "TOUCH-VERB-HANDLER";
+    public static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
 
     public static enum ConsistencyLevel
     {
@@ -303,6 +305,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.calloutDeployVerbHandler_, new CalloutDeployVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.touchVerbHandler_, new TouchVerbHandler());
+        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.rangeVerbHandler_, new RangeVerbHandler());
         
         /* register the stage for the mutations */
         int threadCount = DatabaseDescriptor.getThreadsPerPool();
@@ -415,14 +418,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     static
     {
-        String hashingStrategy = DatabaseDescriptor.getHashingStrategy();
-        if (DatabaseDescriptor.ophf_.equalsIgnoreCase(hashingStrategy))
+        try
         {
-            partitioner_ = new OrderPreservingPartitioner();
-        }        
-        else
+            Class cls = Class.forName(DatabaseDescriptor.getPartitionerClass());
+            partitioner_ = (IPartitioner) cls.getConstructor().newInstance();
+        }
+        catch (Exception e)
         {
-            partitioner_ = new RandomPartitioner();
+            throw new RuntimeException(e);
         }
     }
     
