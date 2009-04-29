@@ -5,6 +5,7 @@
 
     <property name="basedir" value="."/>
     <property name="build.src" value="${basedir}/src/java"/>
+    <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
@@ -45,21 +46,14 @@
     <target name="init">
         <mkdir dir="${build.classes}"/>
         <mkdir dir="${test.classes}"/>
+        <mkdir dir="${build.src.gen-java}"/>
     </target>
+
     <target name="clean">
         <delete dir="${build.dir}" />
-        <delete file="${build.src}/org/apache/cassandra/cli/Cli__.g" />
-        <delete file="${build.src}/org/apache/cassandra/cli/CliLexer.java" />
-        <delete file="${build.src}/org/apache/cassandra/cli/CliParser.java" />
-        <delete file="${build.src}/org/apache/cassandra/cli/Cli.tokens" />
-        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql__.g" />
-        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/CqlLexer.java" />
-        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/CqlParser.java" />
-        <delete file="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.tokens" />
+        <delete dir="${build.src.gen-java}" />
     </target>
     <target depends="clean" name="cleanall"/>
-
-
 
     <!--
        This generates the CLI grammar files from Cli.g
@@ -77,7 +71,7 @@
             fork="true">
          <arg value="${build.src}/org/apache/cassandra/cli/Cli.g" />
          <arg value="-o" />
-         <arg value="${build.src}/org/apache/cassandra/cli/" />
+         <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
       </java> 
     </target>
 
@@ -97,7 +91,7 @@
             fork="true">
          <arg value="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g" />
          <arg value="-o" />
-         <arg value="${build.src}/org/apache/cassandra/cql/compiler/parse/" />
+         <arg value="${build.src.gen-java}/org/apache/cassandra/cql/compiler/parse/" />
       </java> 
     </target>
 
@@ -112,6 +106,7 @@
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
+            <src path="${build.src.gen-java}"/>
             <src path="${interface.src.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
