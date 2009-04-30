@@ -5,9 +5,10 @@
 #
 
 namespace java org.apache.cassandra.service
-namespace py org.apache.cassandra
 namespace cpp org.apache.cassandra
-namespace php org.apache.cassandra
+namespace csharp Apache.Cassandra
+namespace py cassandra
+namespace php cassandra
 
 
 #

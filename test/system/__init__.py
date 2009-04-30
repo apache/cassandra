@@ -11,7 +11,7 @@ from thrift.protocol import TBinaryProtocol
 L = os.path.abspath(__file__).split(os.path.sep)[:-3]
 root = os.path.sep.join(L)
 _ipath = os.path.join(root, 'interface', 'gen-py')
-sys.path.append(os.path.join(_ipath, 'org', 'apache', 'cassandra'))
+sys.path.append(os.path.join(_ipath, 'cassandra'))
 import Cassandra
 
 host, port = '127.0.0.1', 9160
