@@ -906,41 +906,53 @@ public class Table
                 iterators.add(fs);
             }
         }
-        Iterator<String> iter = IteratorUtils.collatedIterator(comparator, iterators);
+        Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
 
-        // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
-        // so we set an arbitrary limit on how many we'll do at once.
-        List<String> keys = new ArrayList<String>();
-        String last = null, current = null;
-        while (keys.size() < maxResults)
+        try
         {
-            if (!iter.hasNext())
+            // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
+            // so we set an arbitrary limit on how many we'll do at once.
+            List<String> keys = new ArrayList<String>();
+            String last = null, current = null;
+            while (keys.size() < maxResults)
             {
-                break;
-            }
-            current = iter.next();
-            if (!current.equals(last))
-            {
-                if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
+                if (!collated.hasNext())
                 {
                     break;
                 }
-                last = current;
-                // make sure there is actually non-tombstone content associated w/ this key
-                // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                for (String cfName : getApplicationColumnFamilies())
+                current = collated.next();
+                if (!current.equals(last))
                 {
-                    ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
-                    ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);
-                    if (cf != null && cf.getColumns().size() > 0)
+                    if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
                     {
-                        keys.add(current);
                         break;
+                    }
+                    last = current;
+                    // make sure there is actually non-tombstone content associated w/ this key
+                    // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
+                    for (String cfName : getApplicationColumnFamilies())
+                    {
+                        ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
+                        ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);
+                        if (cf != null && cf.getColumns().size() > 0)
+                        {
+                            keys.add(current);
+                            break;
+                        }
                     }
                 }
             }
+            return keys;
         }
-
-        return keys;
+        finally
+        {
+            for (Iterator iter : iterators)
+            {
+                if (iter instanceof FileStruct)
+                {
+                    ((FileStruct)iter).close();
+                }
+            }
+        }
     }
 }
