@@ -70,7 +70,7 @@
             classpath="${build.lib}/antlr-3.1.3.jar"
             fork="true">
          <arg value="${build.src}/org/apache/cassandra/cli/Cli.g" />
-         <arg value="-o" />
+         <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
       </java> 
     </target>
@@ -90,7 +90,7 @@
             classpath="${build.lib}/antlr-3.1.3.jar"
             fork="true">
          <arg value="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g" />
-         <arg value="-o" />
+         <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cql/compiler/parse/" />
       </java> 
     </target>
