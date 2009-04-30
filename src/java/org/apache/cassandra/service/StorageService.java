@@ -468,7 +468,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
         /* Make sure this token gets gossiped around. */
         tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_);
-        Gossiper.instance().addApplicationState(StorageService.nodeId_, new ApplicationState(storageMetadata_.getStorageId().toString()));
+        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getStorageId()));
+        Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
     }
 
     public void killMe() throws Throwable
@@ -726,7 +727,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         /* Get the old token. This needs to be removed. */
         tokenMetadata_.update(token, StorageService.tcpAddr_);
         /* Gossip this new token for the local storage instance */
-        Gossiper.instance().addApplicationState(StorageService.nodeId_, new ApplicationState(token.toString()));
+        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(token));
+        Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
     }
     
     /*

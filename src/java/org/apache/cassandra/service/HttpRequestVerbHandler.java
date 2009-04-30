@@ -224,7 +224,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
     {
         HTMLFormatter formatter = new HTMLFormatter();
 
-        formatter.appendLine("Token: " + storageService_.getToken());
+        formatter.appendLine(storageService_.getToken());
         RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
         formatter.appendLine("Up time (in seconds): " + (runtimeMxBean.getUptime()/1000));
 

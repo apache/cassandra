@@ -99,6 +99,11 @@ public class OrderPreservingPartitioner implements IPartitioner
             }
         }
 
+        public String toString(Token<String> stringToken)
+        {
+            return stringToken.token;
+        }
+
         public Token<String> fromString(String string)
         {
             return new StringToken(string);

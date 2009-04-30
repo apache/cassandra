@@ -92,6 +92,11 @@ public class RandomPartitioner implements IPartitioner
             return new BigIntegerToken(new BigInteger(bytes));
         }
 
+        public String toString(Token<BigInteger> bigIntegerToken)
+        {
+            return bigIntegerToken.token.toString();
+        }
+
         public Token<BigInteger> fromString(String string)
         {
             return new BigIntegerToken(new BigInteger(string));

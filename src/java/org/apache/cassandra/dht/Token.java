@@ -52,7 +52,8 @@ public abstract class Token<T extends Comparable> implements Comparable<Token<T>
     {
         public abstract byte[] toByteArray(Token<T> token);
         public abstract Token<T> fromByteArray(byte[] bytes);
-        public abstract Token<T> fromString(String string);
+        public abstract String toString(Token<T> token); // serialize as string, not necessarily human-readable
+        public abstract Token<T> fromString(String string); // deserialize
     }
 
     public static class TokenSerializer implements ICompactSerializer<Token>
