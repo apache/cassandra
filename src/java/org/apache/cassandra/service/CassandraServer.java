@@ -76,7 +76,7 @@ public class CassandraServer implements Cassandra.Iface
       */
 	protected StorageService storageService;
 
-	protected CassandraServer()
+	public CassandraServer()
 	{
 		storageService = StorageService.instance();
 	}
