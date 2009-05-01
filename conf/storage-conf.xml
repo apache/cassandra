@@ -79,13 +79,14 @@
       is based solely on the amount of data stored, not actual heap memory
       usage (there is some overhead in indexing the columns).
     -->
-    <MemtableSizeInMB>64</MemtableSizeInMB>
+    <MemtableSizeInMB>32</MemtableSizeInMB>
 
     <!--
       The maximum number of columns in millions to store in memory
-      before flushing to disk.  Use with MemtableSizeInMB to tune memory usage.
+      before flushing to disk.  This is also a per-memtable setting.
+      Use with MemtableSizeInMB to tune memory usage.
     -->
-    <MemtableObjectCountInMillions>1</MemtableObjectCountInMillions>
+    <MemtableObjectCountInMillions>0.1</MemtableObjectCountInMillions>
 
     <!-- Time to wait before garbage-collection deletion markers.
          Set this to a large enough value that you are confident

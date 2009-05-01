@@ -73,7 +73,7 @@ public class Memtable implements Comparable<Memtable>
     private MemtableThreadPoolExecutor executor_;
 
     private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
-    private int thresholdCount_ = DatabaseDescriptor.getMemtableObjectCount()*1024*1024;
+    private int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
     private AtomicInteger currentSize_ = new AtomicInteger(0);
     private AtomicInteger currentObjectCount_ = new AtomicInteger(0);
 

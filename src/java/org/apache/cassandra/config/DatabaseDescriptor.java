@@ -97,7 +97,7 @@ public class DatabaseDescriptor
     /* Size of the memtable in memory before it is dumped */
     private static int memtableSize_ = 128;
     /* Number of objects in millions in the memtable before it is dumped */
-    private static int memtableObjectCount_ = 1;
+    private static double memtableObjectCount_ = 1;
     /* 
      * This parameter enables or disables consistency checks. 
      * If set to false the read repairs are disable for very
@@ -214,7 +214,11 @@ public class DatabaseDescriptor
             /* Number of objects in millions in the memtable before it is dumped */
             String memtableObjectCount = xmlUtils.getNodeValue("/Storage/MemtableObjectCountInMillions");
             if ( memtableObjectCount != null )
-                memtableObjectCount_ = Integer.parseInt(memtableObjectCount);
+                memtableObjectCount_ = Double.parseDouble(memtableObjectCount);
+            if (memtableObjectCount_ <= 0)
+            {
+                throw new ConfigurationException("Memtable object count must be a positive double");
+            }
 
             /* This parameter enables or disables consistency checks.
              * If set to false the read repairs are disable for very
@@ -516,7 +520,7 @@ public class DatabaseDescriptor
       return memtableSize_;
     }
 
-    public static int getMemtableObjectCount()
+    public static double getMemtableObjectCount()
     {
       return memtableObjectCount_;
     }
