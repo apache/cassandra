@@ -18,6 +18,9 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.ServerTest;
+import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.service.StorageService;
 import org.testng.annotations.Test;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
@@ -406,5 +409,27 @@ public class ColumnFamilyStoreTest extends ServerTest
         }
         Future ft = MinorCompactionManager.instance().submit(store);
         ft.get();
+    }
+    
+    @Test
+    public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        RowMutation rm;
+
+        // add data
+        rm = new RowMutation("Table1", "key1");
+        rm.add("Standard1:Column1", "asdf".getBytes(), 0);
+        rm.add("Standard1:Column2", "asdf".getBytes(), 0);
+        rm.apply();
+        store.forceBlockingFlush();
+
+        List<String> ssTables = table.getAllSSTablesOnDisk();
+        /* the following call can happen if BF is wrong. Should return an empty buffer. */
+        IFilter filter = new IdentityFilter(); 
+        SSTable ssTable = new SSTable(ssTables.get(0), StorageService.getPartitioner());
+        DataInputBuffer bufIn = filter.next("key2", "Standard1:Column1", ssTable);
+        assertEquals(bufIn.getLength(), 0);
     }
 }

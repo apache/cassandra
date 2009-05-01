@@ -705,14 +705,13 @@ public class SequenceFile
          * @param section indicates the location of the block index.
          * @throws IOException
          */
-        protected void seekTo(String key, Coordinate section) throws IOException
+        private long seekTo(String key, Coordinate section) throws IOException
         {
-            /* Goto the Block Index */
             seek(section.end_);
             long position = getPositionFromBlockIndex(key);
-            if (position == -1)
-                throw new IOException("This key " + key + " does not exist in this file.");
-            seek(position);
+            if (position >= 0)
+                seek(position);
+            return position;
         }
 
         /**
@@ -809,9 +808,8 @@ public class SequenceFile
             assert timeRange == null || columnNames == null; // at most one may be non-null
 
             long bytesRead = -1L;
-            if (isEOF())
+            if (isEOF() || seekTo(key, section) < 0)
                 return bytesRead;
-            seekTo(key, section);
             /* note the position where the key starts */
             long startPosition = file_.getFilePointer();
             String keyInDisk = file_.readUTF();
@@ -1065,10 +1063,8 @@ public class SequenceFile
         public long next(String key, DataOutputBuffer bufOut, Coordinate section) throws IOException
         {
             long bytesRead = -1L;
-            if (isEOF())
+            if (isEOF() || seekTo(key, section) < 0)
                 return bytesRead;
-
-            seekTo(key, section);
             /* note the position where the key starts */
             long startPosition = file_.getFilePointer();
             String keyInDisk = file_.readUTF();
