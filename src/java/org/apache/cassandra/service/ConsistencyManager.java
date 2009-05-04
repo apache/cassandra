@@ -145,16 +145,18 @@ class ConsistencyManager implements Runnable
 			}
 		}
 	}
+
 	private static long scheduledTimeMillis_ = 600;
 	private static ICachetable<String, String> readRepairTable_ = new Cachetable<String, String>(scheduledTimeMillis_);
-	private Row row_;
-	protected List<EndPoint> replicas_;
-	
-	private ReadCommand readCommand_;
-	
-    public ConsistencyManager(Row row_, List<EndPoint> replicas_, ReadCommand readCommand)
+	private final Row row_;
+	protected final List<EndPoint> replicas_;
+	private final ReadCommand readCommand_;
+
+    public ConsistencyManager(Row row, List<EndPoint> replicas, ReadCommand readCommand)
     {
-        this.readCommand_ = readCommand;
+        row_ = row;
+        replicas_ = replicas;
+        readCommand_ = readCommand;
     }
 
 	public void run()
@@ -165,7 +167,7 @@ class ConsistencyManager implements Runnable
 		{
 			Message messageDigestOnly = readCommandDigestOnly.makeReadMessage();
 			IAsyncCallback digestResponseHandler = new DigestResponseHandler();
-			MessagingService.getMessagingInstance().sendRR(messageDigestOnly, replicas_.toArray(new EndPoint[0]), digestResponseHandler);
+			MessagingService.getMessagingInstance().sendRR(messageDigestOnly, replicas_.toArray(new EndPoint[replicas_.size()]), digestResponseHandler);
 		}
 		catch ( IOException ex )
 		{

@@ -549,9 +549,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * sure that the N replicas are in sync. We do this in the
      * background when we do not care much about consistency.
      */
-    public void doConsistencyCheck(Row row, List<EndPoint> endpoints, ReadCommand message)
+    public void doConsistencyCheck(Row row, List<EndPoint> endpoints, ReadCommand command)
     {
-        Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, message);
+        Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, command);
         consistencyManager_.submit(consistencySentinel);
     }
 
