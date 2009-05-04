@@ -138,6 +138,19 @@ public class DatabaseDescriptor
 
             /* Hashing strategy */
             partitionerClass_ = xmlUtils.getNodeValue("/Storage/Partitioner");
+            try
+            {
+                Class.forName(DatabaseDescriptor.getPartitionerClass());
+            }
+            catch (NullPointerException e)
+            {
+                throw new ConfigurationException("Missing partitioner directive /Storage/Partitioner");
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new ConfigurationException("Invalid partitioner class " + partitionerClass_);
+            }
+
             /* Callout location */
             calloutLocation_ = xmlUtils.getNodeValue("/Storage/CalloutLocation");
 
@@ -415,6 +428,7 @@ public class DatabaseDescriptor
         catch (ConfigurationException e)
         {
             logger_.error("Fatal error: " + e.getMessage());
+            System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
         catch (Exception e)
