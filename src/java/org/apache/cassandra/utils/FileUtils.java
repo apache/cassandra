@@ -45,13 +45,7 @@ public class FileUtils
     private static final double gb_ = 1024*1024*1024d;
     private static final double tb_ = 1024*1024*1024*1024d;
 
-    private static ExecutorService deleter_ = new DebuggableThreadPoolExecutor( 1,
-            1,
-            Integer.MAX_VALUE,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(),
-            new ThreadFactoryImpl("FILEUTILS-DELETE-POOL")
-            );
+    private static ExecutorService deleter_ = new DebuggableThreadPoolExecutor("FILEUTILS-DELETE-POOL");
 
     public static void shutdown()
     {

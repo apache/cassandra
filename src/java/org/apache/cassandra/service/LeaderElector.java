@@ -80,13 +80,7 @@ class LeaderElector implements IEndPointStateChangeSubscriber
     /* The elected leader. */
     private AtomicReference<EndPoint> leader_;
     private Condition condition_;
-    private ExecutorService leaderElectionService_ = new DebuggableThreadPoolExecutor(1,
-            1,
-            Integer.MAX_VALUE,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(),
-            new ThreadFactoryImpl("LEADER-ELECTOR")
-            );
+    private ExecutorService leaderElectionService_ = new DebuggableThreadPoolExecutor("LEADER-ELECTOR");
     
     private class LeaderDeathMonitor implements Runnable
     {

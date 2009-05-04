@@ -34,8 +34,13 @@ import org.apache.cassandra.utils.*;
 
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
-    private static Logger logger_ = Logger.getLogger(DebuggableThreadPoolExecutor.class);    
-    
+    private static Logger logger_ = Logger.getLogger(DebuggableThreadPoolExecutor.class);
+
+    public DebuggableThreadPoolExecutor(String threadPoolName) 
+    {
+        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl(threadPoolName));
+    }
+
     public DebuggableThreadPoolExecutor(int corePoolSize,
             int maximumPoolSize,
             long keepAliveTime,

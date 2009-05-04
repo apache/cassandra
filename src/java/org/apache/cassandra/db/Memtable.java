@@ -420,7 +420,7 @@ public class Memtable implements Comparable<Memtable>
 
         public MemtableThreadPoolExecutor()
         {
-            super(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl("FAST-MEMTABLE-POOL"));
+            super("FAST-MEMTABLE-POOL");
         }
 
         protected void terminated()

@@ -187,13 +187,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComp
             new ThreadFactoryImpl("LB-OPERATIONS")
             );
     /* This thread pool is used by target node to leave the ring. */
-    private ExecutorService lbOperations_ = new DebuggableThreadPoolExecutor(1,
-            1,
-            Integer.MAX_VALUE,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(),
-            new ThreadFactoryImpl("LB-TARGET")
-            );
+    private ExecutorService lbOperations_ = new DebuggableThreadPoolExecutor("LB-TARGET");
 
     StorageLoadBalancer(StorageService storageService)
     {

@@ -40,15 +40,8 @@ public class SingleThreadedStage implements IStage
 
 	public SingleThreadedStage(String name)
     {
-        //executorService_ = new DebuggableScheduledThreadPoolExecutor(1,new ThreadFactoryImpl(name));
-        executorService_ = new DebuggableThreadPoolExecutor( 1,
-                1,
-                Integer.MAX_VALUE,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                new ThreadFactoryImpl(name)
-                );        
-        name_ = name;        
+        executorService_ = new DebuggableThreadPoolExecutor(name);
+        name_ = name;
 	}
 	
     /* Implementing the IStage interface methods */

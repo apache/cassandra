@@ -250,10 +250,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private AtomicBoolean isShutdown_ = new AtomicBoolean(false);
 
     /* This thread pool is used to do the bootstrap for a new node */
-    private ExecutorService bootStrapper_ = new DebuggableThreadPoolExecutor(1, 1,
-            Integer.MAX_VALUE, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl(
-                    "BOOT-STRAPPER"));
+    private ExecutorService bootStrapper_ = new DebuggableThreadPoolExecutor("BOOT-STRAPPER");
     
     /* This thread pool does consistency checks when the client doesn't care about consistency */
     private ExecutorService consistencyManager_;

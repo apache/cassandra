@@ -81,13 +81,7 @@ public class BinaryMemtableManager
         }
     }
     
-    private ExecutorService flusher_ = new DebuggableThreadPoolExecutor( 1,
-            1,
-            Integer.MAX_VALUE,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(),
-            new ThreadFactoryImpl("BINARY-MEMTABLE-FLUSHER-POOL")
-            );  
+    private ExecutorService flusher_ = new DebuggableThreadPoolExecutor("BINARY-MEMTABLE-FLUSHER-POOL");
     
     /* Submit memtables to be flushed to disk */
     void submit(String cfName, BinaryMemtable memtbl)

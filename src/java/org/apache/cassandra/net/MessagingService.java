@@ -219,13 +219,7 @@ public class MessagingService implements IMessagingService, MessagingServiceMBea
                 new ThreadFactoryImpl("MESSAGE-DESERIALIZER-POOL")
                 ); 
         
-        streamExecutor_ = new DebuggableThreadPoolExecutor( 1,
-                1,
-                Integer.MAX_VALUE,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                new ThreadFactoryImpl("MESSAGE-STREAMING-POOL")
-                ); 
+        streamExecutor_ = new DebuggableThreadPoolExecutor("MESSAGE-STREAMING-POOL");
                 
         protocol_ = hash(HashingSchemes.MD5, "FB-MESSAGING".getBytes());        
         /* register the response verb handler */

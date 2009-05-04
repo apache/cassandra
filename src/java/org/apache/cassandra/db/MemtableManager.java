@@ -93,13 +93,7 @@ public class MemtableManager
     }
     
     private Map<String, List<Memtable>> history_ = new HashMap<String, List<Memtable>>();
-    ExecutorService flusher_ = new DebuggableThreadPoolExecutor( 1,
-            1,
-            Integer.MAX_VALUE,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<Runnable>(),
-            new ThreadFactoryImpl("MEMTABLE-FLUSHER-POOL")
-            );  
+    ExecutorService flusher_ = new DebuggableThreadPoolExecutor("MEMTABLE-FLUSHER-POOL");
     
     /* Submit memtables to be flushed to disk */
     void submit(String cfName, Memtable memtbl, CommitLog.CommitLogContext cLogCtx)
