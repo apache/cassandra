@@ -41,32 +41,26 @@ import org.apache.cassandra.utils.FBUtilities;
 public class RowMutationMessage implements Serializable
 {   
     public static final String hint_ = "HINT";
-    private static ICompactSerializer<RowMutationMessage> serializer_;	
+    private static RowMutationMessageSerializer serializer_ = new RowMutationMessageSerializer();
 	
-    static
-    {
-        serializer_ = new RowMutationMessageSerializer();
-    }
-
-    static ICompactSerializer<RowMutationMessage> serializer()
+    static RowMutationMessageSerializer serializer()
     {
         return serializer_;
     }
 
-    public static Message makeRowMutationMessage(RowMutationMessage rowMutationMessage) throws IOException
+    public Message makeRowMutationMessage() throws IOException
     {         
-        return makeRowMutationMessage(rowMutationMessage, StorageService.mutationVerbHandler_);
+        return makeRowMutationMessage(StorageService.mutationVerbHandler_);
     }
     
-    public static Message makeRowMutationMessage(RowMutationMessage rowMutationMessage, String verbHandlerName) throws IOException
+    public Message makeRowMutationMessage(String verbHandlerName) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        RowMutationMessage.serializer().serialize(rowMutationMessage, dos);
+        RowMutationMessage.serializer().serialize(this, dos);
         EndPoint local = StorageService.getLocalStorageEndPoint();
         EndPoint from = ( local != null ) ? local : new EndPoint(FBUtilities.getHostAddress(), 7000);
-        Message message = new Message(from, StorageService.mutationStage_, verbHandlerName, new Object[]{bos.toByteArray()});         
-        return message;
+        return new Message(from, StorageService.mutationStage_, verbHandlerName, bos.toByteArray());         
     }
     
     @XmlElement(name="RowMutation")

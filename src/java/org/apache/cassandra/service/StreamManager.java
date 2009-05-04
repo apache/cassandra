@@ -48,7 +48,7 @@ public final class StreamManager
 
         public void doVerb(Message message)
         {
-            byte[] body = (byte[])message.getMessageBody()[0];
+            byte[] body = message.getMessageBody();
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
 

@@ -20,8 +20,7 @@ public class DataFileVerbHandler implements IVerbHandler
     
     public void doVerb(Message message)
     {        
-        Object[] body = message.getMessageBody();
-        byte[] bytes = (byte[])body[0];
+        byte[] bytes = message.getMessageBody();
         String table = new String(bytes);
         logger_.info("**** Received a request from " + message.getFrom());
         
@@ -35,7 +34,7 @@ public class DataFileVerbHandler implements IVerbHandler
             {
                 dos.writeUTF(file);
             }
-            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), new Object[]{bos.toByteArray()});
+            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bos.toByteArray());
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
         }
         catch ( IOException ex )

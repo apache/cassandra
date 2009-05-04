@@ -32,7 +32,7 @@ private static ICompactSerializer<TouchMessage> serializer_;
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         TouchMessage.serializer().serialize(touchMessage, dos);
-        Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageService.readStage_, StorageService.touchVerbHandler_, new Object[]{bos.toByteArray()});         
+        Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageService.readStage_, StorageService.touchVerbHandler_, bos.toByteArray());         
         return message;
     }
     

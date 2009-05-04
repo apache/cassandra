@@ -66,7 +66,7 @@ class ConsistencyManager implements Runnable
 			logger_.debug("Handle Digest reponses");
 			for( Message response : responses_ )
 			{
-				byte[] body = (byte[])response.getMessageBody()[0];            
+				byte[] body = response.getMessageBody();            
 	            bufIn.reset(body, body.length);
 	            try
 	            {	               

@@ -189,11 +189,10 @@ public class StorageProxy
         Map<String, Message> messages = constructMessages(readMessages);
         /* Dispatch the messages to the respective endpoints */
         IAsyncResult iar = dispatchMessages(endPoints, messages);        
-        List<Object[]> results = iar.multiget(2*DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+        List<byte[]> results = iar.multiget(2*DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
         
-        for ( Object[] result : results )
+        for ( byte[] body : results )
         {
-            byte[] body = (byte[])result[0];
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
             ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
@@ -221,8 +220,7 @@ public class StorageProxy
         byte[] body;
         try
         {
-            Object[] result = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            body = (byte[])result[0];
+            body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
         }
         catch (TimeoutException e)
         {

@@ -39,7 +39,7 @@ public class BinaryVerbHandler implements IVerbHandler
     
     public void doVerb(Message message)
     { 
-        byte[] bytes = (byte[])message.getMessageBody()[0];
+        byte[] bytes = message.getMessageBody();
         /* Obtain a Row Mutation Context from TLS */
         RowMutationContext rowMutationCtx = tls_.get();
         if ( rowMutationCtx == null )

@@ -32,8 +32,7 @@ public class CalloutDeployVerbHandler implements IVerbHandler
     
     public void doVerb(Message message)
     {
-        Object[] body = message.getMessageBody();
-        byte[] bytes = (byte[])body[0];
+        byte[] bytes = message.getMessageBody();
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(bytes, bytes.length);
         try

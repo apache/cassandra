@@ -75,7 +75,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         DataInputBuffer bufIn = new DataInputBuffer();
 		for (Message response : responses)
 		{					            
-            byte[] body = (byte[])response.getMessageBody()[0];            
+            byte[] body = response.getMessageBody();
             bufIn.reset(body, body.length);
             try
             {
@@ -154,7 +154,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		boolean isDataPresent = false;
 		for (Message response : responses)
 		{
-            byte[] body = (byte[])response.getMessageBody()[0];
+            byte[] body = response.getMessageBody();
 			DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
             try

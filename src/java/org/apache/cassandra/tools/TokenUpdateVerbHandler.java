@@ -47,7 +47,7 @@ public class TokenUpdateVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-    	byte[] body = (byte[])message.getMessageBody()[0];
+    	byte[] body = message.getMessageBody();
         
         try
         {
@@ -78,7 +78,7 @@ public class TokenUpdateVerbHandler implements IVerbHandler
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 Token.serializer().serialize(token, dos);
-                message.setMessageBody(new Object[]{bos.toByteArray()});
+                message.setMessageBody(bos.toByteArray());
                 
                 logger_.debug("Sending a token update message to " + target + " to update it to " + token);
                 MessagingService.getMessagingInstance().sendOneWay(message, target);

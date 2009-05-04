@@ -573,7 +573,7 @@ public class CassandraServer implements Cassandra.Iface
             // read response
             // TODO send more requests if we need to span multiple nodes
             // double the usual timeout since range requests are expensive
-            byte[] responseBody = (byte[])iar.get(2 * DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS)[0];
+            byte[] responseBody = iar.get(2 * DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             return RangeReply.read(responseBody).keys;
         }
         catch (Exception e)

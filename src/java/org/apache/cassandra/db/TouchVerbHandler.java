@@ -23,7 +23,7 @@ public class TouchVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-        byte[] body = (byte[])message.getMessageBody()[0];
+        byte[] body = message.getMessageBody();
         /* Obtain a Read Context from TLS */
         ReadContext readCtx = tls_.get();
         if ( readCtx == null )

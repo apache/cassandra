@@ -33,7 +33,7 @@ public class MultiAsyncResult implements IAsyncResult
 {
     private static Logger logger_ = Logger.getLogger( AsyncResult.class );
     private int expectedResults_;
-    private List<Object[]> result_ = new ArrayList<Object[]>();    
+    private List<byte[]> result_ = new ArrayList<byte[]>();
     private AtomicBoolean done_ = new AtomicBoolean(false);
     private Lock lock_ = new ReentrantLock();
     private Condition condition_;
@@ -44,17 +44,17 @@ public class MultiAsyncResult implements IAsyncResult
         condition_ = lock_.newCondition();
     }
     
-    public Object[] get()
+    public byte[] get()
     {
         throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
     }
     
-    public Object[] get(long timeout, TimeUnit tu) throws TimeoutException
+    public byte[] get(long timeout, TimeUnit tu) throws TimeoutException
     {
         throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
     }
     
-    public List<Object[]> multiget()
+    public List<byte[]> multiget()
     {
         lock_.lock();
         try
@@ -80,7 +80,7 @@ public class MultiAsyncResult implements IAsyncResult
         return done_.get();
     }
     
-    public List<Object[]> multiget(long timeout, TimeUnit tu) throws TimeoutException
+    public List<byte[]> multiget(long timeout, TimeUnit tu) throws TimeoutException
     {
         lock_.lock();
         try

@@ -156,11 +156,11 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComp
     {
         public void doVerb(Message message)
         {
-            Message reply = message.getReply(StorageService.getLocalStorageEndPoint(), new Object[]{isMoveable_.get()});
+            Message reply = message.getReply(StorageService.getLocalStorageEndPoint(), new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
             MessagingService.getMessagingInstance().sendOneWay(reply, message.getFrom());
             if ( isMoveable_.get() )
             {
-                MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];
+                // MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];
                 /* Start the leave operation and join the ring at the position specified */
                 isMoveable_.set(false);
             }

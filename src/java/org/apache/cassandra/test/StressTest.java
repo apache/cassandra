@@ -60,7 +60,7 @@ import com.martiansoftware.jsap.*;
 
 public class StressTest
 {
-	private static Logger logger_ = Logger.getLogger(DataImporter.class);
+	private static Logger logger_ = Logger.getLogger(StressTest.class);
 
 	private static final String tablename_ = new String("Test");
 
@@ -103,10 +103,15 @@ public class StressTest
         {
         	if( rmsg_ != null )
         	{
-				Message message = new Message(from_ , StorageService.mutationStage_,
-						StorageService.loadVerbHandler_, new Object[] { rmsg_ });
-				MessagingService.getMessagingInstance().sendOneWay(message, to_);
-        	}
+                try
+                {
+                    MessagingService.getMessagingInstance().sendOneWay(rmsg_.makeRowMutationMessage(), to_);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
         	
        	}
     }
@@ -125,12 +130,7 @@ public class StressTest
         {
             long t = System.currentTimeMillis();
             RowMutationMessage rmMsg = new RowMutationMessage(rm);           
-            Message message = new Message(from_, 
-                    StorageService.mutationStage_,
-                    StorageService.mutationVerbHandler_, 
-                    new Object[]{ rmMsg }
-            );                                                            
-			MessagingService.getMessagingInstance().sendOneWay(message, to_);
+			MessagingService.getMessagingInstance().sendOneWay(rmMsg.makeRowMutationMessage(), to_);
             Thread.sleep(1, 1000000000/requestsPerSecond_);
             
         }
@@ -143,32 +143,15 @@ public class StressTest
 	
     public void readLoad(ReadCommand readCommand)
     {
-		IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
-		QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
-				1,
-				readResponseResolver);
-		Message message = new Message(from_, StorageService.readStage_,
-				StorageService.readVerbHandler_,
-				new Object[] {readCommand});
-		MessagingService.getMessagingInstance().sendOneWay(message, to_);
-		/*IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, to_);
-		try
-		{
-			long t = System.currentTimeMillis();
-			iar.get(2000, TimeUnit.MILLISECONDS );
-			logger_.debug("Time taken for read..."
-					+ (System.currentTimeMillis() - t));
-			
-		}
-		catch (Exception ex)
-		{
-            ex.printStackTrace();
-		}*/
+        try
+        {
+            MessagingService.getMessagingInstance().sendOneWay(readCommand.makeReadMessage(), to_);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
-    
-    
-    
-    
     
 	public void randomReadColumn  (int keys, int columns, int size, int tps)
 	{

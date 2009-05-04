@@ -113,7 +113,7 @@ class ReadRepairManager
 	{
         try
         {
-            Message message = RowMutationMessage.makeRowMutationMessage(rowMutationMessage, StorageService.readRepairVerbHandler_);
+            Message message = rowMutationMessage.makeRowMutationMessage(StorageService.readRepairVerbHandler_);
     		String key = target + ":" + message.getMessageId();
     		readRepairTable_.put(key, message);
         }

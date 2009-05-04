@@ -24,6 +24,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.log4j.Logger;
 
 /**
@@ -38,16 +39,17 @@ public class LoadVerbHandler implements IVerbHandler
     { 
         try
         {
-	        Object[] body = message.getMessageBody();
-	        RowMutationMessage rmMsg = (RowMutationMessage)body[0];
-	        RowMutation rm = rmMsg.getRowMutation();
-	
-			EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
-	
+	        byte[] body = message.getMessageBody();
+            DataInputBuffer buffer = new DataInputBuffer();
+            buffer.reset(body, body.length);
+	        RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(buffer);
+
+            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rmMsg.getRowMutation().key());
+
 			Message messageInternal = new Message(StorageService.getLocalStorageEndPoint(), 
 	                StorageService.mutationStage_,
 					StorageService.mutationVerbHandler_, 
-	                new Object[]{ rmMsg }
+	                body
 	        );
             
             StringBuilder sb = new StringBuilder();

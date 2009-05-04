@@ -219,7 +219,7 @@ public class StreamContextManager
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream( bos );
             StreamStatusMessage.serializer().serialize(streamStatusMessage, dos);
-            return new Message(StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapTerminateVerbHandler_, new Object[]{bos.toByteArray()});
+            return new Message(StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapTerminateVerbHandler_, bos.toByteArray());
         }
         
         protected StreamContextManager.StreamStatus streamStatus_;

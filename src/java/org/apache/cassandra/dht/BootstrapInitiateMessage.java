@@ -54,7 +54,7 @@ public class BootstrapInitiateMessage implements Serializable
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         BootstrapInitiateMessage.serializer().serialize(biMessage, dos);
-        return new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateVerbHandler_, new Object[]{bos.toByteArray()} );
+        return new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateVerbHandler_, bos.toByteArray() );
     }
     
     protected StreamContextManager.StreamContext[] streamContexts_ = new StreamContextManager.StreamContext[0];

@@ -40,7 +40,7 @@ public class RangeCommand
 
     public static RangeCommand read(Message message) throws IOException
     {
-        byte[] bytes = (byte[]) message.getMessageBody()[0];
+        byte[] bytes = message.getMessageBody();
         DataInputBuffer dib = new DataInputBuffer();
         dib.reset(bytes, bytes.length);
         return serializer.deserialize(new DataInputStream(dib));

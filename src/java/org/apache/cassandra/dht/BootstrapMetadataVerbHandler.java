@@ -47,7 +47,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {
         logger_.debug("Received a BootstrapMetadataMessage from " + message.getFrom());
-        byte[] body = (byte[])message.getMessageBody()[0];
+        byte[] body = message.getMessageBody();
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(body, body.length);
         try

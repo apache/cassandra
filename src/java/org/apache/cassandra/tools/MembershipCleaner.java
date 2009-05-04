@@ -63,7 +63,7 @@ public class MembershipCleaner
         DataOutputStream dos = new DataOutputStream(bos);
         MembershipCleanerMessage.serializer().serialize(mcMessage, dos);
         /* Construct the token update message to be sent */
-        Message mbrshipCleanerMessage = new Message( new EndPoint(FBUtilities.getHostAddress(), port_), "", StorageService.mbrshipCleanerVerbHandler_, new Object[]{bos.toByteArray()} );
+        Message mbrshipCleanerMessage = new Message( new EndPoint(FBUtilities.getHostAddress(), port_), "", StorageService.mbrshipCleanerVerbHandler_, bos.toByteArray() );
         
         BufferedReader bufReader = new BufferedReader( new InputStreamReader( new FileInputStream(file) ) );
         String line = null;

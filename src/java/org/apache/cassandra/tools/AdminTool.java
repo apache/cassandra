@@ -159,7 +159,7 @@ public class AdminTool
 		RowMutationMessage rmMsg = new RowMutationMessage(rm);
         if( server_ != null)
         {
-            Message message = RowMutationMessage.makeRowMutationMessage(rmMsg, StorageService.binaryVerbHandler_);
+            Message message = rmMsg.makeRowMutationMessage(StorageService.binaryVerbHandler_);
 	        EndPoint to = new EndPoint(server_, 7000);
 			MessagingService.getMessagingInstance().sendOneWay(message, to);
         }
@@ -167,7 +167,7 @@ public class AdminTool
         {
         	for( String server : servers_ )
         	{
-                Message message = RowMutationMessage.makeRowMutationMessage(rmMsg, StorageService.binaryVerbHandler_);
+                Message message = rmMsg.makeRowMutationMessage(StorageService.binaryVerbHandler_);
 		        EndPoint to = new EndPoint(server, 7000);
 				MessagingService.getMessagingInstance().sendOneWay(message, to);
         	}

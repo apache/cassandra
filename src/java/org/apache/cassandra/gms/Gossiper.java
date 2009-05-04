@@ -356,7 +356,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream( bos );
         GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos);
-        Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_SYN_VERB, new Object[]{bos.toByteArray()});
+        Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_SYN_VERB, bos.toByteArray());
         return message;
     }
 
@@ -366,7 +366,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos);
         logger_.trace("@@@@ Size of GossipDigestAckMessage is " + bos.toByteArray().length);
-        Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK_VERB, new Object[]{bos.toByteArray()});
+        Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK_VERB, bos.toByteArray());
         return message;
     }
 
@@ -375,7 +375,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos);
-        Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK2_VERB, new Object[]{bos.toByteArray()});
+        Message message = new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK2_VERB, bos.toByteArray());
         return message;
     }
 
@@ -949,7 +949,7 @@ class JoinVerbHandler implements IVerbHandler
         EndPoint from = message.getFrom();
         logger_.debug("Received a JoinMessage from " + from);
 
-        byte[] bytes = (byte[])message.getMessageBody()[0];
+        byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
 
         try
@@ -976,7 +976,7 @@ class GossipDigestSynVerbHandler implements IVerbHandler
         EndPoint from = message.getFrom();
         logger_.trace("Received a GossipDigestSynMessage from " + from);
 
-        byte[] bytes = (byte[])message.getMessageBody()[0];
+        byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
 
         try
@@ -1060,7 +1060,7 @@ class GossipDigestAckVerbHandler implements IVerbHandler
         EndPoint from = message.getFrom();
         logger_.trace("Received a GossipDigestAckMessage from " + from);
 
-        byte[] bytes = (byte[])message.getMessageBody()[0];
+        byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
 
         try
@@ -1107,7 +1107,7 @@ class GossipDigestAck2VerbHandler implements IVerbHandler
         EndPoint from = message.getFrom();
         logger_.trace("Received a GossipDigestAck2Message from " + from);
 
-        byte[] bytes = (byte[])message.getMessageBody()[0];
+        byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
         try
         {

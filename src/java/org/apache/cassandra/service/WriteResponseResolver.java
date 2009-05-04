@@ -19,6 +19,9 @@
 package org.apache.cassandra.service;
 
 import java.util.List;
+import java.io.DataInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 
 import org.apache.cassandra.db.WriteResponse;
 import org.apache.cassandra.net.Message;
@@ -46,12 +49,19 @@ public class WriteResponseResolver implements IResponseResolver<Boolean> {
 		// if a write fails for a key log that the key could not be replicated
 		boolean returnValue = false;
 		for (Message response : responses) {
-			Object[] body = response.getMessageBody();
-			WriteResponse writeResponse = (WriteResponse) body[0];
-			boolean result = writeResponse.isSuccess();
-			if (!result) {
+            WriteResponse writeResponseMessage = null;
+            try
+            {
+                writeResponseMessage = WriteResponse.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(response.getMessageBody())));
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            boolean result = writeResponseMessage.isSuccess();
+            if (!result) {
 				logger_.debug("Write at " + response.getFrom()
-						+ " may have failed for the key " + writeResponse.key());
+						+ " may have failed for the key " + writeResponseMessage.key());
 			}
 			returnValue |= result;
 		}

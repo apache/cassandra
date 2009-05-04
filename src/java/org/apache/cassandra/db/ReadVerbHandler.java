@@ -60,7 +60,7 @@ public class ReadVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-        byte[] body = (byte[])message.getMessageBody()[0];
+        byte[] body = message.getMessageBody();
         /* Obtain a Read Context from TLS */
         ReadContext readCtx = tls_.get();
         if ( readCtx == null )
@@ -101,7 +101,7 @@ public class ReadVerbHandler implements IVerbHandler
             System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);
             logger_.info("copy  TIME: " + (System.currentTimeMillis() - start) + " ms.");
 
-            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), new Object[]{bytes} );
+            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bytes );
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
             logger_.info("ReadVerbHandler  TIME 2: " + (System.currentTimeMillis() - start) + " ms.");
             

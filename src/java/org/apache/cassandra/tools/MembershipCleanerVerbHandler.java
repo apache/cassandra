@@ -43,7 +43,7 @@ public class MembershipCleanerVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-        byte[] body = (byte[])message.getMessageBody()[0];
+        byte[] body = message.getMessageBody();
         
         try
         {

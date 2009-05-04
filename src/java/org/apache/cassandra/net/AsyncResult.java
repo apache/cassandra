@@ -19,7 +19,6 @@
 package org.apache.cassandra.net;
 
 import java.util.List;
-import java.util.Hashtable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,8 +26,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
@@ -39,7 +36,7 @@ import org.apache.log4j.Logger;
 class AsyncResult implements IAsyncResult
 {
     private static Logger logger_ = Logger.getLogger( AsyncResult.class );
-    private Object[] result_ = new Object[0];    
+    private byte[] result_;
     private AtomicBoolean done_ = new AtomicBoolean(false);
     private Lock lock_ = new ReentrantLock();
     private Condition condition_;
@@ -49,7 +46,7 @@ class AsyncResult implements IAsyncResult
         condition_ = lock_.newCondition();
     }    
     
-    public Object[] get()
+    public byte[] get()
     {
         lock_.lock();
         try
@@ -75,7 +72,7 @@ class AsyncResult implements IAsyncResult
         return done_.get();
     }
     
-    public Object[] get(long timeout, TimeUnit tu) throws TimeoutException
+    public byte[] get(long timeout, TimeUnit tu) throws TimeoutException
     {
         lock_.lock();
         try
@@ -105,12 +102,12 @@ class AsyncResult implements IAsyncResult
         return result_;
     }
     
-    public List<Object[]> multiget()
+    public List<byte[]> multiget()
     {
         throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
     }
     
-    public List<Object[]> multiget(long timeout, TimeUnit tu) throws TimeoutException
+    public List<byte[]> multiget(long timeout, TimeUnit tu) throws TimeoutException
     {
         throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
     }

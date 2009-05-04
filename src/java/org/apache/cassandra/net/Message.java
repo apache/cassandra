@@ -51,20 +51,20 @@ public class Message implements java.io.Serializable
     }
     
     Header header_;
-    private Object[] body_ = new Object[0];
+    private byte[] body_;
     
-    protected Message(String id, EndPoint from, String messageType, String verb, Object... body)
+    protected Message(String id, EndPoint from, String messageType, String verb, byte[] body)
     {
         this(new Header(id, from, messageType, verb), body);
     }
     
-    protected Message(Header header, Object... body)
+    protected Message(Header header, byte[] body)
     {
         header_ = header;
         body_ = body;
     }
 
-    public Message(EndPoint from, String messageType, String verb, Object... body)
+    public Message(EndPoint from, String messageType, String verb, byte[] body)
     {
         this(new Header(from, messageType, verb), body);
     }    
@@ -99,12 +99,12 @@ public class Message implements java.io.Serializable
         return header_.getDetails();
     }
 
-    public Object[] getMessageBody()
+    public byte[] getMessageBody()
     {
         return body_;
     }
     
-    public void setMessageBody(Object[] body)
+    public void setMessageBody(byte[] body)
     {
         body_ = body;
     }
@@ -128,36 +128,13 @@ public class Message implements java.io.Serializable
     {
         return header_.getMessageId();
     }
-    
-    public Class[] getTypes()
-    {
-        List<Class> types = new ArrayList<Class>();
-        
-        for ( int i = 0; i < body_.length; ++i )
-        {
-            if ( body_[i].getClass().isArray() )
-            {
-                int size = Array.getLength(body_[i]);
-                if ( size > 0 )
-                {
-                    types.add( Array.get( body_[i], 0).getClass() );
-                }
-            }
-            else
-            {
-                types.add(body_[i].getClass());
-            }
-        }
-        
-        return types.toArray( new Class[0] );
-    }    
 
     void setMessageId(String id)
     {
         header_.setMessageId(id);
     }    
 
-    public Message getReply(EndPoint from, Object... args)
+    public Message getReply(EndPoint from, byte[] args)
     {        
         Message response = new Message(getMessageId(),
                                        from,
@@ -179,22 +156,8 @@ public class Message implements java.io.Serializable
         sbuf.append(separator);
         sbuf.append("VERB:" + getVerb());
         sbuf.append(separator);
-        sbuf.append("BODY TYPE:" + getBodyTypes());        
-        sbuf.append(separator);
         return sbuf.toString();
     }
-    
-    private String getBodyTypes()
-    {
-        StringBuffer sbuf = new StringBuffer("");
-        Class[] types = getTypes();
-        for ( int i = 0; i < types.length; ++i )
-        {
-            sbuf.append(types[i].getName());
-            sbuf.append(" ");         
-        }
-        return sbuf.toString();
-    }    
 }
 
 class MessageSerializer implements ICompactSerializer<Message>
@@ -202,7 +165,7 @@ class MessageSerializer implements ICompactSerializer<Message>
     public void serialize(Message t, DataOutputStream dos) throws IOException
     {
         Header.serializer().serialize( t.header_, dos);
-        byte[] bytes = (byte[])t.getMessageBody()[0];
+        byte[] bytes = t.getMessageBody();
         dos.writeInt(bytes.length);
         dos.write(bytes);
     }
@@ -214,6 +177,6 @@ class MessageSerializer implements ICompactSerializer<Message>
         byte[] bytes = new byte[size];
         dis.readFully(bytes);
         // return new Message(header.getMessageId(), header.getFrom(), header.getMessageType(), header.getVerb(), new Object[]{bytes});
-        return new Message(header, new Object[]{bytes});
+        return new Message(header, bytes);
     }
 }

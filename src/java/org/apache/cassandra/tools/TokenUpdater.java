@@ -58,7 +58,7 @@ public class TokenUpdater
         Token.serializer().serialize(token, dos);
 
         /* Construct the token update message to be sent */
-        Message tokenUpdateMessage = new Message( new EndPoint(FBUtilities.getHostAddress(), port_), "", StorageService.tokenVerbHandler_, new Object[]{bos.toByteArray()} );
+        Message tokenUpdateMessage = new Message( new EndPoint(FBUtilities.getHostAddress(), port_), "", StorageService.tokenVerbHandler_, bos.toByteArray() );
         
         BufferedReader bufReader = new BufferedReader( new InputStreamReader( new FileInputStream(file) ) );
         String line = null;

@@ -299,7 +299,7 @@ public class Table
         */
         public void doVerb(Message message)
         {
-            byte[] body = (byte[])message.getMessageBody()[0];
+            byte[] body = message.getMessageBody();
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length); 
             
@@ -330,7 +330,7 @@ public class Table
                 StreamContextManager.registerStreamCompletionHandler(message.getFrom().getHost(), new Table.BootstrapCompletionHandler());
                 /* Send a bootstrap initiation done message to execute on default stage. */
                 logger_.debug("Sending a bootstrap initiate done message ...");                
-                Message doneMessage = new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new Object[]{new byte[0]} );
+                Message doneMessage = new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
                 MessagingService.getMessagingInstance().sendOneWay(doneMessage, message.getFrom());
             }
             catch ( IOException ex )
