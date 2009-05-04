@@ -102,8 +102,8 @@ public class SSTable
      */
     private static Map<String, BloomFilter> bfs_ = new Hashtable<String, BloomFilter>();
     /* Maintains a touched set of keys */
-    private static LinkedHashMap<String, Long> touchCache_ = new TouchedKeyCache(DatabaseDescriptor.getTouchKeyCacheSize());        
-    
+    private static LinkedHashMap<String, Long> touchCache_ = new TouchedKeyCache(DatabaseDescriptor.getTouchKeyCacheSize());
+
     /**
      * This class holds the position of a key in a block
      * and the size of the data associated with this key. 
@@ -807,24 +807,7 @@ public class SSTable
     	List<KeyPositionInfo> keyPositionInfos = SSTable.indexMetadataMap_.remove(tmpDataFile);    	    	  	    	
     	SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
     }
-    
-    public void closeRename(BloomFilter bf, List<String> files) throws IOException
-    {
-        close( bf);
-        String tmpDataFile = dataFile_;
-        String dataFileName = dataFile_.replace("-" + temporaryFile_,"");
-        File dataFile = new File(dataFile_);
-        dataFile.renameTo(new File(dataFileName));
-        dataFile_ = dataFileName;
-        /* Now repair the in memory index associated with the old name */
-        List<KeyPositionInfo> keyPositionInfos = SSTable.indexMetadataMap_.remove(tmpDataFile);                         
-        SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
-        if ( files != null )
-        {            
-            files.add(dataFile_);
-        }
-    }
-    
+
     private void close(byte[] footer, int size) throws IOException
     {
         /*

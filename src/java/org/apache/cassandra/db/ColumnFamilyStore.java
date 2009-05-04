@@ -1027,8 +1027,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	    	/* in the worst case a node will be giving out alf of its data so we take a chance */
 	    	expectedRangeFileSize = expectedRangeFileSize / 2;
 	        rangeFileLocation = DatabaseDescriptor.getCompactionFileLocation(expectedRangeFileSize);
-//	        boolean isLoop = isLoopAround( ranges );
-//	        Range maxRange = getMaxRange( ranges );
 	        // If the compaction file path is null that means we have no space left for this compaction.
 	        if( rangeFileLocation == null )
 	        {
@@ -1157,13 +1155,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 		                    		{
 		                    			break;
 		                    		}
-	        	                    /* check if we need to continue , if we are done with ranges empty the queue and close all file handles and exit */
-	        	                    //if( !isLoop && StorageService.token(filestruct.key).compareTo(maxRange.right()) > 0 && !filestruct.key.equals(""))
-	        	                    //{
-	                                    //filestruct.reader.close();
-	                                    //filestruct = null;
-	                                    //break;
-	        	                    //}
 	                            }
 	                            if (!filestruct.isExhausted())
 	                            {
@@ -1190,19 +1181,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                    }
 	                }
 	            }
+
 	            if( ssTableRange != null )
 	            {
-                    if ( fileList == null )
-                        fileList = new ArrayList<String>();
-                    ssTableRange.closeRename(compactedRangeBloomFilter, fileList);
-                    if(compactedBloomFilters != null)
+                    ssTableRange.closeRename(compactedRangeBloomFilter);
+                    if (fileList != null)
+                        fileList.add(ssTableRange.getDataFileLocation());
+                    if (compactedBloomFilters != null)
                     	compactedBloomFilters.add(compactedRangeBloomFilter);
 	            }
 	        }
         }
         catch ( Exception ex)
         {
-            logger_.warn( LogUtil.throwableToString(ex) );
+            logger_.error( LogUtil.throwableToString(ex) );
         }
         logger_.debug("Total time taken for range split   ..."
                 + (System.currentTimeMillis() - startTime));
