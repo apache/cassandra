@@ -26,29 +26,48 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.lang.management.ManagementFactory;
 
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponse;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.TouchMessage;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
-public class StorageProxy
+
+public class StorageProxy implements StorageProxyMBean
 {
-    private static Logger logger_ = Logger.getLogger(StorageProxy.class);    
-    
+    private static Logger logger = Logger.getLogger(StorageProxy.class);
+
+    // mbean stuff
+    private static volatile long readLatency;
+    private static volatile int readOperations;
+    private static volatile long rangeLatency;
+    private static volatile int rangeOperations;
+    private static volatile long writeLatency;
+    private static volatile int writeOperations;
+    private StorageProxy() {}
+    static
+    {
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(new StorageProxy(), new ObjectName("org.apache.cassandra.service:type=StorageProxy"));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * This method is responsible for creating Message to be
      * sent over the wire to N replicas where some of the replicas
@@ -67,7 +86,7 @@ public class StorageProxy
 			{
 				Message hintedMessage = rm.makeRowMutationMessage();
 				hintedMessage.addHeader(RowMutation.HINT, EndPoint.toBytes(hint) );
-				logger_.debug("Sending the hint of " + target.getHost() + " to " + hint.getHost());
+				logger.debug("Sending the hint of " + target.getHost() + " to " + hint.getHost());
 				messageMap.put(target, hintedMessage);
 			}
 			else
@@ -87,8 +106,6 @@ public class StorageProxy
     */
     public static void insert(RowMutation rm)
 	{
-        // TODO check for valid Table, ColumnFamily
-
         /*
          * Get the N nodes from storage service where the data needs to be
          * replicated
@@ -96,26 +113,36 @@ public class StorageProxy
          * Send them asynchronously to the replicas.
         */
 
+        long startTime = System.currentTimeMillis();
 		try
 		{
 			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
 			// TODO: throw a thrift exception if we do not have N nodes
 			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
-            logger_.debug("insert writing to [" + StringUtils.join(messageMap.keySet(), ", ") + "]");
+            logger.debug("insert writing to [" + StringUtils.join(messageMap.keySet(), ", ") + "]");
 			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
 			{
 				MessagingService.getMessagingInstance().sendOneWay(entry.getValue(), entry.getKey());
 			}
 		}
-        catch (Exception e)
+        catch (IOException e)
         {
-            logger_.error( LogUtil.throwableToString(e) );
+            throw new RuntimeException(e);
         }
-        return;
+        finally
+        {
+            if (writeOperations++ == Integer.MAX_VALUE)
+            {
+                writeOperations = 1;
+                writeLatency = 0;
+            }
+            writeLatency += System.currentTimeMillis() - startTime;
+        }
     }
 
     public static boolean insertBlocking(RowMutation rm)
     {
+        long startTime = System.currentTimeMillis();
         try
         {
             Message message = rm.makeRowMutationMessage();
@@ -125,7 +152,7 @@ public class StorageProxy
                     DatabaseDescriptor.getReplicationFactor(),
                     writeResponseResolver);
             EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
-            logger_.debug("insertBlocking writing to [" + StringUtils.join(endpoints, ", ") + "]");
+            logger.debug("insertBlocking writing to [" + StringUtils.join(endpoints, ", ") + "]");
             // TODO: throw a thrift exception if we do not have N nodes
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
@@ -137,8 +164,16 @@ public class StorageProxy
         }
         catch (Exception e)
         {
-            logger_.error( LogUtil.throwableToString(e) );
-            return false;
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            if (writeOperations++ == Integer.MAX_VALUE)
+            {
+                writeOperations = 1;
+                writeLatency = 0;
+            }
+            writeLatency += System.currentTimeMillis() - startTime;
         }
     }
     
@@ -213,7 +248,7 @@ public class StorageProxy
     {
         EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
         assert endPoint != null;
-        logger_.debug("weakreadremote reading " + command + " from " + endPoint);
+        logger.debug("weakreadremote reading " + command + " from " + endPoint);
         Message message = command.makeReadMessage();
         message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
         IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
@@ -239,7 +274,7 @@ public class StorageProxy
 		table.touch(key, fData);
     }
 
-    static void weakTouchProtocol(String tablename, String key, boolean fData) throws Exception
+    static void weakTouchProtocol(String tablename, String key, boolean fData) throws IOException
     {
     	EndPoint endPoint = null;
     	try
@@ -262,10 +297,9 @@ public class StorageProxy
             Message message = TouchMessage.makeTouchMessage(touchMessage);
             MessagingService.getMessagingInstance().sendOneWay(message, endPoint);
     	}
-    	return ;
     }
     
-    static void strongTouchProtocol(String tablename, String key, boolean fData) throws Exception
+    static void strongTouchProtocol(String tablename, String key, boolean fData) throws IOException
     {
         Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(key);
         Set<EndPoint> endpoints = endpointMap.keySet();
@@ -281,23 +315,40 @@ public class StorageProxy
     /*
      * Only touch data on the most suitable end point.
      */
-    public static void touchProtocol(String tablename, String key, boolean fData, StorageService.ConsistencyLevel consistencyLevel) throws Exception
+    public static void touchProtocol(String tablename, String key, boolean fData, StorageService.ConsistencyLevel consistencyLevel)
     {
-        switch ( consistencyLevel )
+        long startTime = System.currentTimeMillis();
+        try
         {
-	        case WEAK:
-	            weakTouchProtocol(tablename, key, fData);
-	            break;
-	            
-	        case STRONG:
-	            strongTouchProtocol(tablename, key, fData);
-	            break;
-	            
-	        default:
-	            weakTouchProtocol(tablename, key, fData);
-	            break;
+            switch ( consistencyLevel )
+            {
+                case WEAK:
+                    weakTouchProtocol(tablename, key, fData);
+                    break;
+
+                case STRONG:
+                    strongTouchProtocol(tablename, key, fData);
+                    break;
+
+                default:
+                    weakTouchProtocol(tablename, key, fData);
+                    break;
+            }
         }
-    }  
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
+        finally
+        {
+            if (readOperations++ == Integer.MAX_VALUE)
+            {
+                readOperations = 1;
+                readLatency = 0;
+            }
+            readLatency += System.currentTimeMillis() - startTime;
+        }
+    }
 
     /**
      * Performs the actual reading of a row out of the StorageService, fetching
@@ -307,7 +358,8 @@ public class StorageProxy
     throws IOException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
-        Row row = null;
+
+        Row row;
         EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
 
         if (consistencyLevel == StorageService.ConsistencyLevel.WEAK)
@@ -328,7 +380,13 @@ public class StorageProxy
             row = strongRead(command);
         }
 
-        logger_.debug("Finished reading " + row + " in " + (System.currentTimeMillis() - startTime) + " ms.");
+        if (readOperations++ == Integer.MAX_VALUE)
+        {
+            readOperations = 1;
+            readLatency = 0;
+        }
+        readLatency += System.currentTimeMillis() - startTime;
+
         return row;
     }
 
@@ -365,8 +423,7 @@ public class StorageProxy
      */
     public static Map<String, Row> strongReadProtocol(String[] keys, ReadCommand readCommand) throws IOException, TimeoutException
     {       
-        Map<String, Row> rows = new HashMap<String, Row>();
-        long startTime = System.currentTimeMillis();        
+        Map<String, Row> rows;
         // TODO: throw a thrift exception if we do not have N nodes
         Map<String, ReadCommand[]> readMessages = new HashMap<String, ReadCommand[]>();
         for (String key : keys )
@@ -378,7 +435,6 @@ public class StorageProxy
             readMessages.put(key, readParameters);
         }        
         rows = doStrongReadProtocol(readMessages);         
-        logger_.debug("readProtocol: " + (System.currentTimeMillis() - startTime) + " ms.");
         return rows;
     }
 
@@ -428,7 +484,7 @@ public class StorageProxy
             endPoints[i] = endpointList.get(i - 1);
             messages[i] = messageDigestOnly;
         }
-        logger_.debug("strongread reading " + command + " from " + StringUtils.join(endPoints, ", "));
+        logger.debug("strongread reading " + command + " from " + StringUtils.join(endPoints, ", "));
 
         try
         {
@@ -436,7 +492,7 @@ public class StorageProxy
 
             long startTime2 = System.currentTimeMillis();
             row = quorumResponseHandler.get();
-            logger_.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
+            logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
         }
         catch (DigestMismatchException ex)
         {
@@ -446,7 +502,7 @@ public class StorageProxy
                 QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
                         DatabaseDescriptor.getReplicationFactor(),
                         readResponseResolverRepair);
-                logger_.info("DigestMismatchException: " + command.key);
+                logger.info("DigestMismatchException: " + command.key);
                 Message messageRepair = command.makeReadMessage();
                 MessagingService.getMessagingInstance().sendRR(messageRepair, endPoints,
                                                                quorumResponseHandlerRepair);
@@ -552,10 +608,9 @@ public class StorageProxy
                 rows.put(row.key(), row);
             }
         }
-        catch ( TimeoutException ex )
+        catch (TimeoutException e)
         {
-            logger_.info("Operation timed out waiting for responses ...");
-            logger_.info(LogUtil.throwableToString(ex));
+            throw new RuntimeException(e);
         }
         return rows;
     }
@@ -574,7 +629,6 @@ public class StorageProxy
     public static Map<String, Row> weakReadProtocol(String[] keys, ReadCommand readCommand) throws Exception
     {
         Row row = null;
-        long startTime = System.currentTimeMillis();
         Map<String, ReadCommand> readMessages = new HashMap<String, ReadCommand>();
         for ( String key : keys )
         {
@@ -606,7 +660,7 @@ public class StorageProxy
     */
     private static Row weakReadLocal(ReadCommand command) throws IOException
     {
-        logger_.debug("weakreadlocal for " + command);
+        logger.debug("weakreadlocal reading " + command);
         List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(command.key);
         /* Remove the local storage endpoint from the list. */
         endpoints.remove(StorageService.getLocalStorageEndPoint());
@@ -622,5 +676,63 @@ public class StorageProxy
         if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
             StorageService.instance().doConsistencyCheck(row, endpoints, command);
         return row;
+    }
+
+    static List<String> getRange(RangeCommand command)
+    {
+        long startTime = System.currentTimeMillis();
+        try
+        {
+            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.startWith);
+            IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(command.getMessage(), endPoint);
+
+            // read response
+            // TODO send more requests if we need to span multiple nodes
+            byte[] responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            return RangeReply.read(responseBody).keys;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            if (rangeOperations++ == Integer.MAX_VALUE)
+            {
+                rangeOperations = 1;
+                rangeLatency = 0;
+            }
+            rangeLatency += System.currentTimeMillis() - startTime;
+        }
+    }
+
+    public double getReadLatency()
+    {
+        return ((double)readLatency) / readOperations;
+    }
+
+    public double getRangeLatency()
+    {
+        return ((double)rangeLatency) / rangeOperations;
+    }
+
+    public double getWriteLatency()
+    {
+        return ((double)writeLatency) / writeOperations;
+    }
+
+    public int getReadOperations()
+    {
+        return readOperations;
+    }
+
+    public int getRangeOperations()
+    {
+        return rangeOperations;
+    }
+
+    public int getWriteOperations()
+    {
+        return writeOperations;
     }
 }

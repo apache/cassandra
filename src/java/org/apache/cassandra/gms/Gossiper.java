@@ -563,7 +563,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 int remoteGeneration = gDigest.generation_;
                 if ( remoteGeneration > localGeneration )
                 {
-                    logger_.debug("Reporting " + gDigest.endPoint_ + " to the FD.");
                     fd.report(gDigest.endPoint_);
                     continue;
                 }
@@ -575,7 +574,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                     int remoteVersion = gDigest.maxVersion_;
                     if ( remoteVersion > localVersion )
                     {
-                        logger_.debug("Reporting " + gDigest.endPoint_ + " to the FD.");
                         fd.report(gDigest.endPoint_);
                     }
                 }
@@ -601,7 +599,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 int remoteGeneration = remoteEndPointState.getHeartBeatState().generation_;
                 if ( remoteGeneration > localGeneration )
                 {
-                    logger_.debug("Reporting " + endpoint + " to the FD.");
                     fd.report(endpoint);
                     continue;
                 }
@@ -613,7 +610,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                     int remoteVersion = remoteEndPointState.getHeartBeatState().getHeartBeatVersion();
                     if ( remoteVersion > localVersion )
                     {
-                        logger_.debug("Reporting " + endpoint + " to the FD.");
                         fd.report(endpoint);
                     }
                 }
@@ -952,17 +948,18 @@ class JoinVerbHandler implements IVerbHandler
         byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
 
+        JoinMessage joinMessage = null;
         try
         {
-            JoinMessage joinMessage = JoinMessage.serializer().deserialize(dis);
-            if ( joinMessage.clusterId_.equals( DatabaseDescriptor.getClusterName() ) )
-            {
-                Gossiper.instance().join(from);
-            }
+            joinMessage = JoinMessage.serializer().deserialize(dis);
         }
-        catch ( IOException ex )
+        catch (IOException e)
         {
-            logger_.info( LogUtil.throwableToString(ex) );
+            throw new RuntimeException(e);
+        }
+        if ( joinMessage.clusterId_.equals( DatabaseDescriptor.getClusterName() ) )
+        {
+            Gossiper.instance().join(from);
         }
     }
 }
@@ -1003,7 +1000,7 @@ class GossipDigestSynVerbHandler implements IVerbHandler
         }
         catch (IOException e)
         {
-            logger_.info( LogUtil.throwableToString(e) );
+            throw new RuntimeException(e);
         }
     }
 
@@ -1093,7 +1090,7 @@ class GossipDigestAckVerbHandler implements IVerbHandler
         }
         catch ( IOException e )
         {
-            logger_.info( LogUtil.throwableToString(e) );
+            throw new RuntimeException(e);
         }
     }
 }
@@ -1109,18 +1106,19 @@ class GossipDigestAck2VerbHandler implements IVerbHandler
 
         byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
+        GossipDigestAck2Message gDigestAck2Message = null;
         try
         {
-            GossipDigestAck2Message gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis);
-            Map<EndPoint, EndPointState> remoteEpStateMap = gDigestAck2Message.getEndPointStateMap();
-            /* Notify the Failure Detector */
-            Gossiper.instance().notifyFailureDetector(remoteEpStateMap);
-            Gossiper.instance().applyStateLocally(remoteEpStateMap);
+            gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis);
         }
-        catch ( IOException e )
+        catch (IOException e)
         {
-            logger_.info( LogUtil.throwableToString(e) );
+            throw new RuntimeException(e);
         }
+        Map<EndPoint, EndPointState> remoteEpStateMap = gDigestAck2Message.getEndPointStateMap();
+        /* Notify the Failure Detector */
+        Gossiper.instance().notifyFailureDetector(remoteEpStateMap);
+        Gossiper.instance().applyStateLocally(remoteEpStateMap);
     }
 }
 

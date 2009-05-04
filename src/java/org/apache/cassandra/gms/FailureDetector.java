@@ -157,6 +157,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     
     public void report(EndPoint ep)
     {
+        logger_.debug("reporting as failed " + ep);
         long now = System.currentTimeMillis();
         ArrivalWindow hbWnd = arrivalSamples_.get(ep);
         if ( hbWnd == null )

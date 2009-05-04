@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 
@@ -49,13 +48,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.db.TableNotDefinedException;
 import org.apache.cassandra.db.RangeCommand;
-import org.apache.cassandra.db.RangeReply;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.IAsyncResult;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.thrift.TException;
 
@@ -65,7 +58,7 @@ import org.apache.thrift.TException;
 
 public class CassandraServer implements Cassandra.Iface
 {
-	private static Logger logger_ = Logger.getLogger(CassandraServer.class);
+	private static Logger logger = Logger.getLogger(CassandraServer.class);
 
     private final static List<column_t> EMPTY_COLUMNS = Arrays.asList();
     private final static List<superColumn_t> EMPTY_SUPERCOLUMNS = Arrays.asList();
@@ -76,7 +69,7 @@ public class CassandraServer implements Cassandra.Iface
       */
 	protected StorageService storageService;
 
-	public CassandraServer()
+    public CassandraServer()
 	{
 		storageService = StorageService.instance();
 	}
@@ -162,89 +155,67 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws InvalidRequestException
     {
-        long startTime = System.currentTimeMillis();
-        try
+        logger.debug("get_columns_since");
+        ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnFamily_column, timeStamp));
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        if (cfamily == null)
         {
-            ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnFamily_column, timeStamp));
-            String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-            if (cfamily == null)
-            {
-                return EMPTY_COLUMNS;
-            }
-            Collection<IColumn> columns = null;
-            if( values.length > 1 )
-            {
-                // this is the super column case
-                IColumn column = cfamily.getColumn(values[1]);
-                if(column != null)
-                    columns = column.getSubColumns();
-            }
-            else
-            {
-                columns = cfamily.getAllColumns();
-            }
-            return thriftifyColumns(columns);
+            return EMPTY_COLUMNS;
         }
-        finally
+        Collection<IColumn> columns = null;
+        if( values.length > 1 )
         {
-            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+            // this is the super column case
+            IColumn column = cfamily.getColumn(values[1]);
+            if(column != null)
+                columns = column.getSubColumns();
         }
+        else
+        {
+            columns = cfamily.getAllColumns();
+        }
+        return thriftifyColumns(columns);
 	}
 	
 
     public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws InvalidRequestException
     {
-        long startTime = System.currentTimeMillis();
-        try
+        logger.debug("get_slice_by_names");
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, columnNames));
+        if (cfamily == null)
         {
-            ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, columnNames));
-            if (cfamily == null)
-            {
-                return EMPTY_COLUMNS;
-            }
-            Collection<IColumn> columns = null;
-            columns = cfamily.getAllColumns();
-            return thriftifyColumns(columns);
+            return EMPTY_COLUMNS;
         }
-        finally
-        {
-            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
-        }
+        return thriftifyColumns(cfamily.getAllColumns());
     }
     
     public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws InvalidRequestException
     {
-        long startTime = System.currentTimeMillis();
-		try
-		{
-	        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-            ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, start, count));
-            if (cfamily == null)
-			{
-                return EMPTY_COLUMNS;
-			}
-			Collection<IColumn> columns = null;
-			if( values.length > 1 )
-			{
-				// this is the super column case 
-				IColumn column = cfamily.getColumn(values[1]);
-				if(column != null)
-					columns = column.getSubColumns();
-			}
-			else
-			{
-				columns = cfamily.getAllColumns();
-			}
-            return thriftifyColumns(columns);
-		}
-        finally
+        logger.debug("get_slice");
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, start, count));
+        if (cfamily == null)
         {
-            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+            return EMPTY_COLUMNS;
         }
+        Collection<IColumn> columns = null;
+        if( values.length > 1 )
+        {
+            // this is the super column case
+            IColumn column = cfamily.getColumn(values[1]);
+            if(column != null)
+                columns = column.getSubColumns();
+        }
+        else
+        {
+            columns = cfamily.getAllColumns();
+        }
+        return thriftifyColumns(columns);
 	}
     
     public column_t get_column(String tablename, String key, String columnFamily_column) throws NotFoundException, InvalidRequestException
     {
+        logger.debug("get_column");
         String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
         if (values.length < 2)
         {
@@ -285,6 +256,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException
     {
+        logger.debug("get_column_count");
         String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
         ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
         if (cfamily == null)
@@ -312,6 +284,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp)
 	{
+        logger.debug("insert");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.add(columnFamily_column, cellData, timestamp);
         try
@@ -327,6 +300,7 @@ public class CassandraServer implements Cassandra.Iface
     
     public boolean insert_blocking(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws InvalidRequestException
     {
+        logger.debug("insert_blocking");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.add(columnFamily_column, cellData, timestamp);
         validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
@@ -335,7 +309,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws InvalidRequestException
     {
-        logger_.debug("batch_insert_blocking");
+        logger.debug("batch_insert_blocking");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
         validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
         return StorageProxy.insertBlocking(rm);
@@ -343,7 +317,7 @@ public class CassandraServer implements Cassandra.Iface
 
 	public void batch_insert(batch_mutation_t batchMutation)
     {
-        logger_.debug("batch_insert");
+        logger.debug("batch_insert");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
         try
         {
@@ -359,7 +333,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException
     {
-        logger_.debug("remove");
+        logger.debug("remove");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.delete(columnFamily_column, timestamp);
         validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
@@ -373,22 +347,13 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException
     {
-        long startTime = System.currentTimeMillis();
-		try
-		{
-			ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, superColumnNames));
-			if (cfamily == null)
-			{
-                return EMPTY_SUPERCOLUMNS;
-			}
-			Collection<IColumn> columns = null;
-			columns = cfamily.getAllColumns();
-            return thriftifySuperColumns(columns);
-		}
-        finally
+        logger.debug("get_slice_super_by_names");
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, superColumnNames));
+        if (cfamily == null)
         {
-            logger_.debug("get_slice2: " + (System.currentTimeMillis() - startTime) + " ms.");
+            return EMPTY_SUPERCOLUMNS;
         }
+        return thriftifySuperColumns(cfamily.getAllColumns());
     }
 
     private List<superColumn_t> thriftifySuperColumns(Collection<IColumn> columns)
@@ -414,6 +379,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws InvalidRequestException
     {
+        logger.debug("get_slice_super");
         ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_superColumnName, start, count));
         if (cfamily == null)
         {
@@ -425,6 +391,7 @@ public class CassandraServer implements Cassandra.Iface
     
     public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException
     {
+        logger.debug("get_superColumn");
         ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnFamily_column));
         if (cfamily == null)
         {
@@ -448,7 +415,7 @@ public class CassandraServer implements Cassandra.Iface
     
     public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws InvalidRequestException
     {
-        logger_.debug("batch_insert_SuperColumn_blocking");
+        logger.debug("batch_insert_SuperColumn_blocking");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
         validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
         return StorageProxy.insertBlocking(rm);
@@ -456,7 +423,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper)
     {
-        logger_.debug("batch_insert_SuperColumn");
+        logger.debug("batch_insert_SuperColumn");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
         try
         {
@@ -557,29 +524,13 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<String> get_key_range(String tablename, String startWith, String stopAt, int maxResults) throws InvalidRequestException
     {
-        logger_.debug("get_range");
-
+        logger.debug("get_key_range");
         if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner))
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
         }
 
-        try
-        {
-            Message message = new RangeCommand(tablename, startWith, stopAt, maxResults).getMessage();
-            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(startWith);
-            IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
-
-            // read response
-            // TODO send more requests if we need to span multiple nodes
-            // double the usual timeout since range requests are expensive
-            byte[] responseBody = iar.get(2 * DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            return RangeReply.read(responseBody).keys;
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        return StorageProxy.getRange(new RangeCommand(tablename, startWith, stopAt, maxResults));
     }
 
     /*
@@ -588,17 +539,11 @@ public class CassandraServer implements Cassandra.Iface
      * the SSTable index bucket it falls in, are in
      * buffer cache.  
     */
-    public void touch (String key , boolean fData) 
+    public void touch (String key, boolean fData)
     {
-    	try
-    	{
-    		StorageProxy.touchProtocol(DatabaseDescriptor.getTables().get(0), key, fData, StorageService.ConsistencyLevel.WEAK);
-    	}
-    	catch ( Exception e)
-    	{
-			logger_.info( LogUtil.throwableToString(e) );
-    	}
+        logger.debug("touch");
+  		StorageProxy.touchProtocol(DatabaseDescriptor.getTables().get(0), key, fData, StorageService.ConsistencyLevel.WEAK);
 	}
-    
+
     // main method moved to CassandraDaemon
 }

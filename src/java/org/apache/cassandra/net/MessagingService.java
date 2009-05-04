@@ -586,7 +586,6 @@ public class MessagingService implements IMessagingService, MessagingServiceMBea
         
         if ( stage != null )
         {
-            logger_.info("Running on stage " + stage.getName());
             stage.execute(runnable);
         } 
         else

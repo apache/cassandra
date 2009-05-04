@@ -193,10 +193,9 @@ public class Memtable implements Comparable<Memtable>
     	return cfName_;
     }
 
-    void printExecutorStats()
+    int getPendingTasks()
     {
-    	long taskCount = (executor_.getTaskCount() - executor_.getCompletedTaskCount());
-    	logger_.debug("MEMTABLE TASKS : " + taskCount);
+    	return (int)(executor_.getTaskCount() - executor_.getCompletedTaskCount());
     }
 
     /*
@@ -232,7 +231,6 @@ public class Memtable implements Comparable<Memtable>
         }
         else
         {
-        	printExecutorStats();
         	Runnable putter = new Putter(key, columnFamily);
         	executor_.submit(putter);
         }
@@ -347,22 +345,21 @@ public class Memtable implements Comparable<Memtable>
 
     ColumnFamily get(String key, String cfName, IFilter filter)
     {
-    	printExecutorStats();
     	Callable<ColumnFamily> call = new Getter(key, cfName, filter);
     	ColumnFamily cf = null;
-    	try
-    	{
-    		cf = executor_.submit(call).get();
-    	}
-    	catch ( ExecutionException ex )
-    	{
-    		logger_.debug(LogUtil.throwableToString(ex));
-    	}
-    	catch ( InterruptedException ex2 )
-    	{
-    		logger_.debug(LogUtil.throwableToString(ex2));
-    	}
-    	return cf;
+        try
+        {
+            cf = executor_.submit(call).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return cf;
     }
 
     void flush(CommitLog.CommitLogContext cLogCtx) throws IOException

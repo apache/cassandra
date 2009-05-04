@@ -1423,6 +1423,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return memtableSwitchCount;
     }
 
+    public int getMemtableTasks()
+    {
+        return memtable_.get().getPendingTasks();
+    }
+
     /**
      * clears out all data associated with this ColumnFamily.
      * For use in testing.
