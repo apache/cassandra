@@ -139,7 +139,7 @@ public class BinaryMemtable
             return;
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         String directory = DatabaseDescriptor.getDataFileLocation();
-        String filename = cfStore.getNextFileName();
+        String filename = cfStore.getTempFileName();
 
         /*
          * Use the SSTable to write the contents of the TreeMap
@@ -160,7 +160,7 @@ public class BinaryMemtable
                 bf.add(key);
             }
         }
-        ssTable.close(bf);
+        ssTable.closeRename(bf);
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         columnFamilies_.clear();       
     }

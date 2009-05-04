@@ -378,7 +378,7 @@ public class Memtable implements Comparable<Memtable>
         }
 
         String directory = DatabaseDescriptor.getDataFileLocation();
-        String filename = cfStore.getNextFileName();
+        String filename = cfStore.getTempFileName();
         SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
 
         // sort keys in the order they would be in when decorated
@@ -408,7 +408,7 @@ public class Memtable implements Comparable<Memtable>
                 bf.add(key);
             }
         }
-        ssTable.close(bf);
+        ssTable.closeRename(bf);
         cfStore.onMemtableFlush(cLogCtx);
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         buffer.close();
