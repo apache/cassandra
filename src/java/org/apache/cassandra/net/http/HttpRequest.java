@@ -22,6 +22,8 @@
 
 package org.apache.cassandra.net.http;
 
+import org.apache.zookeeper.data.StatPersisted;
+
 import java.util.*;
 import java.io.*;
 import java.net.URLDecoder;
@@ -40,6 +42,12 @@ public class HttpRequest
     private String path_;
     private String query_;
     private String version_;
+    private HttpConnection connection_;
+
+    public HttpRequest(HttpConnection connection)
+    {
+        this.connection_ = connection;
+    }
 
     /*
      * Returns the type of method - GET, POST, etc.
@@ -205,6 +213,11 @@ z    * For example, if the body is of the form:
         pw.println("<--------HttpRequest");
 
         return sw.toString();
+    }
+
+    public HttpConnection getHttpConnection()
+    {
+        return connection_;
     }
 }
 

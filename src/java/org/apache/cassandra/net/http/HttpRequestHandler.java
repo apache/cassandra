@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.net.http;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -41,25 +41,24 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.http.ColumnFamilyFormatter;
 import org.apache.cassandra.net.http.HTMLFormatter;
 import org.apache.cassandra.net.http.HttpConnection;
-import org.apache.cassandra.net.http.HttpRequest;
 import org.apache.cassandra.net.http.HttpWriteResponse;
 import org.apache.cassandra.procedures.GroovyScriptRunner;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.service.StorageService;
 
 /*
  * This class handles the incoming HTTP request after
  * it has been parsed.
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-public class HttpRequestVerbHandler implements IVerbHandler
+public class HttpRequestHandler implements Runnable
 {
-    private static final Logger logger_ = Logger.getLogger(HttpRequestVerbHandler.class);
+    private static final Logger logger_ = Logger.getLogger(HttpRequestHandler.class);
     /* These are the list of actions supported */
     private static final String DETAILS = "details";
     private static final String LOADME = "loadme";
@@ -77,41 +76,42 @@ public class HttpRequestVerbHandler implements IVerbHandler
     private static final String JS_UPDATE_INSERT_FUNCTION = "updateInsertResults";
 
     private StorageService storageService_;
+    private HttpRequest request_;
 
-    public HttpRequestVerbHandler(StorageService storageService)
+    public HttpRequestHandler(HttpRequest request)
     {
-        storageService_ = storageService;
+        request_ = request;
+        storageService_ = StorageService.instance();
     }
 
-    public void doVerb(Message message)
+    public void run()
     {
-        HttpConnection.HttpRequestMessage httpRequestMessage = (HttpConnection.HttpRequestMessage)message.getMessageBody()[0];
+        HttpWriteResponse httpServerResponse = new HttpWriteResponse(request_);
+        if(request_.getMethod().toUpperCase().equals("GET"))
+        {
+            // handle the get request type
+            doGet(request_, httpServerResponse);
+        }
+        else if(request_.getMethod().toUpperCase().equals("POST"))
+        {
+            // handle the POST request type
+            doPost(request_, httpServerResponse);
+        }
+
+        // write the response we have constructed into the socket
+        ByteBuffer buffer = null;
         try
         {
-            HttpRequest httpRequest = httpRequestMessage.getHttpRequest();
-            HttpWriteResponse httpServerResponse = new HttpWriteResponse(httpRequest);
-            if(httpRequest.getMethod().toUpperCase().equals("GET"))
-            {
-                // handle the get request type
-                doGet(httpRequest, httpServerResponse);
-            }
-            else if(httpRequest.getMethod().toUpperCase().equals("POST"))
-            {
-                // handle the POST request type
-                doPost(httpRequest, httpServerResponse);
-            }
-
-            // write the response we have constructed into the socket
-            ByteBuffer buffer = httpServerResponse.flush();
-            httpRequestMessage.getHttpConnection().write(buffer);
+            buffer = httpServerResponse.flush();
         }
-        catch(Exception e)
+        catch (Exception e)
         {
-            logger_.warn(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
+        request_.getHttpConnection().write(buffer);
     }
 
-    private void doGet(HttpRequest httpRequest, HttpWriteResponse httpResponse)
+    private void doGet(org.apache.cassandra.net.http.HttpRequest httpRequest, HttpWriteResponse httpResponse)
     {
         boolean fServeSummary = true;
         HTMLFormatter formatter = new HTMLFormatter();
@@ -180,7 +180,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
      * As a result of the POST query, we currently only send back some
      * javascript that updates the data in some place on the browser.
     */
-    private void doPost(HttpRequest httpRequest, HttpWriteResponse httpResponse)
+    private void doPost(org.apache.cassandra.net.http.HttpRequest httpRequest, HttpWriteResponse httpResponse)
     {
         String query = httpRequest.getQuery();
 
@@ -484,7 +484,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
     /*
      * Handle the query of some data from the client.
      */
-    private String handleQuery(HttpRequest httpRequest)
+    private String handleQuery(org.apache.cassandra.net.http.HttpRequest httpRequest)
     {
     	boolean fQuerySuccess = false;
     	String sRetVal = "";
@@ -538,7 +538,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
     /*
      * Handle the query of some data from the client.
      */
-    private String handleInsert(HttpRequest httpRequest)
+    private String handleInsert(org.apache.cassandra.net.http.HttpRequest httpRequest)
     {
     	boolean fInsertSuccess = false;
     	String sRetVal = "";
@@ -580,7 +580,7 @@ public class HttpRequestVerbHandler implements IVerbHandler
     /*
      * Handle the script to be run on the server.
      */
-    private String handleScript(HttpRequest httpRequest)
+    private String handleScript(org.apache.cassandra.net.http.HttpRequest httpRequest)
     {
     	boolean fQuerySuccess = false;
     	String sRetVal = "";

@@ -25,22 +25,17 @@
 package org.apache.cassandra.net.http;
 
 import java.util.*;
-import java.net.*;
-import java.io.*;
-import java.nio.*;
-import java.nio.channels.SelectionKey;
+import java.util.concurrent.ExecutorService;
+import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import org.apache.cassandra.service.*;
-import org.apache.cassandra.concurrent.SingleThreadedStage;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import java.nio.channels.SelectionKey;
+import java.io.IOException;
+
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SelectionKeyHandler;
-import org.apache.cassandra.net.SelectorManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.log4j.Logger;
 
 /**
@@ -53,13 +48,15 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
     public static final String httpRequestVerbHandler_ = "HTTP-REQUEST-VERB-HANDLER";
     public static final String httpStage_ = "HTTP-STAGE";
 
+    private static ExecutorService executor_ = new DebuggableThreadPoolExecutor("HTTP-CONNECTION");
+
     /*
      * These are the callbacks into who ever intends
      * to listen on the client socket.
      */
     public interface HttpConnectionListener
     {
-        public void onRequest(HttpRequest httpRequest);
+        public void onRequest(org.apache.cassandra.net.http.HttpRequest httpRequest);
         public void onResponse(HttpResponse httpResponse);
     }
 
@@ -84,7 +81,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
     private List<ByteBuffer> bodyBuffers_ = new LinkedList<ByteBuffer>();
     private boolean shouldClose_ = false;
     private String defaultContentType_ = "text/html";
-    private HttpRequest currentRequest_ = null;
+    private org.apache.cassandra.net.http.HttpRequest currentRequest_ = null;
     private HttpResponse currentResponse_ = null;
     private HttpStartLineParser startLineParser_ = new HttpStartLineParser(this);
     private HttpHeaderParser headerParser_ = new HttpHeaderParser(this);
@@ -123,28 +120,6 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
             {
                 logger_.warn(LogUtil.throwableToString(ex));
             }
-        }
-    }
-
-    public static class HttpRequestMessage
-    {
-        private HttpRequest httpRequest_;
-        private HttpConnection httpConnection_;
-
-        HttpRequestMessage(HttpRequest httpRequest, HttpConnection httpConnection)
-        {
-            httpRequest_ = httpRequest;
-            httpConnection_ = httpConnection;
-        }
-
-        public HttpRequest getHttpRequest()
-        {
-            return httpRequest_;
-        }
-
-        public HttpConnection getHttpConnection()
-        {
-            return httpConnection_;
         }
     }
 
@@ -333,7 +308,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
                             currentRequest_.addHeader("Content-Type", defaultContentType_);
                         }
 
-                        handleRequest(currentRequest_);
+                        executor_.submit(new HttpRequestHandler(currentRequest_));
                     }
                     else if (currentMsgType_ == HttpMessageType.RESPONSE)
                     {
@@ -380,13 +355,6 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
         }
     }
 
-    private void handleRequest(HttpRequest request)
-    {
-        HttpConnection.HttpRequestMessage httpRequestMessage = new HttpConnection.HttpRequestMessage(request, this);
-        Message httpMessage = new Message(null, HttpConnection.httpStage_, HttpConnection.httpRequestVerbHandler_, new Object[]{httpRequestMessage});
-        MessagingService.receive(httpMessage);
-    }
-
     // HttpStartLineParser.Callback interface implementation
     public void onStartLine(String method, String path, String query, String version)
     {
@@ -403,7 +371,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
         {
                 // request
                 currentMsgType_ = HttpMessageType.REQUEST;
-                currentRequest_ = new HttpRequest();
+                currentRequest_ = new HttpRequest(this);
                 currentRequest_.setStartLine(method, path, query, version);
         }
     }
