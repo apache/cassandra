@@ -637,7 +637,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         if (!subColumn.isMarkedForDelete() || subColumn.getLocalDeletionTime() > gcBefore)
                         {
-                            sc.addColumn(subColumn.name(), subColumn);
+                            sc.addColumn(subColumn);
                         }
                     }
                 }

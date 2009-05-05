@@ -92,7 +92,7 @@ public class CountFilter implements IFilter
         		for(IColumn subColumn : subColumns)
         		{
         			if (offset_ <=0 ){
-        				filteredSuperColumn.addColumn(subColumn.name(), subColumn);
+        				filteredSuperColumn.addColumn(subColumn);
         				countLimit_--;
         			} else
         				offset_--;

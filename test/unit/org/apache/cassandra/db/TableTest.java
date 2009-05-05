@@ -129,11 +129,11 @@ public class TableTest extends ServerTest{
         RowMutation rm = new RowMutation(TABLE_NAME,TEST_KEY);
         ColumnFamily cf = new ColumnFamily("Super1","Super");
         SuperColumn sc1 = new SuperColumn("sc1");
-        sc1.addColumn("col1", new Column("col1","val1".getBytes(), 1L));
-        sc1.addColumn("col2", new Column("col2","val2".getBytes(), 1L));
+        sc1.addColumn(new Column("col1","val1".getBytes(), 1L));
+        sc1.addColumn(new Column("col2","val2".getBytes(), 1L));
         SuperColumn sc2 = new SuperColumn("sc2");
-        sc2.addColumn("col3", new Column("col3","val3".getBytes(), 1L));
-        sc2.addColumn("col4", new Column("col4","val4".getBytes(), 1L));
+        sc2.addColumn(new Column("col3","val3".getBytes(), 1L));
+        sc2.addColumn(new Column("col4","val4".getBytes(), 1L));
         cf.addColumn(sc1);
         cf.addColumn(sc2);
         rm.add(cf);

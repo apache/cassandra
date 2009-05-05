@@ -288,7 +288,7 @@ public class Memtable implements Comparable<Memtable>
                         columnFamily = cFamily.cloneMeShallow();
                         SuperColumn container = new SuperColumn(superColumn.name());
                         container.markForDeleteAt(superColumn.getLocalDeletionTime(), superColumn.getMarkedForDeleteAt());
-                        container.addColumn(subColumn.name(), subColumn);
+                        container.addColumn(subColumn);
                         columnFamily.addColumn(container);
                     }
                 }

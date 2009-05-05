@@ -174,21 +174,21 @@ public final class SuperColumn implements IColumn, Serializable
     	throw new IllegalArgumentException("Value was requested for a column that does not exist.");
     }
 
-    public void addColumn(String name, IColumn column)
+    public void addColumn(IColumn column)
     {
     	if (!(column instanceof Column))
     		throw new UnsupportedOperationException("A super column can only contain simple columns.");
-    	IColumn oldColumn = columns_.get(name);
+    	IColumn oldColumn = columns_.get(column.name());
     	if ( oldColumn == null )
         {
-    		columns_.put(name, column);
+    		columns_.put(column.name(), column);
             size_.addAndGet(column.size());
         }
     	else
     	{
     		if (((Column)oldColumn).comparePriority((Column)column) <= 0)
             {
-    			columns_.put(name, column);
+    			columns_.put(column.name(), column);
                 int delta = (-1)*oldColumn.size();
                 /* subtract the size of the oldColumn */
                 size_.addAndGet(delta);
@@ -211,7 +211,7 @@ public final class SuperColumn implements IColumn, Serializable
 
         for (IColumn subColumn : column.getSubColumns())
         {
-        	addColumn(subColumn.name(), subColumn);
+        	addColumn(subColumn);
         }
         if (column.getMarkedForDeleteAt() > markedForDeleteAt)
         {
@@ -249,14 +249,14 @@ public final class SuperColumn implements IColumn, Serializable
         	IColumn columnInternal = columns_.get(subColumn.name());
         	if(columnInternal == null )
         	{
-        		columnDiff.addColumn(subColumn.name(), subColumn);
+        		columnDiff.addColumn(subColumn);
         	}
         	else
         	{
             	IColumn subColumnDiff = columnInternal.diff(subColumn);
         		if(subColumnDiff != null)
         		{
-            		columnDiff.addColumn(subColumn.name(), subColumnDiff);
+            		columnDiff.addColumn(subColumnDiff);
         		}
         	}
         }
@@ -371,7 +371,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         for ( int i = 0; i < size; ++i )
         {
             IColumn subColumn = Column.serializer().deserialize(dis);
-            superColumn.addColumn(subColumn.name(), subColumn);
+            superColumn.addColumn(subColumn);
         }
     }
 
@@ -423,7 +423,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
                     column = Column.serializer().deserialize(dis, filter);
                     if(column != null)
                     {
-                        superColumn.addColumn(column.name(), column);
+                        superColumn.addColumn(column);
                         column = null;
                         if(filter.isDone())
                         {
@@ -457,7 +457,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
                     IColumn subColumn = Column.serializer().deserialize(dis, names[1], filter);
                     if ( subColumn != null )
                     {
-                        superColumn.addColumn(subColumn.name(), subColumn);
+                        superColumn.addColumn(subColumn);
                         break;
                     }
                 }

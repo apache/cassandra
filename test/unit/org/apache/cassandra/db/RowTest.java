@@ -25,7 +25,7 @@ public class RowTest
     public void testDiffSuperColumn()
     {
         SuperColumn sc1 = new SuperColumn("one");
-        sc1.addColumn("subcolumn", new Column("subcolumn", "A".getBytes(), 0));
+        sc1.addColumn(new Column("subcolumn", "A".getBytes(), 0));
 
         SuperColumn sc2 = new SuperColumn("one");
         sc2.markForDeleteAt(0, 0);

@@ -39,7 +39,7 @@ public interface IColumn
     public byte[] value(String key);
     public Collection<IColumn> getSubColumns();
     public IColumn getSubColumn(String columnName);
-    public void addColumn(String name, IColumn column);
+    public void addColumn(IColumn column);
     public IColumn diff(IColumn column);
     public int getObjectCount();
     public byte[] digest();

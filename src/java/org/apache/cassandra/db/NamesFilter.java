@@ -77,7 +77,7 @@ public class NamesFilter implements IFilter
     		        if ( names_.contains(subColumn.name()) )
     		        {
     		            names_.remove(subColumn.name());
-    		            filteredSuperColumn.addColumn(subColumn.name(), subColumn);
+    		            filteredSuperColumn.addColumn(subColumn);
     		        }
     				if( isDone() )
     				{

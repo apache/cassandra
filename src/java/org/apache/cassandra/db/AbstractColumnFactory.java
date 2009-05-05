@@ -104,7 +104,7 @@ class SuperColumnFactory extends AbstractColumnFactory
         if(values.length == 2)
         {
 	        IColumn subColumn = new Column(values[1]);
-	        superColumn.addColumn(values[1], subColumn);
+	        superColumn.addColumn(subColumn);
         }
 		return superColumn;
 	}
@@ -126,7 +126,7 @@ class SuperColumnFactory extends AbstractColumnFactory
             throw new IllegalArgumentException("Super Column " + name + " in invalid format. Must be in <super column name>:<column name> format.");
         IColumn superColumn = new SuperColumn(values[0]);
         IColumn subColumn = new Column(values[1], value, timestamp, deleted);
-        superColumn.addColumn(values[1], subColumn);
+        superColumn.addColumn(subColumn);
 		return superColumn;
 	}
 

@@ -92,7 +92,7 @@ class TimeFilter implements IFilter
         		{
 	    			if (  subColumn.timestamp()  >=  timeLimit_ )
 	    			{
-			            filteredSuperColumn.addColumn(subColumn.name(), subColumn);
+			            filteredSuperColumn.addColumn(subColumn);
 	    				++i;
 	    			}
 	    			else

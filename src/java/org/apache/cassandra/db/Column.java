@@ -157,7 +157,7 @@ public final class Column implements IColumn
         return size();
     }
 
-    public void addColumn(String name, IColumn column)
+    public void addColumn(IColumn column)
     {
         throw new UnsupportedOperationException("This operation is not supported for simple columns.");
     }
