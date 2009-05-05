@@ -81,7 +81,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
     private List<ByteBuffer> bodyBuffers_ = new LinkedList<ByteBuffer>();
     private boolean shouldClose_ = false;
     private String defaultContentType_ = "text/html";
-    private org.apache.cassandra.net.http.HttpRequest currentRequest_ = null;
+    private HttpRequest currentRequest_ = null;
     private HttpResponse currentResponse_ = null;
     private HttpStartLineParser startLineParser_ = new HttpStartLineParser(this);
     private HttpHeaderParser headerParser_ = new HttpHeaderParser(this);
@@ -174,7 +174,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
     {
         try
         {
-            logger_.debug("Processing http requests from socket ...");
+            logger_.debug("Processing http request from socket ...");
             switch (parseState_)
             {
                 case IN_NEW:
@@ -298,9 +298,9 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
 
                 if (done)
                 {
+                    logger_.debug("... done parsing request for " + currentRequest_.getPath());
                     if (currentMsgType_ == HttpMessageType.REQUEST)
                     {
-                        //currentRequest_.setParseTime(env_.getCurrentTime() - parseStartTime_);
                         currentRequest_.setBody(bodyBuffers_);
 
                         if (currentRequest_.getHeader("Content-Type") == null)
@@ -312,12 +312,11 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
                     }
                     else if (currentMsgType_ == HttpMessageType.RESPONSE)
                     {
-                        logger_.info("Holy shit! We are not supposed to be here - ever !!!");
+                        logger_.error("Holy shit! We are not supposed to be processing responses here!");
                     }
                     else
                     {
-                        logger_.error("Http message type is still" +
-                                " unset after we finish parsing the body?");
+                        logger_.error("Http message type is still unset after we finish parsing the body?");
                     }
 
                     resetParserState();
@@ -325,10 +324,9 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
             }
 
         }
-        catch (final Throwable e)
+        catch (Exception e)
         {
-            logger_.warn(LogUtil.throwableToString(e));
-            //close();
+            throw new RuntimeException(e);
         }
         finally
         {

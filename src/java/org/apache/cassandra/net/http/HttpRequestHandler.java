@@ -86,6 +86,7 @@ public class HttpRequestHandler implements Runnable
 
     public void run()
     {
+        logger_.debug("Handling " + request_.getMethod());
         HttpWriteResponse httpServerResponse = new HttpWriteResponse(request_);
         if(request_.getMethod().toUpperCase().equals("GET"))
         {
@@ -100,14 +101,8 @@ public class HttpRequestHandler implements Runnable
 
         // write the response we have constructed into the socket
         ByteBuffer buffer = null;
-        try
-        {
-            buffer = httpServerResponse.flush();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        buffer = httpServerResponse.flush();
+        logger_.debug("http response is " + buffer.limit() + " bytes");
         request_.getHttpConnection().write(buffer);
     }
 

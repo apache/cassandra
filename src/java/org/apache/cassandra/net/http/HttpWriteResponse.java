@@ -49,7 +49,7 @@ public class HttpWriteResponse
         }
     }
 
-    public ByteBuffer flush() throws Exception
+    public ByteBuffer flush()
     {
         StringBuilder sb = new StringBuilder();
         // write out the HTTP response headers first
