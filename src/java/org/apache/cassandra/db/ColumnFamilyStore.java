@@ -615,19 +615,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cf == null)
             return null;
 
+        // in case of a timestamp tie, tombstones get priority over non-tombstones.
+        // we want this to be deterministic in general to avoid confusion;
+        // either way (tombstone or non- getting priority) would be fine,
+        // but we picked this way because it makes removing delivered hints
+        // easier for HintedHandoffManager.
         for (String cname : new ArrayList<String>(cf.getColumns().keySet()))
         {
             IColumn c = cf.getColumns().get(cname);
             if (c instanceof SuperColumn)
             {
                 long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
-                // don't operate directly on the supercolumn, it could be the one in the memtable
+                // don't operate directly on the supercolumn, it could be the one in the memtable.
+                // instead, create a new SC and add in the subcolumns that qualify.
                 cf.remove(cname);
                 SuperColumn sc = new SuperColumn(cname);
                 sc.markForDeleteAt(c.getLocalDeletionTime(), c.getMarkedForDeleteAt());
                 for (IColumn subColumn : c.getSubColumns())
                 {
-                    if (subColumn.timestamp() >= minTimestamp)
+                    if (subColumn.timestamp() > minTimestamp)
                     {
                         if (!subColumn.isMarkedForDelete() || subColumn.getLocalDeletionTime() > gcBefore)
                         {

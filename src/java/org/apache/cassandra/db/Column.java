@@ -198,6 +198,17 @@ public final class Column implements IColumn
         assert isMarkedForDelete;
         return ByteBuffer.wrap(value).getInt();
     }
+
+    // note that we do not call this simply compareTo since it also makes sense to compare Columns by name
+    public long comparePriority(Column o)
+    {
+        if (isMarkedForDelete)
+        {
+            // tombstone always wins ties.
+            return timestamp < o.timestamp ? -1 : 1;
+        }
+        return timestamp - o.timestamp;
+    }
 }
 
 class ColumnSerializer implements ICompactSerializer2<IColumn>
@@ -302,5 +313,6 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
         int size = dis.readInt();
         dis.skip(size);
     }
+
 }
 

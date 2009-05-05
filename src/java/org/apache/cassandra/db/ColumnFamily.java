@@ -266,7 +266,7 @@ public final class ColumnFamily
             }
             else
             {
-                if (oldColumn.timestamp() <= column.timestamp())
+                if (((Column)oldColumn).comparePriority((Column)column) <= 0)
                 {
                     columns_.put(name, column);
                     size_.addAndGet(column.size());

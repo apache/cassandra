@@ -176,8 +176,8 @@ public final class SuperColumn implements IColumn, Serializable
 
     public void addColumn(String name, IColumn column)
     {
-    	if ( column instanceof SuperColumn )
-    		throw new UnsupportedOperationException("A super column cannot hold other super columns.");
+    	if (!(column instanceof Column))
+    		throw new UnsupportedOperationException("A super column can only contain simple columns.");
     	IColumn oldColumn = columns_.get(name);
     	if ( oldColumn == null )
         {
@@ -186,7 +186,7 @@ public final class SuperColumn implements IColumn, Serializable
         }
     	else
     	{
-    		if ( oldColumn.timestamp() <= column.timestamp() )
+    		if (((Column)oldColumn).comparePriority((Column)column) <= 0)
             {
     			columns_.put(name, column);
                 int delta = (-1)*oldColumn.size();
