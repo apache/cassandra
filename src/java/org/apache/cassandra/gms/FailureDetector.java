@@ -157,15 +157,15 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     
     public void report(EndPoint ep)
     {
-        logger_.debug("reporting as failed " + ep);
+        logger_.trace("reporting " + ep);
         long now = System.currentTimeMillis();
-        ArrivalWindow hbWnd = arrivalSamples_.get(ep);
-        if ( hbWnd == null )
+        ArrivalWindow heartbeatWindow = arrivalSamples_.get(ep);
+        if ( heartbeatWindow == null )
         {
-            hbWnd = new ArrivalWindow(sampleSize_);
-            arrivalSamples_.put(ep, hbWnd);
+            heartbeatWindow = new ArrivalWindow(sampleSize_);
+            arrivalSamples_.put(ep, heartbeatWindow);
         }
-        hbWnd.add(now);  
+        heartbeatWindow.add(now);
     }
     
     public void intepret(EndPoint ep)

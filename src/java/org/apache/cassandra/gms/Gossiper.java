@@ -33,8 +33,6 @@ import org.apache.cassandra.service.IComponentShutdown;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.net.*;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -617,9 +615,9 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    void resusitate(EndPoint addr, EndPointState localState)
+    void markAlive(EndPoint addr, EndPointState localState)
     {
-        logger_.debug("Attempting to resusitate " + addr);
+        logger_.trace("marking as alive " + addr);
         if ( !localState.isAlive() )
         {
             isAlive(addr, localState, true);
@@ -667,7 +665,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 	                int remoteMaxVersion = getMaxEndPointStateVersion(remoteState);
 	                if ( remoteMaxVersion > localMaxVersion )
 	                {
-	                    resusitate(ep, localEpStatePtr);
+	                    markAlive(ep, localEpStatePtr);
 	                    applyHeartBeatStateLocally(ep, localEpStatePtr, remoteState);
 	                    /* apply ApplicationState */
 	                    applyApplicationStateLocally(ep, localEpStatePtr, remoteState);
@@ -688,7 +686,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
         if ( remoteHbState.getGeneration() > localHbState.getGeneration() )
         {
-            resusitate(addr, localState);
+            markAlive(addr, localState);
             localState.setHeartBeatState(remoteHbState);
         }
         if ( localHbState.getGeneration() == remoteHbState.getGeneration() )
@@ -697,7 +695,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             {
                 int oldVersion = localHbState.getHeartBeatVersion();
                 localState.setHeartBeatState(remoteHbState);
-                logger_.debug("Updating heartbeat state version to " + localState.getHeartBeatState().getHeartBeatVersion() + " from " + oldVersion + " for " + addr + " ...");
+                logger_.trace("Updating heartbeat state version to " + localState.getHeartBeatState().getHeartBeatVersion() + " from " + oldVersion + " for " + addr + " ...");
             }
         }
     }
