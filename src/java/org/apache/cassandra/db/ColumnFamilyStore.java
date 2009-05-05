@@ -425,7 +425,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         binaryMemtable_.get().put(key, buffer);
     }
 
-    void forceFlush() throws IOException
+    public void forceFlush()
     {
         memtable_.get().forceflush();
     }

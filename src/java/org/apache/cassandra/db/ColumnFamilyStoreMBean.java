@@ -53,4 +53,9 @@ public interface ColumnFamilyStoreMBean
      * @return the number of tasks waiting to run on the memtable executor
      */
     public int getMemtableTasks();
+    
+    /**
+     * Triggers an immediate memtable flush.
+     */
+    public void forceFlush();
 }
