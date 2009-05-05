@@ -21,11 +21,7 @@ import org.apache.thrift.*;
 
 import org.antlr.runtime.tree.*;
 import org.apache.cassandra.cql.common.Utils;
-import org.apache.cassandra.service.Cassandra;
-import org.apache.cassandra.service.CqlResult_t;
-import org.apache.cassandra.service.column_t;
-import org.apache.cassandra.service.NotFoundException;
-import org.apache.cassandra.service.InvalidRequestException;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.LogUtil;
 
 import java.util.*;
@@ -43,7 +39,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement 
-    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException
+    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException, UnavailableException
     {
         CommonTree ast = null;
 
@@ -165,7 +161,7 @@ public class CliClient
     }
 
     // Execute SET statement
-    private void executeSet(CommonTree ast) throws TException
+    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException
     {
         if (!CliMain.isConnected())
             return;
@@ -192,7 +188,7 @@ public class CliClient
 
             // do the insert
             thriftClient_.insert(tableName, key, columnFamily + ":" + columnName,
-                                 value.getBytes(), System.currentTimeMillis());
+                                 value.getBytes(), System.currentTimeMillis(), true);
 
             css_.out.println("Value inserted.");
         }

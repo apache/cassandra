@@ -21,12 +21,7 @@ package org.apache.cassandra.service;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Arrays;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
@@ -282,66 +277,57 @@ public class CassandraServer implements Cassandra.Iface
         return columns.size();
 	}
 
-    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp)
-	{
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, boolean block)
+    throws InvalidRequestException, UnavailableException
+    {
         logger.debug("insert");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.add(columnFamily_column, cellData, timestamp);
-        try
+        Set<String> cfNames = rm.columnFamilyNames();
+        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+
+        if (block)
         {
-            validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
+            StorageProxy.insertBlocking(rm);
         }
-        catch (InvalidRequestException e)
+        else
         {
-            throw new RuntimeException(e);
+            StorageProxy.insert(rm);
         }
-        StorageProxy.insert(rm);
-	}
-    
-    public boolean insert_blocking(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp) throws InvalidRequestException
-    {
-        logger.debug("insert_blocking");
-        RowMutation rm = new RowMutation(tablename, key.trim());
-        rm.add(columnFamily_column, cellData, timestamp);
-        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
-        return StorageProxy.insertBlocking(rm);
     }
 
-    public boolean batch_insert_blocking(batch_mutation_t batchMutation) throws InvalidRequestException
-    {
-        logger.debug("batch_insert_blocking");
-        RowMutation rm = RowMutation.getRowMutation(batchMutation);
-        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
-        return StorageProxy.insertBlocking(rm);
-    }
-
-	public void batch_insert(batch_mutation_t batchMutation)
+    public void batch_insert(batch_mutation_t batchMutation, boolean block) throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
-        try
-        {
-            validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
-        }
-        catch (InvalidRequestException e)
-        {
-            // it would be confusing to declare an exception in thrift that can't be returned to the client
-            throw new RuntimeException(e);
-        }
-        StorageProxy.insert(rm);
-	}
+        Set<String> cfNames = rm.columnFamilyNames();
+        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-    public boolean remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException
+        if (block)
+        {
+            StorageProxy.insertBlocking(rm);
+        }
+        else
+        {
+            StorageProxy.insert(rm);
+        }
+    }
+
+    public void remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block)
+    throws InvalidRequestException, UnavailableException
     {
         logger.debug("remove");
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.delete(columnFamily_column, timestamp);
-        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
-        if (block) {
-            return StorageProxy.insertBlocking(rm);
-        } else {
+        Set<String> cfNames = rm.columnFamilyNames();
+        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        if (block)
+        {
+            StorageProxy.insertBlocking(rm);
+        }
+        else
+        {
             StorageProxy.insert(rm);
-            return true;
         }
 	}
 
@@ -412,29 +398,21 @@ public class CassandraServer implements Cassandra.Iface
 
         return new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns()));
     }
-    
-    public boolean batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper) throws InvalidRequestException
-    {
-        logger.debug("batch_insert_SuperColumn_blocking");
-        RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
-        validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
-        return StorageProxy.insertBlocking(rm);
-    }
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper)
+    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, boolean block) throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert_SuperColumn");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
-        try
+        Set<String> cfNames = rm.columnFamilyNames();
+        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        if (block)
         {
-            validateCommand(rm.key(), rm.table(), rm.columnFamilyNames().toArray(new String[0]));
+            StorageProxy.insertBlocking(rm);
         }
-        catch (InvalidRequestException e)
+        else
         {
-            // it would be confusing to declare an exception in thrift that can't be returned to the client
-            throw new RuntimeException(e);
+            StorageProxy.insert(rm);
         }
-        StorageProxy.insert(rm);
     }
 
     public String getStringProperty(String propertyName)

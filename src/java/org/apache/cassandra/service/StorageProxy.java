@@ -140,13 +140,20 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    public static boolean insertBlocking(RowMutation rm)
+    public static void insertBlocking(RowMutation rm) throws UnavailableException
     {
         long startTime = System.currentTimeMillis();
+        Message message = null;
         try
         {
-            Message message = rm.makeRowMutationMessage();
-
+            message = rm.makeRowMutationMessage();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        try
+        {
             IResponseResolver<Boolean> writeResponseResolver = new WriteResponseResolver();
             QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(
                     DatabaseDescriptor.getReplicationFactor(),
@@ -156,15 +163,13 @@ public class StorageProxy implements StorageProxyMBean
             // TODO: throw a thrift exception if we do not have N nodes
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
-            return quorumResponseHandler.get();
-
-            // TODO: if the result is false that means the writes to all the
-            // servers failed hence we need to throw an exception or return an
-            // error back to the client so that it can take appropriate action.
+            if (!quorumResponseHandler.get())
+                throw new UnavailableException();
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e);
+            logger.error(e);
+            throw new UnavailableException();
         }
         finally
         {

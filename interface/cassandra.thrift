@@ -65,6 +65,12 @@ exception InvalidRequestException {
     1: string why
 }
 
+# not all the replicas required could be created / read
+exception UnavailableException {
+}
+
+# (note that internal server errors will raise a TApplicationException, courtesy of Thrift)
+
 
 #
 # service api
@@ -83,18 +89,14 @@ service Cassandra {
   i32            get_column_count(1:string tablename, 2:string key, 3:string columnFamily_column)
   throws (1: InvalidRequestException ire),
 
-  async void     insert(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp),
+  void     insert(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp, 6:bool block=0)
+  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  async void     batch_insert(batch_mutation_t batchMutation),
+  void     batch_insert(1: batch_mutation_t batchMutation, 2:bool block=0)
+  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  bool           insert_blocking(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp)
-  throws (1: InvalidRequestException ire),
-
-  bool           batch_insert_blocking(batch_mutation_t batchMutation)
-  throws (1: InvalidRequestException ire),
-
-  bool           remove(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timestamp, 5:bool block)
-  throws (1: InvalidRequestException ire),
+  void           remove(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timestamp, 5:bool block=0)
+  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timeStamp)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
@@ -108,12 +110,10 @@ service Cassandra {
   superColumn_t  get_superColumn(1:string tablename, 2:string key, 3:string columnFamily)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  async void     batch_insert_superColumn(batch_mutation_super_t batchMutationSuper),
+  void     batch_insert_superColumn(1:batch_mutation_super_t batchMutationSuper, 2:bool block=0)
+  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  bool           batch_insert_superColumn_blocking(batch_mutation_super_t batchMutationSuper)
-  throws (1: InvalidRequestException ire),
-
-  async void     touch(1:string key, 2:bool fData),
+  oneway void     touch(1:string key, 2:bool fData),
 
   # range query: returns matching keys
   list<string>   get_key_range(1:string tablename, 2:string startWith="", 3:string stopAt="", 4:i32 maxResults=1000) throws (1: InvalidRequestException ire),

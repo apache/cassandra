@@ -410,11 +410,11 @@ public class StressTest
 				Thread.sleep(0, 1000000000/requestsPerSecond_);
 			else
 				Thread.sleep(1000/requestsPerSecond_);
-			peerstorageClient_.insert(table, key, columnFamily, bytes, ts);
+			peerstorageClient_.insert(table, key, columnFamily, bytes, ts, false);
 		} catch (Exception e) {
 			try {
 				peerstorageClient_ = connect();
-				peerstorageClient_.insert(table, key, columnFamily, bytes, ts);
+				peerstorageClient_.insert(table, key, columnFamily, bytes, ts, false);
 			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
@@ -429,11 +429,11 @@ public class StressTest
 				Thread.sleep(0, 1000000000/requestsPerSecond_);
 			else
 				Thread.sleep(1000/requestsPerSecond_);
-			peerstorageClient_.batch_insert(batchMutation);
+			peerstorageClient_.batch_insert(batchMutation, false);
 		} catch (Exception e) {
 			try {
 				peerstorageClient_ = connect();
-				peerstorageClient_.batch_insert(batchMutation);
+				peerstorageClient_.batch_insert(batchMutation, false);
 			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
@@ -448,13 +448,13 @@ public class StressTest
 			else
 				Thread.sleep(1000/requestsPerSecond_);
 			long t = System.currentTimeMillis();
-			peerstorageClient_.batch_insert_superColumn(batchMutation);
+			peerstorageClient_.batch_insert_superColumn(batchMutation, false);
 			logger_.debug("Time taken for thrift..."
 					+ (System.currentTimeMillis() - t));
 		} catch (Exception e) {
 			try {
 				peerstorageClient_ = connect();
-				peerstorageClient_.batch_insert_superColumn(batchMutation);
+				peerstorageClient_.batch_insert_superColumn(batchMutation, false);
 			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
@@ -651,26 +651,6 @@ public class StressTest
 		System.out.println(System.currentTimeMillis() - time);
 	}
 	
-	public void testCommitLog() throws Throwable
-	{
-        Random random = new Random(System.currentTimeMillis());
-    	byte[] bytes = new byte[4096];
-    	random.nextBytes(bytes);
-    	byte[] bytes1 = new byte[64];
-    	random.nextBytes(bytes1);
-    	peerstorageClient_ = connect();
-    	int t = 0 ;
-    	while( true )
-    	{
-	    	int key = random.nextInt();
-	    	int threadId = random.nextInt();
-	    	int word = random.nextInt();
-			peerstorageClient_.insert("Mailbox", Integer.toString(key), "MailboxMailList0:" + Integer.toString(threadId), bytes1, t++);
-			peerstorageClient_.insert("Mailbox", Integer.toString(key), "MailboxThreadList0:" + Integer.toString(word) + ":" + Integer.toString(threadId), bytes, t++);
-			peerstorageClient_.insert("Mailbox", Integer.toString(key), "MailboxUserList0:"+ Integer.toString(word) + ":" + Integer.toString(threadId), bytes, t++);
-    	}
-	}
-
 	JSAPResult ParseArguments(String[] args)
 	{
         JSAPResult config = null;    
@@ -753,11 +733,6 @@ public class StressTest
 		if(config.getInt("mailboxstress") == 1)
 		{
 //			stressMailboxWrites();
-			return;
-		}
-		if(config.getInt("commitLogTest") == 1)
-		{
-			testCommitLog();
 			return;
 		}
 		if(config.getInt("thrift") == 0)
