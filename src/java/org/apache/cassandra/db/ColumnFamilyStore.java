@@ -641,7 +641,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
             else if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
-                     || c.timestamp() < cf.getMarkedForDeleteAt())
+                     || c.timestamp() <= cf.getMarkedForDeleteAt())
             {
                 cf.remove(cname);
             }

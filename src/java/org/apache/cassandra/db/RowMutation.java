@@ -120,7 +120,7 @@ public class RowMutation implements Serializable
     void addHints(String hint) throws IOException
     {
         String cfName = Table.hints_ + ":" + hint;
-        add(cfName, ArrayUtils.EMPTY_BYTE_ARRAY, 0);
+        add(cfName, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 
     /*
