@@ -435,6 +435,11 @@ public class CommitLog
         	}
         }
     }
+    
+    CommitLogContext getContext() throws IOException
+    {
+        return new CommitLogContext(logFile_, logWriter_.getCurrentPosition());
+    }
 
     /*
      * Adds the specified row to the commit log. This method will reset the

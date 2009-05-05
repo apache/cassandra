@@ -402,11 +402,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * by having a thread per log file present for recovery. Re-visit at that
      * time.
      */
-    void switchMemtable(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx) throws IOException
+    void switchMemtable()
     {
-        memtable_.set( new Memtable(table_, columnFamily_) );
-        if(!key.equals(Memtable.flushKey_))
-        	memtable_.get().put(key, columnFamily, cLogCtx);
+        memtable_.set(new Memtable(table_, columnFamily_));
         
         if (memtableSwitchCount == Integer.MAX_VALUE)
         {
@@ -429,7 +427,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceFlush() throws IOException
     {
-        memtable_.get().forceflush(this);
+        memtable_.get().forceflush();
     }
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException

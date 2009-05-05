@@ -18,39 +18,24 @@
 
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.DestructivePQIterator;
+import org.apache.log4j.Logger;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
+
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.PriorityQueue;
-import java.util.Arrays;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.apache.log4j.Logger;
-
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.service.StorageService;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
-import org.apache.cassandra.utils.DestructivePQIterator;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -60,7 +45,7 @@ public class Memtable implements Comparable<Memtable>
 {
 	private static Logger logger_ = Logger.getLogger( Memtable.class );
     private static Set<ExecutorService> runningExecutorServices_ = new NonBlockingHashSet<ExecutorService>();
-    public static final String flushKey_ = "FlushKey";
+    private boolean isFrozen_;
 
     public static void shutdown()
     {
@@ -82,10 +67,8 @@ public class Memtable implements Comparable<Memtable>
     private String cfName_;
     /* Creation time of this Memtable */
     private long creationTime_;
-    private volatile boolean isFrozen_ = false;
     private Map<String, ColumnFamily> columnFamilies_ = new HashMap<String, ColumnFamily>();
     /* Lock and Condition for notifying new clients about Memtable switches */
-    Lock lock_ = new ReentrantLock();
 
     Memtable(String table, String cfName)
     {
@@ -176,16 +159,9 @@ public class Memtable implements Comparable<Memtable>
         currentObjectCount_.addAndGet(newCount - oldCount);
     }
 
-    boolean isThresholdViolated(String key)
+    boolean isThresholdViolated()
     {
-    	boolean bVal = false;//isLifetimeViolated();
-        if (currentSize_.get() >= threshold_ ||  currentObjectCount_.get() >= thresholdCount_ || bVal || key.equals(flushKey_))
-        {
-        	if ( bVal )
-        		logger_.info("Memtable's lifetime for " + cfName_ + " has been violated.");
-        	return true;
-        }
-        return false;
+        return currentSize_.get() >= threshold_ ||  currentObjectCount_.get() >= thresholdCount_;
     }
 
     String getColumnFamily()
@@ -197,42 +173,30 @@ public class Memtable implements Comparable<Memtable>
     {
     	return (int)(executor_.getTaskCount() - executor_.getCompletedTaskCount());
     }
+    
+    private synchronized void enqueueFlush(CommitLog.CommitLogContext cLogCtx)
+    {
+        if (!isFrozen_)
+        {
+            isFrozen_ = true;
+            ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
+            cfStore.switchMemtable();
+            executor_.flushWhenTerminated(cLogCtx);
+            executor_.shutdown();
+        }
+    }
 
     /*
      * This version is used by the external clients to put data into
      * the memtable. This version will respect the threshold and flush
      * the memtable to disk when the size exceeds the threshold.
     */
-    void put(String key, ColumnFamily columnFamily, final CommitLog.CommitLogContext cLogCtx) throws IOException
+    void put(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx) throws IOException
     {
-        if (isThresholdViolated(key) )
+        executor_.submit(new Putter(key, columnFamily));
+        if (isThresholdViolated())
         {
-            lock_.lock();
-            try
-            {
-                final ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-                if (!isFrozen_)
-                {
-                    isFrozen_ = true;
-                    cfStore.switchMemtable(key, columnFamily, cLogCtx);
-                    executor_.flushWhenTerminated(cLogCtx);
-                    executor_.shutdown();
-                }
-                else
-                {
-                    // retry the put on the new memtable
-                    cfStore.apply(key, columnFamily, cLogCtx);
-                }
-            }
-            finally
-            {
-                lock_.unlock();
-            }
-        }
-        else
-        {
-        	Runnable putter = new Putter(key, columnFamily);
-        	executor_.submit(putter);
+            enqueueFlush(cLogCtx);
         }
     }
 
@@ -241,19 +205,11 @@ public class Memtable implements Comparable<Memtable>
      * Flushing is still done in a separate executor -- forceFlush only blocks
      * until the flush runnable is queued.
     */
-    public void forceflush(ColumnFamilyStore cfStore) throws IOException
+    public void forceflush()
     {
-        RowMutation rm = new RowMutation(DatabaseDescriptor.getTables().get(0), flushKey_);
-
         try
         {
-            if (cfStore.isSuper())
-            {
-                rm.add(cfStore.getColumnFamilyName() + ":SC1:Column", "0".getBytes(), 0);
-            } else {
-                rm.add(cfStore.getColumnFamilyName() + ":Column", "0".getBytes(), 0);
-            }
-            rm.apply();
+            enqueueFlush(CommitLog.open(table_).getContext());
             executor_.flushQueuer.get();
         }
         catch (Exception ex)
@@ -296,8 +252,7 @@ public class Memtable implements Comparable<Memtable>
     */
     void putOnRecovery(String key, ColumnFamily columnFamily)
     {
-        if(!key.equals(Memtable.flushKey_))
-        	resolve(key, columnFamily);
+        resolve(key, columnFamily);
     }
 
     ColumnFamily getLocalCopy(String key, String columnFamilyColumn, IFilter filter)
