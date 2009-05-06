@@ -437,7 +437,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
     {
-        forceFlush();
+        Memtable oldMemtable = memtable_.get();
+        oldMemtable.forceflush();
         // block for flush to finish by adding a no-op action to the flush executorservice
         // and waiting for that to finish.  (this works since flush ES is single-threaded.)
         Future f = MemtableManager.instance().flusher_.submit(new Runnable()
@@ -447,6 +448,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         });
         f.get();
+        assert oldMemtable.isFlushed() || oldMemtable.isClean();
     }
 
     void forceFlushBinary()

@@ -56,7 +56,8 @@ public class Memtable implements Comparable<Memtable>
     }
 
     private MemtableThreadPoolExecutor executor_;
-    private boolean isFrozen_;
+    private volatile boolean isFrozen_;
+    private volatile boolean isFlushed_; // for tests, in particular forceBlockingFlush asserts this
 
     private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
     private int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
@@ -79,6 +80,11 @@ public class Memtable implements Comparable<Memtable>
 
         executor_ = new MemtableThreadPoolExecutor();
         runningExecutorServices_.add(executor_);
+    }
+
+    public boolean isFlushed()
+    {
+        return isFlushed_;
     }
 
     class Putter implements Runnable
@@ -203,7 +209,7 @@ public class Memtable implements Comparable<Memtable>
     */
     public void forceflush()
     {
-        if (columnFamilies_.isEmpty())
+        if (isClean())
             return;
 
         try
@@ -355,6 +361,7 @@ public class Memtable implements Comparable<Memtable>
         cfStore.onMemtableFlush(cLogCtx);
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         buffer.close();
+        isFlushed_ = true;
     }
 
     private class MemtableThreadPoolExecutor extends DebuggableThreadPoolExecutor
@@ -400,5 +407,10 @@ public class Memtable implements Comparable<Memtable>
         PriorityQueue<String> pq = new PriorityQueue<String>(keys.size(), StorageService.getPartitioner().getDecoratedKeyComparator());
         pq.addAll(keys);
         return new DestructivePQIterator<String>(pq);
+    }
+
+    public boolean isClean()
+    {
+        return columnFamilies_.isEmpty() && executor_.getPendingTasks() == 0;
     }
 }
