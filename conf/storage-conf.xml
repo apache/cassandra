@@ -7,7 +7,11 @@
     <!-- Tables and ColumnFamilies                                            -->
     <Tables>
         <Table Name="Table1">
-            <ColumnFamily ColumnSort="Name" Name="Standard1"/>
+            <!-- if FlushPeriodInMinutes is configured and positive, it will be
+                 flushed to disk with that period whether it is dirty or not.
+                 This is intended for lightly-used columnfamilies so that they
+                 do not prevent commitlog segments from being purged. -->
+            <ColumnFamily ColumnSort="Name" Name="Standard1" FlushPeriodInMinutes="60"/>
             <ColumnFamily ColumnSort="Name" Name="Standard2"/>
             <ColumnFamily ColumnSort="Time" Name="StandardByTime1"/>
             <ColumnFamily ColumnSort="Time" Name="StandardByTime2"/>

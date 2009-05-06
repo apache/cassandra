@@ -35,7 +35,8 @@ public class CFMetaData
     public String n_columnKey;
     public String n_columnValue;
     public String n_columnTimestamp;
- 
+    public int    flushPeriodInMinutes = 0; // flush interval, if <=0, no periodic flusher is scheduled
+    
     // a quick and dirty pretty printer for describing the column family...
     public String pretty()
     {
@@ -49,6 +50,7 @@ public class CFMetaData
         
         desc += "Column Family Type: " + columnType + "\n" +
                 "Columns Sorted By: " + indexProperty_ + "\n";
+        desc += "flush period: " + flushPeriodInMinutes + " minutes\n";
         return desc;
     }
 }

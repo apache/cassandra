@@ -190,6 +190,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         // TODO this seems unnecessary -- each memtable flush checks to see if it needs to compact, too
         MinorCompactionManager.instance().submitPeriodicCompaction(this);
+        
+        /* submit periodic flusher if required */
+        int flushPeriod = DatabaseDescriptor.getFlushPeriod(table_, columnFamily_);
+        if (flushPeriod > 0)
+            PeriodicFlushManager.instance().submitPeriodicFlusher(this, flushPeriod);
     }
 
     List<String> getAllSSTablesOnDisk()

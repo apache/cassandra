@@ -207,6 +207,9 @@ public class Memtable implements Comparable<Memtable>
     */
     public void forceflush()
     {
+        if (columnFamilies_.isEmpty())
+            return;
+
         try
         {
             enqueueFlush(CommitLog.open(table_).getContext());
@@ -320,14 +323,6 @@ public class Memtable implements Comparable<Memtable>
     void flush(CommitLog.CommitLogContext cLogCtx) throws IOException
     {
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-        if ( columnFamilies_.size() == 0 )
-        {
-        	// This should be called even if size is 0
-        	// This is because we should try to delete the useless commitlogs
-        	// even though there is nothing to flush in memtables for a given family like Hints etc.
-            cfStore.onMemtableFlush(cLogCtx);
-            return;
-        }
 
         String directory = DatabaseDescriptor.getDataFileLocation();
         String filename = cfStore.getTempFileName();

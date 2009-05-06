@@ -119,7 +119,7 @@ public class DatabaseDescriptor
 
     // the path qualified config file (storage-conf.xml) name
     private static String configFileName_;
-
+    
     static
     {
         try
@@ -239,7 +239,6 @@ public class DatabaseDescriptor
             String doConsistencyCheck = xmlUtils.getNodeValue("/Storage/DoConsistencyChecksBoolean");
             if ( doConsistencyCheck != null )
                 doConsistencyCheck_ = Boolean.parseBoolean(doConsistencyCheck);
-
 
             /* read the size at which we should do column indexes */
             String columnIndexSizeInKB = xmlUtils.getNodeValue("/Storage/ColumnIndexSizeInKB");
@@ -367,6 +366,13 @@ public class DatabaseDescriptor
                         throw new ConfigurationException("invalid column sort value " + rawColumnIndexType);
                     }
 
+                    // see if flush period is set
+                    String flushPeriodInMinutes = XMLUtils.getAttributeValue(columnFamily, "FlushPeriodInMinutes");
+                    int flushPeriod=0;
+                    if ( flushPeriodInMinutes != null )
+                        flushPeriod = Integer.parseInt(flushPeriodInMinutes);
+
+                    
                     // Parse out user-specified logical names for the various dimensions
                     // of a the column family from the config.
                     String n_superColumnMap = xmlUtils.getNodeValue(xqlCF + "SuperColumnMap");
@@ -413,7 +419,8 @@ public class DatabaseDescriptor
                         cfMetaData.n_superColumnKey = n_superColumnKey;
                         cfMetaData.n_superColumnMap = n_superColumnMap;
                     }
-
+                    cfMetaData.flushPeriodInMinutes = flushPeriod;
+                    
                     tableToCFMetaDataMap_.get(tName).put(cName, cfMetaData);
                 }
             }
@@ -607,6 +614,15 @@ public class DatabaseDescriptor
         if (cfMetaData == null)
             return null;
         return cfMetaData.columnType;
+    }
+
+    public static int getFlushPeriod(String tableName, String columnFamilyName)
+    {
+        CFMetaData cfMetaData = getCFMetaData(tableName, columnFamilyName);
+        
+        if (cfMetaData == null)
+            return 0;
+        return cfMetaData.flushPeriodInMinutes;
     }
 
     public static boolean isNameSortingEnabled(String cfName)
