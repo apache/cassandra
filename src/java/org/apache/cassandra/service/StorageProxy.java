@@ -37,6 +37,7 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.TimedStatsDeque;
 import org.apache.log4j.Logger;
 
 import javax.management.MBeanServer;
@@ -48,12 +49,9 @@ public class StorageProxy implements StorageProxyMBean
     private static Logger logger = Logger.getLogger(StorageProxy.class);
 
     // mbean stuff
-    private static volatile long readLatency;
-    private static volatile int readOperations;
-    private static volatile long rangeLatency;
-    private static volatile int rangeOperations;
-    private static volatile long writeLatency;
-    private static volatile int writeOperations;
+    private static TimedStatsDeque readStats = new TimedStatsDeque(60000);
+    private static TimedStatsDeque rangeStats = new TimedStatsDeque(60000);
+    private static TimedStatsDeque writeStats = new TimedStatsDeque(60000);
     private StorageProxy() {}
     static
     {
@@ -119,7 +117,7 @@ public class StorageProxy implements StorageProxyMBean
 			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
 			// TODO: throw a thrift exception if we do not have N nodes
 			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
-            logger.debug("insert writing to [" + StringUtils.join(messageMap.keySet(), ", ") + "]");
+            logger.debug("insert writing key " + rm.key() + " to [" + StringUtils.join(messageMap.keySet(), ", ") + "]");
 			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
 			{
 				MessagingService.getMessagingInstance().sendOneWay(entry.getValue(), entry.getKey());
@@ -131,12 +129,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            if (writeOperations++ == Integer.MAX_VALUE)
-            {
-                writeOperations = 1;
-                writeLatency = 0;
-            }
-            writeLatency += System.currentTimeMillis() - startTime;
+            writeStats.add(System.currentTimeMillis() - startTime);
         }
     }
 
@@ -154,12 +147,11 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
-            IResponseResolver<Boolean> writeResponseResolver = new WriteResponseResolver();
             QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(
                     DatabaseDescriptor.getReplicationFactor(),
-                    writeResponseResolver);
+                    new WriteResponseResolver());
             EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
-            logger.debug("insertBlocking writing to [" + StringUtils.join(endpoints, ", ") + "]");
+            logger.debug("insertBlocking writing key " + rm.key() + " to [" + StringUtils.join(endpoints, ", ") + "]");
             // TODO: throw a thrift exception if we do not have N nodes
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
@@ -173,12 +165,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            if (writeOperations++ == Integer.MAX_VALUE)
-            {
-                writeOperations = 1;
-                writeLatency = 0;
-            }
-            writeLatency += System.currentTimeMillis() - startTime;
+            writeStats.add(System.currentTimeMillis() - startTime);
         }
     }
     
@@ -346,12 +333,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            if (readOperations++ == Integer.MAX_VALUE)
-            {
-                readOperations = 1;
-                readLatency = 0;
-            }
-            readLatency += System.currentTimeMillis() - startTime;
+            readStats.add(System.currentTimeMillis() - startTime);
         }
     }
 
@@ -385,12 +367,7 @@ public class StorageProxy implements StorageProxyMBean
             row = strongRead(command);
         }
 
-        if (readOperations++ == Integer.MAX_VALUE)
-        {
-            readOperations = 1;
-            readLatency = 0;
-        }
-        readLatency += System.currentTimeMillis() - startTime;
+        readStats.add(System.currentTimeMillis() - startTime);
 
         return row;
     }
@@ -702,42 +679,37 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            if (rangeOperations++ == Integer.MAX_VALUE)
-            {
-                rangeOperations = 1;
-                rangeLatency = 0;
-            }
-            rangeLatency += System.currentTimeMillis() - startTime;
+            rangeStats.add(System.currentTimeMillis() - startTime);
         }
     }
 
     public double getReadLatency()
     {
-        return ((double)readLatency) / readOperations;
+        return readStats.mean();
     }
 
     public double getRangeLatency()
     {
-        return ((double)rangeLatency) / rangeOperations;
+        return rangeStats.mean();
     }
 
     public double getWriteLatency()
     {
-        return ((double)writeLatency) / writeOperations;
+        return writeStats.mean();
     }
 
     public int getReadOperations()
     {
-        return readOperations;
+        return readStats.size();
     }
 
     public int getRangeOperations()
     {
-        return rangeOperations;
+        return rangeStats.size();
     }
 
     public int getWriteOperations()
     {
-        return writeOperations;
+        return writeStats.size();
     }
 }

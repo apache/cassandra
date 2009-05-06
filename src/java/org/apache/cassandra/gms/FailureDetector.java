@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.apache.log4j.Logger;
 
 /**
@@ -236,22 +237,17 @@ class ArrivalWindow
 {
     private static Logger logger_ = Logger.getLogger(ArrivalWindow.class);
     private double tLast_ = 0L;
-    private Deque<Double> arrivalIntervals_;
+    private BoundedStatsDeque arrivalIntervals_;
     private int size_;
     
     ArrivalWindow(int size)
     {
         size_ = size;
-        arrivalIntervals_ = new ArrayDeque<Double>(size);
+        arrivalIntervals_ = new BoundedStatsDeque(size);
     }
     
     synchronized void add(double value)
     {
-        if ( arrivalIntervals_.size() == size_ )
-        {                          
-            arrivalIntervals_.remove();            
-        }
-        
         double interArrivalTime;
         if ( tLast_ > 0L )
         {                        
@@ -267,41 +263,27 @@ class ArrivalWindow
     
     synchronized double sum()
     {
-        double sum = 0d;
-        for (Double interval : arrivalIntervals_)
-        {
-            sum += interval;
-        }
-        return sum;
+        return arrivalIntervals_.sum();
     }
     
     synchronized double sumOfDeviations()
     {
-        double sumOfDeviations = 0d;
-        double mean = mean();
-
-        for (Double interval : arrivalIntervals_)
-        {
-            double v = interval - mean;
-            sumOfDeviations += v * v;
-        }
-
-        return sumOfDeviations;
+        return arrivalIntervals_.sumOfDeviations();
     }
     
     synchronized double mean()
     {
-        return sum()/arrivalIntervals_.size();
+        return arrivalIntervals_.mean();
     }
     
     synchronized double variance()
-    {                
-        return sumOfDeviations() / (arrivalIntervals_.size());        
+    {
+        return arrivalIntervals_.variance();
     }
     
-    double deviation()
-    {        
-        return Math.sqrt(variance());
+    double stdev()
+    {
+        return arrivalIntervals_.stdev();
     }
     
     void clear()
@@ -311,13 +293,9 @@ class ArrivalWindow
     
     double p(double t)
     {
-        // Stat stat = new Stat();
-        double mean = mean();        
-        double deviation = deviation();   
-        /* Exponential CDF = 1 -e^-lambda*x */
+        double mean = mean();
         double exponent = (-1)*(t)/mean;
         return 1 - ( 1 - Math.pow(Math.E, exponent) );
-        // return stat.gaussianCDF(mean, deviation, t, Double.POSITIVE_INFINITY);             
     }
     
     double phi(long tnow)
@@ -335,7 +313,7 @@ class ArrivalWindow
     
     public String toString()
     {
-        return StringUtils.join(arrivalIntervals_, " ");
+        return StringUtils.join(arrivalIntervals_.iterator(), " ");
     }
 }
 

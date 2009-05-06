@@ -54,6 +54,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.TimedStatsDeque;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -87,6 +88,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /* Flag indicates if a compaction is in process */
     private AtomicBoolean isCompacting_ = new AtomicBoolean(false);
+
+    private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
+    private TimedStatsDeque diskReadStats_ = new TimedStatsDeque(60000);
 
     ColumnFamilyStore(String table, String columnFamily, boolean isSuper, int indexValue) throws IOException
     {
@@ -482,15 +486,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter) throws IOException
     {
+        long start = System.currentTimeMillis();
         List<ColumnFamily> columnFamilies = getColumnFamilies(key, columnFamilyColumn, filter);
-        return resolveAndRemoveDeleted(columnFamilies);
+        ColumnFamily cf = resolveAndRemoveDeleted(columnFamilies);
+        readStats_.add(System.currentTimeMillis() - start);
+        return cf;
     }
 
     public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter, int gcBefore) throws IOException
     {
+        long start = System.currentTimeMillis();
         List<ColumnFamily> columnFamilies = getColumnFamilies(key, columnFamilyColumn, filter);
-        ColumnFamily cf = ColumnFamily.resolve(columnFamilies);
-        return removeDeleted(cf, gcBefore);
+        ColumnFamily cf = removeDeleted(ColumnFamily.resolve(columnFamilies), gcBefore);
+        readStats_.add(System.currentTimeMillis() - start);
+        return cf;
     }
 
     /**
@@ -513,7 +522,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             long start = System.currentTimeMillis();
             getColumnFamilyFromDisk(key, columnFamilyColumn, columnFamilies, filter);
-            logger_.debug("DISK TIME: " + (System.currentTimeMillis() - start) + " ms.");
+            diskReadStats_.add(System.currentTimeMillis() - start);
         }
         return columnFamilies;
     }
@@ -1456,5 +1465,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Set<String> getSSTableFilenames()
     {
         return Collections.unmodifiableSet(ssTables_);
+    }
+
+    public int getReadCount()
+    {
+        return readStats_.size();
+    }
+
+    public int getReadDiskHits()
+    {
+        return diskReadStats_.size();
+    }
+
+    public double getReadLatency()
+    {
+        return readStats_.mean();
     }
 }

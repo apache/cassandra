@@ -75,10 +75,7 @@ public class ReadVerbHandler implements IVerbHandler
             ReadCommand readCommand = ReadCommand.serializer().deserialize(readCtx.bufIn_);
             Table table = Table.open(readCommand.table);
             Row row = null;
-            long start = System.currentTimeMillis();
             row = readCommand.getRow(table);
-            logger_.info("getRow()  TIME: " + (System.currentTimeMillis() - start) + " ms.");
-            start = System.currentTimeMillis();
             ReadResponse readResponse = null;
             if(readCommand.isDigestQuery())
             {
@@ -92,28 +89,24 @@ public class ReadVerbHandler implements IVerbHandler
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
-            start = System.currentTimeMillis();
             ReadResponse.serializer().serialize(readResponse, readCtx.bufOut_);
-            logger_.info("serialize  TIME: " + (System.currentTimeMillis() - start) + " ms.");
 
             byte[] bytes = new byte[readCtx.bufOut_.getLength()];
-            start = System.currentTimeMillis();
             System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);
-            logger_.info("copy  TIME: " + (System.currentTimeMillis() - start) + " ms.");
 
-            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bytes );
+            Message response = message.getReply(StorageService.getLocalStorageEndPoint(), bytes);
+            logger_.debug("Read key " + readCommand.key + "; sending response to " + message.getFrom());
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
-            logger_.info("ReadVerbHandler  TIME 2: " + (System.currentTimeMillis() - start) + " ms.");
-            
+
             /* Do read repair if header of the message says so */
             if (message.getHeader(ReadCommand.DO_REPAIR) != null)
             {
                 doReadRepair(row, readCommand);
             }
         }
-        catch ( IOException ex)
+        catch (IOException ex)
         {
-            logger_.info( LogUtil.throwableToString(ex) );
+            throw new RuntimeException(ex);
         }
     }
     
