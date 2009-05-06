@@ -78,7 +78,7 @@ public class UdpConnection extends SelectionKeyHandler
         byte[] data = bos.toByteArray();
         if ( data.length > 0 )
         {  
-            logger_.debug("Size of Gossip packet " + data.length);
+            logger_.trace("Size of Gossip packet " + data.length);
             byte[] protocol = BasicUtilities.intToByteArray(protocol_);
             ByteBuffer buffer = ByteBuffer.allocate(data.length + protocol.length);
             buffer.put( protocol );

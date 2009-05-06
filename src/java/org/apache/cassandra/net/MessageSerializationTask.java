@@ -52,11 +52,6 @@ class MessageSerializationTask implements Runnable
 
     public void run()
     {        
-    	/* For DEBUG only. Printing queue length */   
-    	DebuggableThreadPoolExecutor es = (DebuggableThreadPoolExecutor)MessagingService.getWriteExecutor();
-        logger_.debug( "Message Serialization Task: " + (es.getTaskCount() - es.getCompletedTaskCount()) );
-        /* END DEBUG */
-        
         /* Adding the message to be serialized in the TLS. For accessing in the afterExecute() */
         Context ctx = new Context();
         ctx.put(this.getClass().getName(), message_);

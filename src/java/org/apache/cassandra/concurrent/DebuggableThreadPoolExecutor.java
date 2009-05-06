@@ -19,10 +19,12 @@
 package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
+import java.lang.management.ManagementFactory;
 
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 /**
  * This is a wrapper class for the <i>ScheduledThreadPoolExecutor</i>. It provides an implementation
@@ -32,7 +34,7 @@ import org.apache.cassandra.utils.*;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
+public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements DebuggableThreadPoolExecutorMBean
 {
     private static Logger logger_ = Logger.getLogger(DebuggableThreadPoolExecutor.class);
 
@@ -46,12 +48,26 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
             long keepAliveTime,
             TimeUnit unit,
             BlockingQueue<Runnable> workQueue,
-            ThreadFactory threadFactory)
+            ThreadFactoryImpl threadFactory)
     {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id_));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
-    
+
+    public long getPendingTasks()
+    {
+        return getTaskCount() - getCompletedTaskCount();
+    }
+
     /*
      * 
      *  (non-Javadoc)

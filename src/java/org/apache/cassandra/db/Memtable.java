@@ -45,7 +45,7 @@ public class Memtable implements Comparable<Memtable>
 {
 	private static Logger logger_ = Logger.getLogger( Memtable.class );
     private static Set<ExecutorService> runningExecutorServices_ = new NonBlockingHashSet<ExecutorService>();
-    private boolean isFrozen_;
+    private static AtomicInteger executorCount_ = new AtomicInteger(0);
 
     public static void shutdown()
     {
@@ -56,6 +56,7 @@ public class Memtable implements Comparable<Memtable>
     }
 
     private MemtableThreadPoolExecutor executor_;
+    private boolean isFrozen_;
 
     private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
     private int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
@@ -72,12 +73,12 @@ public class Memtable implements Comparable<Memtable>
 
     Memtable(String table, String cfName)
     {
-        executor_ = new MemtableThreadPoolExecutor();
-        runningExecutorServices_.add(executor_);
-
         table_ = table;
         cfName_ = cfName;
         creationTime_ = System.currentTimeMillis();
+
+        executor_ = new MemtableThreadPoolExecutor();
+        runningExecutorServices_.add(executor_);
     }
 
     class Putter implements Runnable
@@ -169,11 +170,6 @@ public class Memtable implements Comparable<Memtable>
     	return cfName_;
     }
 
-    int getPendingTasks()
-    {
-    	return (int)(executor_.getTaskCount() - executor_.getCompletedTaskCount());
-    }
-    
     private synchronized void enqueueFlush(CommitLog.CommitLogContext cLogCtx)
     {
         if (!isFrozen_)
@@ -367,7 +363,7 @@ public class Memtable implements Comparable<Memtable>
 
         public MemtableThreadPoolExecutor()
         {
-            super("FAST-MEMTABLE-POOL");
+            super("MEMTABLE-POOL-" + cfName_ + executorCount_.addAndGet(1));
         }
 
         protected void terminated()

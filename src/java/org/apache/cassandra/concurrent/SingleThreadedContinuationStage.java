@@ -92,7 +92,7 @@ public class SingleThreadedContinuationStage implements IStage
         return executorService_.isShutdown();
     }    
     
-    public long getTaskCount(){
+    public long getPendingTasks(){
         return (executorService_.getTaskCount() - executorService_.getCompletedTaskCount());
     }
     /* Finished implementing the IStage interface methods */

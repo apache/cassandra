@@ -116,5 +116,5 @@ public interface IStage
      * pending on this stage to be executed.
      * @return task count.
      */
-    public long getTaskCount();
+    public long getPendingTasks();
 }

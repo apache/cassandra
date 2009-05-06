@@ -18,43 +18,32 @@
 
 package org.apache.cassandra.net;
 
-import java.io.*;
-import java.lang.management.ManagementFactory;
-import java.net.*;
-import java.security.MessageDigest;
-import java.util.*;
-import java.nio.ByteBuffer;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
-import java.nio.channels.*;
 import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.net.io.*;
-import org.apache.cassandra.utils.*;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import javax.xml.bind.*;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.IStage;
-import org.apache.cassandra.concurrent.MultiThreadedStage;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.http.HttpConnectionHandler;
 import org.apache.cassandra.net.io.SerializerType;
-import org.apache.cassandra.net.sink.SinkManager;
-import org.apache.cassandra.utils.Cachetable;
-import org.apache.cassandra.utils.GuidGenerator;
-import org.apache.cassandra.utils.HashingSchemes;
-import org.apache.cassandra.utils.ICachetable;
-import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
+
+import java.io.IOException;
+import java.net.MulticastSocket;
+import java.net.ServerSocket;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.ServerSocketChannel;
+import java.security.MessageDigest;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class MessagingService implements IMessagingService, MessagingServiceMBean
+public class MessagingService implements IMessagingService
 {
     private static boolean debugOn_ = false;   
     
@@ -241,18 +230,6 @@ public class MessagingService implements IMessagingService, MessagingServiceMBea
             LogUtil.getLogger(MessagingService.class.getName()).debug(LogUtil.throwableToString(e));
         }
         return result;
-    }
-    
-    public long getMessagingSerializerTaskCount()
-    {
-        DebuggableThreadPoolExecutor dstp = (DebuggableThreadPoolExecutor)messageSerializerExecutor_;        
-        return dstp.getTaskCount() - dstp.getCompletedTaskCount();
-    }
-    
-    public long getMessagingReceiverTaskCount()
-    {
-        DebuggableThreadPoolExecutor dstp = (DebuggableThreadPoolExecutor)messageDeserializationExecutor_;        
-        return dstp.getTaskCount() - dstp.getCompletedTaskCount(); 
     }
     
     public void listen(EndPoint localEp, boolean isHttp) throws IOException

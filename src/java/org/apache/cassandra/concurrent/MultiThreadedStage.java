@@ -92,7 +92,7 @@ public class MultiThreadedStage implements IStage
         return executorService_.isShutdown();
     }
     
-    public long getTaskCount(){
-        return (executorService_.getTaskCount() - executorService_.getCompletedTaskCount());
+    public long getPendingTasks(){
+        return executorService_.getPendingTasks();
     }
 }

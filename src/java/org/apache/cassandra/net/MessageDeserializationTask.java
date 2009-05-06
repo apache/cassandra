@@ -48,23 +48,20 @@ class MessageDeserializationTask implements Runnable
     
     public void run()
     {
-    	/* For DEBUG only. Printing queue length */   
-    	DebuggableThreadPoolExecutor es = (DebuggableThreadPoolExecutor)MessagingService.getDeserilizationExecutor();
-        logger_.debug( "Message Deserialization Task: " + (es.getTaskCount() - es.getCompletedTaskCount()) );
-        /* END DEBUG */
+        Message message = null;
         try
-        {                        
-            Message message = (Message)serializer_.deserialize(bytes_);                                                           
-            
-            if ( message != null )
-            {
-                message = SinkManager.processServerMessageSink(message);
-                MessagingService.receive(message);                                                                                                    
-            }
+        {
+            message = serializer_.deserialize(bytes_);
         }
-        catch ( IOException ex )
-        {            
-            logger_.warn(LogUtil.throwableToString(ex));              
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        if ( message != null )
+        {
+            message = SinkManager.processServerMessageSink(message);
+            MessagingService.receive(message);
         }
     }
 

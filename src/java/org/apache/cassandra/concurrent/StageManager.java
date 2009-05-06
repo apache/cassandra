@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
-import org.apache.cassandra.continuations.Suspendable;
-
 
 /**
  * This class manages all stages that exist within a process. The application registers
@@ -101,7 +99,7 @@ public class StageManager
      */
     public static long getStageTaskCount(String stage)
     {
-        return stageQueues_.get(stage).getTaskCount();
+        return stageQueues_.get(stage).getPendingTasks();
     }
 
     /**

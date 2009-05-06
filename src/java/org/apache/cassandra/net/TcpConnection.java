@@ -174,7 +174,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         byte[] data = serializer_.serialize(message);        
         if ( data.length > 0 )
         {    
-            boolean listening = ( message.getFrom().equals(EndPoint.randomLocalEndPoint_) ) ? false : true;
+            boolean listening = !message.getFrom().equals(EndPoint.randomLocalEndPoint_);
             ByteBuffer buffer = MessagingService.packIt( data , false, false, listening);   
             synchronized(this)
             {
@@ -184,7 +184,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                     return;
                 }
                 
-                logger_.debug("Sending packets of size " + data.length);            
                 socketChannel_.write(buffer);                
                 
                 if (buffer.remaining() > 0) 

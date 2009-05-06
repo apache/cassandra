@@ -263,7 +263,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     private void init()
     {
-        // Register this instance with JMX
         try
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
