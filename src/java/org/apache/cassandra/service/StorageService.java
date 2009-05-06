@@ -317,91 +317,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         else
             nodePicker_ = new RackUnawareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
     }
-    
-    private void reportToZookeeper() throws Throwable
-    {
-        try
-        {
-            zk_ = new ZooKeeper(DatabaseDescriptor.getZkAddress(), DatabaseDescriptor.getZkSessionTimeout(), new Watcher()
-                {
-                    public void process(WatchedEvent we)
-                    {                    
-                        String path = "/Cassandra/" + DatabaseDescriptor.getClusterName() + "/Leader";
-                        String eventPath = we.getPath();
-                        logger_.debug("PROCESS EVENT : " + eventPath);
-                        if (eventPath != null && (eventPath.contains(path)))
-                        {                                                           
-                            logger_.debug("Signalling the leader instance ...");
-                            LeaderElector.instance().signal();                                        
-                        }                                                  
-                    }
-                });
-            
-            Stat stat = zk_.exists("/", false);
-            if ( stat != null )
-            {
-                stat = zk_.exists("/Cassandra", false);
-                if ( stat == null )
-                {
-                    logger_.debug("Creating the Cassandra znode ...");
-                    zk_.create("/Cassandra", new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                }
-                
-                String path = "/Cassandra/" + DatabaseDescriptor.getClusterName();
-                stat = zk_.exists(path, false);
-                if ( stat == null )
-                {
-                    logger_.debug("Creating the cluster znode " + path);
-                    zk_.create(path, new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                }
-                
-                /* Create the Leader, Locks and Misc znode */
-                stat = zk_.exists(path + "/Leader", false);
-                if ( stat == null )
-                {
-                    logger_.debug("Creating the leader znode " + path);
-                    zk_.create(path + "/Leader", new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                }
-                
-                stat = zk_.exists(path + "/Locks", false);
-                if ( stat == null )
-                {
-                    logger_.debug("Creating the locks znode " + path);
-                    zk_.create(path + "/Locks", new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                }
-                                
-                stat = zk_.exists(path + "/Misc", false);
-                if ( stat == null )
-                {
-                    logger_.debug("Creating the misc znode " + path);
-                    zk_.create(path + "/Misc", new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                }
-            }
-        }
-        catch ( KeeperException ke )
-        {
-            LogUtil.throwableToString(ke);
-            /* do the re-initialize again. */
-            reportToZookeeper();
-        }
-    }
-    
+
     protected ZooKeeper getZooKeeperHandle()
     {
         return zk_;
     }
     
-    public boolean isLeader(EndPoint endpoint)
-    {
-        EndPoint leader = getLeader();
-        return leader.equals(endpoint);
-    }
-    
-    public EndPoint getLeader()
-    {
-        return LeaderElector.instance().getLeader();
-    }
-
     public void registerComponentForShutdown(IComponentShutdown component)
     {
     	components_.add(component);
@@ -439,14 +360,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         AnalyticsContext.instance().start();
         /* starts a load timer thread */
         loadTimer_.schedule( new LoadDisseminator(), StorageService.threshold_, StorageService.threshold_);
-        
-        /* report our existence to ZooKeeper instance and start the leader election service */
-        
-        //reportToZookeeper(); 
-        /* start the leader election algorithm */
-        //LeaderElector.instance().start();
-        /* start the map reduce framework */
-        //startMapReduceFramework();
         
         /* Start the storage load balancer */
         storageLoadBalancer_.start();

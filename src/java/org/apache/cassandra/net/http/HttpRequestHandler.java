@@ -312,7 +312,7 @@ public class HttpRequestHandler implements Runnable
         EndPoint[] liveNodes = liveNodeList.toArray(new EndPoint[0]);
         Arrays.sort(liveNodes);
 
-        String[] sHeaders = {"Node No.", "Host:Port", "Status", "Leader", "Load Info", "Token", "Generation No."};
+        String[] sHeaders = {"Node No.", "Host:Port", "Status", "Load Info", "Token", "Generation No."};
         formatter.startTable();
         formatter.addHeaders(sHeaders);
         int iNodeNumber = 0;
@@ -328,9 +328,6 @@ public class HttpRequestHandler implements Runnable
             //Status
             String status = ( FailureDetector.instance().isAlive(curNode) ) ? "Up" : "Down";
             formatter.addCol(status);
-            //Leader
-            boolean isLeader = StorageService.instance().isLeader(curNode);
-            formatter.addCol(Boolean.toString(isLeader));
             //Load Info
             String loadInfo = getLoadInfo(curNode);
             formatter.addCol(loadInfo);
