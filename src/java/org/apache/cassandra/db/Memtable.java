@@ -226,7 +226,8 @@ public class Memtable implements Comparable<Memtable>
     }
 
     void flushOnRecovery() throws IOException {
-        flush(CommitLog.CommitLogContext.NULL);
+        if (!isClean())
+            flush(CommitLog.CommitLogContext.NULL);
     }
 
     private void resolve(String key, ColumnFamily columnFamily)
