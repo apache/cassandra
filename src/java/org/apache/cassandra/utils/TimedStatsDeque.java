@@ -5,6 +5,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
+/** threadsafe. */
 public class TimedStatsDeque extends AbstractStatsDeque
 {
     private final ArrayDeque<Tuple> deque;
@@ -25,10 +26,11 @@ public class TimedStatsDeque extends AbstractStatsDeque
         }
     }
 
-    public Iterator<Double> iterator()
+    public synchronized Iterator<Double> iterator()
     {
         purge();
         // I expect this method to be called relatively infrequently so inefficiency is ok.
+        // (this has the side benefit of making iteration threadsafe w/o having to use LinkedBlockingDeque.)
         List<Double> L = new ArrayList<Double>(deque.size());
         for (Tuple t : deque)
         {
@@ -37,19 +39,19 @@ public class TimedStatsDeque extends AbstractStatsDeque
         return L.iterator();
     }
 
-    public int size()
+    public synchronized int size()
     {
         purge();
         return deque.size();
     }
 
-    public void add(double o)
+    public synchronized void add(double o)
     {
         purge();
         deque.add(new Tuple(o, System.currentTimeMillis()));
     }
 
-    public void clear()
+    public synchronized void clear()
     {
         deque.clear();
     }

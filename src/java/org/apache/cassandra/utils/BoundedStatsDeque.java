@@ -3,6 +3,9 @@ package org.apache.cassandra.utils;
 import java.util.ArrayDeque;
 import java.util.Iterator;
 
+/**
+ * not threadsafe.  caller is responsible for any locking necessary.
+ */
 public class BoundedStatsDeque extends AbstractStatsDeque
 {
     private final int size;
