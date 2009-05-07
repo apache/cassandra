@@ -95,7 +95,7 @@ public class ReadVerbHandler implements IVerbHandler
             System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);
 
             Message response = message.getReply(StorageService.getLocalStorageEndPoint(), bytes);
-            logger_.debug("Read key " + readCommand.key + "; sending response to " + message.getFrom());
+            logger_.debug("Read key " + readCommand.key + "; sending response to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
 
             /* Do read repair if header of the message says so */

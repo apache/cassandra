@@ -508,7 +508,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
         }
 
-        return StorageProxy.getRange(new RangeCommand(tablename, startWith, stopAt, maxResults));
+        return StorageProxy.getKeyRange(new RangeCommand(tablename, startWith, stopAt, maxResults));
     }
 
     /*

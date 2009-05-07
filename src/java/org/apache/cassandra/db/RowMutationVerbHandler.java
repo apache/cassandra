@@ -91,7 +91,7 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            logger_.debug("Mutation applied in " + (end - start) + "ms.  Sending response to " +  message.getFrom() + " for key :" + rm.key());
+            logger_.debug("Mutation applied in " + (end - start) + "ms.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.getMessagingInstance().sendOneWay(responseMessage, message.getFrom());
         }
         catch (IOException e)

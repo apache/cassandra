@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.ICacheExpungeHook;
 import org.apache.cassandra.utils.ICachetable;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.StringUtils;
 
 
 class ConsistencyManager implements Runnable
@@ -49,7 +50,6 @@ class ConsistencyManager implements Runnable
 		
 		public void response(Message msg)
 		{
-			logger_.debug("Received reponse : " + msg.toString());
 			responses_.add(msg);
 			if ( responses_.size() == ConsistencyManager.this.replicas_.size() )
 				handleDigestResponses();
@@ -91,11 +91,10 @@ class ConsistencyManager implements Runnable
             /* Add the local storage endpoint to the replicas_ list */
             replicas_.add(StorageService.getLocalStorageEndPoint());
 			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
-			String table = DatabaseDescriptor.getTables().get(0);
             ReadCommand readCommand = constructReadMessage(false);
-			// ReadMessage readMessage = new ReadMessage(table, row_.key(), columnFamily_);
             Message message = readCommand.makeReadMessage();
-			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray( new EndPoint[0] ), responseHandler);			
+            logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), responseHandler);
 		}
 	}
 	
@@ -140,8 +139,7 @@ class ConsistencyManager implements Runnable
 			}
 			catch ( DigestMismatchException ex )
 			{
-				logger_.info("We should not be coming here under any circumstances ...");
-				logger_.info(LogUtil.throwableToString(ex));
+				throw new RuntimeException(ex);
 			}
 		}
 	}
@@ -161,17 +159,16 @@ class ConsistencyManager implements Runnable
 
 	public void run()
 	{
-		logger_.debug(" Run the consistency checks for " + readCommand_.getColumnFamilyName());		
         ReadCommand readCommandDigestOnly = constructReadMessage(true);
 		try
 		{
-			Message messageDigestOnly = readCommandDigestOnly.makeReadMessage();
-			IAsyncCallback digestResponseHandler = new DigestResponseHandler();
-			MessagingService.getMessagingInstance().sendRR(messageDigestOnly, replicas_.toArray(new EndPoint[replicas_.size()]), digestResponseHandler);
+			Message message = readCommandDigestOnly.makeReadMessage();
+            logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+            MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), new DigestResponseHandler());
 		}
-		catch ( IOException ex )
+		catch (IOException ex)
 		{
-			logger_.info(LogUtil.throwableToString(ex));
+			throw new RuntimeException(ex);
 		}
 	}
     

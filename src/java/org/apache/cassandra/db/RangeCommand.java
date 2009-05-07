@@ -45,6 +45,16 @@ public class RangeCommand
         dib.reset(bytes, bytes.length);
         return serializer.deserialize(new DataInputStream(dib));
     }
+
+    public String toString()
+    {
+        return "RangeCommand(" +
+               "table='" + table + '\'' +
+               ", startWith='" + startWith + '\'' +
+               ", stopAt='" + stopAt + '\'' +
+               ", maxResults=" + maxResults +
+               ')';
+    }
 }
 
 class RangeCommandSerializer implements ICompactSerializer<RangeCommand>

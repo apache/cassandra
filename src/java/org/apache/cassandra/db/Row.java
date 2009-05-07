@@ -167,7 +167,6 @@ public class Row
 
     public byte[] digest()
     {
-        long start = System.currentTimeMillis();
         Set<String> cfamilies = columnFamilies_.keySet();
         byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
         for (String cFamily : cfamilies)
@@ -181,7 +180,6 @@ public class Row
                 xorHash = FBUtilities.xor(xorHash, columnFamilies_.get(cFamily).digest());
             }
         }
-        logger_.info("DIGEST TIME: " + (System.currentTimeMillis() - start) + " ms.");
         return xorHash;
     }
 

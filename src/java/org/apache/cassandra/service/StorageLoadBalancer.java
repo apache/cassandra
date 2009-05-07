@@ -214,7 +214,6 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComp
 
     public void onChange(EndPoint endpoint, EndPointState epState)
     {
-        logger_.debug("CHANGE IN STATE FOR @ StorageLoadBalancer " + endpoint);
         // load information for this specified endpoint for load balancing 
         ApplicationState loadInfoState = epState.getApplicationState(LoadDisseminator.loadInfo_);
         if ( loadInfoState != null )

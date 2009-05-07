@@ -117,15 +117,17 @@ public class StorageProxy implements StorageProxyMBean
 			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
 			// TODO: throw a thrift exception if we do not have N nodes
 			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
-            logger.debug("insert writing key " + rm.key() + " to [" + StringUtils.join(messageMap.keySet(), ", ") + "]");
 			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
 			{
-				MessagingService.getMessagingInstance().sendOneWay(entry.getValue(), entry.getKey());
+                Message message = entry.getValue();
+                EndPoint endpoint = entry.getKey();
+                logger.debug("insert writing key " + rm.key() + " to " + message.getMessageId() + "@" + endpoint);
+                MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
 			}
 		}
         catch (IOException e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("error inserting key " + rm.key(), e);
         }
         finally
         {
@@ -151,7 +153,7 @@ public class StorageProxy implements StorageProxyMBean
                     DatabaseDescriptor.getReplicationFactor(),
                     new WriteResponseResolver());
             EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
-            logger.debug("insertBlocking writing key " + rm.key() + " to [" + StringUtils.join(endpoints, ", ") + "]");
+            logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpoints, ", ") + "]");
             // TODO: throw a thrift exception if we do not have N nodes
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
@@ -160,7 +162,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (Exception e)
         {
-            logger.error(e);
+            logger.error("error writing key " + rm.key(), e);
             throw new UnavailableException();
         }
         finally
@@ -240,8 +242,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
         assert endPoint != null;
-        logger.debug("weakreadremote reading " + command + " from " + endPoint);
         Message message = command.makeReadMessage();
+        logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
         message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
         IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
         byte[] body;
@@ -251,8 +253,8 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (TimeoutException e)
         {
-            throw new RuntimeException(e);
-            // TODO retry to a different endpoint
+            throw new RuntimeException("error reading key " + command.key, e);
+            // TODO retry to a different endpoint?
         }
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(body, body.length);
@@ -329,7 +331,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (IOException ex)
         {
-            throw new RuntimeException(ex);
+            throw new RuntimeException("error touching key " + key, ex);
         }
         finally
         {
@@ -461,12 +463,14 @@ public class StorageProxy implements StorageProxyMBean
         */
         endPoints[0] = dataPoint;
         messages[0] = message;
+        logger.debug("strongread reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
         for (int i = 1; i < endPoints.length; i++)
         {
-            endPoints[i] = endpointList.get(i - 1);
+            EndPoint digestPoint = endpointList.get(i - 1);
+            endPoints[i] = digestPoint;
             messages[i] = messageDigestOnly;
+            logger.debug("strongread reading digest for " + command + " from " + messageDigestOnly.getMessageId() + "@" + digestPoint);
         }
-        logger.debug("strongread reading " + command + " from " + StringUtils.join(endPoints, ", "));
 
         try
         {
@@ -495,7 +499,7 @@ public class StorageProxy implements StorageProxyMBean
                 catch (DigestMismatchException e)
                 {
                     // TODO should this be a thrift exception?
-                    throw new RuntimeException(e);
+                    throw new RuntimeException("digest mismatch reading key " + command.key, e);
                 }
             }
         }
@@ -592,7 +596,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (TimeoutException e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("timeout reading keys " + StringUtils.join(rows.keySet(), ", "), e);
         }
         return rows;
     }
@@ -660,7 +664,7 @@ public class StorageProxy implements StorageProxyMBean
         return row;
     }
 
-    static List<String> getRange(RangeCommand command)
+    static List<String> getKeyRange(RangeCommand command)
     {
         long startTime = System.currentTimeMillis();
         try
@@ -675,7 +679,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("error reading keyrange " + command, e);
         }
         finally
         {
