@@ -27,6 +27,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.commons.lang.ArrayUtils;
 
 
 /*
@@ -60,11 +61,12 @@ private static ICompactSerializer<ReadResponse> serializer_;
 	
 	private String table_;
 	private Row row_;
-	private byte[] digest_ = new byte[0];
+	private byte[] digest_ = ArrayUtils.EMPTY_BYTE_ARRAY;
     private boolean isDigestQuery_ = false;
 
 	public ReadResponse(String table, byte[] digest )
     {
+        assert digest != null;
 		table_ = table;
 		digest_= digest;
 	}

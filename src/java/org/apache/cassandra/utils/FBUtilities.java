@@ -331,8 +331,10 @@ public class FBUtilities
 
      public static byte[] xor(byte[] b1, byte[] b2)
      {
-    	 byte[] bLess = null;
-    	 byte[] bMore = null;
+         assert b1 != null;
+         assert b2 != null;
+    	 byte[] bLess;
+    	 byte[] bMore;
 
     	 if(b1.length > b2.length)
     	 {

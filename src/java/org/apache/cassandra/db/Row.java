@@ -178,12 +178,10 @@ public class Row
             }
             else
             {
-                byte[] tmpHash = columnFamilies_.get(cFamily).digest();
-                xorHash = FBUtilities.xor(xorHash, tmpHash);
+                xorHash = FBUtilities.xor(xorHash, columnFamilies_.get(cFamily).digest());
             }
         }
-        logger_.info("DIGEST TIME: " + (System.currentTimeMillis() - start)
-                     + " ms.");
+        logger_.info("DIGEST TIME: " + (System.currentTimeMillis() - start) + " ms.");
         return xorHash;
     }
 

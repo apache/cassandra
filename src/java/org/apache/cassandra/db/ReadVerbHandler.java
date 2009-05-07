@@ -77,7 +77,7 @@ public class ReadVerbHandler implements IVerbHandler
             Row row = null;
             row = readCommand.getRow(table);
             ReadResponse readResponse = null;
-            if(readCommand.isDigestQuery())
+            if (readCommand.isDigestQuery())
             {
                 readResponse = new ReadResponse(table.getTableName(), row.digest());
             }

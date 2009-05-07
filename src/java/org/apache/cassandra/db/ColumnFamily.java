@@ -32,6 +32,7 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -399,10 +400,10 @@ public final class ColumnFamily
     public byte[] digest()
     {
     	Set<IColumn> columns = columns_.getSortedColumns();
-    	byte[] xorHash = null;
-    	for(IColumn column : columns)
+    	byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
+        for(IColumn column : columns)
     	{
-    		if(xorHash == null)
+    		if(xorHash.length == 0)
     		{
     			xorHash = column.digest();
     		}
