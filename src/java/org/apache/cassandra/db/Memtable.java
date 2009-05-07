@@ -57,6 +57,7 @@ public class Memtable implements Comparable<Memtable>
 
     private MemtableThreadPoolExecutor executor_;
     private volatile boolean isFrozen_;
+    private volatile boolean isDirty_;
     private volatile boolean isFlushed_; // for tests, in particular forceBlockingFlush asserts this
 
     private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
@@ -195,6 +196,7 @@ public class Memtable implements Comparable<Memtable>
     */
     void put(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx) throws IOException
     {
+        isDirty_ = true;
         executor_.submit(new Putter(key, columnFamily));
         if (isThresholdViolated())
         {
@@ -411,6 +413,8 @@ public class Memtable implements Comparable<Memtable>
 
     public boolean isClean()
     {
-        return columnFamilies_.isEmpty() && executor_.getPendingTasks() == 0;
+        // executor taskcount is inadequate for our needs here -- it can return zero under certain
+        // race conditions even though a task has been processed.
+        return !isDirty_;
     }
 }
