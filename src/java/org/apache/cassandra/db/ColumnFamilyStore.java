@@ -561,7 +561,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if ( !bVal )
                 continue;
             ColumnFamily columnFamily = fetchColumnFamily(key, cf, filter, file);
-            long start = System.currentTimeMillis();
             if (columnFamily != null)
             {
                 columnFamilies.add(columnFamily);
@@ -570,7 +569,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 	break;
                 }
             }
-            logger_.debug("DISK Data structure population  TIME: " + (System.currentTimeMillis() - start) + " ms.");
         }
     }
 
@@ -578,15 +576,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, String ssTableFile) throws IOException
 	{
 		SSTable ssTable = new SSTable(ssTableFile, StorageService.getPartitioner());
-		long start = System.currentTimeMillis();
 		DataInputBuffer bufIn;
 		bufIn = filter.next(key, cf, ssTable);
-		logger_.debug("DISK ssTable.next TIME: " + (System.currentTimeMillis() - start) + " ms.");
 		if (bufIn.getLength() == 0)
 			return null;
-        start = System.currentTimeMillis();
         ColumnFamily columnFamily = ColumnFamily.serializer().deserialize(bufIn, cf, filter);
-		logger_.debug("DISK Deserialize TIME: " + (System.currentTimeMillis() - start) + " ms.");
 		if (columnFamily == null)
 			return null;
 		return columnFamily;
