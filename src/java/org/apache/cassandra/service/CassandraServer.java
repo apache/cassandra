@@ -212,11 +212,27 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("get_column");
         String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-        if (values.length < 2)
+        if (values.length < 1)
         {
-            throw new InvalidRequestException("get_column requires both parts of columnfamily:column");
+            throw new InvalidRequestException("get_column requires non-empty columnfamily");
         }
-        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnFamily_column));
+        if (DatabaseDescriptor.getColumnFamilyType(values[0]).equals("Standard"))
+        {
+            if (values.length != 2)
+            {
+                throw new InvalidRequestException("get_column requires both parts of columnfamily:column for standard CF " + values[0]);
+            }
+        }
+        else
+        {
+            if (values.length != 3)
+            {
+                throw new InvalidRequestException("get_column requires all parts of columnfamily:supercolumn:subcolumn for super CF " + values[0]);
+            }
+        }
+
+        ColumnReadCommand readCommand = new ColumnReadCommand(tablename, key, columnFamily_column);
+        ColumnFamily cfamily = readColumnFamily(readCommand);
         if (cfamily == null)
         {
             throw new NotFoundException();

@@ -3,7 +3,7 @@ import os, sys, time
 from . import client, root, CassandraTester
 
 from thrift.Thrift import TApplicationException
-from ttypes import batch_mutation_t, batch_mutation_super_t, superColumn_t, column_t, NotFoundException
+from ttypes import batch_mutation_t, batch_mutation_super_t, superColumn_t, column_t, NotFoundException, InvalidRequestException
 
 _SIMPLE_COLUMNS = [column_t(columnName='c1', value='value1', timestamp=0),
                    column_t(columnName='c2', value='value2', timestamp=0)]
@@ -45,13 +45,15 @@ def _verify_super(supercolumn='Super1'):
     slice = client.get_slice_super('Table1', 'key1', 'Super1', -1, -1)
     assert slice == _SUPER_COLUMNS, slice
 
-def _expect_missing(fn):
+def _expect_exception(fn, type_):
     try:
         r = fn()
-    except NotFoundException:
+    except type_:
         pass
     else:
-        raise Exception('expected missing result; got %s' % r)
+        raise Exception('expected %s; got %s' % (type_.__name__, r))
+def _expect_missing(fn):
+    _expect_exception(fn, NotFoundException)
 
 
 class TestMutations(CassandraTester):
@@ -62,7 +64,7 @@ class TestMutations(CassandraTester):
         assert client.get_slice('Table1', 'key1', 'Super1', -1, -1) == []
 
     def test_missing_super(self):
-        _expect_missing(lambda: client.get_column('Table1', 'key1', 'Super1:sc1'))
+        _expect_missing(lambda: client.get_column('Table1', 'key1', 'Super1:sc1:c1'))
 
     def test_count(self):
         assert client.get_column_count('Table1', 'key1', 'Standard2') == 0
@@ -88,6 +90,13 @@ class TestMutations(CassandraTester):
     def test_batch_insert_blocking(self):
         _insert_batch(True)
         _verify_batch()
+
+    def test_bad_gets(self):
+        _expect_exception(lambda: client.get_column('Table1', 'key1', 'Standard1'), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', 'Standard1:x:y'), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', 'Super1'), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', 'Super1:x'), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', 'Super1:x:y:z'), InvalidRequestException)
 
     def test_batch_insert_super(self):
          cfmap = {'Super1': _SUPER_COLUMNS,
