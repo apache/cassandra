@@ -37,7 +37,7 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     private DataInputBuffer bufIn;
     private DataOutputBuffer bufOut;
     private IPartitioner partitioner;
-    private FileStructIterator iterator = new FileStructIterator();
+    private FileStructIterator iterator;
 
     public FileStruct(IFileReader reader, IPartitioner partitioner)
     {
@@ -150,12 +150,16 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 
     public boolean hasNext()
     {
+        if (iterator == null)
+            iterator = new FileStructIterator();
         return iterator.hasNext();
     }
 
     /** do not mix with manual calls to advance(). */
     public String next()
     {
+        if (iterator == null)
+            iterator = new FileStructIterator();
         return iterator.next();
     }
 
@@ -167,6 +171,18 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     private class FileStructIterator
     {
         String saved;
+
+        public FileStructIterator()
+        {
+            if (key == null)
+            {
+                if (!isExhausted())
+                {
+                    forward();
+                }
+            }
+            saved = key;
+        }
 
         private void forward()
         {
@@ -181,23 +197,13 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
             saved = isExhausted() ? null : key;
         }
 
-        private void maybeInit()
-        {
-            if (key == null && !isExhausted())
-            {
-                forward();
-            }
-        }
-
         public boolean hasNext()
         {
-            maybeInit();
             return saved != null;
         }
 
         public String next()
         {
-            maybeInit();
             if (saved == null)
             {
                 throw new IndexOutOfBoundsException();
