@@ -22,7 +22,7 @@ public class RangeVerbHandler implements IVerbHandler
             Table table = Table.open(command.table);
             keys = table.getKeyRange(command.startWith, command.stopAt, command.maxResults);
         }
-        catch (IOException e)
+        catch (Exception e)
         {
             throw new RuntimeException(e);
         }

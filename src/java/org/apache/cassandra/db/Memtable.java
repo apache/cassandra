@@ -399,9 +399,16 @@ public class Memtable implements Comparable<Memtable>
         }
     }
 
-    public Iterator<String> sortedKeyIterator()
+    public Iterator<String> sortedKeyIterator() throws ExecutionException, InterruptedException
     {
-        Set<String> keys = columnFamilies_.keySet();
+        Callable<Set<String>> callable = new Callable<Set<String>>()
+        {
+            public Set<String> call() throws Exception
+            {
+                return columnFamilies_.keySet();
+            }
+        };
+        Set<String> keys = executor_.submit(callable).get();
         if (keys.size() == 0)
         {
             // cannot create a PQ of size zero (wtf?)
