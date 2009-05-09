@@ -6,8 +6,6 @@
    <ReplicationFactor>1</ReplicationFactor>
    <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
-   <JobTrackerHost>tdsearch001.sf2p.facebook.com</JobTrackerHost>
-   <JobJarFileLocation>C:\Engagements\Cassandra-Nexus</JobJarFileLocation>
    <ListenAddress>127.0.0.1</ListenAddress>
    <StoragePort>7000</StoragePort>
    <ControlPort>7001</ControlPort>
@@ -17,9 +15,6 @@
    <MetadataDirectory>build/test/cassandra/system</MetadataDirectory>
    <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
-   <GangliaServers>
-     <GangliaServer>127.0.0.1:12000</GangliaServer>
-   </GangliaServers>
    <DataFileDirectories>
      <DataFileDirectory>build/test/cassandra/data</DataFileDirectory>
    </DataFileDirectories>
@@ -27,6 +22,8 @@
    <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
    <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
    <CommitLogFastSync>false</CommitLogFastSync>
+   <MemtableSizeInMB>1</MemtableSizeInMB>
+   <MemtableObjectCountInMillions>0.00002</MemtableObjectCountInMillions> <!-- 20 -->
    <Tables>
      <Table Name = "Table1">
        <ColumnFamily ColumnSort="Name" Name="Standard1"/>
