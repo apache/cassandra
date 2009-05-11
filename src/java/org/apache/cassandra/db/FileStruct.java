@@ -184,7 +184,14 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
                     forward();
                 }
             }
-            saved = key;
+            if (key.equals(SSTable.blockIndexKey_))
+            {
+                saved = null;
+            }
+            else
+            {
+                saved = key;
+            }
         }
 
         private void forward()
