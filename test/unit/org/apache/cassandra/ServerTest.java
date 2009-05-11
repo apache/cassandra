@@ -15,6 +15,10 @@ public class ServerTest {
     @BeforeMethod
     public void cleanup()
     {
+        // we clean the fs twice, once to start with (so old data files don't get stored by anything static if this is the first run)
+        // and once after flushing stuff (to try to clean things out if it is not.)  part #2 seems to be less than perfect.
+        cleanUpFilesystem();
+
         Table table = Table.open("Table1");
         for (String cfName : table.getColumnFamilies())
         {
@@ -31,6 +35,11 @@ public class ServerTest {
 
         CommitLog.reset();
 
+        cleanUpFilesystem();
+    }
+
+    private void cleanUpFilesystem()
+    {
         String[] directoryNames = {
                 DatabaseDescriptor.getBootstrapFileLocation(),
                 DatabaseDescriptor.getLogFileLocation(),

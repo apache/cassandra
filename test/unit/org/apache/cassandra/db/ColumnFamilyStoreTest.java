@@ -32,11 +32,32 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testNameSort() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort1() throws IOException, ExecutionException, InterruptedException
+    {
+        // single key
+        testNameSort(1);
+    }
+
+    @Test
+    public void testNameSort10() throws IOException, ExecutionException, InterruptedException
+    {
+        // multiple keys, flushing concurrently w/ inserts
+        testNameSort(10);
+    }
+
+    @Test
+    public void testNameSort100() throws IOException, ExecutionException, InterruptedException
+    {
+        // enough keys to force compaction concurrently w/ inserts
+        testNameSort(100);
+    }
+
+
+    private void testNameSort(int N) throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
 
-        for (int i = 900; i < 1000; ++i)
+        for (int i = 0; i < N; ++i)
         {
             String key = Integer.toString(i);
             RowMutation rm;
@@ -63,11 +84,11 @@ public class ColumnFamilyStoreTest extends ServerTest
             }
         }
 
-        // validateNameSort(table);
+        validateNameSort(table, N);
 
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
         table.getColumnFamilyStore("Super1").forceBlockingFlush();
-        validateNameSort(table);
+        validateNameSort(table, N);
     }
 
     @Test
@@ -150,9 +171,9 @@ public class ColumnFamilyStoreTest extends ServerTest
         }
     }
 
-    private void validateNameSort(Table table) throws IOException
+    private void validateNameSort(Table table, int N) throws IOException
     {
-        for (int i = 900; i < 1000; ++i)
+        for (int i = 0; i < N; ++i)
         {
             String key = Integer.toString(i);
             ColumnFamily cf;
