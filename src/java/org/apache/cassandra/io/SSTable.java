@@ -42,7 +42,6 @@ import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.dht.IPartitioner;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -198,7 +197,7 @@ public class SSTable
      * We do this so that we don't read the index file into memory multiple
      * times.
     */
-    static Map<String, List<KeyPositionInfo>> indexMetadataMap_ = new Hashtable<String, List<KeyPositionInfo>>();
+    static IndexMap indexMetadataMap_ = new IndexMap();
     
     /** 
      * This method deletes both the specified data file
@@ -348,7 +347,7 @@ public class SSTable
      * ctor to read the data in this file.
     */
     public SSTable(String dataFileName, IPartitioner partitioner) throws IOException
-    {        
+    {
         dataFile_ = dataFileName;
         partitioner_ = partitioner;
         init();
@@ -359,7 +358,7 @@ public class SSTable
      * version for non DB writes to the SSTable.
     */
     public SSTable(String directory, String filename, IPartitioner partitioner) throws IOException
-    {  
+    {
         dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";
         partitioner_ = partitioner;
         blockIndex_ = new TreeMap<String, BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
@@ -660,58 +659,43 @@ public class SSTable
     public static Coordinate getCoordinates(String decoratedKey, IFileReader dataReader, IPartitioner partitioner) throws IOException
     {
     	List<KeyPositionInfo> indexInfo = indexMetadataMap_.get(dataReader.getFileName());
-    	int size = (indexInfo == null) ? 0 : indexInfo.size();
-    	long start = 0L;
+        assert indexInfo != null && indexInfo.size() > 0;
+        long start = 0L;
     	long end;
-        if ( size > 0 )
+        int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey, partitioner));
+        if ( index < 0 )
         {
-            int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey, partitioner));
-            if ( index < 0 )
+            /*
+             * We are here which means that the requested
+             * key is not an index.
+            */
+            index = (++index)*(-1);
+            /*
+             * This means key is not present at all. Hence
+             * a scan is in order.
+            */
+            start = (index == 0) ? 0 : indexInfo.get(index - 1).position();
+            if ( index < indexInfo.size())
             {
-                /*
-                 * We are here which means that the requested
-                 * key is not an index.
-                */
-                index = (++index)*(-1);
-                /*
-                 * This means key is not present at all. Hence
-                 * a scan is in order.
-                */
-                start = (index == 0) ? 0 : indexInfo.get(index - 1).position();
-                if ( index < size )
-                {
-                    end = indexInfo.get(index).position();
-                }
-                else
-                {
-                    /* This is the Block Index in the file. */
-                    end = start;
-                }
+                end = indexInfo.get(index).position();
             }
             else
             {
-                /*
-                 * If we are here that means the key is in the index file
-                 * and we can retrieve it w/o a scan. In reality we would
-                 * like to have a retreive(key, fromPosition) but for now
-                 * we use scan(start, start + 1) - a hack.
-                */
-                start = indexInfo.get(index).position();                
+                /* This is the Block Index in the file. */
                 end = start;
             }
         }
         else
         {
             /*
-             * We are here which means there are less than
-             * 128 keys in the system and hence our only recourse
-             * is a linear scan from start to finish. Automatically
-             * use memory mapping since we have a huge file and very
-             * few keys.
+             * If we are here that means the key is in the index file
+             * and we can retrieve it w/o a scan. In reality we would
+             * like to have a retreive(key, fromPosition) but for now
+             * we use scan(start, start + 1) - a hack.
             */
-            end = dataReader.getEOF();
-        }  
-        
+            start = indexInfo.get(index).position();
+            end = start;
+        }
         return new Coordinate(start, end);
     }
     
@@ -798,9 +782,9 @@ public class SSTable
         String tmpDataFile = dataFile_;
     	String dataFileName = dataFile_.replace("-" + temporaryFile_,"");    	
     	File dataFile = new File(dataFile_);
-    	dataFile.renameTo(new File(dataFileName));    	    	
-    	dataFile_ = dataFileName;        
-    	/* Now repair the in memory index associated with the old name */
+    	dataFile.renameTo(new File(dataFileName));
+        dataFile_ = dataFileName;
+        /* Now repair the in memory index associated with the old name */
     	List<KeyPositionInfo> keyPositionInfos = SSTable.indexMetadataMap_.remove(tmpDataFile);    	    	  	    	
     	SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
     }
@@ -829,5 +813,51 @@ public class SSTable
             dataWriter_.writeDirect(BasicUtilities.longToByteArray(bloomFilterRelativePosition));            
             dataWriter_.close();
         }
-    } 
+    }
+
+    /**
+     * wraps a Map to ensure that all filenames used as keys are cannonicalized.
+     * (Note that cannonical paths are cached by the JDK so the performance hit is negligible.)
+     */
+    static class IndexMap
+    {
+        private final Hashtable<String, List<KeyPositionInfo>> hashtable = new Hashtable<String, List<KeyPositionInfo>>();
+
+        private String cannonicalize(String filename)
+        {
+            try
+            {
+                return new File(filename).getCanonicalPath();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public List<KeyPositionInfo> get(String filename)
+        {
+            return hashtable.get(cannonicalize(filename));
+        }
+
+        public List<KeyPositionInfo> put(String filename, List<KeyPositionInfo> value)
+        {
+            return hashtable.put(cannonicalize(filename), value);
+        }
+
+        public void clear()
+        {
+            hashtable.clear();
+        }
+
+        public Set<String> keySet()
+        {
+            return hashtable.keySet();
+        }
+
+        public List<KeyPositionInfo> remove(String filename)
+        {
+            return hashtable.remove(cannonicalize(filename));
+        }
+    }
 }

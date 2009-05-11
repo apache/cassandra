@@ -29,7 +29,7 @@ public class SSTableTest extends ServerTest {
         ssTable.close(bf);
 
         // verify
-        SSTable.indexMetadataMap_.clear();
+        SSTable.indexMetadataMap_.clear(); // force reloading the index
         ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         fs.seekTo(key);
@@ -60,7 +60,7 @@ public class SSTableTest extends ServerTest {
         ssTable.close(bf);
 
         // verify
-        SSTable.indexMetadataMap_.clear();
+        SSTable.indexMetadataMap_.clear(); // force reloading the index
         List<String> keys = new ArrayList(map.keySet());
         Collections.shuffle(keys);
         ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
