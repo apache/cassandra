@@ -55,6 +55,7 @@ import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.TimedStatsDeque;
+import org.apache.commons.lang.StringUtils;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -62,9 +63,9 @@ import org.apache.cassandra.utils.TimedStatsDeque;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
-    private static int threshHold_ = 4;
-    private static final int bufSize_ = 128*1024*1024;
-    private static int compactionMemoryThreshold_ = 1 << 30;
+    private static int COMPACTION_THRESHOLD = 4; // compact this many sstables at a time
+    private static final int BUFSIZE = 128*1024*1024;
+    private static final int COMPACTION_MEMORY_THRESHOLD = 1 << 30;
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
     private final String table_;
@@ -717,8 +718,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         	lock_.writeLock().unlock();
         }
 
-        if ((ssTableSize >= threshHold_ && !isCompacting_.get())
-            || (isCompacting_.get() && ssTableSize % threshHold_ == 0))
+        if ((ssTableSize >= COMPACTION_THRESHOLD && !isCompacting_.get())
+            || (isCompacting_.get() && ssTableSize % COMPACTION_THRESHOLD == 0))
         {
             logger_.debug("Submitting for  compaction ...");
             MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
@@ -731,7 +732,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         PriorityQueue<FileStruct> pq = new PriorityQueue<FileStruct>();
         if (files.size() > 1 || (ranges != null &&  files.size() > 0))
         {
-            int bufferSize = Math.min( (ColumnFamilyStore.compactionMemoryThreshold_ / files.size()), minBufferSize ) ;
+            int bufferSize = Math.min( (ColumnFamilyStore.COMPACTION_MEMORY_THRESHOLD / files.size()), minBufferSize ) ;
             FileStruct fs = null;
             for (String file : files)
             {
@@ -805,40 +806,47 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return buckets.keySet();
     }
 
+    public void doCompaction() throws IOException
+    {
+        doCompaction(COMPACTION_THRESHOLD);
+    }
+
     /*
      * Break the files into buckets and then compact.
      */
-    void doCompaction() throws IOException
+    public void doCompaction(int threshold) throws IOException
     {
         isCompacting_.set(true);
         List<String> files = new ArrayList<String>(ssTables_);
         try
         {
-	        int count;
-	    	for(List<String> fileList : getCompactionBuckets(files, 50L*1024L*1024L))
+            int count;
+            for (List<String> fileList : getCompactionBuckets(files, 50L * 1024L * 1024L))
             {
-	    		Collections.sort( fileList , new FileNameComparator( FileNameComparator.Ascending));
-	    		if(fileList.size() >= threshHold_ )
-	    		{
-	    			files.clear();
-	    			count = 0;
-	    			for(String file : fileList)
-	    			{
-	    				files.add(file);
-	    				count++;
-	    				if( count == threshHold_ )
-	    					break;
-	    			}
-                    // For each bucket if it has crossed the threshhold do the compaction
-                    // In case of range  compaction merge the counting bloom filters also.
-                    if( count == threshHold_)
-                        doFileCompaction(files, bufSize_);
-	    		}
-	    	}
+                Collections.sort(fileList, new FileNameComparator(FileNameComparator.Ascending));
+                if (fileList.size() < threshold)
+                {
+                    continue;
+                }
+                // For each bucket if it has crossed the threshhold do the compaction
+                // In case of range  compaction merge the counting bloom filters also.
+                files.clear();
+                count = 0;
+                for (String file : fileList)
+                {
+                    files.add(file);
+                    count++;
+                    if (count == threshold)
+                    {
+                        doFileCompaction(files, BUFSIZE);
+                        break;
+                    }
+                }
+            }
         }
         finally
         {
-        	isCompacting_.set(false);
+            isCompacting_.set(false);
         }
     }
 
@@ -876,11 +884,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         	 {
         		 files = filesInternal;
         	 }
-        	 doFileCompaction(files, bufSize_);
+        	 doFileCompaction(files, BUFSIZE);
         }
-        catch ( Exception ex)
+        catch (IOException ex)
         {
-        	ex.printStackTrace();
+            logger_.error(ex);
         }
         finally
         {
@@ -932,10 +940,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
         	 result = doFileAntiCompaction(files, ranges, target, fileList, null);
         }
-        catch ( Exception ex)
-        {
-        	ex.printStackTrace();
-        }
         finally
         {
         	isCompacting_.set(false);
@@ -958,18 +962,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         isCompacting_.set(true);
         List<String> files = new ArrayList<String>(ssTables_);
-        for(String file: files)
+        try
         {
-	        try
-	        {
-	        	doCleanup(file);
-	        }
-	        catch ( Exception ex)
-	        {
-	        	ex.printStackTrace();
-	        }
+            for(String file: files)
+            {
+                doCleanup(file);
+            }
         }
-    	isCompacting_.set(false);
+        finally
+        {
+        	isCompacting_.set(false);
+        }
     }
     /**
      * cleans up one particular file by removing keys that this node is not responsible for.
@@ -1048,7 +1051,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 	                    + expectedRangeFileSize + "   is greater than the safe limit of the disk space available.");
 	            return result;
 	        }
-	        PriorityQueue<FileStruct> pq = initializePriorityQueue(files, ranges, ColumnFamilyStore.bufSize_);
+	        PriorityQueue<FileStruct> pq = initializePriorityQueue(files, ranges, ColumnFamilyStore.BUFSIZE);
 	        if (pq.size() > 0)
 	        {
 	            mergedFileName = getTempFileName();
@@ -1234,18 +1237,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * to get the latest data.
      *
      */
-    void  doFileCompaction(List<String> files,  int minBufferSize) throws IOException
+    private void doFileCompaction(List<String> files,  int minBufferSize) throws IOException
     {
-    	String newfile = null;
-        long startTime = System.currentTimeMillis();
-        long totalBytesRead = 0;
-        long totalBytesWritten = 0;
-        long totalkeysRead = 0;
-        long totalkeysWritten = 0;
-        // Calculate the expected compacted filesize
-        long expectedCompactedFileSize = getExpectedCompactedFileSize(files);
-        String compactionFileLocation = DatabaseDescriptor.getCompactionFileLocation(expectedCompactedFileSize);
+        String compactionFileLocation = DatabaseDescriptor.getCompactionFileLocation(getExpectedCompactedFileSize(files));
         // If the compaction file path is null that means we have no space left for this compaction.
+        // try again w/o the largest one.
         if( compactionFileLocation == null )
         {
             String maxFile = getMaxSizeFile( files );
@@ -1253,7 +1249,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             doFileCompaction(files , minBufferSize);
             return;
         }
+
+        String newfile = null;
+        long startTime = System.currentTimeMillis();
+        long totalBytesRead = 0;
+        long totalBytesWritten = 0;
+        long totalkeysRead = 0;
+        long totalkeysWritten = 0;
         PriorityQueue<FileStruct> pq = initializePriorityQueue(files, null, minBufferSize);
+
         if (pq.size() > 0)
         {
             String mergedFileName = getTempFileName( files );
@@ -1331,7 +1335,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         }
                         catch ( Exception ex)
                         {
-                            ex.printStackTrace();
+                            logger_.error("empty sstable file " + filestruct.getFileName(), ex);
                             filestruct.close();
                             continue;
                         }
@@ -1390,10 +1394,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 if ( newfile != null )
                 {
-                    ssTables_.add(newfile);
                     logger_.debug("Inserting bloom filter for file " + newfile);
                     SSTable.storeBloomFilter(newfile, compactedBloomFilter);
-                    totalBytesWritten = (new File(newfile)).length();
+                    ssTables_.add(newfile);
+                    totalBytesWritten += (new File(newfile)).length();
                 }
             }
             finally
@@ -1405,11 +1409,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 SSTable.delete(file);
             }
         }
-        logger_.debug("Total time taken for compaction  ..."
-                + (System.currentTimeMillis() - startTime));
-        logger_.debug("Total bytes Read for compaction  ..." + totalBytesRead);
-        logger_.debug("Total bytes written for compaction  ..."
-                + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
+        String format = "Compacted [%s] to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
+        long dTime = System.currentTimeMillis() - startTime;
+        logger_.info(String.format(format, StringUtils.join(files, ", "), newfile, totalBytesRead, totalBytesWritten, totalkeysRead, totalkeysWritten, dTime));
     }
 
     public boolean isSuper()

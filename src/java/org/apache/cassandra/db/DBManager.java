@@ -154,9 +154,4 @@ public class DBManager
         }
         return storageMetadata;
     }
-
-    public static void main(String[] args) throws Throwable
-    {
-        DBManager.instance().start();
-    }
 }

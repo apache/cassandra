@@ -27,10 +27,13 @@ import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.Coordinate;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.log4j.Logger;
 
 
 public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 {
+    private static Logger logger = Logger.getLogger(FileStruct.class);
+
     private String key = null; // decorated!
     private boolean exhausted = false;
     private IFileReader reader;

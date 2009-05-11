@@ -72,12 +72,12 @@ class MinorCompactionManager implements IComponentShutdown
 
         FileCompactor(ColumnFamilyStore columnFamilyStore)
         {
-        	columnFamilyStore_ = columnFamilyStore;
+            columnFamilyStore_ = columnFamilyStore;
         }
 
         public void run()
         {
-                logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
+            logger_.debug("Started compaction ..." + columnFamilyStore_.columnFamily_);
             try
             {
                 columnFamilyStore_.doCompaction();
@@ -86,7 +86,7 @@ class MinorCompactionManager implements IComponentShutdown
             {
                 throw new RuntimeException(e);
             }
-            logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+            logger_.debug("Finished compaction ..." + columnFamilyStore_.columnFamily_);
         }
     }
 

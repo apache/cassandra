@@ -31,4 +31,12 @@ public class Coordinate
         start_ = start;
         end_ = end;
     }
+
+    public String toString()
+    {
+        return "Coordinate(" +
+               "start_=" + start_ +
+               ", end_=" + end_ +
+               ')';
+    }
 }

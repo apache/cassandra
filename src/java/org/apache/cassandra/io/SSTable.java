@@ -221,17 +221,11 @@ public class SSTable
         }
         
         File file = new File(dataFile);
-        if ( file.exists() )
+        assert file.exists();
+        /* delete the data file */
+        if (!file.delete())
         {
-            /* delete the data file */
-			if (file.delete())
-			{			    
-			    logger_.info("** Deleted " + file.getName() + " **");                
-			}
-			else
-			{			  
-			    logger_.error("Failed to delete " + file.getName());
-			}
+            logger_.error("Failed to delete " + file.getName());
         }
     }
 
@@ -600,9 +594,8 @@ public class SSTable
      * @throws IOException
      */
     private void dumpBlockIndexes() throws IOException
-    {    	
-        long position = dataWriter_.getCurrentPosition();
-        firstBlockPosition_ = position;
+    {
+        firstBlockPosition_ = dataWriter_.getCurrentPosition();
     	for( SortedMap<String, BlockMetadata> block : blockIndexes_ )
     	{
     		dumpBlockIndex( block );
@@ -660,12 +653,16 @@ public class SSTable
         afterAppend(decoratedKey, currentPosition, value.length );
     }
 
+    /*
+      TODO only the end_ part of the returned Coordinate is ever used.  Apparently this code works, but it's definitely due for some cleanup
+      since the code fooling about with start_ appears to be irrelevant.
+     */
     public static Coordinate getCoordinates(String decoratedKey, IFileReader dataReader, IPartitioner partitioner) throws IOException
     {
     	List<KeyPositionInfo> indexInfo = indexMetadataMap_.get(dataReader.getFileName());
     	int size = (indexInfo == null) ? 0 : indexInfo.size();
     	long start = 0L;
-    	long end = dataReader.getEOF();
+    	long end;
         if ( size > 0 )
         {
             int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey, partitioner));
