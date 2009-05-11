@@ -16,6 +16,7 @@
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
+    <property name="test.name" value="*"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="version" value="0.3.0-dev"/>
@@ -203,7 +204,7 @@
         <pathelement location="${cobertura.dir}/cobertura.jar"/>
         <pathelement location="${test.conf}"/>
       </classpath>
-      <classfileset dir="${test.classes}" includes="**/*.class" />
+      <classfileset dir="${test.classes}" includes="**/${test.name}.class" />
     </testng>
   </target>
 	
