@@ -3,14 +3,7 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-import java.util.SortedSet;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -393,23 +386,56 @@ public class ColumnFamilyStoreTest extends ServerTest
     }
 
     @Test
-    public void testCompaction() throws IOException, ExecutionException, InterruptedException
+    public void testOneCompaction() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
 
-        for (int j = 0; j < 5; j++) {
-            for (int i = 0; i < 10; i++) {
-                long epoch = System.currentTimeMillis()  /  1000;
-                String key = String.format("%s.%s.%s",  epoch,  1,  i);
+        Set<String> inserted = new HashSet<String>();
+        for (int j = 0; j < 2; j++) {
+            String key = "0";
+            RowMutation rm = new RowMutation("Table1", key);
+            rm.add("Standard1:0", new byte[0], j);
+            rm.apply();
+            inserted.add(key);
+            store.forceBlockingFlush();
+            assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
+        }
+        store.doCompaction(2);
+        assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
+    }
+
+    @Test
+    public void testCompactions() throws IOException, ExecutionException, InterruptedException
+    {
+        // this test does enough rows to force multiple block indexes to be used
+        Table table = Table.open("Table1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+
+        final int ROWS_PER_SSTABLE = 10;
+        Set<String> inserted = new HashSet<String>();
+        for (int j = 0; j < (SSTable.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
+            for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
+                String key = String.valueOf(i % 2);
                 RowMutation rm = new RowMutation("Table1", key);
-                rm.add("Standard1:A", new byte[0], epoch);
+                rm.add("Standard1:" + (i / 2), new byte[0], j * ROWS_PER_SSTABLE + i);
                 rm.apply();
+                inserted.add(key);
             }
             store.forceBlockingFlush();
+            assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
         }
-        Future ft = MinorCompactionManager.instance().submit(store);
-        ft.get();
+        while (true)
+        {
+            Future<Integer> ft = MinorCompactionManager.instance().submit(store);
+            if (ft.get() == 0)
+                break;
+        }
+        if (store.getSSTableFilenames().size() > 1)
+        {
+            store.doCompaction(store.getSSTableFilenames().size());
+        }
+        assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
     }
     
     @Test

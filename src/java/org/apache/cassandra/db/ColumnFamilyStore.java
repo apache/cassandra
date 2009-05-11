@@ -806,22 +806,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return buckets.keySet();
     }
 
-    public void doCompaction() throws IOException
+    public int doCompaction() throws IOException
     {
-        doCompaction(COMPACTION_THRESHOLD);
+        return doCompaction(COMPACTION_THRESHOLD);
     }
 
     /*
      * Break the files into buckets and then compact.
      */
-    public void doCompaction(int threshold) throws IOException
+    public int doCompaction(int threshold) throws IOException
     {
         isCompacting_.set(true);
         List<String> files = new ArrayList<String>(ssTables_);
+        int filesCompacted = 0;
         try
         {
-            int count;
-            for (List<String> fileList : getCompactionBuckets(files, 50L * 1024L * 1024L))
+            Set<List<String>> buckets = getCompactionBuckets(files, 50L * 1024L * 1024L);
+            for (List<String> fileList : buckets)
             {
                 Collections.sort(fileList, new FileNameComparator(FileNameComparator.Ascending));
                 if (fileList.size() < threshold)
@@ -831,14 +832,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // For each bucket if it has crossed the threshhold do the compaction
                 // In case of range  compaction merge the counting bloom filters also.
                 files.clear();
-                count = 0;
+                int count = 0;
                 for (String file : fileList)
                 {
                     files.add(file);
                     count++;
                     if (count == threshold)
                     {
-                        doFileCompaction(files, BUFSIZE);
+                        filesCompacted += doFileCompaction(files, BUFSIZE);
                         break;
                     }
                 }
@@ -848,6 +849,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             isCompacting_.set(false);
         }
+        return filesCompacted;
     }
 
     void doMajorCompaction(long skip)
@@ -1237,7 +1239,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * to get the latest data.
      *
      */
-    private void doFileCompaction(List<String> files,  int minBufferSize) throws IOException
+    private int doFileCompaction(List<String> files,  int minBufferSize) throws IOException
     {
         String compactionFileLocation = DatabaseDescriptor.getCompactionFileLocation(getExpectedCompactedFileSize(files));
         // If the compaction file path is null that means we have no space left for this compaction.
@@ -1246,8 +1248,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             String maxFile = getMaxSizeFile( files );
             files.remove( maxFile );
-            doFileCompaction(files , minBufferSize);
-            return;
+            return doFileCompaction(files , minBufferSize);
         }
 
         String newfile = null;
@@ -1412,6 +1413,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         String format = "Compacted [%s] to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;
         logger_.info(String.format(format, StringUtils.join(files, ", "), newfile, totalBytesRead, totalBytesWritten, totalkeysRead, totalkeysWritten, dTime));
+        return files.size();
     }
 
     public boolean isSuper()

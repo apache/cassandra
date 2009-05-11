@@ -66,7 +66,7 @@ class MinorCompactionManager implements IComponentShutdown
         return instance_;
     }
 
-    class FileCompactor implements Runnable
+    class FileCompactor implements Callable<Integer>
     {
         private ColumnFamilyStore columnFamilyStore_;
 
@@ -75,18 +75,21 @@ class MinorCompactionManager implements IComponentShutdown
             columnFamilyStore_ = columnFamilyStore;
         }
 
-        public void run()
+        public Integer call()
         {
             logger_.debug("Started compaction ..." + columnFamilyStore_.columnFamily_);
             try
             {
-                columnFamilyStore_.doCompaction();
+                return columnFamilyStore_.doCompaction();
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
-            logger_.debug("Finished compaction ..." + columnFamilyStore_.columnFamily_);
+            finally
+            {
+                logger_.debug("Finished compaction ..." + columnFamilyStore_.columnFamily_);
+            }
         }
     }
 
@@ -164,13 +167,20 @@ class MinorCompactionManager implements IComponentShutdown
     	compactor_.shutdownNow();
     }
 
-    public void submitPeriodicCompaction(ColumnFamilyStore columnFamilyStore)
-    {        
-    	compactor_.scheduleWithFixedDelay(new FileCompactor(columnFamilyStore), MinorCompactionManager.intervalInMins_,
+    public void submitPeriodicCompaction(final ColumnFamilyStore columnFamilyStore)
+    {
+        Runnable runnable = new Runnable() // having to wrap Callable in Runnable is retarded but that's what the API insists on.
+        {
+            public void run()
+            {
+                new FileCompactor(columnFamilyStore).call();
+            }
+        };
+    	compactor_.scheduleWithFixedDelay(runnable, MinorCompactionManager.intervalInMins_,
     			MinorCompactionManager.intervalInMins_, TimeUnit.MINUTES);       
     }
 
-    public Future submit(ColumnFamilyStore columnFamilyStore)
+    public Future<Integer> submit(ColumnFamilyStore columnFamilyStore)
     {
         return compactor_.submit(new FileCompactor(columnFamilyStore));
     }
