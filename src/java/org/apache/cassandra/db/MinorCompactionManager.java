@@ -112,7 +112,14 @@ class MinorCompactionManager implements IComponentShutdown
         {
         	boolean result;
             logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
-            result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
+            try
+            {
+                result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
             logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
             return result;
         }
@@ -149,7 +156,14 @@ class MinorCompactionManager implements IComponentShutdown
         public void run()
         {
             logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
-            columnFamilyStore_.doCleanupCompaction();
+            try
+            {
+                columnFamilyStore_.doCleanupCompaction();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
             logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
         }
     }

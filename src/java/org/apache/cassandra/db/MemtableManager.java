@@ -124,31 +124,23 @@ public class MemtableManager
     */
     void getColumnFamily(String key, String cfName, String cf, IFilter filter, List<ColumnFamily> columnFamilies)
     {
-    	rwLock_.readLock().lock();
-    	try
-    	{
-	        /* Get all memtables associated with this column family */
-	        List<Memtable> memtables = history_.get(cfName);
-	        if ( memtables != null )
-	        {
-		        Collections.sort(memtables);
-	        	int size = memtables.size();
-	            for ( int i = size - 1; i >= 0; --i  )
-	            {
-	                ColumnFamily columnFamily = memtables.get(i).getLocalCopy(key, cf, filter);
-	                if ( columnFamily != null )
-	                {
-	                    columnFamilies.add(columnFamily);
-	                    if( filter.isDone())
-	                    	break;
-	                }
-	            }
-	        }        
-    	}
-    	finally
-    	{
-        	rwLock_.readLock().unlock();
-    	}
+        List<Memtable> memtables = getUnflushedMemtables(cfName);
+        if ( memtables == null )
+        {
+            return;
+        }
+        Collections.sort(memtables);
+        int size = memtables.size();
+        for ( int i = size - 1; i >= 0; --i  )
+        {
+            ColumnFamily columnFamily = memtables.get(i).getLocalCopy(key, cf, filter);
+            if ( columnFamily != null )
+            {
+                columnFamilies.add(columnFamily);
+                if( filter.isDone())
+                    break;
+            }
+        }
     }
 
     public List<Memtable> getUnflushedMemtables(String cfName)
@@ -161,7 +153,7 @@ public class MemtableManager
             {
                 return new ArrayList<Memtable>(memtables);
             }
-            return Arrays.asList(new Memtable[0]);
+            return Arrays.asList();
         }
         finally
         {
