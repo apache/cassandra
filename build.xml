@@ -189,7 +189,7 @@
    <target name="test" depends="build-test">
     <echo message="running tests"/>
     <mkdir dir="${build.test.dir}/cassandra"/>
-    <junit fork="yes">
+    <junit fork="on">
       <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
       <jvmarg value="-ea"/>

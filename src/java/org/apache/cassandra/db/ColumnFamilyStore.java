@@ -1468,20 +1468,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return memtableSwitchCount;
     }
 
-    /**
-     * clears out all data associated with this ColumnFamily.
-     * For use in testing.
-     */
-    public void reset() throws IOException, ExecutionException, InterruptedException
-    {
-        forceBlockingFlush();
-        for (String fName : ssTables_)
-        {
-            new File(fName).delete();
-        }
-        ssTables_.clear();
-    }
-
     public Object getMemtable()
     {
         return memtable_.get();

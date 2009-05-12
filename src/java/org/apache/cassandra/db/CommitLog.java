@@ -627,11 +627,6 @@ public class CommitLog
     	forcedRollOver_ = true;
     }
 
-    public static void reset()
-    {
-        CommitLog.instances_.clear();
-    }
-
     public static void main(String[] args) throws Throwable
     {
         LogUtil.init();
