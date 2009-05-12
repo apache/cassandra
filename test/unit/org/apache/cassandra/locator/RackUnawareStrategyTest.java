@@ -14,8 +14,6 @@ import org.apache.cassandra.net.EndPoint;
 
 public class RackUnawareStrategyTest
 {
-    // TODO fix these
-    /*
     @Test
     public void testBigIntegerStorageEndPoints()
     {
@@ -55,7 +53,7 @@ public class RackUnawareStrategyTest
         List<EndPoint> hosts = new ArrayList<EndPoint>();
         for (int i = 0; i < endPointTokens.length; i++)
         {
-            EndPoint ep = new EndPoint(String.valueOf(i), 7001);
+            EndPoint ep = new EndPoint("127.0.0." + String.valueOf(i + 1), 7001);
             tmd.update(endPointTokens[i], ep);
             hosts.add(ep);
         }
@@ -70,5 +68,4 @@ public class RackUnawareStrategyTest
             }
         }
     }
-    */
 }
