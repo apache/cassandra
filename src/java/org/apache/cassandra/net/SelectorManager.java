@@ -32,6 +32,9 @@ public class SelectorManager extends Thread
     // the underlying selector used
     protected Selector selector;
 
+    // workaround JDK select/register bug
+    Object gate = new Object();
+
     // The static selector manager which is used by all applications
     private static SelectorManager manager;
     
@@ -71,12 +74,14 @@ public class SelectorManager extends Thread
     public SelectionKey register(SelectableChannel channel,
             SelectionKeyHandler handler, int ops) throws IOException
     {
-        if ((channel == null) || (handler == null))
-        {
-            throw new NullPointerException();
-        }
+        assert channel != null;
+        assert handler != null;
 
-        return channel.register(selector, ops, handler);
+        synchronized(gate)
+        {
+            selector.wakeup();
+            return channel.register(selector, ops, handler);
+        }
     }      
 
     /**
@@ -91,6 +96,7 @@ public class SelectorManager extends Thread
             {
                 selector.select(100);
                 doProcess();
+                synchronized(gate) {}
             }
             catch (IOException e)
             {
