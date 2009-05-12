@@ -886,7 +886,7 @@ public class Table
             // memtable keys: current and historical
             Iterator<Memtable> memtables = (Iterator<Memtable>) IteratorUtils.chainedIterator(
                     IteratorUtils.singletonIterator(cfs.getMemtable()),
-                    MemtableManager.instance().getUnflushedMemtables(cfName).iterator());
+                    ColumnFamilyStore.getUnflushedMemtables(cfName).iterator());
             while (memtables.hasNext())
             {
                 iterators.add(IteratorUtils.filteredIterator(memtables.next().sortedKeyIterator(), new Predicate()

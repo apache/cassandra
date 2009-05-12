@@ -393,7 +393,7 @@ public class Memtable implements Comparable<Memtable>
             {
                 public void run()
                 {
-                    MemtableManager.instance().submit(cfName_, Memtable.this, cLogCtx);
+                    ColumnFamilyStore.submitFlush(Memtable.this, cLogCtx);
                 }
             };
             flushQueuer = new FutureTask(runnable, null);
