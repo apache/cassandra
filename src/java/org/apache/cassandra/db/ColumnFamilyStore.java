@@ -83,7 +83,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private Set<String> ssTables_ = new HashSet<String>();
+    private Set<String> ssTables_ = new TreeSet<String>(new FileNameComparator(FileNameComparator.Descending));
 
     /* Modification lock used for protecting reads from compactions. */
     private ReentrantReadWriteLock lock_ = new ReentrantReadWriteLock(true);
@@ -557,39 +557,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private void getColumnFamilyFromDisk(String key, String cf, List<ColumnFamily> columnFamilies, IFilter filter) throws IOException
     {
-        /* Scan the SSTables on disk first */
-        List<String> files = new ArrayList<String>();
         lock_.readLock().lock();
         try
         {
-            files.addAll(ssTables_);
-            Collections.sort(files, new FileNameComparator(FileNameComparator.Descending));
+            for (String file : ssTables_)
+            {
+                /*
+                 * Get the BloomFilter associated with this file. Check if the key
+                 * is present in the BloomFilter. If not continue to the next file.
+                */
+                boolean bVal = SSTable.isKeyInFile(key, file);
+                if (!bVal)
+                {
+                    continue;
+                }
+                ColumnFamily columnFamily = fetchColumnFamily(key, cf, filter, file);
+                if (columnFamily != null)
+                {
+                    columnFamilies.add(columnFamily);
+                    if (filter.isDone())
+                    {
+                        break;
+                    }
+                }
+            }
         }
         finally
         {
             lock_.readLock().unlock();
-        }
-
-        for (String file : files)
-        {
-            /*
-             * Get the BloomFilter associated with this file. Check if the key
-             * is present in the BloomFilter. If not continue to the next file.
-            */
-            boolean bVal = SSTable.isKeyInFile(key, file);
-            if (!bVal)
-            {
-                continue;
-            }
-            ColumnFamily columnFamily = fetchColumnFamily(key, cf, filter, file);
-            if (columnFamily != null)
-            {
-                columnFamilies.add(columnFamily);
-                if (filter.isDone())
-                {
-                    break;
-                }
-            }
         }
     }
 
@@ -1423,7 +1418,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             if (newfile != null)
             {
-                logger_.debug("Inserting bloom filter for file " + newfile);
                 SSTable.storeBloomFilter(newfile, compactedBloomFilter);
                 ssTables_.add(newfile);
                 totalBytesWritten += (new File(newfile)).length();

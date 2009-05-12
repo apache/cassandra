@@ -5,12 +5,12 @@ import java.io.File;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CommitLog;
-import org.apache.cassandra.db.Table;
+import org.apache.log4j.Logger;
 
 public class CleanupHelper
 {
+    private static Logger logger = Logger.getLogger(CleanupHelper.class);
+
     @BeforeClass
     public static void cleanup()
     {
@@ -32,6 +32,7 @@ public class CleanupHelper
             }
             for (File f : dir.listFiles())
             {
+                logger.debug("deleting " + f);
                 f.delete();
             }
         }

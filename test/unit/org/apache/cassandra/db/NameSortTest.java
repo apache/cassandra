@@ -89,7 +89,7 @@ public class NameSortTest extends ColumnFamilyStoreTest
             }
 
             cf = table.get(key, "Super1");
-            assert cf != null;
+            assert cf != null : "key " + key + " is missing!";
             Collection<IColumn> superColumns = cf.getAllColumns();
             assert superColumns.size() == 8;
             for (IColumn superColumn : superColumns)
