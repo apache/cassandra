@@ -384,6 +384,7 @@ public class Memtable implements Comparable<Memtable>
             {
                 flushQueuer.run();
             }
+            this.unregisterMBean();
         }
 
         public void flushWhenTerminated(final CommitLog.CommitLogContext cLogCtx)

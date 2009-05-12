@@ -38,6 +38,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
 {
     private static Logger logger_ = Logger.getLogger(DebuggableThreadPoolExecutor.class);
 
+    private ObjectName objName;
     public DebuggableThreadPoolExecutor(String threadPoolName) 
     {
         this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl(threadPoolName));
@@ -55,7 +56,21 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id_));
+            objName = new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id_);
+            mbs.registerMBean(this, objName);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+    
+    public void unregisterMBean()
+    {
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.unregisterMBean(objName);
         }
         catch (Exception e)
         {
