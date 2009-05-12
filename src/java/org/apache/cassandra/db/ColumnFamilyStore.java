@@ -83,7 +83,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private Set<String> ssTables_ = new TreeSet<String>(new FileNameComparator(FileNameComparator.Descending));
+    private SortedSet<String> ssTables_ = new TreeSet<String>(new FileNameComparator(FileNameComparator.Descending));
 
     /* Modification lock used for protecting reads from compactions. */
     private ReentrantReadWriteLock lock_ = new ReentrantReadWriteLock(true);
@@ -203,11 +203,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             PeriodicFlushManager.instance().submitPeriodicFlusher(this, flushPeriod);
         }
-    }
-
-    List<String> getAllSSTablesOnDisk()
-    {
-        return new ArrayList<String>(ssTables_);
     }
 
     /*
@@ -1527,9 +1522,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** not threadsafe.  caller must have lock_ acquired. */
-    public Set<String> getSSTableFilenames()
+    public SortedSet<String> getSSTableFilenames()
     {
-        return Collections.unmodifiableSet(ssTables_);
+        return Collections.unmodifiableSortedSet(ssTables_);
     }
 
     public ReentrantReadWriteLock.ReadLock getReadLock()

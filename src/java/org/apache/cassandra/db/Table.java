@@ -572,7 +572,7 @@ public class Table
     }
 
     /*
-     * Get the list of all SSTables on disk. 
+     * Get the list of all SSTables on disk.  Not safe unless you aquire the CFS readlocks!
     */
     public List<String> getAllSSTablesOnDisk()
     {
@@ -582,7 +582,7 @@ public class Table
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
-                list.addAll( cfStore.getAllSSTablesOnDisk() );
+                list.addAll(cfStore.getSSTableFilenames());
         }
         return list;
     }
