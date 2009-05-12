@@ -2,8 +2,8 @@ package org.apache.cassandra.utils;
 
 import java.io.IOException;
 
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.Before;
+import org.junit.Test;
 
 public class BloomFilterTest
 {
@@ -17,7 +17,7 @@ public class BloomFilterTest
         assert bf != null;
     }
 
-    @BeforeMethod
+    @Before
     public void clear()
     {
         bf.clear();

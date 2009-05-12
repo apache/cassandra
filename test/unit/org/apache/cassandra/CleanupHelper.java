@@ -1,19 +1,18 @@
 package org.apache.cassandra;
 
-import org.testng.annotations.Test;
-import org.testng.annotations.BeforeMethod;
+import java.io.File;
+
+import org.junit.BeforeClass;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.CommitLog;
+import org.apache.cassandra.db.Table;
 
-import java.io.File;
-import java.io.IOException;
-
-@Test(groups={"serial"})
-public class ServerTest {
-    @BeforeMethod
-    public void cleanup()
+public class CleanupHelper
+{
+    @BeforeClass
+    public static void cleanup()
     {
         // we clean the fs twice, once to start with (so old data files don't get stored by anything static if this is the first run)
         // and once after flushing stuff (to try to clean things out if it is not.)  part #2 seems to be less than perfect.
@@ -38,7 +37,7 @@ public class ServerTest {
         cleanUpFilesystem();
     }
 
-    private void cleanUpFilesystem()
+    private static void cleanUpFilesystem()
     {
         String[] directoryNames = {
                 DatabaseDescriptor.getBootstrapFileLocation(),

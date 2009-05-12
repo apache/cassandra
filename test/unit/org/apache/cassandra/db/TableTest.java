@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.ServerTest;
-import org.testng.annotations.Test;
-import static org.testng.Assert.*;
+import org.junit.Test;
 
-public class TableTest extends ServerTest{
+import static junit.framework.Assert.*;
+import org.apache.cassandra.CleanupHelper;
+
+public class TableTest extends CleanupHelper
+{
     private static final String KEY2 = "key2";
     private static final String TEST_KEY = "key1";
     private static final String TABLE_NAME = "Table1";

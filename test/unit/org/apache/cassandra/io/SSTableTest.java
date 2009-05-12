@@ -1,16 +1,18 @@
 package org.apache.cassandra.io;
 
-import org.apache.cassandra.ServerTest;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.db.FileStruct;
-import org.apache.cassandra.utils.BloomFilter;
-import org.testng.annotations.Test;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-public class SSTableTest extends ServerTest {
+import org.junit.Test;
+
+import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.FileStruct;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.utils.BloomFilter;
+
+public class SSTableTest extends CleanupHelper
+{
     @Test
     public void testSingleWrite() throws IOException {
         File f = File.createTempFile("sstable", "");

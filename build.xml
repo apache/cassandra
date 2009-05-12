@@ -16,7 +16,7 @@
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
-    <property name="test.name" value="*"/>
+    <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="version" value="0.3.0-dev"/>
@@ -186,15 +186,11 @@
     </javac>
   </target>
 
-  <taskdef resource="testngtasks" classpath="lib/testng-5.8-jdk15.jar"/>
-  <target name="test" depends="build-test">
+   <target name="test" depends="build-test">
     <echo message="running tests"/>
     <mkdir dir="${build.test.dir}/cassandra"/>
-    <testng outputDir="${build.dir}/test/output"
-            haltOnFailure="true"
-            listeners="org.uncommons.reportng.JUnitXMLReporter"
-            verbose="2">
-      <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
+    <junit fork="yes">
+      <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
       <jvmarg value="-ea"/>
       <classpath>
@@ -204,8 +200,10 @@
         <pathelement location="${cobertura.dir}/cobertura.jar"/>
         <pathelement location="${test.conf}"/>
       </classpath>
-      <classfileset dir="${test.classes}" includes="**/${test.name}.class" />
-    </testng>
+      <batchtest todir="${build.dir}/test/output">
+        <fileset dir="${test.classes}" includes="**/${test.name}.class" />
+      </batchtest>
+    </junit>
   </target>
 	
   <!-- instruments the classes to later create code coverage reports -->

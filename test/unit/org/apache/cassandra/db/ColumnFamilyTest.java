@@ -1,14 +1,15 @@
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.testng.annotations.Test;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.TreeMap;
+
+import org.junit.Test;
+
+import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.DataOutputBuffer;
 
 public class ColumnFamilyTest
 {

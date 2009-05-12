@@ -1,9 +1,11 @@
 package org.apache.cassandra.db;
 
-import org.testng.annotations.Test;
-import org.apache.cassandra.ServerTest;
+import org.junit.Test;
 
-public class DBManagerTest extends ServerTest {
+import org.apache.cassandra.CleanupHelper;
+
+public class DBManagerTest extends CleanupHelper
+{
     @Test
     public void testMain() throws Throwable {
         // TODO clean up old detritus

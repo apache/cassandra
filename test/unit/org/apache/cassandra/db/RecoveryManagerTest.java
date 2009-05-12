@@ -1,12 +1,13 @@
 package org.apache.cassandra.db;
 
-import org.testng.annotations.Test;
-
 import java.io.IOException;
 
-import org.apache.cassandra.ServerTest;
+import org.junit.Test;
 
-public class RecoveryManagerTest extends ServerTest {
+import org.apache.cassandra.CleanupHelper;
+
+public class RecoveryManagerTest extends CleanupHelper
+{
     @Test
     public void testDoRecovery() throws IOException {
         // TODO nothing to recover

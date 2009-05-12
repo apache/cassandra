@@ -1,14 +1,13 @@
 package org.apache.cassandra.db;
 
-import static org.testng.Assert.assertNull;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.junit.Test;
+
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.testng.annotations.Test;
 
 public class ReadMessageTest
 {

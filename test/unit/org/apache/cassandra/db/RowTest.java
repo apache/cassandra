@@ -2,8 +2,9 @@ package org.apache.cassandra.db;
 
 import java.util.Arrays;
 
-import org.testng.annotations.Test;
-import static org.testng.Assert.assertEquals;
+import org.junit.Test;
+
+import static junit.framework.Assert.assertEquals;
 
 public class RowTest
 {

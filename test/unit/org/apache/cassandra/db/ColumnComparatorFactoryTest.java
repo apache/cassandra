@@ -1,8 +1,8 @@
 package org.apache.cassandra.db;
 
-import org.testng.annotations.Test;
-
 import java.util.Comparator;
+
+import org.junit.Test;
 
 public class ColumnComparatorFactoryTest {
     public Comparator<IColumn> nameComparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);

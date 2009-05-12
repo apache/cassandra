@@ -1,9 +1,8 @@
 package org.apache.cassandra.io;
 
-import org.testng.annotations.Test;
-
-import java.util.Random;
 import java.io.IOException;
+
+import org.junit.Test;
 
 public class DataInputBufferTest {
     @Test

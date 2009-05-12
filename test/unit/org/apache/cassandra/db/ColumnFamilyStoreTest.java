@@ -9,16 +9,16 @@ import java.util.concurrent.Future;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
+import static org.junit.Assert.assertNull;
+import org.junit.Test;
 
-import org.apache.cassandra.ServerTest;
+import static junit.framework.Assert.assertEquals;
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.service.StorageService;
-import org.testng.annotations.Test;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
 
-public class ColumnFamilyStoreTest extends ServerTest
+public class ColumnFamilyStoreTest extends CleanupHelper
 {
     static byte[] bytes1, bytes2;
 

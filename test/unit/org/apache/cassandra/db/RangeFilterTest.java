@@ -20,9 +20,8 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 
-
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import static org.junit.Assert.*;
+import org.junit.Test;
 
 
 public class RangeFilterTest
@@ -41,8 +40,8 @@ public class RangeFilterTest
         IFilter f = new RangeFilter("b", "d");
         ColumnFamily filteredCf = f.filter(cf.name(), cf);
         
-        Assert.assertEquals(filteredCf.getColumnCount(),3);
-        Assert.assertFalse(f.isDone());
+        assertEquals(filteredCf.getColumnCount(),3);
+        assertFalse(f.isDone());
     }
     
     @Test
@@ -59,8 +58,8 @@ public class RangeFilterTest
         IFilter f = new RangeFilter("b", "d", 2);
         ColumnFamily filteredCf = f.filter(cf.name(), cf);
         
-        Assert.assertEquals(filteredCf.getColumnCount(),2);
-        Assert.assertTrue(f.isDone());
+        assertEquals(filteredCf.getColumnCount(),2);
+        assertTrue(f.isDone());
     }
 
     @Test
@@ -94,14 +93,14 @@ public class RangeFilterTest
         ColumnFamily filteredCf = f.filter(cf.name(), cf);
 
         IColumn col = filteredCf.getColumn("a");
-        Assert.assertNull(col);
+        assertNull(col);
 
         col = filteredCf.getColumn("e");
-        Assert.assertNull(col);
+        assertNull(col);
 
         col = filteredCf.getColumn("c");
-        Assert.assertNotNull(col);
-        Assert.assertFalse(f.isDone());
+        assertNotNull(col);
+        assertFalse(f.isDone());
     }
 
 }

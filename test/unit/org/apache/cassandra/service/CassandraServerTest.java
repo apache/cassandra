@@ -1,18 +1,14 @@
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.ServerTest;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.IteratorUtils;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
-import java.io.IOException;
-import java.util.*;
+import org.apache.cassandra.CleanupHelper;
 
-public class CassandraServerTest extends ServerTest {
-    /*
+public class CassandraServerTest extends CleanupHelper
+{
     @Test
     public void test_get_column() throws Throwable {
+        /*
         CassandraServer server = new CassandraServer();
         server.start();
 
@@ -41,6 +37,6 @@ public class CassandraServerTest extends ServerTest {
         } finally {
             server.shutdown();
         }
+        */
     }
-    */
 }

@@ -1,11 +1,12 @@
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.HashSet;
-import java.io.IOException;
 
-import org.testng.annotations.Test;
+import org.junit.Test;
+
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 

@@ -1,7 +1,7 @@
 package org.apache.cassandra.config;
-import static org.testng.Assert.assertNotNull;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+
+import static org.junit.Assert.assertNotNull;
+import org.junit.Test;
 
 public class DatabaseDescriptorTest
 {

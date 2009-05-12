@@ -1,9 +1,10 @@
 package org.apache.cassandra.db;
 
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertNull;
+import org.junit.Test;
 
-import org.testng.annotations.Test;
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertNull;
+
 public class SuperColumnTest
 {   
     @Test

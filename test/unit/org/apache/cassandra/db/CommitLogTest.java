@@ -1,18 +1,13 @@
 package org.apache.cassandra.db;
 
-import org.testng.annotations.Test;
-
-import java.util.Set;
-import java.util.Map;
-import java.util.Arrays;
-import java.io.File;
 import java.io.IOException;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.ServerTest;
+import org.junit.Test;
 
-public class CommitLogTest extends ServerTest {
+import org.apache.cassandra.CleanupHelper;
+
+public class CommitLogTest extends CleanupHelper
+{
     @Test
     public void testMain() throws IOException {
         // TODO this is useless, since it assumes we have a working set of commit logs to parse
