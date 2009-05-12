@@ -1526,9 +1526,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return memtable_.get();
     }
 
+    /** not threadsafe.  caller must have lock_ acquired. */
     public Set<String> getSSTableFilenames()
     {
         return Collections.unmodifiableSet(ssTables_);
+    }
+
+    public ReentrantReadWriteLock.ReadLock getReadLock()
+    {
+        return lock_.readLock();
     }
 
     public int getReadCount()

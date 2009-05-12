@@ -395,7 +395,7 @@ public class Table
     /* The AnalyticsSource instance which keeps track of statistics reported to Ganglia. */
     private DBAnalyticsSource dbAnalyticsSource_;
     // cache application CFs since Range queries ask for them a _lot_
-    private Set<String> applicationColumnFamilies_;
+    private SortedSet<String> applicationColumnFamilies_;
 
     public static Table open(String table)
     {
@@ -849,11 +849,11 @@ public class Table
         dbAnalyticsSource_.updateWriteStatistics(timeTaken);
     }
 
-    public Set<String> getApplicationColumnFamilies()
+    public SortedSet<String> getApplicationColumnFamilies()
     {
         if (applicationColumnFamilies_ == null)
         {
-            applicationColumnFamilies_ = new HashSet<String>();
+            applicationColumnFamilies_ = new TreeSet<String>();
             for (String cfName : getColumnFamilies())
             {
                 if (DatabaseDescriptor.isApplicationColumnFamily(cfName))
@@ -872,6 +872,26 @@ public class Table
      * @return list of keys between startWith and stopAt
      */
     public List<String> getKeyRange(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    {
+        // TODO we need a better way to keep compactions from stomping on reads than One Big Lock per CF.
+        for (String cfName : getApplicationColumnFamilies())
+        {
+            getColumnFamilyStore(cfName).getReadLock().lock();
+        }
+        try
+        {
+            return getKeyRangeUnsafe(startWith, stopAt, maxResults);
+        }
+        finally
+        {
+            for (String cfName : getApplicationColumnFamilies())
+            {
+                getColumnFamilyStore(cfName).getReadLock().unlock();
+            }
+        }
+    }
+
+    private List<String> getKeyRangeUnsafe(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
