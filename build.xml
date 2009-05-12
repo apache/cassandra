@@ -189,7 +189,9 @@
    <target name="test" depends="build-test">
     <echo message="running tests"/>
     <mkdir dir="${build.test.dir}/cassandra"/>
-    <junit fork="on">
+    <mkdir dir="${build.test.dir}/output"/>
+    <junit fork="on" failureproperty="testfailed">
+      <formatter type="xml" usefile="true"/>
       <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
       <jvmarg value="-ea"/>
@@ -200,10 +202,12 @@
         <pathelement location="${cobertura.dir}/cobertura.jar"/>
         <pathelement location="${test.conf}"/>
       </classpath>
-      <batchtest todir="${build.dir}/test/output">
+      <batchtest todir="${build.test.dir}/output">
         <fileset dir="${test.classes}" includes="**/${test.name}.class" />
       </batchtest>
     </junit>
+
+    <fail if="testfailed" message="Some test(s) failed."/>
   </target>
 	
   <!-- instruments the classes to later create code coverage reports -->
