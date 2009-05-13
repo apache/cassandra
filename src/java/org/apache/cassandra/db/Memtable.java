@@ -194,14 +194,19 @@ public class Memtable implements Comparable<Memtable>
      * the memtable. This version will respect the threshold and flush
      * the memtable to disk when the size exceeds the threshold.
     */
-    void put(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx) throws IOException
+    public void put(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx) throws IOException
     {
-        isDirty_ = true;
-        executor_.submit(new Putter(key, columnFamily));
         if (isThresholdViolated())
         {
             enqueueFlush(cLogCtx);
+            // retry the put on the new memtable
+            ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
+            cfStore.apply(key, columnFamily, cLogCtx);
+            return;
         }
+
+        isDirty_ = true;
+        executor_.submit(new Putter(key, columnFamily));
     }
 
     /*
