@@ -191,12 +191,12 @@
     <mkdir dir="${build.test.dir}/cassandra"/>
     <mkdir dir="${build.test.dir}/output"/>
     <junit fork="on" failureproperty="testfailed">
+      <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
       <formatter type="xml" usefile="true"/>
       <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
       <jvmarg value="-ea"/>
       <classpath>
-        <pathelement location="${cobertura.classes.dir}"/>
         <path refid="cassandra.classpath" />
         <pathelement location="${test.classes}"/>
         <pathelement location="${cobertura.dir}/cobertura.jar"/>
