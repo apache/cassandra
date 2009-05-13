@@ -81,17 +81,13 @@ public class RowMutationVerbHandler implements IVerbHandler
                 hintedMutation.apply();
             }
 
-            long start = System.currentTimeMillis();
-
             rowMutationCtx.row_.clear();
             rowMutationCtx.row_.key(rm.key());
             rm.apply(rowMutationCtx.row_);
 
-            long end = System.currentTimeMillis();
-
             WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            logger_.debug("Mutation applied in " + (end - start) + "ms.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
+            logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.getMessagingInstance().sendOneWay(responseMessage, message.getFrom());
         }
         catch (IOException e)

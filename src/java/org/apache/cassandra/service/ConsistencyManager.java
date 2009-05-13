@@ -63,7 +63,6 @@ class ConsistencyManager implements Runnable
 		private void handleDigestResponses()
 		{
 			DataInputBuffer bufIn = new DataInputBuffer();
-			logger_.debug("Handle Digest reponses");
 			for( Message response : responses_ )
 			{
 				byte[] body = response.getMessageBody();            

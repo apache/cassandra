@@ -1065,7 +1065,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     /**
      * This function finds the most suitable endpoint given a key.
-     * It checks for loclity and alive test.
+     * It checks for locality and alive test.
      */
 	public EndPoint findSuitableEndPoint(String key) throws IOException
 	{
@@ -1082,7 +1082,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		{
 			if ( StorageService.instance().isInSameDataCenter(endpoints[j]) && FailureDetector.instance().isAlive(endpoints[j]) )
 			{
-				logger_.debug("EndPoint " + endpoints[j] + " is in the same data center as local storage endpoint.");
 				return endpoints[j];
 			}
 		}

@@ -60,7 +60,6 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     
     public T get() throws TimeoutException, DigestMismatchException
     {
-        long startTime = System.currentTimeMillis();
     	lock_.lock();
         try
         {            
@@ -95,8 +94,6 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             	MessagingService.removeRegisteredCallback( response.getMessageId() );
             }
         }
-        logger_.info("QuorumResponseHandler: " + (System.currentTimeMillis() - startTime)
-                + " ms.");
 
     	return responseResolver_.resolve( responses_);
     }
