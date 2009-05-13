@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
@@ -27,15 +26,13 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.log4j.Logger;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.commons.collections.MapUtils;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -44,19 +41,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class Memtable implements Comparable<Memtable>
 {
 	private static Logger logger_ = Logger.getLogger( Memtable.class );
-    private static Set<ExecutorService> runningExecutorServices_ = new NonBlockingHashSet<ExecutorService>();
-    private static AtomicInteger executorCount_ = new AtomicInteger(0);
 
-    public static void shutdown()
-    {
-        for (ExecutorService exs : runningExecutorServices_)
-        {
-            exs.shutdownNow();
-        }
-    }
-
-    private MemtableThreadPoolExecutor executor_;
-    private volatile boolean isFrozen_;
+    private boolean isFrozen_;
     private volatile boolean isDirty_;
     private volatile boolean isFlushed_; // for tests, in particular forceBlockingFlush asserts this
 
@@ -78,56 +64,11 @@ public class Memtable implements Comparable<Memtable>
         table_ = table;
         cfName_ = cfName;
         creationTime_ = System.currentTimeMillis();
-
-        executor_ = new MemtableThreadPoolExecutor();
-        runningExecutorServices_.add(executor_);
     }
 
     public boolean isFlushed()
     {
         return isFlushed_;
-    }
-
-    class Putter implements Runnable
-    {
-        private String key_;
-        private ColumnFamily columnFamily_;
-
-        Putter(String key, ColumnFamily cf)
-        {
-            key_ = key;
-            columnFamily_ = cf;
-        }
-
-        public void run()
-        {
-        	resolve(key_, columnFamily_);
-        }
-    }
-
-    class Getter implements Callable<ColumnFamily>
-    {
-        private String key_;
-        private String columnFamilyName_;
-        private IFilter filter_;
-
-        Getter(String key, String cfName)
-        {
-            key_ = key;
-            columnFamilyName_ = cfName;
-        }
-
-        Getter(String key, String cfName, IFilter filter)
-        {
-            this(key, cfName);
-            filter_ = filter;
-        }
-
-        public ColumnFamily call()
-        {
-        	ColumnFamily cf = getLocalCopy(key_, columnFamilyName_, filter_);
-            return cf;
-        }
     }
 
     /**
@@ -177,36 +118,25 @@ public class Memtable implements Comparable<Memtable>
     	return cfName_;
     }
 
-    private synchronized void enqueueFlush(CommitLog.CommitLogContext cLogCtx)
+    synchronized void enqueueFlush(CommitLog.CommitLogContext cLogCtx)
     {
         if (!isFrozen_)
         {
             isFrozen_ = true;
-            ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-            cfStore.switchMemtable();
-            executor_.flushWhenTerminated(cLogCtx);
-            executor_.shutdown();
+            ColumnFamilyStore.submitFlush(this, cLogCtx);
         }
     }
 
-    /*
-     * This version is used by the external clients to put data into
-     * the memtable. This version will respect the threshold and flush
-     * the memtable to disk when the size exceeds the threshold.
+    /**
+     * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
+     * (CFS handles locking to avoid submitting an op
+     *  to a flushing memtable.  Any other way is unsafe.)
     */
-    public void put(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx) throws IOException
+    void put(String key, ColumnFamily columnFamily)
     {
-        if (isThresholdViolated())
-        {
-            enqueueFlush(cLogCtx);
-            // retry the put on the new memtable
-            ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-            cfStore.apply(key, columnFamily, cLogCtx);
-            return;
-        }
-
+        assert !isFrozen_; // not 100% foolproof but hell, it's an assert
         isDirty_ = true;
-        executor_.submit(new Putter(key, columnFamily));
+        resolve(key, columnFamily);
     }
 
     /*
@@ -221,10 +151,10 @@ public class Memtable implements Comparable<Memtable>
 
         try
         {
+            Table.open(table_).getColumnFamilyStore(cfName_).switchMemtable();
             enqueueFlush(CommitLog.open(table_).getContext());
-            executor_.flushQueuer.get();
         }
-        catch (Exception ex)
+        catch (IOException ex)
         {
             throw new RuntimeException(ex);
         }
@@ -258,10 +188,23 @@ public class Memtable implements Comparable<Memtable>
         }
     }
 
-    /*
+    // for debugging
+    public String contents()
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{");
+        for (Map.Entry<String, ColumnFamily> entry : columnFamilies_.entrySet())
+        {
+            builder.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
+        }
+        builder.append("}");
+        return builder.toString();
+    }
+
+    /**
      * This version is called on commit log recovery. The threshold
      * is not respected and a forceFlush() needs to be invoked to flush
-     * the contents to disk.
+     * the contents to disk.  Does not go through the executor.
     */
     void putOnRecovery(String key, ColumnFamily columnFamily)
     {
@@ -311,27 +254,9 @@ public class Memtable implements Comparable<Memtable>
         return filter.filter(columnFamilyColumn, columnFamily);
     }
 
-    ColumnFamily get(String key, String cfName, IFilter filter)
-    {
-    	Callable<ColumnFamily> call = new Getter(key, cfName, filter);
-    	ColumnFamily cf = null;
-        try
-        {
-            cf = executor_.submit(call).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return cf;
-    }
-
     void flush(CommitLog.CommitLogContext cLogCtx) throws IOException
     {
+        logger_.info("Flushing " + this);
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
 
         String directory = DatabaseDescriptor.getDataFileLocation();
@@ -370,51 +295,25 @@ public class Memtable implements Comparable<Memtable>
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         buffer.close();
         isFlushed_ = true;
+        logger_.info("Completed flushing " + this);
     }
 
-    private class MemtableThreadPoolExecutor extends DebuggableThreadPoolExecutor
+    public String toString()
     {
-        FutureTask flushQueuer;
-
-        public MemtableThreadPoolExecutor()
-        {
-            super("MEMTABLE-POOL-" + cfName_ + executorCount_.addAndGet(1));
-        }
-
-        protected void terminated()
-        {
-            super.terminated();
-            runningExecutorServices_.remove(this);
-            if (flushQueuer != null)
-            {
-                flushQueuer.run();
-            }
-            this.unregisterMBean();
-        }
-
-        public void flushWhenTerminated(final CommitLog.CommitLogContext cLogCtx)
-        {
-            Runnable runnable = new Runnable()
-            {
-                public void run()
-                {
-                    ColumnFamilyStore.submitFlush(Memtable.this, cLogCtx);
-                }
-            };
-            flushQueuer = new FutureTask(runnable, null);
-        }
+        return "Memtable(" + cfName_ + ")@" + hashCode();
     }
 
-    public Iterator<String> sortedKeyIterator() throws ExecutionException, InterruptedException
+    /**
+     * there does not appear to be any data structure that we can pass to PriorityQueue that will
+     * get it to heapify in-place instead of copying first, so we might as well return a Set.
+    */
+    Set<String> getKeys() throws ExecutionException, InterruptedException
     {
-        Callable<Set<String>> callable = new Callable<Set<String>>()
-        {
-            public Set<String> call() throws Exception
-            {
-                return columnFamilies_.keySet();
-            }
-        };
-        Set<String> keys = executor_.submit(callable).get();
+        return new HashSet<String>(columnFamilies_.keySet());
+    }
+
+    public static Iterator<String> getKeyIterator(Set<String> keys)
+    {
         if (keys.size() == 0)
         {
             // cannot create a PQ of size zero (wtf?)

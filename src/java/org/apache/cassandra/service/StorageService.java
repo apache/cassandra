@@ -408,8 +408,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         StageManager.shutdown();
         /* shut down the messaging service */
         MessagingService.shutdown();
-        /* shut down all memtables */
-        Memtable.shutdown();
         /* shut down the load disseminator */
         loadTimer_.cancel();
         /* shut down the cleaner thread in FileUtils */

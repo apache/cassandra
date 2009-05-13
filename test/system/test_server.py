@@ -57,6 +57,11 @@ def _expect_missing(fn):
 
 
 class TestMutations(CassandraTester):
+    def test_insert(self):
+        _insert_simple(False)
+        time.sleep(0.1)
+        _verify_simple()
+
     def test_empty_slice(self):
         assert client.get_slice('Table1', 'key1', 'Standard2', -1, -1) == []
 
@@ -68,11 +73,6 @@ class TestMutations(CassandraTester):
 
     def test_count(self):
         assert client.get_column_count('Table1', 'key1', 'Standard2') == 0
-
-    def test_insert(self):
-        _insert_simple(False)
-        time.sleep(0.1)
-        _verify_simple()
 
     def test_insert_blocking(self):
         _insert_simple()
@@ -116,7 +116,6 @@ class TestMutations(CassandraTester):
     def test_cf_remove_column(self):
         _insert_simple()
         client.remove('Table1', 'key1', 'Standard1:c1', 1, True)
-        time.sleep(0.1)
         _expect_missing(lambda: client.get_column('Table1', 'key1', 'Standard1:c1'))
         assert client.get_column('Table1', 'key1', 'Standard1:c2') == \
             column_t(columnName='c2', value='value2', timestamp=0)
@@ -149,7 +148,6 @@ class TestMutations(CassandraTester):
 
         # Remove the key1:Standard1 cf:
         client.remove('Table1', 'key1', 'Standard1', 3, True)
-        time.sleep(0.1)
         assert client.get_slice('Table1', 'key1', 'Standard1', -1, -1) == []
         _verify_super()
 
@@ -169,7 +167,6 @@ class TestMutations(CassandraTester):
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
         client.remove('Table1', 'key1', 'Super1:sc2:c5', 5, True)
-        time.sleep(0.1)
         _expect_missing(lambda: client.get_column('Table1', 'key1', 'Super1:sc2:c5'))
         assert client.get_slice_super('Table1', 'key1', 'Super1', -1, -1) == \
             [superColumn_t(name='sc1', 
@@ -211,7 +208,6 @@ class TestMutations(CassandraTester):
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
         client.remove('Table1', 'key1', 'Super1:sc2', 5, True)
-        time.sleep(0.1)
         _expect_missing(lambda: client.get_column('Table1', 'key1', 'Super1:sc2:c5'))
         actual = client.get_slice('Table1', 'key1', 'Super1:sc2', -1, -1)
         assert actual == [], actual

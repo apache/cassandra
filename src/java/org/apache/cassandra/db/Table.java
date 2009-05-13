@@ -903,20 +903,23 @@ public class Table
         {
             ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
 
-            // memtable keys: current and historical
-            Iterator<Memtable> memtables = (Iterator<Memtable>) IteratorUtils.chainedIterator(
-                    IteratorUtils.singletonIterator(cfs.getMemtable()),
-                    ColumnFamilyStore.getUnflushedMemtables(cfName).iterator());
-            while (memtables.hasNext())
+            // we iterate through memtables with a priorityqueue to avoid more sorting than necessary.
+            // this predicate throws out the keys before the start of our range.
+            Predicate p = new Predicate()
             {
-                iterators.add(IteratorUtils.filteredIterator(memtables.next().sortedKeyIterator(), new Predicate()
+                public boolean evaluate(Object key)
                 {
-                    public boolean evaluate(Object key)
-                    {
-                        String st = (String)key;
-                        return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
-                    }
-                }));
+                    String st = (String)key;
+                    return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
+                }
+            };
+
+            // current memtable keys.  have to go through the CFS api for locking.
+            iterators.add(IteratorUtils.filteredIterator(cfs.memtableKeyIterator(), p));
+            // historical memtables
+            for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(cfName))
+            {
+                iterators.add(IteratorUtils.filteredIterator(Memtable.getKeyIterator(memtable.getKeys()), p));
             }
 
             // sstables

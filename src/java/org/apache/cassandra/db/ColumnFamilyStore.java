@@ -24,10 +24,7 @@ import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,10 +42,7 @@ import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.utils.TimedStatsDeque;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.commons.lang.StringUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -78,8 +72,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* This is used to generate the next index for a SSTable */
     private AtomicInteger fileIndexGenerator_ = new AtomicInteger(0);
 
-    /* memtable associated with this ColumnFamilyStore. */
-    private AtomicReference<Memtable> memtable_;
+    /* active memtable associated with this ColumnFamilyStore. */
+    private Memtable memtable_;
+    // this lock is to (1) serialize puts and
+    // (2) make sure we don't perform puts on a memtable that is queued for flush.
+    // (or conversely, flush a memtable that is mid-put.)
+    // gets may be safely performed on a flushing ("frozen") memtable.
+    private ReentrantReadWriteLock memtableLock_ = new ReentrantReadWriteLock(true);
+
+    // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
@@ -100,7 +101,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         columnFamily_ = columnFamilyName;
         isSuper_ = isSuper;
         fileIndexGenerator_.set(indexValue);
-        memtable_ = new AtomicReference<Memtable>(new Memtable(table_, columnFamily_));
+        memtable_ = new Memtable(table_, columnFamily_);
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(table_, columnFamily_));
     }
 
@@ -426,8 +427,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     */
     void switchMemtable()
     {
-        getMemtablesPendingFlushNotNull(columnFamily_).add(memtable_.get()); // it's ok for the MT to briefly be both active and pendingFlush
-        memtable_.set(new Memtable(table_, columnFamily_));
+        memtableLock_.writeLock().lock();
+        try
+        {
+            logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable");
+            getMemtablesPendingFlushNotNull(columnFamily_).add(memtable_); // it's ok for the MT to briefly be both active and pendingFlush
+            memtable_ = new Memtable(table_, columnFamily_);
+        }
+        finally
+        {
+            memtableLock_.writeLock().unlock();
+        }
 
         if (memtableSwitchCount == Integer.MAX_VALUE)
         {
@@ -450,12 +460,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceFlush()
     {
-        memtable_.get().forceflush();
+        memtable_.forceflush();
     }
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
     {
-        Memtable oldMemtable = memtable_.get();
+        Memtable oldMemtable = getMemtableThreadSafe();
         oldMemtable.forceflush();
         // block for flush to finish by adding a no-op action to the flush executorservice
         // and waiting for that to finish.  (this works since flush ES is single-threaded.)
@@ -484,7 +494,21 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void apply(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx)
             throws IOException
     {
-        memtable_.get().put(key, columnFamily, cLogCtx);
+        Memtable initialMemtable = getMemtableThreadSafe();
+        if (initialMemtable.isThresholdViolated())
+        {
+            switchMemtable();
+            initialMemtable.enqueueFlush(cLogCtx);
+        }
+        memtableLock_.writeLock().lock();
+        try
+        {
+            memtable_.put(key, columnFamily);
+        }
+        finally
+        {
+            memtableLock_.writeLock().unlock();
+        }
     }
 
     /*
@@ -602,8 +626,16 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private void getColumnFamilyFromCurrentMemtable(String key, String cf, IFilter filter, List<ColumnFamily> columnFamilies)
     {
-        /* Get the ColumnFamily from Memtable */
-        ColumnFamily columnFamily = memtable_.get().get(key, cf, filter);
+        ColumnFamily columnFamily;
+        memtableLock_.readLock().lock();
+        try
+        {
+            columnFamily = memtable_.getLocalCopy(key, cf, filter);
+        }
+        finally
+        {
+            memtableLock_.readLock().unlock();
+        }
         if (columnFamily != null)
         {
             columnFamilies.add(columnFamily);
@@ -697,7 +729,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void applyNow(String key, ColumnFamily columnFamily) throws IOException
     {
-        memtable_.get().putOnRecovery(key, columnFamily);
+        getMemtableThreadSafe().putOnRecovery(key, columnFamily);
     }
 
     /*
@@ -1417,14 +1449,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 ssTables_.add(newfile);
                 totalBytesWritten += (new File(newfile)).length();
             }
+            for (String file : files)
+            {
+                SSTable.delete(file);
+            }
         }
         finally
         {
             lock_.writeLock().unlock();
-        }
-        for (String file : files)
-        {
-            SSTable.delete(file);
         }
 
         String format = "Compacted [%s] to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
@@ -1474,6 +1506,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* Submit memtables to be flushed to disk */
     public static void submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
     {
+        logger_.info("Enqueuing flush of " + memtable);
         flusher_.submit(new Runnable()
         {
             public void run()
@@ -1498,17 +1531,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void flushMemtableOnRecovery() throws IOException
     {
-        memtable_.get().flushOnRecovery();
+        getMemtableThreadSafe().flushOnRecovery();
     }
 
     public int getMemtableColumnsCount()
     {
-        return memtable_.get().getCurrentObjectCount();
+        return getMemtableThreadSafe().getCurrentObjectCount();
     }
 
     public int getMemtableDataSize()
     {
-        return memtable_.get().getCurrentSize();
+        return getMemtableThreadSafe().getCurrentSize();
     }
 
     public int getMemtableSwitchCount()
@@ -1516,9 +1549,42 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return memtableSwitchCount;
     }
 
-    public Object getMemtable()
+    /**
+     * get the current memtable in a threadsafe fashion.  note that simply "return memtable_" is
+     * incorrect; you need to lock to introduce a thread safe happens-before ordering.
+     *
+     * do NOT use this method to do either a put or get on the memtable object, since it could be
+     * flushed in the meantime (and its executor terminated).
+     *
+     * also do NOT make this method public or it will really get impossible to reason about these things.
+     * @return
+     */
+    private Memtable getMemtableThreadSafe()
     {
-        return memtable_.get();
+        memtableLock_.readLock().lock();
+        try
+        {
+            return memtable_;
+        }
+        finally
+        {
+            memtableLock_.readLock().unlock();
+        }
+    }
+
+    public Iterator<String> memtableKeyIterator() throws ExecutionException, InterruptedException
+    {
+        Set<String> keys;
+        memtableLock_.readLock().lock();
+        try
+        {
+            keys = memtable_.getKeys();
+        }
+        finally
+        {
+            memtableLock_.readLock().unlock();
+        }
+        return Memtable.getKeyIterator(keys);
     }
 
     /** not threadsafe.  caller must have lock_ acquired. */
