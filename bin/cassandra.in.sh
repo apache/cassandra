@@ -19,6 +19,7 @@ done
 
 # Arguments to pass to the JVM
 JVM_OPTS=" \
+        -ea \
         -Xdebug \
         -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n \
         -Xms128M \
