@@ -19,10 +19,6 @@
 package org.apache.cassandra.io;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.util.Random;
-
-import org.apache.cassandra.continuations.Suspendable;
 
 
 /**

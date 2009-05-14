@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import org.apache.cassandra.continuations.Suspendable;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 

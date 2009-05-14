@@ -18,13 +18,10 @@
 
 package org.apache.cassandra.io;
 
-import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.util.Arrays;
-
-import org.apache.cassandra.continuations.Suspendable;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
+import java.io.DataOutputStream;
+import java.io.IOException;
 
 
 /**

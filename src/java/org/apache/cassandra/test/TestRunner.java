@@ -22,7 +22,6 @@ import java.util.Random;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowMutation;
@@ -236,7 +235,6 @@ public class TestRunner
     }
 }
 
-@Suspendable
 class Scanner implements Runnable
 {   
     private static final Logger logger_ = Logger.getLogger(Scanner.class);

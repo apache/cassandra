@@ -22,8 +22,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collection;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.continuations.Suspendable;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTable;
 

@@ -25,8 +25,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.continuations.Suspendable;
-
 
 public class ContinuationStage implements IStage
 {
