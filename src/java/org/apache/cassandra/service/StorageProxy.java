@@ -149,12 +149,15 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
+            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
+            if (endpoints.length < (DatabaseDescriptor.getReplicationFactor() / 2) + 1)
+            {
+                throw new UnavailableException();
+            }
             QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(
                     DatabaseDescriptor.getReplicationFactor(),
                     new WriteResponseResolver());
-            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
             logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpoints, ", ") + "]");
-            // TODO: throw a thrift exception if we do not have N nodes
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
             if (!quorumResponseHandler.get())
