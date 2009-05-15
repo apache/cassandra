@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.io;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
@@ -29,7 +26,6 @@ import java.nio.channels.FileChannel;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +37,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import bak.pcj.map.AbstractLongKeyLongMap;
-import bak.pcj.map.LongKeyLongChainedHashMap;
 
 /**
  * This class manages the persistence of checksums and keeps
@@ -64,7 +58,7 @@ public class ChecksumManager
     private static final long chunkMask_ = 0x00000000FFFFFFFFL;
     private static final long fileIdMask_ = 0x7FFFFFFF00000000L;
     /* Map where checksums are cached. */
-    private static AbstractLongKeyLongMap chksums_ = new LongKeyLongChainedHashMap();
+    private static Map<Long, Long> chksums_ = new HashMap<Long, Long>();
 
     public static ChecksumManager instance(String dataFile) throws IOException
     {
