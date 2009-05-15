@@ -1,9 +1,12 @@
 package org.apache.cassandra.db;
 
+import static org.junit.Assert.*;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.DataInputBuffer;
@@ -39,6 +42,10 @@ public class ReadMessageTest
         rm = new SliceReadCommand("Table1", "row1", "foo", 1, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
+        
+        rm = new SliceByRangeReadCommand("Table1", "row1", "foo", "a", "z", 5);
+        rm2 = serializeAndDeserializeReadMessage(rm);
+        assertEquals(rm2.toString(), rm.toString());
     }
 
     private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm)

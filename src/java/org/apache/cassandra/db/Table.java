@@ -718,6 +718,25 @@ public class Table
         return row;
     }
     
+    public Row getRow(String key, String cf, String startColumn, String endColumn, int count) throws IOException
+    {
+        Row row = new Row(key);
+        String[] values = RowMutation.getColumnAndColumnFamily(cf);
+        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
+        long start1 = System.currentTimeMillis();
+        assert cfStore != null : "Column family " + cf + " has not been defined";
+        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
+        if ( columnFamily != null )
+        {
+            ColumnFamily filteredCf =  new RangeFilter(startColumn, endColumn, count).filter(cf, columnFamily);
+            row.addColumnFamily(filteredCf);
+        }
+        long timeTaken = System.currentTimeMillis() - start1;
+        dbAnalyticsSource_.updateReadStatistics(timeTaken);
+        return row;
+    }
+
+    
     public Row getRow(String key, String cf, long sinceTimeStamp) throws IOException
     {
         Row row = new Row(key);

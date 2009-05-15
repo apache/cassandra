@@ -38,6 +38,7 @@ public abstract class ReadCommand
     public static final byte CMD_TYPE_GET_SLICE_BY_NAMES=3;
     public static final byte CMD_TYPE_GET_COLUMNS_SINCE=4;
     public static final byte CMD_TYPE_GET_SLICE=5;
+    public static final byte CMD_TYPE_GET_SLICE_BY_RANGE = 6;
     public static final String EMPTY_CF = "";
     
     private static ReadCommandSerializer serializer = new ReadCommandSerializer();
@@ -94,6 +95,7 @@ class ReadCommandSerializer implements ICompactSerializer<ReadCommand>
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_BY_NAMES, new SliceByNamesReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_COLUMNS_SINCE, new ColumnsSinceReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE, new SliceReadCommandSerializer());
+        CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_BY_RANGE, new SliceByRangeReadCommandSerializer());
     }
 
 

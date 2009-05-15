@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnReadCommand;
 import org.apache.cassandra.db.ColumnsSinceReadCommand;
 import org.apache.cassandra.db.SliceByNamesReadCommand;
+import org.apache.cassandra.db.SliceByRangeReadCommand;
 import org.apache.cassandra.db.SliceReadCommand;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
@@ -537,6 +538,18 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("touch");
   		StorageProxy.touchProtocol(DatabaseDescriptor.getTables().get(0), key, fData, StorageService.ConsistencyLevel.WEAK);
+	}
+
+	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnFamily, String start, String end, int count)
+    throws InvalidRequestException, NotFoundException, TException
+    {
+		logger.debug("get_slice_by_range");
+        ColumnFamily cfamily = readColumnFamily(new SliceByRangeReadCommand(tablename, key, columnFamily, start, end, count));
+        if (cfamily == null)
+        {
+            return EMPTY_COLUMNS;
+        }
+        return thriftifyColumns(cfamily.getAllColumns());
 	}
 
     // main method moved to CassandraDaemon

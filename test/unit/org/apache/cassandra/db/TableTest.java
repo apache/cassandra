@@ -124,6 +124,34 @@ public class TableTest extends CleanupHelper
     }
     
     @Test
+    public void testGetRowSliceByRange() throws Throwable
+    {
+    	String key = TEST_KEY+"slicerow";
+    	Table table = Table.open(TABLE_NAME);
+    	RowMutation rm = new RowMutation(TABLE_NAME,key);
+        ColumnFamily cf = new ColumnFamily("Standard1","Standard");
+        // First write "a", "b", "c"
+        cf.addColumn(new Column("a", "val1".getBytes(), 1L));
+        cf.addColumn(new Column("b", "val2".getBytes(), 1L));
+        cf.addColumn(new Column("c", "val3".getBytes(), 1L));
+        rm.add(cf);
+        rm.apply();
+        
+        Row result = table.getRow(key, "Standard1", "b", "c",-1);
+        assertEquals(2, result.getColumnFamily("Standard1").getColumnCount());
+        
+        result = table.getRow(key, "Standard1", "b", "b", 50);
+        assertEquals(1, result.getColumnFamily("Standard1").getColumnCount());
+        
+        result = table.getRow(key, "Standard1", "b", "c",1);
+        assertEquals(1, result.getColumnFamily("Standard1").getColumnCount());
+        
+        result = table.getRow(key, "Standard1", "c", "b",1);
+        assertEquals(0, result.getColumnFamily("Standard1").getColumnCount());
+        
+    }
+    
+    @Test
     public void testGetRowSuperColumnOffsetCount() throws Throwable
     {
         Table table = Table.open(TABLE_NAME);

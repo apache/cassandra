@@ -80,7 +80,10 @@ service Cassandra {
   list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i32 start=-1, 5:i32 count=-1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> columnNames)
+  list<column_t> get_slice_by_name_range(1:string tablename, 2:string key, 3:string columnFamily, 4:string start, 5:string end, 6:i32 count=-1)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
+  
+list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> columnNames)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
   column_t       get_column(1:string tablename, 2:string key, 3:string columnFamily_column)
@@ -124,15 +127,15 @@ service Cassandra {
   /////////////////////////////////////////////////////////////////////////////////////
 
   // get property whose value is of type "string"
-  string         getStringProperty(string propertyName),
+  string         getStringProperty(1:string propertyName),
 
   // get property whose value is list of "strings"
-  list<string>   getStringListProperty(string propertyName),
+  list<string>   getStringListProperty(1:string propertyName),
 
   // describe specified table
-  string         describeTable(string tableName),
+  string         describeTable(1:string tableName),
 
   // execute a CQL query
-  CqlResult_t    executeQuery(string query)
+  CqlResult_t    executeQuery(1:string query)
 }
 
