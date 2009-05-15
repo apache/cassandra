@@ -32,6 +32,18 @@
     -->
     <Partitioner>org.apache.cassandra.dht.RandomPartitioner</Partitioner>
 
+    <!-- If you are using the OrderPreservingPartitioner and you know your key
+         distribution, you can specify the token for this node to use.
+         (Keys are sent to the node with the "closest" token, so distributing
+         your tokens equally along the key distribution space will spread
+         keys evenly across your cluster.)  This setting is only checked the
+         first time a node is started. 
+
+         This can also be useful with RandomPartitioner to force equal
+         spacing of tokens around the hash space, especially for
+         clusters with a small number of nodes. -->
+    <InitialToken></InitialToken>
+
     <!-- RackAware: Setting this to true instructs Cassandra to try and place the replicas in
          a different rack in the same datacenter and one in a different datacenter
     -->

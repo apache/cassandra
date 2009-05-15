@@ -21,6 +21,7 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.util.Comparator;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 
@@ -74,6 +75,11 @@ public class RandomPartitioner implements IPartitioner
 
     public BigIntegerToken getDefaultToken()
     {
+        String initialToken = DatabaseDescriptor.getInitialToken();
+        if (initialToken != null)
+            return new BigIntegerToken(new BigInteger(initialToken));
+
+        // generate random token
         String guid = GuidGenerator.guid();
         BigInteger token = FBUtilities.hash(guid);
         if ( token.signum() == -1 )

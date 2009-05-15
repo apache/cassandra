@@ -24,6 +24,8 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Random;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 public class OrderPreservingPartitioner implements IPartitioner
 {
     // TODO make locale configurable.  But don't just leave it up to the OS or you could really screw
@@ -65,6 +67,11 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     public StringToken getDefaultToken()
     {
+        String initialToken = DatabaseDescriptor.getInitialToken();
+        if (initialToken != null)
+            return new StringToken(initialToken);
+
+        // generate random token
         String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         Random r = new Random();
         StringBuffer buffer = new StringBuffer();

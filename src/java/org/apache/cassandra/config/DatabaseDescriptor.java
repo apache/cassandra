@@ -119,12 +119,15 @@ public class DatabaseDescriptor
 
     // the path qualified config file (storage-conf.xml) name
     private static String configFileName_;
+    /* initial token in the ring */
+    private static String initialToken_ = null;
     
     static
     {
         try
         {
             configFileName_ = System.getProperty("storage-config") + System.getProperty("file.separator") + "storage-conf.xml";
+            logger_.debug("Loading settings from " + configFileName_);
             XMLUtils xmlUtils = new XMLUtils(configFileName_);
 
             /* Cluster Name */
@@ -163,6 +166,8 @@ public class DatabaseDescriptor
             String gcGrace = xmlUtils.getNodeValue("/Storage/GCGraceSeconds");
             if ( gcGrace != null )
                 gcGraceInSeconds_ = Integer.parseInt(gcGrace);
+
+            initialToken_ = xmlUtils.getNodeValue("/Storage/InitialToken");
 
             /* Zookeeper's session timeout */
             String zkSessionTimeout = xmlUtils.getNodeValue("/Storage/ZookeeperSessionTimeout");
@@ -534,6 +539,11 @@ public class DatabaseDescriptor
     public static int getMemtableLifetime()
     {
       return memtableLifetime_;
+    }
+
+    public static String getInitialToken()
+    {
+      return initialToken_;
     }
 
     public static int getMemtableSize()
