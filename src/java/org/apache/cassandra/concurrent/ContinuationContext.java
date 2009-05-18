@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.concurrent;
 
-import org.apache.cassandra.continuations.Suspendable;
 import org.apache.commons.javaflow.Continuation;
 
 public class ContinuationContext
