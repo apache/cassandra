@@ -294,7 +294,7 @@ public class CassandraServer implements Cassandra.Iface
         return columns.size();
 	}
 
-    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, boolean block)
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, int block)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("insert");
@@ -303,34 +303,20 @@ public class CassandraServer implements Cassandra.Iface
         Set<String> cfNames = rm.columnFamilyNames();
         validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        if (block)
-        {
-            StorageProxy.insertBlocking(rm);
-        }
-        else
-        {
-            StorageProxy.insert(rm);
-        }
+        doInsert(block, rm);
     }
 
-    public void batch_insert(batch_mutation_t batchMutation, boolean block) throws InvalidRequestException, UnavailableException
+    public void batch_insert(batch_mutation_t batchMutation, int block) throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
         Set<String> cfNames = rm.columnFamilyNames();
         validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        if (block)
-        {
-            StorageProxy.insertBlocking(rm);
-        }
-        else
-        {
-            StorageProxy.insert(rm);
-        }
+        doInsert(block, rm);
     }
 
-    public void remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block)
+    public void remove(String tablename, String key, String columnFamily_column, long timestamp, int block)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("remove");
@@ -338,15 +324,21 @@ public class CassandraServer implements Cassandra.Iface
         rm.delete(columnFamily_column, timestamp);
         Set<String> cfNames = rm.columnFamilyNames();
         validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
-        if (block)
+        doInsert(block, rm);
+	}
+
+    private void doInsert(int block, RowMutation rm)
+            throws UnavailableException
+    {
+        if (block>0)
         {
-            StorageProxy.insertBlocking(rm);
+            StorageProxy.insertBlocking(rm,block);
         }
         else
         {
             StorageProxy.insert(rm);
         }
-	}
+    }
 
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException
     {
@@ -416,20 +408,13 @@ public class CassandraServer implements Cassandra.Iface
         return new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns()));
     }
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, boolean block) throws InvalidRequestException, UnavailableException
+    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block) throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert_SuperColumn");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
         Set<String> cfNames = rm.columnFamilyNames();
         validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
-        if (block)
-        {
-            StorageProxy.insertBlocking(rm);
-        }
-        else
-        {
-            StorageProxy.insert(rm);
-        }
+        doInsert(block, rm);
     }
 
     public String getStringProperty(String propertyName)

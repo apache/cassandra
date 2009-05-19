@@ -92,13 +92,13 @@ list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string col
   i32            get_column_count(1:string tablename, 2:string key, 3:string columnFamily_column)
   throws (1: InvalidRequestException ire),
 
-  void     insert(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp, 6:bool block=0)
+  void     insert(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp, 6:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void     batch_insert(1: batch_mutation_t batchMutation, 2:bool block=0)
+  void     batch_insert(1: batch_mutation_t batchMutation, 2:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void           remove(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timestamp, 5:bool block=0)
+  void           remove(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timestamp, 5:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timeStamp)
@@ -113,7 +113,7 @@ list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string col
   superColumn_t  get_superColumn(1:string tablename, 2:string key, 3:string columnFamily)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  void     batch_insert_superColumn(1:batch_mutation_super_t batchMutationSuper, 2:bool block=0)
+  void     batch_insert_superColumn(1:batch_mutation_super_t batchMutationSuper, 2:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   oneway void     touch(1:string key, 2:bool fData),

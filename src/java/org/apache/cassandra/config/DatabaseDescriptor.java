@@ -693,6 +693,11 @@ public class DatabaseDescriptor
         return replicationFactor_;
     }
 
+    public static int getQuorum()
+    {
+        return (replicationFactor_ / 2) + 1;
+    }
+
     public static long getRpcTimeout()
     {
         return rpcTimeoutInMillis_;

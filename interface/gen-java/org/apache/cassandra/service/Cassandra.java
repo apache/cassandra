@@ -32,11 +32,11 @@ public class Cassandra {
 
     public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException, TException;
 
-    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, boolean block) throws InvalidRequestException, UnavailableException, TException;
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public void batch_insert(batch_mutation_t batchMutation, boolean block) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert(batch_mutation_t batchMutation, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public void remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException, UnavailableException, TException;
+    public void remove(String tablename, String key, String columnFamily_column, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
     public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws InvalidRequestException, NotFoundException, TException;
 
@@ -46,7 +46,7 @@ public class Cassandra {
 
     public superColumn_t get_superColumn(String tablename, String key, String columnFamily) throws InvalidRequestException, NotFoundException, TException;
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, boolean block) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
     public void touch(String key, boolean fData) throws TException;
 
@@ -297,13 +297,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column_count failed: unknown result");
     }
 
-    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, boolean block) throws InvalidRequestException, UnavailableException, TException
+    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_insert(tablename, key, columnFamily_column, cellData, timestamp, block);
+      send_insert(tablename, key, columnFamily_column, cellData, timestamp, block_for);
       recv_insert();
     }
 
-    public void send_insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, boolean block) throws TException
+    public void send_insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
@@ -312,7 +312,7 @@ public class Cassandra {
       args.columnFamily_column = columnFamily_column;
       args.cellData = cellData;
       args.timestamp = timestamp;
-      args.block = block;
+      args.block_for = block_for;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -338,18 +338,18 @@ public class Cassandra {
       return;
     }
 
-    public void batch_insert(batch_mutation_t batchMutation, boolean block) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert(batch_mutation_t batchMutation, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert(batchMutation, block);
+      send_batch_insert(batchMutation, block_for);
       recv_batch_insert();
     }
 
-    public void send_batch_insert(batch_mutation_t batchMutation, boolean block) throws TException
+    public void send_batch_insert(batch_mutation_t batchMutation, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert", TMessageType.CALL, seqid_));
       batch_insert_args args = new batch_insert_args();
       args.batchMutation = batchMutation;
-      args.block = block;
+      args.block_for = block_for;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -375,13 +375,13 @@ public class Cassandra {
       return;
     }
 
-    public void remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws InvalidRequestException, UnavailableException, TException
+    public void remove(String tablename, String key, String columnFamily_column, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_remove(tablename, key, columnFamily_column, timestamp, block);
+      send_remove(tablename, key, columnFamily_column, timestamp, block_for);
       recv_remove();
     }
 
-    public void send_remove(String tablename, String key, String columnFamily_column, long timestamp, boolean block) throws TException
+    public void send_remove(String tablename, String key, String columnFamily_column, long timestamp, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
@@ -389,7 +389,7 @@ public class Cassandra {
       args.key = key;
       args.columnFamily_column = columnFamily_column;
       args.timestamp = timestamp;
-      args.block = block;
+      args.block_for = block_for;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -577,18 +577,18 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_superColumn failed: unknown result");
     }
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, boolean block) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert_superColumn(batchMutationSuper, block);
+      send_batch_insert_superColumn(batchMutationSuper, block_for);
       recv_batch_insert_superColumn();
     }
 
-    public void send_batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, boolean block) throws TException
+    public void send_batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert_superColumn", TMessageType.CALL, seqid_));
       batch_insert_superColumn_args args = new batch_insert_superColumn_args();
       args.batchMutationSuper = batchMutationSuper;
-      args.block = block;
+      args.block_for = block_for;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -1010,7 +1010,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         insert_result result = new insert_result();
         try {
-          iface_.insert(args.tablename, args.key, args.columnFamily_column, args.cellData, args.timestamp, args.block);
+          iface_.insert(args.tablename, args.key, args.columnFamily_column, args.cellData, args.timestamp, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1040,7 +1040,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_result result = new batch_insert_result();
         try {
-          iface_.batch_insert(args.batchMutation, args.block);
+          iface_.batch_insert(args.batchMutation, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1070,7 +1070,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
-          iface_.remove(args.tablename, args.key, args.columnFamily_column, args.timestamp, args.block);
+          iface_.remove(args.tablename, args.key, args.columnFamily_column, args.timestamp, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1216,7 +1216,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_superColumn_result result = new batch_insert_superColumn_result();
         try {
-          iface_.batch_insert_superColumn(args.batchMutationSuper, args.block);
+          iface_.batch_insert_superColumn(args.batchMutationSuper, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -5346,7 +5346,7 @@ public class Cassandra {
     private static final TField COLUMN_FAMILY_COLUMN_FIELD_DESC = new TField("columnFamily_column", TType.STRING, (short)3);
     private static final TField CELL_DATA_FIELD_DESC = new TField("cellData", TType.STRING, (short)4);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)5);
-    private static final TField BLOCK_FIELD_DESC = new TField("block", TType.BOOL, (short)6);
+    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)6);
 
     public String tablename;
     public static final int TABLENAME = 1;
@@ -5358,13 +5358,13 @@ public class Cassandra {
     public static final int CELLDATA = 4;
     public long timestamp;
     public static final int TIMESTAMP = 5;
-    public boolean block;
-    public static final int BLOCK = 6;
+    public int block_for;
+    public static final int BLOCK_FOR = 6;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean timestamp = false;
-      public boolean block = false;
+      public boolean block_for = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -5378,8 +5378,8 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
-      put(BLOCK, new FieldMetaData("block", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.BOOL)));
+      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
     }});
 
     static {
@@ -5387,7 +5387,7 @@ public class Cassandra {
     }
 
     public insert_args() {
-      this.block = false;
+      this.block_for = 0;
 
     }
 
@@ -5397,7 +5397,7 @@ public class Cassandra {
       String columnFamily_column,
       byte[] cellData,
       long timestamp,
-      boolean block)
+      int block_for)
     {
       this();
       this.tablename = tablename;
@@ -5406,8 +5406,8 @@ public class Cassandra {
       this.cellData = cellData;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
-      this.block = block;
-      this.__isset.block = true;
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
     /**
@@ -5429,8 +5429,8 @@ public class Cassandra {
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
-      __isset.block = other.__isset.block;
-      this.block = other.block;
+      __isset.block_for = other.__isset.block_for;
+      this.block_for = other.block_for;
     }
 
     @Override
@@ -5552,26 +5552,26 @@ public class Cassandra {
       this.__isset.timestamp = value;
     }
 
-    public boolean isBlock() {
-      return this.block;
+    public int getBlock_for() {
+      return this.block_for;
     }
 
-    public void setBlock(boolean block) {
-      this.block = block;
-      this.__isset.block = true;
+    public void setBlock_for(int block_for) {
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
-    public void unsetBlock() {
-      this.__isset.block = false;
+    public void unsetBlock_for() {
+      this.__isset.block_for = false;
     }
 
-    // Returns true if field block is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock() {
-      return this.__isset.block;
+    // Returns true if field block_for is set (has been asigned a value) and false otherwise
+    public boolean isSetBlock_for() {
+      return this.__isset.block_for;
     }
 
-    public void setBlockIsSet(boolean value) {
-      this.__isset.block = value;
+    public void setBlock_forIsSet(boolean value) {
+      this.__isset.block_for = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -5616,11 +5616,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK:
+      case BLOCK_FOR:
         if (value == null) {
-          unsetBlock();
+          unsetBlock_for();
         } else {
-          setBlock((Boolean)value);
+          setBlock_for((Integer)value);
         }
         break;
 
@@ -5646,8 +5646,8 @@ public class Cassandra {
       case TIMESTAMP:
         return new Long(getTimestamp());
 
-      case BLOCK:
-        return new Boolean(isBlock());
+      case BLOCK_FOR:
+        return new Integer(getBlock_for());
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -5667,8 +5667,8 @@ public class Cassandra {
         return isSetCellData();
       case TIMESTAMP:
         return isSetTimestamp();
-      case BLOCK:
-        return isSetBlock();
+      case BLOCK_FOR:
+        return isSetBlock_for();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -5732,12 +5732,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block = true;
-      boolean that_present_block = true;
-      if (this_present_block || that_present_block) {
-        if (!(this_present_block && that_present_block))
+      boolean this_present_block_for = true;
+      boolean that_present_block_for = true;
+      if (this_present_block_for || that_present_block_for) {
+        if (!(this_present_block_for && that_present_block_for))
           return false;
-        if (this.block != that.block)
+        if (this.block_for != that.block_for)
           return false;
       }
 
@@ -5796,10 +5796,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK:
-            if (field.type == TType.BOOL) {
-              this.block = iprot.readBool();
-              this.__isset.block = true;
+          case BLOCK_FOR:
+            if (field.type == TType.I32) {
+              this.block_for = iprot.readI32();
+              this.__isset.block_for = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5844,8 +5844,8 @@ public class Cassandra {
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
       oprot.writeI64(this.timestamp);
       oprot.writeFieldEnd();
-      oprot.writeFieldBegin(BLOCK_FIELD_DESC);
-      oprot.writeBool(this.block);
+      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
+      oprot.writeI32(this.block_for);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -5897,8 +5897,8 @@ public class Cassandra {
       sb.append(this.timestamp);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block:");
-      sb.append(this.block);
+      sb.append("block_for:");
+      sb.append(this.block_for);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -6188,23 +6188,23 @@ public class Cassandra {
   public static class batch_insert_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_args");
     private static final TField BATCH_MUTATION_FIELD_DESC = new TField("batchMutation", TType.STRUCT, (short)1);
-    private static final TField BLOCK_FIELD_DESC = new TField("block", TType.BOOL, (short)2);
+    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)2);
 
     public batch_mutation_t batchMutation;
     public static final int BATCHMUTATION = 1;
-    public boolean block;
-    public static final int BLOCK = 2;
+    public int block_for;
+    public static final int BLOCK_FOR = 2;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean block = false;
+      public boolean block_for = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(BATCHMUTATION, new FieldMetaData("batchMutation", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, batch_mutation_t.class)));
-      put(BLOCK, new FieldMetaData("block", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.BOOL)));
+      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
     }});
 
     static {
@@ -6212,18 +6212,18 @@ public class Cassandra {
     }
 
     public batch_insert_args() {
-      this.block = false;
+      this.block_for = 0;
 
     }
 
     public batch_insert_args(
       batch_mutation_t batchMutation,
-      boolean block)
+      int block_for)
     {
       this();
       this.batchMutation = batchMutation;
-      this.block = block;
-      this.__isset.block = true;
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
     /**
@@ -6233,8 +6233,8 @@ public class Cassandra {
       if (other.isSetBatchMutation()) {
         this.batchMutation = new batch_mutation_t(other.batchMutation);
       }
-      __isset.block = other.__isset.block;
-      this.block = other.block;
+      __isset.block_for = other.__isset.block_for;
+      this.block_for = other.block_for;
     }
 
     @Override
@@ -6265,26 +6265,26 @@ public class Cassandra {
       }
     }
 
-    public boolean isBlock() {
-      return this.block;
+    public int getBlock_for() {
+      return this.block_for;
     }
 
-    public void setBlock(boolean block) {
-      this.block = block;
-      this.__isset.block = true;
+    public void setBlock_for(int block_for) {
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
-    public void unsetBlock() {
-      this.__isset.block = false;
+    public void unsetBlock_for() {
+      this.__isset.block_for = false;
     }
 
-    // Returns true if field block is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock() {
-      return this.__isset.block;
+    // Returns true if field block_for is set (has been asigned a value) and false otherwise
+    public boolean isSetBlock_for() {
+      return this.__isset.block_for;
     }
 
-    public void setBlockIsSet(boolean value) {
-      this.__isset.block = value;
+    public void setBlock_forIsSet(boolean value) {
+      this.__isset.block_for = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -6297,11 +6297,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK:
+      case BLOCK_FOR:
         if (value == null) {
-          unsetBlock();
+          unsetBlock_for();
         } else {
-          setBlock((Boolean)value);
+          setBlock_for((Integer)value);
         }
         break;
 
@@ -6315,8 +6315,8 @@ public class Cassandra {
       case BATCHMUTATION:
         return getBatchMutation();
 
-      case BLOCK:
-        return new Boolean(isBlock());
+      case BLOCK_FOR:
+        return new Integer(getBlock_for());
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -6328,8 +6328,8 @@ public class Cassandra {
       switch (fieldID) {
       case BATCHMUTATION:
         return isSetBatchMutation();
-      case BLOCK:
-        return isSetBlock();
+      case BLOCK_FOR:
+        return isSetBlock_for();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -6357,12 +6357,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block = true;
-      boolean that_present_block = true;
-      if (this_present_block || that_present_block) {
-        if (!(this_present_block && that_present_block))
+      boolean this_present_block_for = true;
+      boolean that_present_block_for = true;
+      if (this_present_block_for || that_present_block_for) {
+        if (!(this_present_block_for && that_present_block_for))
           return false;
-        if (this.block != that.block)
+        if (this.block_for != that.block_for)
           return false;
       }
 
@@ -6393,10 +6393,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK:
-            if (field.type == TType.BOOL) {
-              this.block = iprot.readBool();
-              this.__isset.block = true;
+          case BLOCK_FOR:
+            if (field.type == TType.I32) {
+              this.block_for = iprot.readI32();
+              this.__isset.block_for = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -6423,8 +6423,8 @@ public class Cassandra {
         this.batchMutation.write(oprot);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(BLOCK_FIELD_DESC);
-      oprot.writeBool(this.block);
+      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
+      oprot.writeI32(this.block_for);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -6443,8 +6443,8 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block:");
-      sb.append(this.block);
+      sb.append("block_for:");
+      sb.append(this.block_for);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -6737,7 +6737,7 @@ public class Cassandra {
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_FAMILY_COLUMN_FIELD_DESC = new TField("columnFamily_column", TType.STRING, (short)3);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)4);
-    private static final TField BLOCK_FIELD_DESC = new TField("block", TType.BOOL, (short)5);
+    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)5);
 
     public String tablename;
     public static final int TABLENAME = 1;
@@ -6747,13 +6747,13 @@ public class Cassandra {
     public static final int COLUMNFAMILY_COLUMN = 3;
     public long timestamp;
     public static final int TIMESTAMP = 4;
-    public boolean block;
-    public static final int BLOCK = 5;
+    public int block_for;
+    public static final int BLOCK_FOR = 5;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean timestamp = false;
-      public boolean block = false;
+      public boolean block_for = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -6765,8 +6765,8 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
-      put(BLOCK, new FieldMetaData("block", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.BOOL)));
+      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
     }});
 
     static {
@@ -6774,7 +6774,7 @@ public class Cassandra {
     }
 
     public remove_args() {
-      this.block = false;
+      this.block_for = 0;
 
     }
 
@@ -6783,7 +6783,7 @@ public class Cassandra {
       String key,
       String columnFamily_column,
       long timestamp,
-      boolean block)
+      int block_for)
     {
       this();
       this.tablename = tablename;
@@ -6791,8 +6791,8 @@ public class Cassandra {
       this.columnFamily_column = columnFamily_column;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
-      this.block = block;
-      this.__isset.block = true;
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
     /**
@@ -6810,8 +6810,8 @@ public class Cassandra {
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
-      __isset.block = other.__isset.block;
-      this.block = other.block;
+      __isset.block_for = other.__isset.block_for;
+      this.block_for = other.block_for;
     }
 
     @Override
@@ -6910,26 +6910,26 @@ public class Cassandra {
       this.__isset.timestamp = value;
     }
 
-    public boolean isBlock() {
-      return this.block;
+    public int getBlock_for() {
+      return this.block_for;
     }
 
-    public void setBlock(boolean block) {
-      this.block = block;
-      this.__isset.block = true;
+    public void setBlock_for(int block_for) {
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
-    public void unsetBlock() {
-      this.__isset.block = false;
+    public void unsetBlock_for() {
+      this.__isset.block_for = false;
     }
 
-    // Returns true if field block is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock() {
-      return this.__isset.block;
+    // Returns true if field block_for is set (has been asigned a value) and false otherwise
+    public boolean isSetBlock_for() {
+      return this.__isset.block_for;
     }
 
-    public void setBlockIsSet(boolean value) {
-      this.__isset.block = value;
+    public void setBlock_forIsSet(boolean value) {
+      this.__isset.block_for = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -6966,11 +6966,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK:
+      case BLOCK_FOR:
         if (value == null) {
-          unsetBlock();
+          unsetBlock_for();
         } else {
-          setBlock((Boolean)value);
+          setBlock_for((Integer)value);
         }
         break;
 
@@ -6993,8 +6993,8 @@ public class Cassandra {
       case TIMESTAMP:
         return new Long(getTimestamp());
 
-      case BLOCK:
-        return new Boolean(isBlock());
+      case BLOCK_FOR:
+        return new Integer(getBlock_for());
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -7012,8 +7012,8 @@ public class Cassandra {
         return isSetColumnFamily_column();
       case TIMESTAMP:
         return isSetTimestamp();
-      case BLOCK:
-        return isSetBlock();
+      case BLOCK_FOR:
+        return isSetBlock_for();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -7068,12 +7068,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block = true;
-      boolean that_present_block = true;
-      if (this_present_block || that_present_block) {
-        if (!(this_present_block && that_present_block))
+      boolean this_present_block_for = true;
+      boolean that_present_block_for = true;
+      if (this_present_block_for || that_present_block_for) {
+        if (!(this_present_block_for && that_present_block_for))
           return false;
-        if (this.block != that.block)
+        if (this.block_for != that.block_for)
           return false;
       }
 
@@ -7125,10 +7125,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK:
-            if (field.type == TType.BOOL) {
-              this.block = iprot.readBool();
-              this.__isset.block = true;
+          case BLOCK_FOR:
+            if (field.type == TType.I32) {
+              this.block_for = iprot.readI32();
+              this.__isset.block_for = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7168,8 +7168,8 @@ public class Cassandra {
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
       oprot.writeI64(this.timestamp);
       oprot.writeFieldEnd();
-      oprot.writeFieldBegin(BLOCK_FIELD_DESC);
-      oprot.writeBool(this.block);
+      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
+      oprot.writeI32(this.block_for);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -7208,8 +7208,8 @@ public class Cassandra {
       sb.append(this.timestamp);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block:");
-      sb.append(this.block);
+      sb.append("block_for:");
+      sb.append(this.block_for);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -10574,23 +10574,23 @@ public class Cassandra {
   public static class batch_insert_superColumn_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_superColumn_args");
     private static final TField BATCH_MUTATION_SUPER_FIELD_DESC = new TField("batchMutationSuper", TType.STRUCT, (short)1);
-    private static final TField BLOCK_FIELD_DESC = new TField("block", TType.BOOL, (short)2);
+    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)2);
 
     public batch_mutation_super_t batchMutationSuper;
     public static final int BATCHMUTATIONSUPER = 1;
-    public boolean block;
-    public static final int BLOCK = 2;
+    public int block_for;
+    public static final int BLOCK_FOR = 2;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean block = false;
+      public boolean block_for = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(BATCHMUTATIONSUPER, new FieldMetaData("batchMutationSuper", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, batch_mutation_super_t.class)));
-      put(BLOCK, new FieldMetaData("block", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.BOOL)));
+      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
     }});
 
     static {
@@ -10598,18 +10598,18 @@ public class Cassandra {
     }
 
     public batch_insert_superColumn_args() {
-      this.block = false;
+      this.block_for = 0;
 
     }
 
     public batch_insert_superColumn_args(
       batch_mutation_super_t batchMutationSuper,
-      boolean block)
+      int block_for)
     {
       this();
       this.batchMutationSuper = batchMutationSuper;
-      this.block = block;
-      this.__isset.block = true;
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
     /**
@@ -10619,8 +10619,8 @@ public class Cassandra {
       if (other.isSetBatchMutationSuper()) {
         this.batchMutationSuper = new batch_mutation_super_t(other.batchMutationSuper);
       }
-      __isset.block = other.__isset.block;
-      this.block = other.block;
+      __isset.block_for = other.__isset.block_for;
+      this.block_for = other.block_for;
     }
 
     @Override
@@ -10651,26 +10651,26 @@ public class Cassandra {
       }
     }
 
-    public boolean isBlock() {
-      return this.block;
+    public int getBlock_for() {
+      return this.block_for;
     }
 
-    public void setBlock(boolean block) {
-      this.block = block;
-      this.__isset.block = true;
+    public void setBlock_for(int block_for) {
+      this.block_for = block_for;
+      this.__isset.block_for = true;
     }
 
-    public void unsetBlock() {
-      this.__isset.block = false;
+    public void unsetBlock_for() {
+      this.__isset.block_for = false;
     }
 
-    // Returns true if field block is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock() {
-      return this.__isset.block;
+    // Returns true if field block_for is set (has been asigned a value) and false otherwise
+    public boolean isSetBlock_for() {
+      return this.__isset.block_for;
     }
 
-    public void setBlockIsSet(boolean value) {
-      this.__isset.block = value;
+    public void setBlock_forIsSet(boolean value) {
+      this.__isset.block_for = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -10683,11 +10683,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK:
+      case BLOCK_FOR:
         if (value == null) {
-          unsetBlock();
+          unsetBlock_for();
         } else {
-          setBlock((Boolean)value);
+          setBlock_for((Integer)value);
         }
         break;
 
@@ -10701,8 +10701,8 @@ public class Cassandra {
       case BATCHMUTATIONSUPER:
         return getBatchMutationSuper();
 
-      case BLOCK:
-        return new Boolean(isBlock());
+      case BLOCK_FOR:
+        return new Integer(getBlock_for());
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -10714,8 +10714,8 @@ public class Cassandra {
       switch (fieldID) {
       case BATCHMUTATIONSUPER:
         return isSetBatchMutationSuper();
-      case BLOCK:
-        return isSetBlock();
+      case BLOCK_FOR:
+        return isSetBlock_for();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -10743,12 +10743,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block = true;
-      boolean that_present_block = true;
-      if (this_present_block || that_present_block) {
-        if (!(this_present_block && that_present_block))
+      boolean this_present_block_for = true;
+      boolean that_present_block_for = true;
+      if (this_present_block_for || that_present_block_for) {
+        if (!(this_present_block_for && that_present_block_for))
           return false;
-        if (this.block != that.block)
+        if (this.block_for != that.block_for)
           return false;
       }
 
@@ -10779,10 +10779,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK:
-            if (field.type == TType.BOOL) {
-              this.block = iprot.readBool();
-              this.__isset.block = true;
+          case BLOCK_FOR:
+            if (field.type == TType.I32) {
+              this.block_for = iprot.readI32();
+              this.__isset.block_for = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10809,8 +10809,8 @@ public class Cassandra {
         this.batchMutationSuper.write(oprot);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(BLOCK_FIELD_DESC);
-      oprot.writeBool(this.block);
+      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
+      oprot.writeI32(this.block_for);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -10829,8 +10829,8 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block:");
-      sb.append(this.block);
+      sb.append("block_for:");
+      sb.append(this.block_for);
       first = false;
       sb.append(")");
       return sb.toString();

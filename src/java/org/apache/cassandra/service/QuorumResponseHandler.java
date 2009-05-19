@@ -45,17 +45,16 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     private List<Message> responses_ = new ArrayList<Message>();
     private IResponseResolver<T> responseResolver_;
     private AtomicBoolean done_ = new AtomicBoolean(false);
-    
-    public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver)
-    {        
+
+    public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver) throws InvalidRequestException
+    {
+        if (responseCount > DatabaseDescriptor.getReplicationFactor())
+            throw new InvalidRequestException("Cannot block for more than the replication factor of " + DatabaseDescriptor.getReplicationFactor());
+        if (responseCount < 1)
+            throw new InvalidRequestException("Cannot block for less than one replica");
         condition_ = lock_.newCondition();
         responseCount_ = responseCount;
         responseResolver_ =  responseResolver;
-    }
-    
-    public void  setResponseCount(int responseCount)
-    {
-        responseCount_ = responseCount;
     }
     
     public T get() throws TimeoutException, DigestMismatchException
@@ -102,12 +101,11 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     {
         lock_.lock();
         try
-        {
-        	int majority = (responseCount_ >> 1) + 1;            
+        {            
             if ( !done_.get() )
             {
             	responses_.add( message );
-            	if ( responses_.size() >= majority && responseResolver_.isDataPresent(responses_))
+            	if ( responses_.size() >= responseCount_ && responseResolver_.isDataPresent(responses_))
             	{
             		done_.set(true);
             		condition_.signal();            	

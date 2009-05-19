@@ -134,8 +134,8 @@ public class StorageProxy implements StorageProxyMBean
             writeStats.add(System.currentTimeMillis() - startTime);
         }
     }
-
-    public static void insertBlocking(RowMutation rm) throws UnavailableException
+    
+    public static void insertBlocking(RowMutation rm, int blockFor) throws UnavailableException
     {
         long startTime = System.currentTimeMillis();
         Message message = null;
@@ -154,9 +154,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 throw new UnavailableException();
             }
-            QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(
-                    DatabaseDescriptor.getReplicationFactor(),
-                    new WriteResponseResolver());
+            QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(blockFor, new WriteResponseResolver());
             logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpoints, ", ") + "]");
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
@@ -172,6 +170,11 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeStats.add(System.currentTimeMillis() - startTime);
         }
+    }
+
+    public static void insertBlocking(RowMutation rm) throws UnavailableException
+    {
+        insertBlocking(rm, (DatabaseDescriptor.getReplicationFactor() >> 1) + 1);
     }
     
     private static Map<String, Message> constructMessages(Map<String, ReadCommand> readMessages) throws IOException
@@ -347,7 +350,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static Row readProtocol(ReadCommand command, StorageService.ConsistencyLevel consistencyLevel)
-    throws IOException, TimeoutException
+    throws IOException, TimeoutException, InvalidRequestException
     {
         long startTime = System.currentTimeMillis();
 
@@ -437,7 +440,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static Row strongRead(ReadCommand command) throws IOException, TimeoutException
+    private static Row strongRead(ReadCommand command) throws IOException, TimeoutException, InvalidRequestException
     {
         // TODO: throw a thrift exception if we do not have N nodes
         assert !command.isDigestQuery();
@@ -450,7 +453,7 @@ public class StorageProxy implements StorageProxyMBean
 
         IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
         QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
-                DatabaseDescriptor.getReplicationFactor(),
+                DatabaseDescriptor.getQuorum(),
                 readResponseResolver);
         EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
         List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getNStorageEndPoint(command.key)));
@@ -489,7 +492,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver();
                 QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
-                        DatabaseDescriptor.getReplicationFactor(),
+                        DatabaseDescriptor.getQuorum(),
                         readResponseResolverRepair);
                 logger.info("DigestMismatchException: " + command.key);
                 Message messageRepair = command.makeReadMessage();

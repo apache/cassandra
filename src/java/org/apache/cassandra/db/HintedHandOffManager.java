@@ -76,7 +76,7 @@ public class HintedHandOffManager implements IComponentShutdown
         return instance_;
     }
 
-    private static boolean sendMessage(String endpointAddress, String key) throws DigestMismatchException, TimeoutException, IOException
+    private static boolean sendMessage(String endpointAddress, String key) throws DigestMismatchException, TimeoutException, IOException, InvalidRequestException
     {
         EndPoint endPoint = new EndPoint(endpointAddress, DatabaseDescriptor.getStoragePort());
         if (!FailureDetector.instance().isAlive(endPoint))
