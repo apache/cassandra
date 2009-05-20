@@ -220,7 +220,7 @@ public class SSTable
         }
 
         File file = new File(dataFile);
-        assert file.exists();
+        assert file.exists() : "attempted to delete non-existing file " + dataFile;
         /* delete the data file */
         if (!file.delete())
         {
