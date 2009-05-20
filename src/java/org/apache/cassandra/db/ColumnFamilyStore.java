@@ -88,9 +88,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* Modification lock used for protecting reads from compactions. */
     private ReentrantReadWriteLock lock_ = new ReentrantReadWriteLock(true);
 
-    /* Flag indicates if a compaction is in process */
-    private AtomicBoolean isCompacting_ = new AtomicBoolean(false);
-
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque diskReadStats_ = new TimedStatsDeque(60000);
 
@@ -756,25 +753,26 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     */
     void storeLocation(String filename, BloomFilter bf)
     {
-        int ssTableSize = 0;
+        int ssTableCount;
         lock_.writeLock().lock();
         try
         {
             ssTables_.add(filename);
             SSTable.storeBloomFilter(filename, bf);
-            ssTableSize = ssTables_.size();
+            ssTableCount = ssTables_.size();
         }
         finally
         {
             lock_.writeLock().unlock();
         }
 
-        if ((ssTableSize >= MinorCompactionManager.COMPACTION_THRESHOLD && !isCompacting_.get())
-            || (isCompacting_.get() && ssTableSize % MinorCompactionManager.COMPACTION_THRESHOLD == 0))
+        /* it's ok if compaction gets submitted multiple times while one is already in process.
+           worst that happens is, compactor will count the sstable files and decide there are
+           not enough to bother with. */
+        if (ssTableCount >= MinorCompactionManager.COMPACTION_THRESHOLD)
         {
-            logger_.debug("Submitting for  compaction ...");
-            MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
-            logger_.debug("Submitted for compaction ...");
+            logger_.debug("Submitting " + columnFamily_ + " for compaction");
+            MinorCompactionManager.instance().submit(this);
         }
     }
 
@@ -862,45 +860,37 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      * Break the files into buckets and then compact.
      */
-    public int doCompaction(int threshold) throws IOException
+    int doCompaction(int threshold) throws IOException
     {
-        isCompacting_.set(true);
         List<String> files = new ArrayList<String>(ssTables_);
         int filesCompacted = 0;
-        try
+        Set<List<String>> buckets = getCompactionBuckets(files, 50L * 1024L * 1024L);
+        for (List<String> fileList : buckets)
         {
-            Set<List<String>> buckets = getCompactionBuckets(files, 50L * 1024L * 1024L);
-            for (List<String> fileList : buckets)
+            Collections.sort(fileList, new FileNameComparator(FileNameComparator.Ascending));
+            if (fileList.size() < threshold)
             {
-                Collections.sort(fileList, new FileNameComparator(FileNameComparator.Ascending));
-                if (fileList.size() < threshold)
+                continue;
+            }
+            // For each bucket if it has crossed the threshhold do the compaction
+            // In case of range  compaction merge the counting bloom filters also.
+            files.clear();
+            int count = 0;
+            for (String file : fileList)
+            {
+                files.add(file);
+                count++;
+                if (count == threshold)
                 {
-                    continue;
-                }
-                // For each bucket if it has crossed the threshhold do the compaction
-                // In case of range  compaction merge the counting bloom filters also.
-                files.clear();
-                int count = 0;
-                for (String file : fileList)
-                {
-                    files.add(file);
-                    count++;
-                    if (count == threshold)
-                    {
-                        filesCompacted += doFileCompaction(files, BUFSIZE);
-                        break;
-                    }
+                    filesCompacted += doFileCompaction(files, BUFSIZE);
+                    break;
                 }
             }
-        }
-        finally
-        {
-            isCompacting_.set(false);
         }
         return filesCompacted;
     }
 
-    void doMajorCompaction(long skip)
+    void doMajorCompaction(long skip) throws IOException
     {
         doMajorCompactionInternal(skip);
     }
@@ -911,39 +901,27 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * all files greater than skip GB are skipped for this compaction.
      * Except if skip is 0 , in that case this is ignored and all files are taken.
      */
-    void doMajorCompactionInternal(long skip)
+    void doMajorCompactionInternal(long skip) throws IOException
     {
-        isCompacting_.set(true);
         List<String> filesInternal = new ArrayList<String>(ssTables_);
         List<String> files;
-        try
+        if (skip > 0L)
         {
-            if (skip > 0L)
+            files = new ArrayList<String>();
+            for (String file : filesInternal)
             {
-                files = new ArrayList<String>();
-                for (String file : filesInternal)
+                File f = new File(file);
+                if (f.length() < skip * 1024L * 1024L * 1024L)
                 {
-                    File f = new File(file);
-                    if (f.length() < skip * 1024L * 1024L * 1024L)
-                    {
-                        files.add(file);
-                    }
+                    files.add(file);
                 }
             }
-            else
-            {
-                files = filesInternal;
-            }
-            doFileCompaction(files, BUFSIZE);
         }
-        catch (IOException ex)
+        else
         {
-            logger_.error(ex);
+            files = filesInternal;
         }
-        finally
-        {
-            isCompacting_.set(false);
-        }
+        doFileCompaction(files, BUFSIZE);
     }
 
     /*
@@ -983,19 +961,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     boolean doAntiCompaction(List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
     {
-        isCompacting_.set(true);
         List<String> files = new ArrayList<String>(ssTables_);
-        boolean result = true;
-        try
-        {
-            result = doFileAntiCompaction(files, ranges, target, fileList, null);
-        }
-        finally
-        {
-            isCompacting_.set(false);
-        }
-        return result;
-
+        return doFileAntiCompaction(files, ranges, target, fileList, null);
     }
 
     void forceCleanup()
@@ -1011,18 +978,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void doCleanupCompaction() throws IOException
     {
-        isCompacting_.set(true);
         List<String> files = new ArrayList<String>(ssTables_);
-        try
+        for (String file : files)
         {
-            for (String file : files)
-            {
-                doCleanup(file);
-            }
-        }
-        finally
-        {
-            isCompacting_.set(false);
+            doCleanup(file);
         }
     }
 

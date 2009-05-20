@@ -203,28 +203,28 @@ public class SSTable
      * This method deletes both the specified data file
      * and the associated index file
      *
-     * @param dataFile - data file associated with the SSTable
+     * @param dataFileName - data file associated with the SSTable
      */
-    public static void delete(String dataFile)
+    public static void delete(String dataFileName)
     {
         /* remove the cached index table from memory */
-        indexMetadataMap_.remove(dataFile);
+        indexMetadataMap_.remove(dataFileName);
         /* Delete the checksum file associated with this data file */
         try
         {
-            ChecksumManager.onFileDelete(dataFile);
+            ChecksumManager.onFileDelete(dataFileName);
         }
         catch (IOException ex)
         {
             logger_.info(LogUtil.throwableToString(ex));
         }
 
-        File file = new File(dataFile);
-        assert file.exists() : "attempted to delete non-existing file " + dataFile;
+        File file = new File(dataFileName);
+        assert file.exists() : "attempted to delete non-existing file " + dataFileName;
         /* delete the data file */
         if (!file.delete())
         {
-            logger_.error("Failed to delete " + file.getName());
+            logger_.error("Failed to delete " + dataFileName);
         }
     }
 

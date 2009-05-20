@@ -113,7 +113,14 @@ class MinorCompactionManager implements IComponentShutdown
         public void run()
         {
             logger_.debug("Started  Major compaction for " + columnFamilyStore_.columnFamily_);
-            columnFamilyStore_.doMajorCompaction(skip_);
+            try
+            {
+                columnFamilyStore_.doMajorCompaction(skip_);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
             logger_.debug("Finished Major compaction for " + columnFamilyStore_.columnFamily_);
         }
     }
