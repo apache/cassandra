@@ -56,7 +56,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
-    private static int COMPACTION_THRESHOLD = 4; // compact this many sstables at a time
     private static final int BUFSIZE = 128 * 1024 * 1024;
     private static final int COMPACTION_MEMORY_THRESHOLD = 1 << 30;
 
@@ -770,8 +769,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             lock_.writeLock().unlock();
         }
 
-        if ((ssTableSize >= COMPACTION_THRESHOLD && !isCompacting_.get())
-            || (isCompacting_.get() && ssTableSize % COMPACTION_THRESHOLD == 0))
+        if ((ssTableSize >= MinorCompactionManager.COMPACTION_THRESHOLD && !isCompacting_.get())
+            || (isCompacting_.get() && ssTableSize % MinorCompactionManager.COMPACTION_THRESHOLD == 0))
         {
             logger_.debug("Submitting for  compaction ...");
             MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
@@ -858,11 +857,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         return buckets.keySet();
-    }
-
-    public int doCompaction() throws IOException
-    {
-        return doCompaction(COMPACTION_THRESHOLD);
     }
 
     /*
@@ -1294,6 +1288,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     */
     private int doFileCompaction(List<String> files, int minBufferSize) throws IOException
     {
+        logger_.info("Compacting [" + StringUtils.join(files, ",") + "]");
         String compactionFileLocation = DatabaseDescriptor.getCompactionFileLocation(getExpectedCompactedFileSize(files));
         // If the compaction file path is null that means we have no space left for this compaction.
         // try again w/o the largest one.
@@ -1314,6 +1309,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (pq.isEmpty())
         {
+            logger_.warn("Nothing to compact (all files empty or corrupt)");
             // TODO clean out bad files, if any
             return 0;
         }

@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -44,7 +45,9 @@ public class OneCompactionTest
             store.forceBlockingFlush();
             assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
         }
-        store.doCompaction(2);
+        Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2);
+        ft.get();
+        assertEquals(1, store.getSSTableFilenames().size());
         assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
     }
 
@@ -57,6 +60,6 @@ public class OneCompactionTest
     @Test
     public void testCompaction2() throws IOException, ExecutionException, InterruptedException
     {
-        testCompaction("Standard2", 500);
+        testCompaction("Standard2", 5);
     }
 }

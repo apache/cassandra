@@ -178,7 +178,7 @@
       </copy> 
       
       <tar compression="gzip" longfile="gnu"
-        destfile="${build.dir}/${final.name}.tgz">
+        destfile="${build.dir}/${final.name}-bin.tar.gz">
 
         <tarfileset dir="${dist.dir}"
           prefix="${final.name}">
@@ -190,6 +190,15 @@
           mode="755">
           <include name="bin/cassandra"/>
         </tarfileset>	
+      </tar>
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}-src.tar.gz">
+
+        <tarfileset dir="${basedir}"
+          prefix="${final.name}-src">
+          <include name="**"/>
+          <exclude name="build/**" />
+        </tarfileset>
       </tar>
     </target>
 

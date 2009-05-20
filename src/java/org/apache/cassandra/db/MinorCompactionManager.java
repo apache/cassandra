@@ -46,7 +46,8 @@ class MinorCompactionManager implements IComponentShutdown
     private static MinorCompactionManager instance_;
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(MinorCompactionManager.class);
-    final static long intervalInMins_ = 5;
+    private static final long intervalInMins_ = 5;
+    static final int COMPACTION_THRESHOLD = 4; // compact this many sstables at a time
 
     public static MinorCompactionManager instance()
     {
@@ -64,33 +65,6 @@ class MinorCompactionManager implements IComponentShutdown
             }
         }
         return instance_;
-    }
-
-    class FileCompactor implements Callable<Integer>
-    {
-        private ColumnFamilyStore columnFamilyStore_;
-
-        FileCompactor(ColumnFamilyStore columnFamilyStore)
-        {
-            columnFamilyStore_ = columnFamilyStore;
-        }
-
-        public Integer call()
-        {
-            logger_.debug("Started compaction ..." + columnFamilyStore_.columnFamily_);
-            try
-            {
-                return columnFamilyStore_.doCompaction();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            finally
-            {
-                logger_.debug("Finished compaction ..." + columnFamilyStore_.columnFamily_);
-            }
-        }
     }
 
     class FileCompactor2 implements Callable<Boolean>
@@ -138,9 +112,9 @@ class MinorCompactionManager implements IComponentShutdown
 
         public void run()
         {
-            logger_.debug("Started  Major compaction ..."+columnFamilyStore_.columnFamily_);
+            logger_.debug("Started  Major compaction for " + columnFamilyStore_.columnFamily_);
             columnFamilyStore_.doMajorCompaction(skip_);
-            logger_.debug("Finished Major compaction ..."+columnFamilyStore_.columnFamily_);
+            logger_.debug("Finished Major compaction for " + columnFamilyStore_.columnFamily_);
         }
     }
 
@@ -183,22 +157,41 @@ class MinorCompactionManager implements IComponentShutdown
 
     public void submitPeriodicCompaction(final ColumnFamilyStore columnFamilyStore)
     {
-        Runnable runnable = new Runnable() // having to wrap Callable in Runnable is retarded but that's what the API insists on.
+        Runnable runnable = new Runnable()
         {
             public void run()
             {
-                new FileCompactor(columnFamilyStore).call();
+                try
+                {
+                    columnFamilyStore.doCompaction(COMPACTION_THRESHOLD);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         };
     	compactor_.scheduleWithFixedDelay(runnable, MinorCompactionManager.intervalInMins_,
     			MinorCompactionManager.intervalInMins_, TimeUnit.MINUTES);       
     }
 
-    public Future<Integer> submit(ColumnFamilyStore columnFamilyStore)
+    public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
-        return compactor_.submit(new FileCompactor(columnFamilyStore));
+        return submit(columnFamilyStore, COMPACTION_THRESHOLD);
     }
-    
+
+    Future<Integer> submit(final ColumnFamilyStore columnFamilyStore, final int threshold)
+    {
+        Callable<Integer> callable = new Callable<Integer>()
+        {
+            public Integer call() throws IOException
+            {
+                return columnFamilyStore.doCompaction(threshold);
+            }
+        };
+        return compactor_.submit(callable);
+    }
+
     public void submitCleanup(ColumnFamilyStore columnFamilyStore)
     {
         compactor_.submit(new CleanupCompactor(columnFamilyStore));
