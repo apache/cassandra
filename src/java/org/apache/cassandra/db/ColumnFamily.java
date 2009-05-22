@@ -247,6 +247,7 @@ public final class ColumnFamily
     void clear()
     {
     	columns_.clear();
+    	size_.set(0);
     }
 
     /*
@@ -301,10 +302,16 @@ public final class ColumnFamily
     	columns_.remove(columnName);
     }
 
-    void delete(int localtime, long timestamp)
+    public void delete(int localtime, long timestamp)
     {
         localDeletionTime = localtime;
         markedForDeleteAt = timestamp;
+    }
+
+    public void delete(ColumnFamily cf2)
+    {
+        delete(Math.max(getLocalDeletionTime(), cf2.getLocalDeletionTime()),
+               Math.max(getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
     }
 
     public boolean isMarkedForDelete()
@@ -313,9 +320,8 @@ public final class ColumnFamily
     }
 
     /*
-     * This function will calculate the differnce between 2 column families
-     * the external input is considered the superset of internal
-     * so there are no deletes in the diff.
+     * This function will calculate the difference between 2 column families.
+     * The external input is assumed to be a superset of internal.
      */
     ColumnFamily diff(ColumnFamily cfComposite)
     {
@@ -446,8 +452,7 @@ public final class ColumnFamily
         {
             assert cf.name().equals(cf2.name());
             cf.addColumns(cf2);
-            cf.delete(Math.max(cf.getLocalDeletionTime(), cf2.getLocalDeletionTime()),
-                      Math.max(cf.getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
+            cf.delete(cf2);
         }
         return cf;
     }

@@ -39,37 +39,15 @@ public class ColumnComparatorFactory
 
     public static Comparator<IColumn> getComparator(ComparatorType comparatorType)
     {
-        Comparator<IColumn> columnComparator = timestampComparator_;
-
-        switch (comparatorType)
-        {
-            case NAME:
-                columnComparator = nameComparator_;
-                break;
-
-            case TIMESTAMP:
-
-            default:
-                columnComparator = timestampComparator_;
-                break;
-        }
-
-        return columnComparator;
+        if (comparatorType == ComparatorType.NAME)
+            return nameComparator_;
+        assert comparatorType == ComparatorType.TIMESTAMP;
+        return timestampComparator_;
     }
 
     public static Comparator<IColumn> getComparator(int comparatorTypeInt)
     {
-        ComparatorType comparatorType = ComparatorType.NAME;
-
-        if (comparatorTypeInt == ComparatorType.NAME.ordinal())
-        {
-            comparatorType = ComparatorType.NAME;
-        }
-        else if (comparatorTypeInt == ComparatorType.TIMESTAMP.ordinal())
-        {
-            comparatorType = ComparatorType.TIMESTAMP;
-        }
-        return getComparator(comparatorType);
+        return getComparator(ComparatorType.values()[comparatorTypeInt]);
     }
 
 }

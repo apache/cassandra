@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.commons.collections.comparators.ReverseComparator;
+import org.apache.commons.lang.ArrayUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
@@ -26,13 +34,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.log4j.Logger;
-
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.collections.MapUtils;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -177,8 +178,7 @@ public class Memtable implements Comparable<Memtable>
             int newObjectCount = oldCf.getColumnCount();
             resolveSize(oldSize, newSize);
             resolveCount(oldObjectCount, newObjectCount);
-            oldCf.delete(Math.max(oldCf.getLocalDeletionTime(), columnFamily.getLocalDeletionTime()),
-                         Math.max(oldCf.getMarkedForDeleteAt(), columnFamily.getMarkedForDeleteAt()));
+            oldCf.delete(columnFamily);
         }
         else
         {
@@ -329,5 +329,71 @@ public class Memtable implements Comparable<Memtable>
         // executor taskcount is inadequate for our needs here -- it can return zero under certain
         // race conditions even though a task has been processed.
         return !isDirty_;
+    }
+
+    /**
+     * obtain an iterator of columns in this memtable in the specified order starting from a given column.
+     */
+    ColumnIterator getColumnIterator(final String key, final String cfName, final boolean isAscending, String startColumn)
+    {
+        ColumnFamily cf = columnFamilies_.get(key);
+        final ColumnFamily columnFamily;
+        if (cf != null)
+            columnFamily = cf.cloneMeShallow();
+        else
+            columnFamily = new ColumnFamily(cfName, DatabaseDescriptor.getColumnFamilyType(cfName));
+
+        final IColumn columns[] = (cf == null ? columnFamily : cf).getAllColumns().toArray(new IColumn[columnFamily.getAllColumns().size()]);
+        // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
+        if (!isAscending)
+            ArrayUtils.reverse(columns);
+        IColumn startIColumn;
+        if (DatabaseDescriptor.getColumnFamilyType(cfName).equals("Standard"))
+            startIColumn = new Column(startColumn);
+        else
+            startIColumn = new SuperColumn(startColumn);
+
+        // can't use a ColumnComparatorFactory comparator since those compare on both name and time (and thus will fail to match
+        // our dummy column, since the time there is arbitrary).
+        Comparator<IColumn> comparator = new Comparator<IColumn>()
+        {
+            public int compare(IColumn column1, IColumn column2)
+            {
+                return column1.name().compareTo(column2.name());
+            }
+        };
+        if (!isAscending)
+        {
+            comparator = new ReverseComparator(comparator);
+        }
+        int index = Arrays.binarySearch(columns, startIColumn, comparator);
+        final int startIndex = index < 0 ? -(index + 1) : index;
+
+        return new ColumnIterator()
+        {
+            private int curIndex_ = startIndex;
+
+            public ColumnFamily getColumnFamily()
+            {
+                return columnFamily;
+            }
+
+            public boolean hasNext()
+            {
+                return curIndex_ < columns.length;
+            }
+
+            public IColumn next()
+            {
+                return columns[curIndex_++];
+            }
+
+            public void close() throws IOException {}
+
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

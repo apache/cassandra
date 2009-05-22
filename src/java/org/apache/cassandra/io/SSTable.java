@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -872,5 +873,30 @@ public class SSTable
         {
             return hashtable.remove(cannonicalize(filename));
         }
+    }
+    
+    
+    /**
+     * obtain a BlockReader for the getColumnSlice call.
+     */
+    public ColumnGroupReader getColumnGroupReader(String key, String cfName, 
+            String startColumn, boolean isAscending) throws IOException
+    {
+        ColumnGroupReader reader = null;
+        IFileReader dataReader = SequenceFile.reader(dataFile_);
+
+        try
+        {
+            /* Morph key into actual key based on the partition type. */
+            String decoratedKey = partitioner_.decorateKey(key);
+            Coordinate fileCoordinate = getCoordinates(decoratedKey, dataReader, partitioner_);
+            reader = new ColumnGroupReader(dataFile_, decoratedKey, cfName, startColumn, isAscending, fileCoordinate);
+        }
+        finally
+        {
+            if (dataReader != null)
+                dataReader.close();
+        }
+        return reader;
     }
 }

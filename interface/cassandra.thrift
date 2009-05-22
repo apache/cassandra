@@ -83,9 +83,12 @@ service Cassandra {
   list<column_t> get_slice_by_name_range(1:string tablename, 2:string key, 3:string columnFamily, 4:string start, 5:string end, 6:i32 count=-1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> columnNames)
+  list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> columnNames)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
+  list<column_t> get_slice_from(1:string tablename, 2:string key, 3:string columnFamily_column, 4:bool isAscending, 5:i32 count)
+  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
+
   column_t       get_column(1:string tablename, 2:string key, 3:string columnFamily_column)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 

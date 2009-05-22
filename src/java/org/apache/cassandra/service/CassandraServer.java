@@ -35,6 +35,7 @@ import org.apache.cassandra.db.ColumnReadCommand;
 import org.apache.cassandra.db.ColumnsSinceReadCommand;
 import org.apache.cassandra.db.SliceByNamesReadCommand;
 import org.apache.cassandra.db.SliceByRangeReadCommand;
+import org.apache.cassandra.db.SliceFromReadCommand;
 import org.apache.cassandra.db.SliceReadCommand;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
@@ -208,7 +209,26 @@ public class CassandraServer implements Cassandra.Iface
         }
         return thriftifyColumns(columns);
 	}
-    
+
+    public List<column_t> get_slice_from(String tablename, String key, String columnFamily_column, boolean isAscending, int count) throws InvalidRequestException
+    {
+        logger.debug("get_slice_from");
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        if (values.length != 2 || DatabaseDescriptor.getColumnFamilyType(values[0]) != "Standard")
+            throw new InvalidRequestException("get_slice_from requires a standard CF name and a starting column name");
+        if (count <= 0)
+            throw new InvalidRequestException("get_slice_from requires positive count");
+        if ("Name".compareTo(DatabaseDescriptor.getCFMetaData(tablename, values[0]).indexProperty_) != 0)
+            throw new InvalidRequestException("get_slice_from requires CF indexed by name");
+        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnFamily_column, isAscending, count));
+        if (cfamily == null)
+        {
+            return EMPTY_COLUMNS;
+        }
+        Collection<IColumn> columns = cfamily.getAllColumns();
+        return thriftifyColumns(columns);
+    }
+
     public column_t get_column(String tablename, String key, String columnFamily_column) throws NotFoundException, InvalidRequestException
     {
         logger.debug("get_column");

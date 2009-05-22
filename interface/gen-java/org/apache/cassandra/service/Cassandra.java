@@ -28,6 +28,8 @@ public class Cassandra {
 
     public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws InvalidRequestException, NotFoundException, TException;
 
+    public List<column_t> get_slice_from(String tablename, String key, String columnFamily_column, boolean isAscending, int count) throws InvalidRequestException, NotFoundException, TException;
+
     public column_t get_column(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException, TException;
 
     public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException, TException;
@@ -216,6 +218,49 @@ public class Cassandra {
         throw result.nfe;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_by_names failed: unknown result");
+    }
+
+    public List<column_t> get_slice_from(String tablename, String key, String columnFamily_column, boolean isAscending, int count) throws InvalidRequestException, NotFoundException, TException
+    {
+      send_get_slice_from(tablename, key, columnFamily_column, isAscending, count);
+      return recv_get_slice_from();
+    }
+
+    public void send_get_slice_from(String tablename, String key, String columnFamily_column, boolean isAscending, int count) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("get_slice_from", TMessageType.CALL, seqid_));
+      get_slice_from_args args = new get_slice_from_args();
+      args.tablename = tablename;
+      args.key = key;
+      args.columnFamily_column = columnFamily_column;
+      args.isAscending = isAscending;
+      args.count = count;
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public List<column_t> recv_get_slice_from() throws InvalidRequestException, NotFoundException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      get_slice_from_result result = new get_slice_from_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      if (result.nfe != null) {
+        throw result.nfe;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_from failed: unknown result");
     }
 
     public column_t get_column(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException, TException
@@ -810,6 +855,7 @@ public class Cassandra {
       processMap_.put("get_slice", new get_slice());
       processMap_.put("get_slice_by_name_range", new get_slice_by_name_range());
       processMap_.put("get_slice_by_names", new get_slice_by_names());
+      processMap_.put("get_slice_from", new get_slice_from());
       processMap_.put("get_column", new get_column());
       processMap_.put("get_column_count", new get_column_count());
       processMap_.put("insert", new insert());
@@ -936,6 +982,36 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("get_slice_by_names", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class get_slice_from implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        get_slice_from_args args = new get_slice_from_args();
+        args.read(iprot);
+        iprot.readMessageEnd();
+        get_slice_from_result result = new get_slice_from_result();
+        try {
+          result.success = iface_.get_slice_from(args.tablename, args.key, args.columnFamily_column, args.isAscending, args.count);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing get_slice_from", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_slice_from");
+          oprot.writeMessageBegin(new TMessage("get_slice_from", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("get_slice_from", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -3986,6 +4062,880 @@ public class Cassandra {
     @Override
     public String toString() {
       StringBuilder sb = new StringBuilder("get_slice_by_names_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      if (this.nfe == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.nfe);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      // check that fields of type enum have valid values
+    }
+
+  }
+
+  public static class get_slice_from_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_slice_from_args");
+    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
+    private static final TField COLUMN_FAMILY_COLUMN_FIELD_DESC = new TField("columnFamily_column", TType.STRING, (short)3);
+    private static final TField IS_ASCENDING_FIELD_DESC = new TField("isAscending", TType.BOOL, (short)4);
+    private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
+
+    public String tablename;
+    public static final int TABLENAME = 1;
+    public String key;
+    public static final int KEY = 2;
+    public String columnFamily_column;
+    public static final int COLUMNFAMILY_COLUMN = 3;
+    public boolean isAscending;
+    public static final int ISASCENDING = 4;
+    public int count;
+    public static final int COUNT = 5;
+
+    private final Isset __isset = new Isset();
+    private static final class Isset implements java.io.Serializable {
+      public boolean isAscending = false;
+      public boolean count = false;
+    }
+
+    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
+      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(COLUMNFAMILY_COLUMN, new FieldMetaData("columnFamily_column", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(ISASCENDING, new FieldMetaData("isAscending", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.BOOL)));
+      put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(get_slice_from_args.class, metaDataMap);
+    }
+
+    public get_slice_from_args() {
+    }
+
+    public get_slice_from_args(
+      String tablename,
+      String key,
+      String columnFamily_column,
+      boolean isAscending,
+      int count)
+    {
+      this();
+      this.tablename = tablename;
+      this.key = key;
+      this.columnFamily_column = columnFamily_column;
+      this.isAscending = isAscending;
+      this.__isset.isAscending = true;
+      this.count = count;
+      this.__isset.count = true;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public get_slice_from_args(get_slice_from_args other) {
+      if (other.isSetTablename()) {
+        this.tablename = other.tablename;
+      }
+      if (other.isSetKey()) {
+        this.key = other.key;
+      }
+      if (other.isSetColumnFamily_column()) {
+        this.columnFamily_column = other.columnFamily_column;
+      }
+      __isset.isAscending = other.__isset.isAscending;
+      this.isAscending = other.isAscending;
+      __isset.count = other.__isset.count;
+      this.count = other.count;
+    }
+
+    @Override
+    public get_slice_from_args clone() {
+      return new get_slice_from_args(this);
+    }
+
+    public String getTablename() {
+      return this.tablename;
+    }
+
+    public void setTablename(String tablename) {
+      this.tablename = tablename;
+    }
+
+    public void unsetTablename() {
+      this.tablename = null;
+    }
+
+    // Returns true if field tablename is set (has been asigned a value) and false otherwise
+    public boolean isSetTablename() {
+      return this.tablename != null;
+    }
+
+    public void setTablenameIsSet(boolean value) {
+      if (!value) {
+        this.tablename = null;
+      }
+    }
+
+    public String getKey() {
+      return this.key;
+    }
+
+    public void setKey(String key) {
+      this.key = key;
+    }
+
+    public void unsetKey() {
+      this.key = null;
+    }
+
+    // Returns true if field key is set (has been asigned a value) and false otherwise
+    public boolean isSetKey() {
+      return this.key != null;
+    }
+
+    public void setKeyIsSet(boolean value) {
+      if (!value) {
+        this.key = null;
+      }
+    }
+
+    public String getColumnFamily_column() {
+      return this.columnFamily_column;
+    }
+
+    public void setColumnFamily_column(String columnFamily_column) {
+      this.columnFamily_column = columnFamily_column;
+    }
+
+    public void unsetColumnFamily_column() {
+      this.columnFamily_column = null;
+    }
+
+    // Returns true if field columnFamily_column is set (has been asigned a value) and false otherwise
+    public boolean isSetColumnFamily_column() {
+      return this.columnFamily_column != null;
+    }
+
+    public void setColumnFamily_columnIsSet(boolean value) {
+      if (!value) {
+        this.columnFamily_column = null;
+      }
+    }
+
+    public boolean isIsAscending() {
+      return this.isAscending;
+    }
+
+    public void setIsAscending(boolean isAscending) {
+      this.isAscending = isAscending;
+      this.__isset.isAscending = true;
+    }
+
+    public void unsetIsAscending() {
+      this.__isset.isAscending = false;
+    }
+
+    // Returns true if field isAscending is set (has been asigned a value) and false otherwise
+    public boolean isSetIsAscending() {
+      return this.__isset.isAscending;
+    }
+
+    public void setIsAscendingIsSet(boolean value) {
+      this.__isset.isAscending = value;
+    }
+
+    public int getCount() {
+      return this.count;
+    }
+
+    public void setCount(int count) {
+      this.count = count;
+      this.__isset.count = true;
+    }
+
+    public void unsetCount() {
+      this.__isset.count = false;
+    }
+
+    // Returns true if field count is set (has been asigned a value) and false otherwise
+    public boolean isSetCount() {
+      return this.__isset.count;
+    }
+
+    public void setCountIsSet(boolean value) {
+      this.__isset.count = value;
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      switch (fieldID) {
+      case TABLENAME:
+        if (value == null) {
+          unsetTablename();
+        } else {
+          setTablename((String)value);
+        }
+        break;
+
+      case KEY:
+        if (value == null) {
+          unsetKey();
+        } else {
+          setKey((String)value);
+        }
+        break;
+
+      case COLUMNFAMILY_COLUMN:
+        if (value == null) {
+          unsetColumnFamily_column();
+        } else {
+          setColumnFamily_column((String)value);
+        }
+        break;
+
+      case ISASCENDING:
+        if (value == null) {
+          unsetIsAscending();
+        } else {
+          setIsAscending((Boolean)value);
+        }
+        break;
+
+      case COUNT:
+        if (value == null) {
+          unsetCount();
+        } else {
+          setCount((Integer)value);
+        }
+        break;
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    public Object getFieldValue(int fieldID) {
+      switch (fieldID) {
+      case TABLENAME:
+        return getTablename();
+
+      case KEY:
+        return getKey();
+
+      case COLUMNFAMILY_COLUMN:
+        return getColumnFamily_column();
+
+      case ISASCENDING:
+        return new Boolean(isIsAscending());
+
+      case COUNT:
+        return new Integer(getCount());
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+    public boolean isSet(int fieldID) {
+      switch (fieldID) {
+      case TABLENAME:
+        return isSetTablename();
+      case KEY:
+        return isSetKey();
+      case COLUMNFAMILY_COLUMN:
+        return isSetColumnFamily_column();
+      case ISASCENDING:
+        return isSetIsAscending();
+      case COUNT:
+        return isSetCount();
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof get_slice_from_args)
+        return this.equals((get_slice_from_args)that);
+      return false;
+    }
+
+    public boolean equals(get_slice_from_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_tablename = true && this.isSetTablename();
+      boolean that_present_tablename = true && that.isSetTablename();
+      if (this_present_tablename || that_present_tablename) {
+        if (!(this_present_tablename && that_present_tablename))
+          return false;
+        if (!this.tablename.equals(that.tablename))
+          return false;
+      }
+
+      boolean this_present_key = true && this.isSetKey();
+      boolean that_present_key = true && that.isSetKey();
+      if (this_present_key || that_present_key) {
+        if (!(this_present_key && that_present_key))
+          return false;
+        if (!this.key.equals(that.key))
+          return false;
+      }
+
+      boolean this_present_columnFamily_column = true && this.isSetColumnFamily_column();
+      boolean that_present_columnFamily_column = true && that.isSetColumnFamily_column();
+      if (this_present_columnFamily_column || that_present_columnFamily_column) {
+        if (!(this_present_columnFamily_column && that_present_columnFamily_column))
+          return false;
+        if (!this.columnFamily_column.equals(that.columnFamily_column))
+          return false;
+      }
+
+      boolean this_present_isAscending = true;
+      boolean that_present_isAscending = true;
+      if (this_present_isAscending || that_present_isAscending) {
+        if (!(this_present_isAscending && that_present_isAscending))
+          return false;
+        if (this.isAscending != that.isAscending)
+          return false;
+      }
+
+      boolean this_present_count = true;
+      boolean that_present_count = true;
+      if (this_present_count || that_present_count) {
+        if (!(this_present_count && that_present_count))
+          return false;
+        if (this.count != that.count)
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id)
+        {
+          case TABLENAME:
+            if (field.type == TType.STRING) {
+              this.tablename = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case KEY:
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case COLUMNFAMILY_COLUMN:
+            if (field.type == TType.STRING) {
+              this.columnFamily_column = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case ISASCENDING:
+            if (field.type == TType.BOOL) {
+              this.isAscending = iprot.readBool();
+              this.__isset.isAscending = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case COUNT:
+            if (field.type == TType.I32) {
+              this.count = iprot.readI32();
+              this.__isset.count = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+            break;
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.tablename != null) {
+        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
+        oprot.writeString(this.tablename);
+        oprot.writeFieldEnd();
+      }
+      if (this.key != null) {
+        oprot.writeFieldBegin(KEY_FIELD_DESC);
+        oprot.writeString(this.key);
+        oprot.writeFieldEnd();
+      }
+      if (this.columnFamily_column != null) {
+        oprot.writeFieldBegin(COLUMN_FAMILY_COLUMN_FIELD_DESC);
+        oprot.writeString(this.columnFamily_column);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
+      oprot.writeBool(this.isAscending);
+      oprot.writeFieldEnd();
+      oprot.writeFieldBegin(COUNT_FIELD_DESC);
+      oprot.writeI32(this.count);
+      oprot.writeFieldEnd();
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("get_slice_from_args(");
+      boolean first = true;
+
+      sb.append("tablename:");
+      if (this.tablename == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.tablename);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("key:");
+      if (this.key == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.key);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("columnFamily_column:");
+      if (this.columnFamily_column == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.columnFamily_column);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("isAscending:");
+      sb.append(this.isAscending);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("count:");
+      sb.append(this.count);
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      // check that fields of type enum have valid values
+    }
+
+  }
+
+  public static class get_slice_from_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_slice_from_result");
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
+
+    public List<column_t> success;
+    public static final int SUCCESS = 0;
+    public InvalidRequestException ire;
+    public static final int IRE = 1;
+    public NotFoundException nfe;
+    public static final int NFE = 2;
+
+    private final Isset __isset = new Isset();
+    private static final class Isset implements java.io.Serializable {
+    }
+
+    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
+      put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new ListMetaData(TType.LIST, 
+              new StructMetaData(TType.STRUCT, column_t.class))));
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(get_slice_from_result.class, metaDataMap);
+    }
+
+    public get_slice_from_result() {
+    }
+
+    public get_slice_from_result(
+      List<column_t> success,
+      InvalidRequestException ire,
+      NotFoundException nfe)
+    {
+      this();
+      this.success = success;
+      this.ire = ire;
+      this.nfe = nfe;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public get_slice_from_result(get_slice_from_result other) {
+      if (other.isSetSuccess()) {
+        List<column_t> __this__success = new ArrayList<column_t>();
+        for (column_t other_element : other.success) {
+          __this__success.add(new column_t(other_element));
+        }
+        this.success = __this__success;
+      }
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      if (other.isSetNfe()) {
+        this.nfe = new NotFoundException(other.nfe);
+      }
+    }
+
+    @Override
+    public get_slice_from_result clone() {
+      return new get_slice_from_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<column_t> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(column_t elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<column_t>();
+      }
+      this.success.add(elem);
+    }
+
+    public List<column_t> getSuccess() {
+      return this.success;
+    }
+
+    public void setSuccess(List<column_t> success) {
+      this.success = success;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    // Returns true if field success is set (has been asigned a value) and false otherwise
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public void setIre(InvalidRequestException ire) {
+      this.ire = ire;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.nfe != null;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      if (!value) {
+        this.nfe = null;
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      switch (fieldID) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((List<column_t>)value);
+        }
+        break;
+
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      case NFE:
+        if (value == null) {
+          unsetNfe();
+        } else {
+          setNfe((NotFoundException)value);
+        }
+        break;
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    public Object getFieldValue(int fieldID) {
+      switch (fieldID) {
+      case SUCCESS:
+        return getSuccess();
+
+      case IRE:
+        return getIre();
+
+      case NFE:
+        return getNfe();
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+    public boolean isSet(int fieldID) {
+      switch (fieldID) {
+      case SUCCESS:
+        return isSetSuccess();
+      case IRE:
+        return isSetIre();
+      case NFE:
+        return isSetNfe();
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof get_slice_from_result)
+        return this.equals((get_slice_from_result)that);
+      return false;
+    }
+
+    public boolean equals(get_slice_from_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_nfe = true && this.isSetNfe();
+      boolean that_present_nfe = true && that.isSetNfe();
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id)
+        {
+          case SUCCESS:
+            if (field.type == TType.LIST) {
+              {
+                TList _list47 = iprot.readListBegin();
+                this.success = new ArrayList<column_t>(_list47.size);
+                for (int _i48 = 0; _i48 < _list47.size; ++_i48)
+                {
+                  column_t _elem49;
+                  _elem49 = new column_t();
+                  _elem49.read(iprot);
+                  this.success.add(_elem49);
+                }
+                iprot.readListEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case IRE:
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+            break;
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
+          for (column_t _iter50 : this.success)          {
+            _iter50.write(oprot);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      } else if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetNfe()) {
+        oprot.writeFieldBegin(NFE_FIELD_DESC);
+        this.nfe.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("get_slice_from_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -8191,14 +9141,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list47 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list47.size);
-                for (int _i48 = 0; _i48 < _list47.size; ++_i48)
+                TList _list51 = iprot.readListBegin();
+                this.success = new ArrayList<column_t>(_list51.size);
+                for (int _i52 = 0; _i52 < _list51.size; ++_i52)
                 {
-                  column_t _elem49;
-                  _elem49 = new column_t();
-                  _elem49.read(iprot);
-                  this.success.add(_elem49);
+                  column_t _elem53;
+                  _elem53 = new column_t();
+                  _elem53.read(iprot);
+                  this.success.add(_elem53);
                 }
                 iprot.readListEnd();
               }
@@ -8242,8 +9192,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (column_t _iter50 : this.success)          {
-            _iter50.write(oprot);
+          for (column_t _iter54 : this.success)          {
+            _iter54.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -9014,14 +9964,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list51 = iprot.readListBegin();
-                this.success = new ArrayList<superColumn_t>(_list51.size);
-                for (int _i52 = 0; _i52 < _list51.size; ++_i52)
+                TList _list55 = iprot.readListBegin();
+                this.success = new ArrayList<superColumn_t>(_list55.size);
+                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
                 {
-                  superColumn_t _elem53;
-                  _elem53 = new superColumn_t();
-                  _elem53.read(iprot);
-                  this.success.add(_elem53);
+                  superColumn_t _elem57;
+                  _elem57 = new superColumn_t();
+                  _elem57.read(iprot);
+                  this.success.add(_elem57);
                 }
                 iprot.readListEnd();
               }
@@ -9057,8 +10007,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (superColumn_t _iter54 : this.success)          {
-            _iter54.write(oprot);
+          for (superColumn_t _iter58 : this.success)          {
+            _iter58.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -9455,13 +10405,13 @@ public class Cassandra {
           case SUPERCOLUMNNAMES:
             if (field.type == TType.LIST) {
               {
-                TList _list55 = iprot.readListBegin();
-                this.superColumnNames = new ArrayList<String>(_list55.size);
-                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                TList _list59 = iprot.readListBegin();
+                this.superColumnNames = new ArrayList<String>(_list59.size);
+                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
                 {
-                  String _elem57;
-                  _elem57 = iprot.readString();
-                  this.superColumnNames.add(_elem57);
+                  String _elem61;
+                  _elem61 = iprot.readString();
+                  this.superColumnNames.add(_elem61);
                 }
                 iprot.readListEnd();
               }
@@ -9505,8 +10455,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUPER_COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.superColumnNames.size()));
-          for (String _iter58 : this.superColumnNames)          {
-            oprot.writeString(_iter58);
+          for (String _iter62 : this.superColumnNames)          {
+            oprot.writeString(_iter62);
           }
           oprot.writeListEnd();
         }
@@ -9784,14 +10734,14 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list59 = iprot.readListBegin();
-                this.success = new ArrayList<superColumn_t>(_list59.size);
-                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
+                TList _list63 = iprot.readListBegin();
+                this.success = new ArrayList<superColumn_t>(_list63.size);
+                for (int _i64 = 0; _i64 < _list63.size; ++_i64)
                 {
-                  superColumn_t _elem61;
-                  _elem61 = new superColumn_t();
-                  _elem61.read(iprot);
-                  this.success.add(_elem61);
+                  superColumn_t _elem65;
+                  _elem65 = new superColumn_t();
+                  _elem65.read(iprot);
+                  this.success.add(_elem65);
                 }
                 iprot.readListEnd();
               }
@@ -9827,8 +10777,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (superColumn_t _iter62 : this.success)          {
-            _iter62.write(oprot);
+          for (superColumn_t _iter66 : this.success)          {
+            _iter66.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -12032,13 +12982,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list63 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list63.size);
-                for (int _i64 = 0; _i64 < _list63.size; ++_i64)
+                TList _list67 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list67.size);
+                for (int _i68 = 0; _i68 < _list67.size; ++_i68)
                 {
-                  String _elem65;
-                  _elem65 = iprot.readString();
-                  this.success.add(_elem65);
+                  String _elem69;
+                  _elem69 = iprot.readString();
+                  this.success.add(_elem69);
                 }
                 iprot.readListEnd();
               }
@@ -12074,8 +13024,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter66 : this.success)          {
-            oprot.writeString(_iter66);
+          for (String _iter70 : this.success)          {
+            oprot.writeString(_iter70);
           }
           oprot.writeListEnd();
         }
@@ -12882,13 +13832,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list67 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list67.size);
-                for (int _i68 = 0; _i68 < _list67.size; ++_i68)
+                TList _list71 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list71.size);
+                for (int _i72 = 0; _i72 < _list71.size; ++_i72)
                 {
-                  String _elem69;
-                  _elem69 = iprot.readString();
-                  this.success.add(_elem69);
+                  String _elem73;
+                  _elem73 = iprot.readString();
+                  this.success.add(_elem73);
                 }
                 iprot.readListEnd();
               }
@@ -12916,8 +13866,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter70 : this.success)          {
-            oprot.writeString(_iter70);
+          for (String _iter74 : this.success)          {
+            oprot.writeString(_iter74);
           }
           oprot.writeListEnd();
         }

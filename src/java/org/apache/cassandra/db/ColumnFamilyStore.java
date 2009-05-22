@@ -45,6 +45,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.comparators.ReverseComparator;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
@@ -1566,5 +1570,120 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public double getReadLatency()
     {
         return readStats_.mean();
+    }
+
+    /**
+     * get a list of columns starting from a given column, in a specified order
+     * only the latest version of a column is returned
+     */
+    public ColumnFamily getSliceFrom(String key, String cfName, String startColumn, boolean isAscending, int count)
+    throws IOException, ExecutionException, InterruptedException
+    {
+        lock_.readLock().lock();
+        try
+        {
+            final ColumnFamily returnCF;
+            ColumnIterator iter;
+            List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
+        
+            /* add the current memtable */
+            memtableLock_.readLock().lock();
+            try
+            {
+                iter = memtable_.getColumnIterator(key, cfName, isAscending, startColumn);
+                returnCF = iter.getColumnFamily();
+            }
+            finally
+            {
+                memtableLock_.readLock().unlock();            
+            }        
+            iterators.add(iter);
+
+            /* add the memtables being flushed */
+            List<Memtable> memtables = getUnflushedMemtables(cfName);
+            for (Memtable memtable:memtables)
+            {
+                iter = memtable.getColumnIterator(key, cfName, isAscending, startColumn);
+                returnCF.delete(iter.getColumnFamily());
+                iterators.add(iter);
+            }
+
+            /* add the SSTables on disk */
+            List<String> files = new ArrayList<String>(ssTables_);
+            for (String file : files)
+            {
+                // If the key is not present in the SSTable's BloomFilter, continue to the next file
+                if (!SSTable.isKeyInFile(key, file))
+                    continue;
+                iter = new SSTableColumnIterator(file, key, cfName, startColumn, isAscending);
+                if (iter.hasNext())
+                {
+                    returnCF.delete(iter.getColumnFamily());
+                    iterators.add(iter);
+                }
+            }
+
+            // define a 'reduced' iterator that merges columns w/ the same name, which
+            // greatly simplifies computing liveColumns in the presence of tombstones.
+            Comparator<IColumn> comparator = new Comparator<IColumn>()
+            {
+                public int compare(IColumn c1, IColumn c2)
+                {
+                    return c1.name().compareTo(c2.name());
+                }
+            };
+            if (!isAscending)
+                comparator = new ReverseComparator(comparator);
+            Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
+            if (!collated.hasNext())
+                return new ColumnFamily(cfName, DatabaseDescriptor.getColumnFamilyType(cfName));
+            List<IColumn> L = new ArrayList();
+            CollectionUtils.addAll(L, collated);
+            ReducingIterator<IColumn> reduced = new ReducingIterator<IColumn>(L.iterator())
+            {
+                ColumnFamily curCF = returnCF.cloneMeShallow();
+
+                protected Object getKey(IColumn o)
+                {
+                    return o == null ? null : o.name();
+                }
+
+                public void reduce(IColumn current)
+                {
+                    curCF.addColumn(current);
+                }
+
+                protected IColumn getReduced()
+                {
+                    IColumn c = curCF.getAllColumns().first();
+                    curCF.clear();
+                    return c;
+                }
+            };
+
+            // add unique columns to the CF container
+            int liveColumns = 0;
+            for (IColumn column : reduced)
+            {
+                if (liveColumns >= count)
+                {
+                    break;
+                }
+                if (!column.isMarkedForDelete())
+                    liveColumns++;
+
+                returnCF.addColumn(column);
+            }
+
+            /* close remaining cursors */
+            for (ColumnIterator ci : iterators)
+                ci.close();
+
+            return removeDeleted(returnCF);
+        }
+        finally
+        {
+            lock_.readLock().unlock();
+        }
     }
 }

@@ -50,10 +50,7 @@ import org.apache.cassandra.net.io.IStreamComplete;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.CassandraServer;
-import org.apache.cassandra.utils.BasicUtilities;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
 
 /**
@@ -776,6 +773,34 @@ public class Table
     }
 
     /**
+     * Selects a list of columns in a column family from a given column for the specified key.
+    */
+    public Row getSliceFrom(String key, String cf, boolean isAscending, int count) throws IOException
+    {
+        Row row = new Row(key);
+        String[] values = RowMutation.getColumnAndColumnFamily(cf);
+        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
+        long start1 = System.currentTimeMillis();
+        try
+        {
+            ColumnFamily columnFamily = cfStore.getSliceFrom(key, values[0], values[1], isAscending, count);
+            if (columnFamily != null)
+                row.addColumnFamily(columnFamily);
+            long timeTaken = System.currentTimeMillis() - start1;
+            dbAnalyticsSource_.updateReadStatistics(timeTaken);
+            return row;
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * This method adds the row to the Commit Log associated with this table.
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
@@ -950,39 +975,46 @@ public class Table
             }
         }
         Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
+        Iterable<String> reduced = new ReducingIterator<String>(collated) {
+            String current;
+
+            public void reduce(String current)
+            {
+                 this.current = current;
+            }
+
+            protected String getReduced()
+            {
+                return current;
+            }
+        };
 
         try
         {
             // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
             // so we set an arbitrary limit on how many we'll do at once.
             List<String> keys = new ArrayList<String>();
-            String last = null, current = null;
-            while (keys.size() < maxResults)
+            for (String current : reduced)
             {
-                if (!collated.hasNext())
+                if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
                 {
                     break;
                 }
-                current = collated.next();
-                if (!current.equals(last))
+                // make sure there is actually non-tombstone content associated w/ this key
+                // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
+                for (String cfName : getApplicationColumnFamilies())
                 {
-                    if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
+                    ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
+                    ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);
+                    if (cf != null && cf.getColumns().size() > 0)
                     {
+                        keys.add(current);
                         break;
                     }
-                    last = current;
-                    // make sure there is actually non-tombstone content associated w/ this key
-                    // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                    for (String cfName : getApplicationColumnFamilies())
-                    {
-                        ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
-                        ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);
-                        if (cf != null && cf.getColumns().size() > 0)
-                        {
-                            keys.add(current);
-                            break;
-                        }
-                    }
+                }
+                if (keys.size() >= maxResults)
+                {
+                    break;
                 }
             }
             return keys;

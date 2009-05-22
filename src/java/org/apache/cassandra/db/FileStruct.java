@@ -28,6 +28,7 @@ import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.Coordinate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.log4j.Logger;
+import com.google.common.collect.AbstractIterator;
 
 
 public class FileStruct implements Comparable<FileStruct>, Iterator<String>
@@ -171,10 +172,8 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
         throw new UnsupportedOperationException();
     }
 
-    private class FileStructIterator
+    private class FileStructIterator extends AbstractIterator<String>
     {
-        String saved;
-
         public FileStructIterator()
         {
             if (key == null)
@@ -183,14 +182,6 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
                 {
                     forward();
                 }
-            }
-            if (key.equals(SSTable.blockIndexKey_))
-            {
-                saved = null;
-            }
-            else
-            {
-                saved = key;
             }
         }
 
@@ -204,23 +195,17 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
             {
                 throw new RuntimeException(e);
             }
-            saved = isExhausted() ? null : key;
         }
 
-        public boolean hasNext()
+        protected String computeNext()
         {
-            return saved != null;
-        }
-
-        public String next()
-        {
-            if (saved == null)
+            if (key.equals(SSTable.blockIndexKey_))
             {
-                throw new IndexOutOfBoundsException();
+                return endOfData();
             }
-            String key = saved;
+            String oldKey = key;
             forward();
-            return key;
+            return oldKey;
         }
     }
 }

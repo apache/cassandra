@@ -28,6 +28,7 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Arrays;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.BloomFilter;
@@ -532,6 +533,146 @@ public class SequenceFile
         }
     }
 
+    
+    /**
+     *  This is a reader that finds the block for a starting column and returns
+     *  blocks before/after it for each next call. This function assumes that
+     *  the CF is sorted by name and exploits the name index.
+     */
+    public static class ColumnGroupReader extends BufferReader
+    {
+        private String key_;
+        private String cfName_;
+        private boolean isAscending_;
+
+        private List<IndexHelper.ColumnIndexInfo> columnIndexList_;
+        private long columnStartPosition_;
+        private int curRangeIndex_;
+        private int allColumnsSize_;
+        private int localDeletionTime_;
+        private long markedForDeleteAt_;
+
+        ColumnGroupReader(String filename, String key, String cfName, String startColumn, boolean isAscending, Coordinate section) throws IOException
+        {
+            super(filename, 128 * 1024);
+            this.cfName_ = cfName;
+            this.key_ = key;
+            this.isAscending_ = isAscending;
+            init(startColumn, section);
+        }
+
+        /**
+         *   Build a list of index entries ready for search.
+         */
+        private List<IndexHelper.ColumnIndexInfo> getFullColumnIndexList(List<IndexHelper.ColumnIndexInfo> columnIndexList, int totalNumCols)
+        {
+            if (columnIndexList.size() == 0)
+            {
+                /* if there is no column index, add an index entry that covers the full space. */
+                return Arrays.asList(new IndexHelper.ColumnIndexInfo[]{new IndexHelper.ColumnNameIndexInfo("", 0, totalNumCols)});
+            }
+
+            List<IndexHelper.ColumnIndexInfo> fullColIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+            int accumulatededCols = 0;
+            for (IndexHelper.ColumnIndexInfo colPosInfo : columnIndexList)
+                accumulatededCols += colPosInfo.count();
+            int remainingCols = totalNumCols - accumulatededCols;
+
+            fullColIndexList.add(new IndexHelper.ColumnNameIndexInfo("", 0, columnIndexList.get(0).count()));
+            for (int i = 0; i < columnIndexList.size() - 1; i++)
+            {
+                IndexHelper.ColumnNameIndexInfo colPosInfo = (IndexHelper.ColumnNameIndexInfo)columnIndexList.get(i);
+                fullColIndexList.add(new IndexHelper.ColumnNameIndexInfo(colPosInfo.name(),
+                                                                         colPosInfo.position(),
+                                                                         columnIndexList.get(i + 1).count()));
+            }
+            String columnName = ((IndexHelper.ColumnNameIndexInfo)columnIndexList.get(columnIndexList.size() - 1)).name();
+            fullColIndexList.add(new IndexHelper.ColumnNameIndexInfo(columnName,
+                                                                     columnIndexList.get(columnIndexList.size() - 1).position(),
+                                                                     remainingCols));
+            return fullColIndexList;
+        }
+
+        private void init(String startColumn, Coordinate section) throws IOException
+        {
+            String keyInDisk = null;
+            if (seekTo(key_, section) >= 0)
+                keyInDisk = file_.readUTF();
+
+            if ( keyInDisk != null && keyInDisk.equals(key_))
+            {
+                /* read off the size of this row */
+                int dataSize = file_.readInt();
+                /* skip the bloomfilter */
+                int totalBytesRead = IndexHelper.skipBloomFilter(file_);
+                /* read off the index flag, it has to be true */
+                boolean hasColumnIndexes = file_.readBoolean();
+                totalBytesRead += 1;
+
+                /* read the index */
+                List<IndexHelper.ColumnIndexInfo> colIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+                if (hasColumnIndexes)
+                    totalBytesRead += IndexHelper.deserializeIndex(cfName_, file_, colIndexList);
+
+                /* need to do two things here.
+                 * 1. move the file pointer to the beginning of the list of stored columns
+                 * 2. calculate the size of all columns */
+                String cfName = file_.readUTF();
+                localDeletionTime_ = file_.readInt();
+                markedForDeleteAt_ = file_.readLong();
+                int totalNumCols = file_.readInt();
+                allColumnsSize_ = dataSize - (totalBytesRead + utfPrefix_ + cfName.length() + 4 + 8 + 4);
+
+                columnStartPosition_ = file_.getFilePointer();
+                columnIndexList_ = getFullColumnIndexList(colIndexList, totalNumCols);
+
+                int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnNameIndexInfo(startColumn));
+                curRangeIndex_ = index < 0 ? (++index) * (-1) - 1 : index;
+            }
+            else 
+            {
+                /* no keys found in this file because of a false positive in BF */
+                curRangeIndex_ = -1;
+                columnIndexList_ = new ArrayList<IndexHelper.ColumnIndexInfo>();
+            }
+        }
+
+        private boolean getBlockFromCurIndex(DataOutputBuffer bufOut) throws IOException
+        {
+            if (curRangeIndex_ < 0 || curRangeIndex_ >= columnIndexList_.size())
+                return false;
+            IndexHelper.ColumnIndexInfo curColPostion = columnIndexList_.get(curRangeIndex_);
+            long start = curColPostion.position();
+            long end = curRangeIndex_ < columnIndexList_.size() - 1
+                       ? columnIndexList_.get(curRangeIndex_+1).position()
+                       : allColumnsSize_;
+
+            /* seek to the correct offset to the data, and calculate the data size */
+            file_.seek(columnStartPosition_ + start);
+            long dataSize = end - start;
+
+            bufOut.reset();
+            // write CF info
+            bufOut.writeUTF(cfName_);
+            bufOut.writeInt(localDeletionTime_);
+            bufOut.writeLong(markedForDeleteAt_);
+            // now write the columns
+            bufOut.writeInt(curColPostion.count());
+            bufOut.write(file_, (int)dataSize);
+            return true;
+        }
+
+        public boolean getNextBlock(DataOutputBuffer outBuf) throws IOException
+        {
+            boolean result = getBlockFromCurIndex(outBuf);
+            if (isAscending_)
+                curRangeIndex_++;
+            else
+                curRangeIndex_--;
+            return result;
+        }
+    }
+
     public static abstract class AbstractReader implements IFileReader
     {
         private static final short utfPrefix_ = 2;
@@ -705,7 +846,7 @@ public class SequenceFile
          * @param section indicates the location of the block index.
          * @throws IOException
          */
-        private long seekTo(String key, Coordinate section) throws IOException
+        protected long seekTo(String key, Coordinate section) throws IOException
         {
             seek(section.end_);
             long position = getPositionFromBlockIndex(key);
