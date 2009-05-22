@@ -48,10 +48,10 @@ class TimeFilter implements IFilter
 	public ColumnFamily filter(String cf, ColumnFamily columnFamily)
 	{
     	if (columnFamily == null)
-    		return columnFamily;
+    		return null;
 
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        ColumnFamily filteredCf = new ColumnFamily(columnFamily.name(), columnFamily.type());
+        ColumnFamily filteredCf = columnFamily.cloneMeShallow();
 		if (values.length == 1 && !columnFamily.isSuper())
 		{
     		Collection<IColumn> columns = columnFamily.getAllColumns();

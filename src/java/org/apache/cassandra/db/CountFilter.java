@@ -55,9 +55,9 @@ public class CountFilter implements IFilter
 	{
     	String[] values = RowMutation.getColumnAndColumnFamily(cfNameParam);
         if ( columnFamily == null )
-            return columnFamily;
+            return null;
 
-        ColumnFamily filteredCf = new ColumnFamily(columnFamily.name(), columnFamily.type());
+        ColumnFamily filteredCf = columnFamily.cloneMeShallow();
 		if( countLimit_ <= 0 )
 		{
 			isDone_ = true;
