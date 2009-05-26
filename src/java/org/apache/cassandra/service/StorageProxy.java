@@ -84,7 +84,8 @@ public class StorageProxy implements StorageProxyMBean
 			{
 				Message hintedMessage = rm.makeRowMutationMessage();
 				hintedMessage.addHeader(RowMutation.HINT, EndPoint.toBytes(hint) );
-				logger.debug("Sending the hint of " + target.getHost() + " to " + hint.getHost());
+				if (logger.isDebugEnabled())
+				    logger.debug("Sending the hint of " + hint.getHost() + " to " + target.getHost());
 				messageMap.put(target, hintedMessage);
 			}
 			else
@@ -121,8 +122,22 @@ public class StorageProxy implements StorageProxyMBean
 			{
                 Message message = entry.getValue();
                 EndPoint endpoint = entry.getKey();
-                logger.debug("insert writing key " + rm.key() + " to " + message.getMessageId() + "@" + endpoint);
-                MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
+                // Check if local and not hinted
+                byte[] hintedBytes = message.getHeader(RowMutation.HINT);
+                if (endpoint.equals(StorageService.getLocalStorageEndPoint())
+                        && !(hintedBytes!= null && hintedBytes.length>0))
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("locally writing writing key " + rm.key()
+                                + " to " + endpoint);
+                    rm.apply();
+                } else
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("insert writing key " + rm.key() + " to "
+                                + message.getMessageId() + "@" + endpoint);
+                	MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
+                }
 			}
 		}
         catch (IOException e)
