@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -43,12 +44,12 @@ public class OneCompactionTest
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();
-            assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
+            assertEquals(table.getKeyRange(Arrays.asList(columnFamilyName), "", "", 10000).size(), inserted.size());
         }
         Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2);
         ft.get();
         assertEquals(1, store.getSSTableFilenames().size());
-        assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
+        assertEquals(table.getKeyRange(Arrays.asList(columnFamilyName), "", "", 10000).size(), inserted.size());
     }
 
     @Test

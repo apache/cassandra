@@ -122,7 +122,7 @@ service Cassandra {
   oneway void     touch(1:string key, 2:bool fData),
 
   # range query: returns matching keys
-  list<string>   get_key_range(1:string tablename, 2:string startWith="", 3:string stopAt="", 4:i32 maxResults=1000) throws (1: InvalidRequestException ire),
+  list<string>   get_key_range(1:string tablename, 2:list<string> columnFamilies=[], 3:string startWith="", 4:string stopAt="", 5:i32 maxResults=1000) throws (1: InvalidRequestException ire),
 
   /////////////////////////////////////////////////////////////////////////////////////
   // The following are beta APIs being introduced for CLI and/or CQL support.        //

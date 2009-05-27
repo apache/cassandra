@@ -22,6 +22,10 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.DataInputStream;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Collections;
+
+import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.DataOutputBuffer;
@@ -34,13 +38,15 @@ public class RangeCommand
     private static RangeCommandSerializer serializer = new RangeCommandSerializer();
 
     public final String table;
+    public final List<String> columnFamilyNames;
     public final String startWith;
     public final String stopAt;
     public final int maxResults;
 
-    public RangeCommand(String table, String startWith, String stopAt, int maxResults)
+    public RangeCommand(String table, List<String> columnFamilyNames, String startWith, String stopAt, int maxResults)
     {
         this.table = table;
+        this.columnFamilyNames = Collections.unmodifiableList(columnFamilyNames);
         this.startWith = startWith;
         this.stopAt = stopAt;
         this.maxResults = maxResults;
@@ -68,6 +74,7 @@ public class RangeCommand
     {
         return "RangeCommand(" +
                "table='" + table + '\'' +
+               ", columnFamilyNames=[" + StringUtils.join(columnFamilyNames, ", ") + "]" +
                ", startWith='" + startWith + '\'' +
                ", stopAt='" + stopAt + '\'' +
                ", maxResults=" + maxResults +
@@ -79,6 +86,11 @@ class RangeCommandSerializer implements ICompactSerializer<RangeCommand>
 {
     public void serialize(RangeCommand command, DataOutputStream dos) throws IOException
     {
+        dos.writeInt(command.columnFamilyNames.size());
+        for (String cfName : command.columnFamilyNames)
+        {
+            dos.writeUTF(cfName);
+        }
         dos.writeUTF(command.table);
         dos.writeUTF(command.startWith);
         dos.writeUTF(command.stopAt);
@@ -87,6 +99,11 @@ class RangeCommandSerializer implements ICompactSerializer<RangeCommand>
 
     public RangeCommand deserialize(DataInputStream dis) throws IOException
     {
-        return new RangeCommand(dis.readUTF(), dis.readUTF(), dis.readUTF(), dis.readInt());
+        String[] cfNames = new String[dis.readInt()];
+        for (int i = 0; i < cfNames.length; i++)
+        {
+            cfNames[i] = dis.readUTF();
+        }
+        return new RangeCommand(dis.readUTF(), Arrays.asList(cfNames), dis.readUTF(), dis.readUTF(), dis.readInt());
     }
 }

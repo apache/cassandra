@@ -30,21 +30,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.common.CqlResult;
 import org.apache.cassandra.cql.driver.CqlDriver;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnReadCommand;
-import org.apache.cassandra.db.ColumnsSinceReadCommand;
-import org.apache.cassandra.db.SliceByNamesReadCommand;
-import org.apache.cassandra.db.SliceByRangeReadCommand;
-import org.apache.cassandra.db.SliceFromReadCommand;
-import org.apache.cassandra.db.SliceReadCommand;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
-import org.apache.cassandra.db.TableNotDefinedException;
-import org.apache.cassandra.db.RangeCommand;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.thrift.TException;
@@ -83,16 +69,21 @@ public class CassandraServer implements Cassandra.Iface
 		storageService.start();
 	}
 	
-	private void validateCommand(String key, String tablename, String... columnFamilyNames) throws InvalidRequestException
+	private void validateKeyCommand(String key, String tablename, String... columnFamilyNames) throws InvalidRequestException
 	{
         if (key.isEmpty())
         {
             throw new InvalidRequestException("Key may not be empty");
         }
-		if ( !DatabaseDescriptor.getTables().contains(tablename) )
-		{
-			throw new TableNotDefinedException("Table " + tablename + " does not exist in this schema.");
-		}
+        validateCommand(tablename, columnFamilyNames);
+	}
+
+    private void validateCommand(String tablename, String... columnFamilyNames) throws TableNotDefinedException, ColumnFamilyNotDefinedException
+    {
+        if (!DatabaseDescriptor.getTables().contains(tablename))
+        {
+            throw new TableNotDefinedException("Table " + tablename + " does not exist in this schema.");
+        }
         Table table = Table.open(tablename);
         for (String cfName : columnFamilyNames)
         {
@@ -101,12 +92,12 @@ public class CassandraServer implements Cassandra.Iface
                 throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " is invalid.");
             }
         }
-	}
-    
-	protected ColumnFamily readColumnFamily(ReadCommand command) throws InvalidRequestException
+    }
+
+    protected ColumnFamily readColumnFamily(ReadCommand command) throws InvalidRequestException
     {
         String cfName = command.getColumnFamilyName();
-        validateCommand(command.key, command.table, cfName);
+        validateKeyCommand(command.key, command.table, cfName);
 
         Row row;
         try
@@ -321,7 +312,7 @@ public class CassandraServer implements Cassandra.Iface
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.add(columnFamily_column, cellData, timestamp);
         Set<String> cfNames = rm.columnFamilyNames();
-        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
         doInsert(block, rm);
     }
@@ -331,7 +322,7 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("batch_insert");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
         Set<String> cfNames = rm.columnFamilyNames();
-        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
         doInsert(block, rm);
     }
@@ -343,7 +334,7 @@ public class CassandraServer implements Cassandra.Iface
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.delete(columnFamily_column, timestamp);
         Set<String> cfNames = rm.columnFamilyNames();
-        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
         doInsert(block, rm);
 	}
 
@@ -433,7 +424,7 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("batch_insert_SuperColumn");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
         Set<String> cfNames = rm.columnFamilyNames();
-        validateCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
         doInsert(block, rm);
     }
 
@@ -522,15 +513,20 @@ public class CassandraServer implements Cassandra.Iface
         return result;
     }
 
-    public List<String> get_key_range(String tablename, String startWith, String stopAt, int maxResults) throws InvalidRequestException
+    public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException
     {
         logger.debug("get_key_range");
+        validateCommand(tablename, columnFamilies.toArray(new String[columnFamilies.size()]));
         if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner))
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
         }
+        if (maxResults <= 0)
+        {
+            throw new InvalidRequestException("maxResults must be positive");
+        }
 
-        return StorageProxy.getKeyRange(new RangeCommand(tablename, startWith, stopAt, maxResults));
+        return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamilies, startWith, stopAt, maxResults));
     }
 
     /*

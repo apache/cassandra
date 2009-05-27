@@ -38,7 +38,7 @@ public class RangeVerbHandler implements IVerbHandler
         {
             RangeCommand command = RangeCommand.read(message);
             Table table = Table.open(command.table);
-            keys = table.getKeyRange(command.startWith, command.stopAt, command.maxResults);
+            keys = table.getKeyRange(command.columnFamilyNames, command.startWith, command.stopAt, command.maxResults);
         }
         catch (Exception e)
         {

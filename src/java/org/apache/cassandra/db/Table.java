@@ -23,7 +23,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.ExecutionException;
@@ -49,7 +48,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.IStreamComplete;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.CassandraServer;
 import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
 
@@ -915,35 +913,43 @@ public class Table
      * @param maxResults
      * @return list of keys between startWith and stopAt
      */
-    public List<String> getKeyRange(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    public List<String> getKeyRange(Collection<String> columnFamilyNames, final String startWith, final String stopAt, int maxResults)
+    throws IOException, ExecutionException, InterruptedException
     {
         // TODO we need a better way to keep compactions from stomping on reads than One Big Lock per CF.
-        for (String cfName : getApplicationColumnFamilies())
+        if (columnFamilyNames.isEmpty())
+        {
+            columnFamilyNames = getApplicationColumnFamilies();
+        }
+
+        for (String cfName : columnFamilyNames)
         {
             getColumnFamilyStore(cfName).getReadLock().lock();
         }
         try
         {
-            return getKeyRangeUnsafe(startWith, stopAt, maxResults);
+            return getKeyRangeUnsafe(columnFamilyNames, startWith, stopAt, maxResults);
         }
         finally
         {
-            for (String cfName : getApplicationColumnFamilies())
+            for (String cfName : columnFamilyNames)
             {
                 getColumnFamilyStore(cfName).getReadLock().unlock();
             }
         }
     }
 
-    private List<String> getKeyRangeUnsafe(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    private List<String> getKeyRangeUnsafe(final Collection<String> columnFamilyNames, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
+        assert !columnFamilyNames.isEmpty(); // checked by the 'safe' method
+
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
 
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
         List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
-        for (String cfName : getApplicationColumnFamilies())
+        for (String cfName : columnFamilyNames)
         {
             ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
 
@@ -1002,7 +1008,7 @@ public class Table
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                for (String cfName : getApplicationColumnFamilies())
+                for (String cfName : columnFamilyNames)
                 {
                     ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
                     ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);

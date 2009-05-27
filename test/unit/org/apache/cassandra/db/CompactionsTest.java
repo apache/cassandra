@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -49,7 +50,7 @@ public class CompactionsTest
                 inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
+            assertEquals(table.getKeyRange(Arrays.asList("Standard1"), "", "", 10000).size(), inserted.size());
         }
         while (true)
         {
@@ -61,6 +62,6 @@ public class CompactionsTest
         {
             store.doCompaction(store.getSSTableFilenames().size());
         }
-        assertEquals(table.getKeyRange("", "", 10000).size(), inserted.size());
+        assertEquals(table.getKeyRange(Arrays.asList("Standard1"), "", "", 10000).size(), inserted.size());
     }
 }
