@@ -48,7 +48,7 @@ import org.apache.cassandra.service.*;
  * runDelieverHints() is called when some other node starts up (potentially
  * from a failure) and delivers the hinted data just to that node.
  */
-public class HintedHandOffManager implements IComponentShutdown
+public class HintedHandOffManager
 {
     private static HintedHandOffManager instance_;
     private static Lock lock_ = new ReentrantLock();
@@ -247,11 +247,6 @@ public class HintedHandOffManager implements IComponentShutdown
         }
     }
 
-    public HintedHandOffManager()
-    {
-    	StorageService.instance().registerComponentForShutdown(this);
-    }
-
     public void submit(final ColumnFamilyStore columnFamilyStore)
     {
         Runnable r = new Runnable()
@@ -279,10 +274,5 @@ public class HintedHandOffManager implements IComponentShutdown
             }
         };
     	executor_.submit(r);
-    }
-
-    public void shutdown()
-    {
-    	executor_.shutdownNow();
     }
 }

@@ -29,7 +29,6 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.IComponentShutdown;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
@@ -47,7 +46,7 @@ import org.apache.log4j.Logger;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class Gossiper implements IFailureDetectionEventListener, IEndPointStateChangePublisher, IComponentShutdown
+public class Gossiper implements IFailureDetectionEventListener, IEndPointStateChangePublisher
 {
     private class GossipTimerTask extends TimerTask
     {
@@ -146,8 +145,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         MessagingService.getMessagingInstance().registerVerbHandlers(GOSSIP_DIGEST_ACK2_VERB, new GossipDigestAck2VerbHandler());
         /* register the Gossip stage */
         StageManager.registerStage( Gossiper.GOSSIP_STAGE, new SingleThreadedStage("GMFD") );
-        /* register with Storage Service for shutdown */
-        StorageService.instance().registerComponentForShutdown(this);
     }
 
     public void register(IEndPointStateChangeSubscriber subscriber)
@@ -907,16 +904,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
         /* starts a timer thread */
         gossipTimer_.schedule( new GossipTimerTask(), Gossiper.intervalInMillis_, Gossiper.intervalInMillis_);
-    }
-
-    public void shutdown()
-    {
-    	/* This prevents this guy from responding to Gossip messages */
-    	MessagingService.getMessagingInstance().deregisterVerbHandlers(GOSSIP_DIGEST_SYN_VERB);
-        MessagingService.getMessagingInstance().deregisterVerbHandlers(GOSSIP_DIGEST_ACK_VERB);
-        MessagingService.getMessagingInstance().deregisterVerbHandlers(GOSSIP_DIGEST_ACK2_VERB);
-    	/* This prevents this guy from Gossiping */
-        gossipTimer_.cancel();
     }
 
     public synchronized void addApplicationState(String key, ApplicationState appState)

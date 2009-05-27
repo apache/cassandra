@@ -33,7 +33,6 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.service.IComponentShutdown;
 import org.apache.cassandra.service.StorageService;
 import org.apache.log4j.Logger;
 
@@ -41,7 +40,7 @@ import org.apache.log4j.Logger;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-class MinorCompactionManager implements IComponentShutdown
+class MinorCompactionManager
 {
     private static MinorCompactionManager instance_;
     private static Lock lock_ = new ReentrantLock();
@@ -151,16 +150,6 @@ class MinorCompactionManager implements IComponentShutdown
     
     
     private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("MINOR-COMPACTION-POOL"));
-
-    public MinorCompactionManager()
-    {
-    	StorageService.instance().registerComponentForShutdown(this);
-	}
-
-    public void shutdown()
-    {
-    	compactor_.shutdownNow();
-    }
 
     public void submitPeriodicCompaction(final ColumnFamilyStore columnFamilyStore)
     {

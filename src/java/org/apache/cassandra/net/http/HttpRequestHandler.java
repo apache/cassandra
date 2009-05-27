@@ -682,8 +682,6 @@ public class HttpRequestHandler implements Runnable
 
     private String handleLBHealthCheck()
     {
-    	if(StorageService.instance().isShutdown())
-    		return "";
     	return LB_HEALTH_CHECK_RESPONSE;
     }
 
@@ -692,24 +690,23 @@ public class HttpRequestHandler implements Runnable
      */
     private String handleKillMe()
     {
-    	if(StorageService.instance().isShutdown())
-    		return "Already scheduled for being shutdown";
-    	/*
-    	 * The storage service will wait for a period of time to let the
-    	 * VIP know that we are shutting down, then will perform an actual
-    	 * shutdown on a separate thread.
-    	 */
-        String status = "Service has been killed";
-        try
-        {
-            StorageService.instance().killMe();
-        }
-        catch( Throwable th )
-        {
-            logger_.warn(LogUtil.throwableToString(th));
-            status = "Failed to kill service.";
-        }
-    	return status;
+        logger_.info("Shutting down due to http request");
+        new Thread() {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                System.exit(0);
+            }
+        };
+    	return "Service will be killed in one second.";
     }
 
 }

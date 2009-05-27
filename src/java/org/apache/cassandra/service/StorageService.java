@@ -231,19 +231,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
     private DBManager.StorageMetadata storageMetadata_;
 
-    /*
-     * Maintains a list of all components that need to be shutdown
-     * for a clean exit.
-    */
-    private Set<IComponentShutdown> components_ = new HashSet<IComponentShutdown>();
     /* Timer is used to disseminate load information */
     private Timer loadTimer_ = new Timer(false);
-
-    /*
-     * This variable indicates if the local storage instance
-     * has been shutdown.
-    */
-    private AtomicBoolean isShutdown_ = new AtomicBoolean(false);
 
     /* This thread pool is used to do the bootstrap for a new node */
     private ExecutorService bootStrapper_ = new DebuggableThreadPoolExecutor("BOOT-STRAPPER");
@@ -322,11 +311,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return zk_;
     }
-    
-    public void registerComponentForShutdown(IComponentShutdown component)
-    {
-    	components_.add(component);
-    }
 
     static
     {
@@ -374,50 +358,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_);
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getStorageId()));
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
-    }
-
-    public void killMe() throws Throwable
-    {
-        isShutdown_.set(true);
-        /* 
-         * Shutdown the Gossiper to stop responding/sending Gossip messages.
-         * This causes other nodes to detect you as dead and starting hinting
-         * data for the local endpoint. 
-        */
-        Gossiper.instance().shutdown();
-        final long nodeDeadDetectionTime = 25000L;
-        Thread.sleep(nodeDeadDetectionTime);
-        /* Now perform a force flush of the table */
-        String table = DatabaseDescriptor.getTables().get(0);
-        Table.open(table).flush(false);
-        /* Now wait for the flush to complete */
-        Thread.sleep(nodeDeadDetectionTime);
-        /* Shutdown all other components */
-        StorageService.instance().shutdown();
-    }
-
-    public boolean isShutdown()
-    {
-    	return isShutdown_.get();
-    }
-
-    public void shutdown()
-    {
-        bootStrapper_.shutdownNow();
-        /* shut down all stages */
-        StageManager.shutdown();
-        /* shut down the messaging service */
-        MessagingService.shutdown();
-        /* shut down the load disseminator */
-        loadTimer_.cancel();
-        /* shut down the cleaner thread in FileUtils */
-        FileUtils.shutdown();
-
-        /* shut down all registered components */
-        for ( IComponentShutdown component : components_ )
-        {
-        	component.shutdown();
-        }
     }
 
     public TokenMetadata getTokenMetadata()

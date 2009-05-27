@@ -56,7 +56,7 @@ import org.apache.cassandra.net.MessagingService;
  * 
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComponentShutdown
+final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 {
     class LoadBalancer implements Runnable
     {
@@ -196,20 +196,12 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber, IComp
         StageManager.registerStage(StorageLoadBalancer.lbStage_, new SingleThreadedStage(StorageLoadBalancer.lbStage_));
         /* register the load balancer verb handler */
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
-        /* register with the StorageService */
-        storageService_.registerComponentForShutdown(this);
     }
 
     public void start()
     {
         /* Register with the Gossiper for EndPointState notifications */
         Gossiper.instance().register(this);
-    }
-
-    public void shutdown()
-    {
-        lbOperations_.shutdownNow();
-        lb_.shutdownNow();
     }
 
     public void onChange(EndPoint endpoint, EndPointState epState)

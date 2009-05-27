@@ -40,7 +40,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.IComponentShutdown;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
@@ -52,7 +51,7 @@ import org.apache.log4j.Logger;
  *
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com ) & Karthik Ranganathan ( kranganathan@facebook.com )
  */
-public class AnalyticsContext implements IComponentShutdown
+public class AnalyticsContext
 {
 	private static Logger logger_ = Logger.getLogger(AnalyticsContext.class);
 
@@ -139,14 +138,6 @@ public class AnalyticsContext implements IComponentShutdown
 		typeTable_.put(Float.class, "float");
 	}
 
-
-	/**
-	 * Creates a new instance of AnalyticsReporter
-	 */
-	public AnalyticsContext()
-	{
-		StorageService.instance().registerComponentForShutdown(this);
-	}
 
 	/**
 	* Initializes the context.
@@ -418,7 +409,11 @@ public class AnalyticsContext implements IComponentShutdown
 	public void stopMonitoring() {
 		if (isMonitoring)
 		{
-			shutdown();
+            if (timer != null)
+            {
+                timer.cancel();
+                timer = null;
+            }
 			isMonitoring = false;
 		}
 	}
@@ -520,18 +515,6 @@ public class AnalyticsContext implements IComponentShutdown
 			};
 			long millis = period_ * 1000;
 			timer.scheduleAtFixedRate(task, millis, millis);
-		}
-	}
-
-	/**
-	 * Stops timer if it is running
-	 */
-	public void shutdown()
-	{
-		if (timer != null)
-		{
-			timer.cancel();
-			timer = null;
 		}
 	}
 

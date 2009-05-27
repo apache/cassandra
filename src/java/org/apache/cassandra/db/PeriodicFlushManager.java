@@ -26,13 +26,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.service.IComponentShutdown;
 import org.apache.cassandra.service.StorageService;
 
 /**
  *  Background flusher that force-flushes a column family periodically.
  */
-class PeriodicFlushManager implements IComponentShutdown
+class PeriodicFlushManager
 {
     private static Logger logger_ = Logger.getLogger(PeriodicFlushManager.class);
     private static PeriodicFlushManager instance_;
@@ -55,16 +54,6 @@ class PeriodicFlushManager implements IComponentShutdown
             }
         }
         return instance_;
-    }
-
-    public PeriodicFlushManager()
-    {
-        StorageService.instance().registerComponentForShutdown(this);
-    }
-
-    public void shutdown()
-    {
-        flusher_.shutdownNow();
     }
 
     public void submitPeriodicFlusher(final ColumnFamilyStore columnFamilyStore, int flushPeriodInMinutes)
