@@ -1580,11 +1580,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     throws IOException, ExecutionException, InterruptedException
     {
         lock_.readLock().lock();
+        List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         try
         {
             final ColumnFamily returnCF;
             ColumnIterator iter;
-            List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         
             /* add the current memtable */
             memtableLock_.readLock().lock();
@@ -1637,9 +1637,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
                 return new ColumnFamily(cfName, DatabaseDescriptor.getColumnFamilyType(cfName));
-            List<IColumn> L = new ArrayList();
-            CollectionUtils.addAll(L, collated);
-            ReducingIterator<IColumn> reduced = new ReducingIterator<IColumn>(L.iterator())
+            ReducingIterator<IColumn> reduced = new ReducingIterator<IColumn>(collated)
             {
                 ColumnFamily curCF = returnCF.cloneMeShallow();
 
@@ -1675,14 +1673,23 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 returnCF.addColumn(column);
             }
 
-            /* close remaining cursors */
-            for (ColumnIterator ci : iterators)
-                ci.close();
-
             return removeDeleted(returnCF);
         }
         finally
         {
+            /* close all cursors */
+            for (ColumnIterator ci : iterators)
+            {
+                try
+                {
+                    ci.close();
+                }
+                catch (Throwable th)
+                {
+                    logger_.error(th);
+                }
+            }
+
             lock_.readLock().unlock();
         }
     }
