@@ -34,6 +34,8 @@ import org.apache.log4j.Logger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.commons.lang.StringUtils;
+
 /*
  * Commit Log tracks every write operation into the system. The aim
  * of the commit log is to be able to successfully recover data that was
@@ -300,16 +302,12 @@ public class CommitLog
             file = clogs.get(i);
             readCommitLogHeader(file.getAbsolutePath(), header2);
             byte[] result = CommitLogHeader.and(header, header2);
-            if ( !CommitLogHeader.isZero(result) )
-            {
-                filesNeeded.push(file);
-            }
-            else
-            {
+            if (CommitLogHeader.isZero(result))
                 break;
-            }
+            filesNeeded.push(file);
         }
 
+        logger_.info("Replaying logs from " + StringUtils.join(filesNeeded, ", "));
         doRecovery(filesNeeded, header);
     }
 
