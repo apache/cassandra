@@ -78,13 +78,6 @@ public class Row
         return columnFamilies_.values();
     }
 
-    @Deprecated
-    // (use getColumnFamilies or getColumnFamilyNames)
-    public Map<String, ColumnFamily> getColumnFamilyMap()
-    {
-        return columnFamilies_;
-    }
-
     public ColumnFamily getColumnFamily(String cfName)
     {
         return columnFamilies_.get(cfName);
@@ -199,16 +192,15 @@ class RowSerializer implements ICompactSerializer<Row>
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
         dos.writeUTF(row.key());
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
+        Collection<ColumnFamily> columnFamilies = row.getColumnFamilies();
         int size = columnFamilies.size();
         dos.writeInt(size);
 
         if (size > 0)
         {
-            Set<String> cNames = columnFamilies.keySet();
-            for (String cName : cNames)
+            for (ColumnFamily cf : columnFamilies)
             {
-                ColumnFamily.serializer().serialize(columnFamilies.get(cName), dos);
+                ColumnFamily.serializer().serialize(cf, dos);
             }
         }
     }

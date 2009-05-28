@@ -132,13 +132,8 @@ public class DBManager
         else
         {
             /* we crashed and came back up need to bump generation # */
-        	Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-        	Set<String> cfNames = columnFamilies.keySet();
-
-            for ( String cfName : cfNames )
+            for (ColumnFamily columnFamily : row.getColumnFamilies())
             {
-            	ColumnFamily columnFamily = columnFamilies.get(cfName);
-
                 IColumn tokenColumn = columnFamily.getColumn(SystemTable.token_);
                 Token token = p.getTokenFactory().fromByteArray(tokenColumn.value());
 
@@ -148,7 +143,7 @@ public class DBManager
                 Column generation2 = new Column("Generation", BasicUtilities.intToByteArray(gen), generation.timestamp() + 1);
                 columnFamily.addColumn(generation2);
                 storageMetadata = new StorageMetadata(token, gen);
-                break;
+                break; // TODO why break after one iteration?
             }
             sysTable.reset(row);
         }

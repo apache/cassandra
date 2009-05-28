@@ -97,51 +97,47 @@ public class UniqueKeyQueryRSD extends RowSourceDef
 
         if (row != null)
         {
-            Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-            if (cfMap != null && cfMap.size() > 0)
+            ColumnFamily cfamily = row.getColumnFamily(cfMetaData_.cfName);
+            if (cfamily != null)
             {
-                ColumnFamily cfamily = cfMap.get(cfMetaData_.cfName);
-                if (cfamily != null)
+                Collection<IColumn> columns = null;
+                if (superColumnKey_ != null)
                 {
-                    Collection<IColumn> columns = null;
-                    if (superColumnKey_ != null)
-                    {
-                        // this is the super column case 
-                        IColumn column = cfamily.getColumn(superColumnKey);
-                        if (column != null)
-                            columns = column.getSubColumns();
-                    }
-                    else
-                    {
-                        columns = cfamily.getAllColumns();
-                    }
-                    
-                    if (columns != null && columns.size() > 0)
-                    {
-                        if (columns.size() > 1)
-                        {
-                            // We are looking up by a rowKey & columnKey. There should
-                            // be at most one column that matches. If we find more than
-                            // one, then it is an internal error.
-                            throw new RuntimeException(RuntimeErrorMsg.INTERNAL_ERROR.getMsg("Too many columns found for: " + columnKey));
-                        }
-                        for (IColumn column : columns)
-                        {
-                            List<Map<String, String>> rows = new LinkedList<Map<String, String>>();
+                    // this is the super column case
+                    IColumn column = cfamily.getColumn(superColumnKey);
+                    if (column != null)
+                        columns = column.getSubColumns();
+                }
+                else
+                {
+                    columns = cfamily.getAllColumns();
+                }
 
-                            Map<String, String> result = new HashMap<String, String>();
-                            result.put(cfMetaData_.n_columnKey, column.name());
-                            result.put(cfMetaData_.n_columnValue, new String(column.value()));
-                            result.put(cfMetaData_.n_columnTimestamp, Long.toString(column.timestamp()));
-                            
-                            rows.add(result);
-                                
-                            // at this point, due to the prior checks, we are guaranteed that
-                            // there is only one item in "columns".
-                            return rows;
-                        }
-                        return null;
+                if (columns != null && columns.size() > 0)
+                {
+                    if (columns.size() > 1)
+                    {
+                        // We are looking up by a rowKey & columnKey. There should
+                        // be at most one column that matches. If we find more than
+                        // one, then it is an internal error.
+                        throw new RuntimeException(RuntimeErrorMsg.INTERNAL_ERROR.getMsg("Too many columns found for: " + columnKey));
                     }
+                    for (IColumn column : columns)
+                    {
+                        List<Map<String, String>> rows = new LinkedList<Map<String, String>>();
+
+                        Map<String, String> result = new HashMap<String, String>();
+                        result.put(cfMetaData_.n_columnKey, column.name());
+                        result.put(cfMetaData_.n_columnValue, new String(column.value()));
+                        result.put(cfMetaData_.n_columnTimestamp, Long.toString(column.timestamp()));
+
+                        rows.add(result);
+
+                        // at this point, due to the prior checks, we are guaranteed that
+                        // there is only one item in "columns".
+                        return rows;
+                    }
+                    return null;
                 }
             }
         }

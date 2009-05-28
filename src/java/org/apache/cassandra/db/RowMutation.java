@@ -238,7 +238,7 @@ public class RowMutation implements Serializable
     */
     void apply(Row emptyRow) throws IOException
     {
-        assert emptyRow.getColumnFamilyMap().size() == 0;
+        assert emptyRow.getColumnFamilies().size() == 0;
         Table table = Table.open(table_);
         for (String cfName : modifications_.keySet())
         {

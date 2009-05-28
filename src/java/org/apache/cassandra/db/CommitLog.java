@@ -369,15 +369,12 @@ public class CommitLog
                     try
                     {                        
                         Row row = Row.serializer().deserialize(bufIn);
-                        Map<String, ColumnFamily> columnFamilies = new HashMap<String, ColumnFamily>(row.getColumnFamilyMap());
+                        Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
                         /* remove column families that have already been flushed */
-                    	Set<String> cNames = columnFamilies.keySet();
-
-                        for ( String cName : cNames )
+                        for (ColumnFamily columnFamily : columnFamilies)
                         {
-                        	ColumnFamily columnFamily = columnFamilies.get(cName);
                         	/* TODO: Remove this to not process Hints */
-                        	if ( !DatabaseDescriptor.isApplicationColumnFamily(cName) )
+                        	if ( !DatabaseDescriptor.isApplicationColumnFamily(columnFamily.name()) )
                         	{
                         		row.removeColumnFamily(columnFamily);
                         		continue;
@@ -416,12 +413,9 @@ public class CommitLog
     */
     private void updateHeader(Row row) throws IOException
     {
-    	Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
         Table table = Table.open(table_);
-        Set<String> cNames = columnFamilies.keySet();
-        for ( String cName : cNames )
+        for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-        	ColumnFamily columnFamily = columnFamilies.get(cName);
         	int id = table.getColumnFamilyId(columnFamily.name());
         	if ( clHeader_.get(id) == 0 || ( clHeader_.get(id) == 1 && clHeader_.getPosition(id) == 0 ) )
         	{

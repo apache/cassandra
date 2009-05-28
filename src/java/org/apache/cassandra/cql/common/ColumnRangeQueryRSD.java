@@ -113,37 +113,33 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         List<Map<String, String>> rows = new LinkedList<Map<String, String>>();
         if (row != null)
         {
-            Map<String, ColumnFamily> cfMap = row.getColumnFamilyMap();
-            if (cfMap != null && cfMap.size() > 0)
+            ColumnFamily cfamily = row.getColumnFamily(cfMetaData_.cfName);
+            if (cfamily != null)
             {
-                ColumnFamily cfamily = cfMap.get(cfMetaData_.cfName);
-                if (cfamily != null)
+                Collection<IColumn> columns = null;
+                if (superColumnKey_ != null)
                 {
-                    Collection<IColumn> columns = null;
-                    if (superColumnKey_ != null)
-                    {
-                        // this is the super column case 
-                        IColumn column = cfamily.getColumn(superColumnKey);
-                        if (column != null)
-                            columns = column.getSubColumns();
-                    }
-                    else
-                    {
-                        columns = cfamily.getAllColumns();
-                    }
+                    // this is the super column case
+                    IColumn column = cfamily.getColumn(superColumnKey);
+                    if (column != null)
+                        columns = column.getSubColumns();
+                }
+                else
+                {
+                    columns = cfamily.getAllColumns();
+                }
 
-                    if (columns != null && columns.size() > 0)
+                if (columns != null && columns.size() > 0)
+                {
+                    for (IColumn column : columns)
                     {
-                        for (IColumn column : columns)
-                        {
-                            Map<String, String> result = new HashMap<String, String>();
-                            
-                            result.put(cfMetaData_.n_columnKey, column.name());
-                            result.put(cfMetaData_.n_columnValue, new String(column.value()));
-                            result.put(cfMetaData_.n_columnTimestamp, Long.toString(column.timestamp()));
-                            
-                            rows.add(result);
-                        }
+                        Map<String, String> result = new HashMap<String, String>();
+
+                        result.put(cfMetaData_.n_columnKey, column.name());
+                        result.put(cfMetaData_.n_columnValue, new String(column.value()));
+                        result.put(cfMetaData_.n_columnTimestamp, Long.toString(column.timestamp()));
+
+                        rows.add(result);
                     }
                 }
             }

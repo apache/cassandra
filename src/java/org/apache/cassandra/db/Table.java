@@ -822,12 +822,8 @@ public class Table
     void applyNow(Row row) throws IOException
     {
         String key = row.key();
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-
-        Set<String> cNames = columnFamilies.keySet();
-        for ( String cName : cNames )
+        for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-            ColumnFamily columnFamily = columnFamilies.get(cName);
             ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
             cfStore.applyNow( key, columnFamily );
         }
@@ -852,13 +848,10 @@ public class Table
         /* Add row to the commit log. */
         long start = System.currentTimeMillis();
                 
-        Map<String, ColumnFamily> columnFamilies = row.getColumnFamilyMap();
-        Set<String> cNames = columnFamilies.keySet();
-        for ( String cName : cNames )
+        for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-        	if( cName.equals(Table.recycleBin_))
+        	if (columnFamily.name().equals(Table.recycleBin_))
         	{
-	        	ColumnFamily columnFamily = columnFamilies.get(cName);
 	        	Collection<IColumn> columns = columnFamily.getAllColumns();
         		for(IColumn column : columns)
         		{

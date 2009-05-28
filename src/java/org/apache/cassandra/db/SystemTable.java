@@ -154,9 +154,8 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
         if ( systemRow_ != null )
         {
-            Map<String, ColumnFamily> columnFamilies = systemRow_.getColumnFamilyMap();
             /* Retrieve the "LocationInfo" column family */
-            ColumnFamily columnFamily = columnFamilies.get(SystemTable.cfName_);
+            ColumnFamily columnFamily = systemRow_.getColumnFamily(SystemTable.cfName_);
             long oldTokenColumnTimestamp = columnFamily.getColumn(SystemTable.token_).timestamp();
             /* create the "Token" whose value is the new token. */
             IColumn tokenColumn = new Column(SystemTable.token_, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
