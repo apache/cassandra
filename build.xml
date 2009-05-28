@@ -17,7 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="cassandra">
+<project basedir="." default="build" name="apache-cassandra-incubating">
     <property environment="env"/>
     <property name="debuglevel" value="source,lines,vars"/>
 

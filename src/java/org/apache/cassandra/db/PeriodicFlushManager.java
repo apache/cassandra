@@ -65,7 +65,6 @@ class PeriodicFlushManager
                 columnFamilyStore.forceFlush();
             }
         };
-        logger_.info("start periodic flush daemon every " + flushPeriodInMinutes + " minutes for " + columnFamilyStore.columnFamily_);
         flusher_.scheduleWithFixedDelay(runnable, flushPeriodInMinutes, flushPeriodInMinutes, TimeUnit.MINUTES);       
     }
 }

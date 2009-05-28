@@ -161,6 +161,8 @@ public class Memtable implements Comparable<Memtable>
         }
     }
 
+    /** flush synchronously (in the current thread, not on the executor).
+     *  only the recover code should call this. */
     void flushOnRecovery() throws IOException {
         if (!isClean())
             flush(CommitLog.CommitLogContext.NULL);
@@ -199,16 +201,6 @@ public class Memtable implements Comparable<Memtable>
         }
         builder.append("}");
         return builder.toString();
-    }
-
-    /**
-     * This version is called on commit log recovery. The threshold
-     * is not respected and a forceFlush() needs to be invoked to flush
-     * the contents to disk.  Does not go through the executor.
-    */
-    void putOnRecovery(String key, ColumnFamily columnFamily)
-    {
-        resolve(key, columnFamily);
     }
 
     ColumnFamily getLocalCopy(String key, String columnFamilyColumn, IFilter filter)

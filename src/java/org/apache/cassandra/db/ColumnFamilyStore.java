@@ -189,7 +189,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.addAll(filenames);
         /* Load the index files and the Bloom Filters associated with them. */
         SSTable.onStart(filenames);
-        logger_.debug("Submitting a major compaction task ...");
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
         if (columnFamily_.equals(Table.hints_))
         {
@@ -418,13 +417,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return table_ + "-" + columnFamily_ + "-" + SSTable.temporaryFile_ + "-" + index;
     }
 
-
-    /*
-    * This version is used only on start up when we are recovering from logs.
-    * In the future we may want to parellelize the log processing for a table
-    * by having a thread per log file present for recovery. Re-visit at that
-    * time.
-    */
     void switchMemtable()
     {
         memtableLock_.writeLock().lock();
@@ -446,12 +438,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         memtableSwitchCount++;
     }
 
-    /*
-     * This version is used only on start up when we are recovering from logs.
-     * In the future we may want to parellelize the log processing for a table
-     * by having a thread per log file present for recovery. Re-visit at that
-     * time.
-     */
     void switchBinaryMemtable(String key, byte[] buffer) throws IOException
     {
         binaryMemtable_.set(new BinaryMemtable(table_, columnFamily_));
@@ -482,7 +468,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void forceFlushBinary()
     {
         BinaryMemtableManager.instance().submit(getColumnFamilyName(), binaryMemtable_.get());
-        //binaryMemtable_.get().flush(true);
     }
 
     /**
@@ -729,7 +714,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void applyNow(String key, ColumnFamily columnFamily) throws IOException
     {
-        getMemtableThreadSafe().putOnRecovery(key, columnFamily);
+        getMemtableThreadSafe().put(key, columnFamily);
     }
 
     /*

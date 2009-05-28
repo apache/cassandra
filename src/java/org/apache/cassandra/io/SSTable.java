@@ -404,6 +404,7 @@ public class SSTable
 
     private void loadIndexFile() throws IOException
     {
+        logger_.debug("Loading indexes from " + dataFile_);
         IFileReader indexReader = null;
         /* Read all block indexes to maintain an index in memory */
         try
@@ -442,7 +443,6 @@ public class SSTable
                     String blockIndexKey = bufIn.readUTF();
                     if (!blockIndexKey.equals(SSTable.blockIndexKey_))
                     {
-                        logger_.debug(" Done reading the block indexes, Index has been created");
                         break;
                     }
                     /* read the size of the block index */
