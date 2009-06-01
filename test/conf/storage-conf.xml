@@ -28,7 +28,7 @@
    <StoragePort>7000</StoragePort>
    <ControlPort>7001</ControlPort>
    <ThriftPort>9160</ThriftPort>
-   <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
+   <ColumnIndexSizeInKB>4</ColumnIndexSizeInKB>
    <HttpPort>7002</HttpPort>
    <MetadataDirectory>build/test/cassandra/system</MetadataDirectory>
    <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>

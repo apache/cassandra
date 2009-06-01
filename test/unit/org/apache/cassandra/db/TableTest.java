@@ -266,6 +266,51 @@ public class TableTest extends CleanupHelper
         validateGetSliceFromAdvanced(table, ROW);
     }
 
+    @Test
+    public void testGetSliceFromLarge() throws Throwable
+    {
+        Table table = Table.open(TABLE_NAME);
+        String ROW = "row3";
+        RowMutation rm = new RowMutation(TABLE_NAME, ROW);
+        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        for (int i = 1000; i < 2000; i++)
+            cf.addColumn(new Column("col" + i, ("vvvvvvvvvvvvvvvv" + i).getBytes(), 1L));
+        rm.add(cf);
+        rm.apply();
+        // flush to disk
+        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
+
+        Row result;
+        ColumnFamily cfres;
+        result = table.getSliceFrom(ROW, "Standard1:col1000", true, 3);
+        cfres = result.getColumnFamily("Standard1");
+        assertColumns(cfres, "col1000", "col1001", "col1002");
+        assertEquals(new String(cfres.getColumn("col1000").value()), "vvvvvvvvvvvvvvvv1000");
+        assertEquals(new String(cfres.getColumn("col1001").value()), "vvvvvvvvvvvvvvvv1001");
+        assertEquals(new String(cfres.getColumn("col1002").value()), "vvvvvvvvvvvvvvvv1002");
+
+        result = table.getSliceFrom(ROW, "Standard1:col1195", true, 3);
+        cfres = result.getColumnFamily("Standard1");
+        assertColumns(cfres, "col1195", "col1196", "col1197");
+        assertEquals(new String(cfres.getColumn("col1195").value()), "vvvvvvvvvvvvvvvv1195");
+        assertEquals(new String(cfres.getColumn("col1196").value()), "vvvvvvvvvvvvvvvv1196");
+        assertEquals(new String(cfres.getColumn("col1197").value()), "vvvvvvvvvvvvvvvv1197");
+
+        result = table.getSliceFrom(ROW, "Standard1:col1196", false, 3);
+        cfres = result.getColumnFamily("Standard1");
+        assertColumns(cfres, "col1194", "col1195", "col1196");
+        assertEquals(new String(cfres.getColumn("col1194").value()), "vvvvvvvvvvvvvvvv1194");
+        assertEquals(new String(cfres.getColumn("col1195").value()), "vvvvvvvvvvvvvvvv1195");
+        assertEquals(new String(cfres.getColumn("col1196").value()), "vvvvvvvvvvvvvvvv1196");
+
+        result = table.getSliceFrom(ROW, "Standard1:col1990", true, 3);
+        cfres = result.getColumnFamily("Standard1");
+        assertColumns(cfres, "col1990", "col1991", "col1992");
+        assertEquals(new String(cfres.getColumn("col1990").value()), "vvvvvvvvvvvvvvvv1990");
+        assertEquals(new String(cfres.getColumn("col1991").value()), "vvvvvvvvvvvvvvvv1991");
+        assertEquals(new String(cfres.getColumn("col1992").value()), "vvvvvvvvvvvvvvvv1992");
+    }
+
     private void assertColumns(ColumnFamily columnFamily, String... columnFamilyNames)
     {
         assertNotNull(columnFamily);
