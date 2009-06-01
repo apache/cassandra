@@ -81,11 +81,11 @@ which in turn is associated with a table (Table1). In the example above,
 we set the value 'John' in the 'first' column for key 'jsmith'.
 
 For more information on the Cassandra data model be sure to checkout 
-http://cwiki.apache.org/confluence/display/CSDR/Data+Model
+http://wiki.apache.org/cassandra/DataModel
 
 Wondering where to go from here? 
 
-  * The wiki (http://cwiki.apache.org/confluence/display/CSDR) is the 
+  * The wiki (http://wiki.apache.org/cassandra/) is the 
     best source for additional information.
   * Join us in #cassandra on irc.freenode.net and ask questions.
   * Subscribe to the Users mailing list by sending a mail to
