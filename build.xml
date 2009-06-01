@@ -37,7 +37,7 @@
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="version" value="0.3.0-dev"/>
+    <property name="version" value="0.4.0-dev"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
 
     <!-- http://cobertura.sourceforge.net/ -->
