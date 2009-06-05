@@ -94,7 +94,7 @@ public class SelectorManager extends Thread
         {
             try
             {
-                selector.select(100);
+                selector.select(1);
                 doProcess();
                 synchronized(gate) {}
             }
