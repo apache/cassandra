@@ -141,11 +141,11 @@ public class CassandraServer implements Cassandra.Iface
         return thriftColumns;
     }
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnFamily_column, long timeStamp) throws InvalidRequestException
+    public List<column_t> get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws InvalidRequestException
     {
         logger.debug("get_columns_since");
-        ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnFamily_column, timeStamp));
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnParent, timeStamp));
+        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
@@ -166,10 +166,10 @@ public class CassandraServer implements Cassandra.Iface
 	}
 	
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnFamily, List<String> columnNames) throws InvalidRequestException
+    public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException
     {
         logger.debug("get_slice_by_names");
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, columnNames));
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnParent, columnNames));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
@@ -177,11 +177,11 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyColumns(cfamily.getAllColumns());
     }
     
-    public List<column_t> get_slice(String tablename, String key, String columnFamily_column, int start, int count) throws InvalidRequestException
+    public List<column_t> get_slice(String tablename, String key, String columnParent, int start, int count) throws InvalidRequestException
     {
         logger.debug("get_slice");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, start, count));
+        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
+        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnParent, start, count));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
@@ -201,17 +201,17 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyColumns(columns);
 	}
 
-    public List<column_t> get_slice_from(String tablename, String key, String columnFamily_column, boolean isAscending, int count) throws InvalidRequestException
+    public List<column_t> get_slice_from(String tablename, String key, String columnParent, boolean isAscending, int count) throws InvalidRequestException
     {
         logger.debug("get_slice_from");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
         if (values.length != 2 || DatabaseDescriptor.getColumnFamilyType(values[0]) != "Standard")
             throw new InvalidRequestException("get_slice_from requires a standard CF name and a starting column name");
         if (count <= 0)
             throw new InvalidRequestException("get_slice_from requires positive count");
         if ("Name".compareTo(DatabaseDescriptor.getCFMetaData(tablename, values[0]).indexProperty_) != 0)
             throw new InvalidRequestException("get_slice_from requires CF indexed by name");
-        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnFamily_column, isAscending, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnParent, isAscending, count));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
@@ -220,10 +220,10 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyColumns(columns);
     }
 
-    public column_t get_column(String tablename, String key, String columnFamily_column) throws NotFoundException, InvalidRequestException
+    public column_t get_column(String tablename, String key, String columnPath) throws NotFoundException, InvalidRequestException
     {
         logger.debug("get_column");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
+        String[] values = RowMutation.getColumnAndColumnFamily(columnPath);
         if (values.length < 1)
         {
             throw new InvalidRequestException("get_column requires non-empty columnfamily");
@@ -243,7 +243,7 @@ public class CassandraServer implements Cassandra.Iface
             }
         }
 
-        ColumnReadCommand readCommand = new ColumnReadCommand(tablename, key, columnFamily_column);
+        ColumnReadCommand readCommand = new ColumnReadCommand(tablename, key, columnPath);
         ColumnFamily cfamily = readColumnFamily(readCommand);
         if (cfamily == null)
         {
@@ -277,11 +277,11 @@ public class CassandraServer implements Cassandra.Iface
     }
     
 
-    public int get_column_count(String tablename, String key, String columnFamily_column) throws InvalidRequestException
+    public int get_column_count(String tablename, String key, String columnParent) throws InvalidRequestException
     {
         logger.debug("get_column_count");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily_column);
-        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_column, -1, Integer.MAX_VALUE));
+        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
+        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnParent, -1, Integer.MAX_VALUE));
         if (cfamily == null)
         {
             return 0;
@@ -305,12 +305,12 @@ public class CassandraServer implements Cassandra.Iface
         return columns.size();
 	}
 
-    public void insert(String tablename, String key, String columnFamily_column, byte[] cellData, long timestamp, int block)
+    public void insert(String tablename, String key, String columnPath, byte[] cellData, long timestamp, int block)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("insert");
         RowMutation rm = new RowMutation(tablename, key.trim());
-        rm.add(columnFamily_column, cellData, timestamp);
+        rm.add(columnPath, cellData, timestamp);
         Set<String> cfNames = rm.columnFamilyNames();
         validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
@@ -327,12 +327,12 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(block, rm);
     }
 
-    public void remove(String tablename, String key, String columnFamily_column, long timestamp, int block)
+    public void remove(String tablename, String key, String columnPathOrParent, long timestamp, int block)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("remove");
         RowMutation rm = new RowMutation(tablename, key.trim());
-        rm.delete(columnFamily_column, timestamp);
+        rm.delete(columnPathOrParent, timestamp);
         Set<String> cfNames = rm.columnFamilyNames();
         validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
         doInsert(block, rm);
@@ -383,10 +383,10 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily_superColumnName, int start, int count) throws InvalidRequestException
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, int start, int count) throws InvalidRequestException
     {
         logger.debug("get_slice_super");
-        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily_superColumnName, start, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily, start, count));
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;
@@ -395,10 +395,10 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifySuperColumns(columns);
     }
     
-    public superColumn_t get_superColumn(String tablename, String key, String columnFamily_column) throws InvalidRequestException, NotFoundException
+    public superColumn_t get_superColumn(String tablename, String key, String superColumnPath) throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_superColumn");
-        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnFamily_column));
+        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, superColumnPath));
         if (cfamily == null)
         {
             throw new NotFoundException();
@@ -541,11 +541,11 @@ public class CassandraServer implements Cassandra.Iface
   		StorageProxy.touchProtocol(DatabaseDescriptor.getTables().get(0), key, fData, StorageService.ConsistencyLevel.WEAK);
 	}
 
-	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnFamily, String start, String end, int count)
+	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String end, int count)
     throws InvalidRequestException, NotFoundException, TException
     {
 		logger.debug("get_slice_by_range");
-        ColumnFamily cfamily = readColumnFamily(new SliceByRangeReadCommand(tablename, key, columnFamily, start, end, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceByRangeReadCommand(tablename, key, columnParent, start, end, count));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;

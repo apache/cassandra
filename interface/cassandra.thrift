@@ -91,44 +91,53 @@ exception UnavailableException {
 # service api
 #
 
+# CF = ColumnFamily name
+# SC = SuperColumn name
+# C = Column name
+# columnParent: the parent of the columns you are specifying.  "CF" or "CF:SC".
+# columnPath: full path to a column.  "CF:C" or "CF:SC:C".
+# superColumnPath: full path to a supercolumn.  "CF:SC" only.
+# columnPathOrParent: remove will wipe out any layer.  "CF" or "CF:C" or "CF:SC" or "CF:SC:C".
+
+
 service Cassandra {
-  list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i32 start=-1, 5:i32 count=-1)
+  list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnParent, 4:i32 start=-1, 5:i32 count=-1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice_by_name_range(1:string tablename, 2:string key, 3:string columnFamily, 4:string start, 5:string end, 6:i32 count=-1)
+  list<column_t> get_slice_by_name_range(1:string tablename, 2:string key, 3:string columnParent, 4:string start, 5:string end, 6:i32 count=-1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> columnNames)
+  list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnParent, 4:list<string> columnNames)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice_from(1:string tablename, 2:string key, 3:string columnFamily_column, 4:bool isAscending, 5:i32 count)
+  list<column_t> get_slice_from(1:string tablename, 2:string key, 3:string columnParent, 4:bool isAscending, 5:i32 count)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  column_t       get_column(1:string tablename, 2:string key, 3:string columnFamily_column)
+  column_t       get_column(1:string tablename, 2:string key, 3:string columnPath)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  i32            get_column_count(1:string tablename, 2:string key, 3:string columnFamily_column)
+  i32            get_column_count(1:string tablename, 2:string key, 3:string columnParent)
   throws (1: InvalidRequestException ire),
 
-  void     insert(1:string tablename, 2:string key, 3:string columnFamily_column, 4:binary cellData, 5:i64 timestamp, 6:i32 block_for=0)
+  void     insert(1:string tablename, 2:string key, 3:string columnPath, 4:binary cellData, 5:i64 timestamp, 6:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   void     batch_insert(1: batch_mutation_t batchMutation, 2:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void           remove(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timestamp, 5:i32 block_for=0)
+  void           remove(1:string tablename, 2:string key, 3:string columnPathOrParent, 4:i64 timestamp, 5:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnFamily_column, 4:i64 timeStamp)
+  list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnParent, 4:i64 timeStamp)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  list<superColumn_t> get_slice_super(1:string tablename, 2:string key, 3:string columnFamily_superColumnName, 4:i32 start=-1, 5:i32 count=-1)
+  list<superColumn_t> get_slice_super(1:string tablename, 2:string key, 3:string columnFamily, 4:i32 start=-1, 5:i32 count=-1)
   throws (1: InvalidRequestException ire),
 
   list<superColumn_t> get_slice_super_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> superColumnNames)
   throws (1: InvalidRequestException ire),
 
-  superColumn_t  get_superColumn(1:string tablename, 2:string key, 3:string columnFamily)
+  superColumn_t  get_superColumn(1:string tablename, 2:string key, 3:string superColumnPath)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
   void     batch_insert_superColumn(1:batch_mutation_super_t batchMutationSuper, 2:i32 block_for=0)
