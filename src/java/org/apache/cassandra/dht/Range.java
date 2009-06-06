@@ -21,6 +21,7 @@ package org.apache.cassandra.dht;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.List;
 import java.math.BigInteger;
 
@@ -33,7 +34,7 @@ import org.apache.cassandra.service.StorageService;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public class Range implements Comparable<Range>
+public class Range implements Comparable<Range>, Serializable
 {
     private static ICompactSerializer<Range> serializer_;
     static

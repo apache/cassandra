@@ -21,11 +21,12 @@ package org.apache.cassandra.dht;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 
-public abstract class Token<T extends Comparable> implements Comparable<Token<T>>
+public abstract class Token<T extends Comparable> implements Comparable<Token<T>>, Serializable
 {
     private static final TokenSerializer serializer = new TokenSerializer();
     public static TokenSerializer serializer()

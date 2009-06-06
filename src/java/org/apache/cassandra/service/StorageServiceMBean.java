@@ -19,6 +19,10 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.net.EndPoint;
 
 
 /**
@@ -30,6 +34,7 @@ public interface StorageServiceMBean
     public String getLiveNodes();
     public String getUnreachableNodes();
     public String getToken();
+    public Map<Range, List<EndPoint>> getRangeToEndPointMap();
     
     /**
      * This method will cause the local node initiate
