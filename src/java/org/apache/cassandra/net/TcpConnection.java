@@ -425,30 +425,30 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     
     void doPendingWrites()
     {
-        try
-        {                     
-            while(!pendingWrites_.isEmpty()) 
-            {
-                ByteBuffer buffer = pendingWrites_.get(0);
-                socketChannel_.write(buffer);                    
-                if (buffer.remaining() > 0) 
-                {   
-                    break;
-                }               
-                pendingWrites_.remove(0);                    
-            } 
-            
-        }
-        catch(IOException ex)
+        synchronized(this)
         {
-            logger_.warn(LogUtil.throwableToString(ex));
-            // This is to fix the wierd Linux bug with NIO.
-            errorClose();
-        }
-        finally
-        {    
-            synchronized(this)
+            try
+            {                     
+                while(!pendingWrites_.isEmpty()) 
+                {
+                    ByteBuffer buffer = pendingWrites_.get(0);
+                    socketChannel_.write(buffer);                    
+                    if (buffer.remaining() > 0) 
+                    {   
+                        break;
+                    }               
+                    pendingWrites_.remove(0);                    
+                } 
+            
+            }
+            catch(IOException ex)
             {
+                logger_.warn(LogUtil.throwableToString(ex));
+                // This is to fix the wierd Linux bug with NIO.
+                errorClose();
+            }
+            finally
+            {    
                 if (!pendingWrites_.isEmpty())
                 {                    
                     key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
