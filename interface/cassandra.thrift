@@ -137,8 +137,6 @@ service Cassandra {
   void     batch_insert_superColumn(1:batch_mutation_super_t batchMutationSuper, 2:bool block=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  oneway void     touch(1:string key, 2:bool fData),
-
   # range query: returns matching keys
   list<string>   get_key_range(1:string tablename, 2:string startWith="", 3:string stopAt="", 4:i32 maxResults=1000) throws (1: InvalidRequestException ire),
 
