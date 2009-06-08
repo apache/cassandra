@@ -681,13 +681,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         doBootstrap(nodes);
     }
     
-    public void doGC()
+    public void forceTableCleanup()
     {
         List<String> tables = DatabaseDescriptor.getTables();
         for ( String tName : tables )
         {
             Table table = Table.open(tName);
-            table.doGC();
+            table.forceCleanup();
         }
     }
     

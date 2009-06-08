@@ -485,7 +485,7 @@ public class Table
     /** 
      * Do a cleanup of keys that do not belong locally.
      */
-    public void doGC()
+    public void forceCleanup()
     {
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
         for ( String columnFamily : columnFamilies )

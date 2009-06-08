@@ -53,7 +53,7 @@ public interface StorageServiceMBean
     /**
      * 
      */
-    public void doGC();
+    public void forceTableCleanup();
 
     /**
      * Stream the files in the bootstrap directory over to the
