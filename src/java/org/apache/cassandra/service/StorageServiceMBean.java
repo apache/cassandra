@@ -35,6 +35,8 @@ public interface StorageServiceMBean
     public String getUnreachableNodes();
     public String getToken();
     public Map<Range, List<EndPoint>> getRangeToEndPointMap();
+    public String getLoadInfo();
+    public int getCurrentGenerationNumber();
     
     /**
      * This method will cause the local node initiate

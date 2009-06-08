@@ -713,6 +713,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return stringify(Gossiper.instance().getUnreachableMembers());
     }
+    
+    public int getCurrentGenerationNumber()
+    {
+        return Gossiper.instance().getCurrentGenerationNumber(udpAddr_);
+    }
 
     /* Helper for the MBean interface */
     private String stringify(Set<EndPoint> eps)
