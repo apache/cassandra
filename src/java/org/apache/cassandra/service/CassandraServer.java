@@ -529,18 +529,6 @@ public class CassandraServer implements Cassandra.Iface
         return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamilies, startWith, stopAt, maxResults));
     }
 
-    /*
-     * This method is used to ensure that all keys
-     * prior to the specified key, as dtermined by
-     * the SSTable index bucket it falls in, are in
-     * buffer cache.  
-    */
-    public void touch (String key, boolean fData)
-    {
-        logger.debug("touch");
-  		StorageProxy.touchProtocol(DatabaseDescriptor.getTables().get(0), key, fData, StorageService.ConsistencyLevel.WEAK);
-	}
-
 	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String end, int count)
     throws InvalidRequestException, NotFoundException, TException
     {

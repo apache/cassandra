@@ -21,16 +21,7 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Timer;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -40,65 +31,21 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.log4j.Logger;
-
 import org.apache.cassandra.analytics.AnalyticsContext;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.MultiThreadedStage;
-import org.apache.cassandra.concurrent.SingleThreadedStage;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.BinaryVerbHandler;
-import org.apache.cassandra.db.CalloutDeployVerbHandler;
-import org.apache.cassandra.db.DBManager;
-import org.apache.cassandra.db.DataFileVerbHandler;
-import org.apache.cassandra.db.HintedHandOffManager;
-import org.apache.cassandra.db.LoadVerbHandler;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.ReadRepairVerbHandler;
-import org.apache.cassandra.db.ReadVerbHandler;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.RowMutationVerbHandler;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.TouchVerbHandler;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.dht.BootstrapInitiateMessage;
-import org.apache.cassandra.dht.BootstrapMetadataVerbHandler;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.IEndPointStateChangeSubscriber;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndPointState;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.SelectorManager;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.gms.*;
+import org.apache.cassandra.locator.*;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.net.http.HttpConnection;
 import org.apache.cassandra.net.io.StreamContextManager;
-import org.apache.cassandra.locator.IEndPointSnitch;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.locator.IReplicaPlacementStrategy;
-import org.apache.cassandra.locator.EndPointSnitch;
-import org.apache.cassandra.locator.RackUnawareStrategy;
-import org.apache.cassandra.locator.RackAwareStrategy;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
-
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.cassandra.utils.FileUtils;
+import org.apache.cassandra.utils.LogUtil;
+import org.apache.log4j.Logger;
 import org.apache.zookeeper.ZooKeeper;
-import org.apache.zookeeper.data.Stat;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -134,7 +81,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String calloutDeployVerbHandler_ = "CALLOUT-DEPLOY-VERB-HANDLER";
-    public final static String touchVerbHandler_ = "TOUCH-VERB-HANDLER";
     public static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
 
     public static enum ConsistencyLevel
@@ -284,7 +230,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.calloutDeployVerbHandler_, new CalloutDeployVerbHandler() );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.touchVerbHandler_, new TouchVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.rangeVerbHandler_, new RangeVerbHandler());
         
         /* register the stage for the mutations */

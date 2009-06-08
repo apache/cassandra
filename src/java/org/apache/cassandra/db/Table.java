@@ -496,27 +496,6 @@ public class Table
         }   
     }
     
-    
-    /*
-     * This method is used to ensure that all keys
-     * prior to the specified key, as dtermined by
-     * the SSTable index bucket it falls in, are in
-     * buffer cache.  
-    */
-    public void touch(String key, boolean fData) throws IOException
-    {
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
-        {
-            if ( DatabaseDescriptor.isApplicationColumnFamily(columnFamily) )
-            {
-                ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
-                if ( cfStore != null )
-                    cfStore.touch(key, fData);
-            }
-        }
-    }
-
     /*
      * Clear the existing snapshots in the system
      */

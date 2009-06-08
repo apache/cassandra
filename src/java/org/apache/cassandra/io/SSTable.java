@@ -20,29 +20,17 @@ package org.apache.cassandra.io;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Hashtable;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 
-import org.apache.log4j.Logger;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
+import org.apache.log4j.Logger;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -101,8 +89,6 @@ public class SSTable
      * If not we can avoid scanning it.
      */
     private static Map<String, BloomFilter> bfs_ = new Hashtable<String, BloomFilter>();
-    /* Maintains a touched set of keys */
-    private static LinkedHashMap<String, Long> touchCache_ = new TouchedKeyCache(DatabaseDescriptor.getTouchKeyCacheSize());
 
     /**
      * This class holds the position of a key in a block
@@ -520,52 +506,6 @@ public class SSTable
     public String getDataFileLocation() throws IOException
     {
         return getFile(dataFile_);
-    }
-
-    /*
-     * Seeks to the specified key on disk.
-    */
-    public void touch(final String clientKey, boolean fData) throws IOException
-    {
-        if (touchCache_.containsKey(dataFile_ + ":" + clientKey))
-        {
-            return;
-        }
-
-        IFileReader dataReader = SequenceFile.reader(dataFile_);
-        try
-        {
-            /* Morph the key */
-            String decoratedKey = partitioner_.decorateKey(clientKey);
-            Coordinate fileCoordinate = getCoordinates(decoratedKey, dataReader, partitioner_);
-            /* Get offset of key from block Index */
-            dataReader.seek(fileCoordinate.end_);
-            BlockMetadata blockMetadata = dataReader.getBlockMetadata(decoratedKey);
-            if (blockMetadata.position_ != -1L)
-            {
-                touchCache_.put(dataFile_ + ":" + clientKey, blockMetadata.position_);
-            }
-
-            if (fData)
-            {
-                /* Read the data associated with this key and pull it into the Buffer Cache */
-                if (blockMetadata.position_ != -1L)
-                {
-                    dataReader.seek(blockMetadata.position_);
-                    DataOutputBuffer bufOut = new DataOutputBuffer();
-                    dataReader.next(bufOut);
-                    bufOut.reset();
-                    logger_.debug("Finished the touch of the key to pull it into buffer cache.");
-                }
-            }
-        }
-        finally
-        {
-            if (dataReader != null)
-            {
-                dataReader.close();
-            }
-        }
     }
 
     private long beforeAppend(String decoratedKey) throws IOException

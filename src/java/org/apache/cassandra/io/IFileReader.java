@@ -54,16 +54,6 @@ public interface IFileReader
     public long readLong() throws IOException;
     
     /**
-     * This functions is used to help out subsequent reads
-     * on the specified key. It reads the keys prior to this
-     * one on disk so that the buffer cache is hot.
-     * 
-     *  @param key key for which we are performing the touch.
-     *  @param fData true implies we fetch the data into buffer cache.
-    */
-    public long touch(String key , boolean fData) throws IOException;
-    
-    /**
      * This method helps is retrieving the offset of the specified
      * key in the file using the block index.
      * 
@@ -71,15 +61,6 @@ public interface IFileReader
     */
     public long getPositionFromBlockIndex(String key) throws IOException;
     
-    /**
-     * This method returns the position of the specified key and the 
-     * size of its data segment from the block index.
-     * 
-     * @param key key whose block metadata we are interested in.
-     * @return an instance of the block metadata for this key.
-    */
-    public SSTable.BlockMetadata getBlockMetadata(String key) throws IOException;
-
     /**
      * This method dumps the next key/value into the DataOuputStream
      * passed in.

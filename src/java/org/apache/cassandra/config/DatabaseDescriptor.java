@@ -90,8 +90,6 @@ public class DatabaseDescriptor
     private static String partitionerClass_;
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     private static int columnIndexSizeInKB_;
-    /* Size of touch key cache */
-    private static int touchKeyCacheSize_ = 1024;
     /* Number of hours to keep a memtable in memory */
     private static int memtableLifetime_ = 6;
     /* Size of the memtable in memory before it is dumped */
@@ -213,12 +211,6 @@ public class DatabaseDescriptor
             port = xmlUtils.getNodeValue("/Storage/ThriftPort");
             if (port != null)
                 thriftPort_ = Integer.parseInt(port);
-
-
-            /* Touch Key Cache Size */
-            String touchKeyCacheSize = xmlUtils.getNodeValue("/Storage/TouchKeyCacheSize");
-            if ( touchKeyCacheSize != null )
-                touchKeyCacheSize_ = Integer.parseInt(touchKeyCacheSize);
 
             /* Number of days to keep the memtable around w/o flushing */
             String lifetime = xmlUtils.getNodeValue("/Storage/MemtableLifetimeInDays");
@@ -575,11 +567,6 @@ public class DatabaseDescriptor
         return applicationColumnFamilies_.contains(columnFamily);
     }
 
-    public static int getTouchKeyCacheSize()
-    {
-        return touchKeyCacheSize_;
-    }
-    
     public static String getJobJarLocation()
     {
         return jobJarFileLocation_;

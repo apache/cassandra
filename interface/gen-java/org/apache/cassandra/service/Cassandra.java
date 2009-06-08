@@ -50,8 +50,6 @@ public class Cassandra {
 
     public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public void touch(String key, boolean fData) throws TException;
-
     public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
 
     public String getStringProperty(String propertyName) throws TException;
@@ -659,22 +657,6 @@ public class Cassandra {
       return;
     }
 
-    public void touch(String key, boolean fData) throws TException
-    {
-      send_touch(key, fData);
-    }
-
-    public void send_touch(String key, boolean fData) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("touch", TMessageType.CALL, seqid_));
-      touch_args args = new touch_args();
-      args.key = key;
-      args.fData = fData;
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
     public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
     {
       send_get_key_range(tablename, columnFamilies, startWith, stopAt, maxResults);
@@ -867,7 +849,6 @@ public class Cassandra {
       processMap_.put("get_slice_super_by_names", new get_slice_super_by_names());
       processMap_.put("get_superColumn", new get_superColumn());
       processMap_.put("batch_insert_superColumn", new batch_insert_superColumn());
-      processMap_.put("touch", new touch());
       processMap_.put("get_key_range", new get_key_range());
       processMap_.put("getStringProperty", new getStringProperty());
       processMap_.put("getStringListProperty", new getStringListProperty());
@@ -1313,17 +1294,6 @@ public class Cassandra {
         oprot.getTransport().flush();
       }
 
-    }
-
-    private class touch implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        touch_args args = new touch_args();
-        args.read(iprot);
-        iprot.readMessageEnd();
-        iface_.touch(args.key, args.fData);
-        return;
-      }
     }
 
     private class get_key_range implements ProcessFunction {
@@ -12056,275 +12026,6 @@ public class Cassandra {
       } else {
         sb.append(this.ue);
       }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      // check that fields of type enum have valid values
-    }
-
-  }
-
-  public static class touch_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("touch_args");
-    private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
-    private static final TField F_DATA_FIELD_DESC = new TField("fData", TType.BOOL, (short)2);
-
-    public String key;
-    public static final int KEY = 1;
-    public boolean fData;
-    public static final int FDATA = 2;
-
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean fData = false;
-    }
-
-    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
-      put(FDATA, new FieldMetaData("fData", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.BOOL)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(touch_args.class, metaDataMap);
-    }
-
-    public touch_args() {
-    }
-
-    public touch_args(
-      String key,
-      boolean fData)
-    {
-      this();
-      this.key = key;
-      this.fData = fData;
-      this.__isset.fData = true;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public touch_args(touch_args other) {
-      if (other.isSetKey()) {
-        this.key = other.key;
-      }
-      __isset.fData = other.__isset.fData;
-      this.fData = other.fData;
-    }
-
-    @Override
-    public touch_args clone() {
-      return new touch_args(this);
-    }
-
-    public String getKey() {
-      return this.key;
-    }
-
-    public void setKey(String key) {
-      this.key = key;
-    }
-
-    public void unsetKey() {
-      this.key = null;
-    }
-
-    // Returns true if field key is set (has been asigned a value) and false otherwise
-    public boolean isSetKey() {
-      return this.key != null;
-    }
-
-    public void setKeyIsSet(boolean value) {
-      if (!value) {
-        this.key = null;
-      }
-    }
-
-    public boolean isFData() {
-      return this.fData;
-    }
-
-    public void setFData(boolean fData) {
-      this.fData = fData;
-      this.__isset.fData = true;
-    }
-
-    public void unsetFData() {
-      this.__isset.fData = false;
-    }
-
-    // Returns true if field fData is set (has been asigned a value) and false otherwise
-    public boolean isSetFData() {
-      return this.__isset.fData;
-    }
-
-    public void setFDataIsSet(boolean value) {
-      this.__isset.fData = value;
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      switch (fieldID) {
-      case KEY:
-        if (value == null) {
-          unsetKey();
-        } else {
-          setKey((String)value);
-        }
-        break;
-
-      case FDATA:
-        if (value == null) {
-          unsetFData();
-        } else {
-          setFData((Boolean)value);
-        }
-        break;
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    public Object getFieldValue(int fieldID) {
-      switch (fieldID) {
-      case KEY:
-        return getKey();
-
-      case FDATA:
-        return new Boolean(isFData());
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-    public boolean isSet(int fieldID) {
-      switch (fieldID) {
-      case KEY:
-        return isSetKey();
-      case FDATA:
-        return isSetFData();
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof touch_args)
-        return this.equals((touch_args)that);
-      return false;
-    }
-
-    public boolean equals(touch_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_key = true && this.isSetKey();
-      boolean that_present_key = true && that.isSetKey();
-      if (this_present_key || that_present_key) {
-        if (!(this_present_key && that_present_key))
-          return false;
-        if (!this.key.equals(that.key))
-          return false;
-      }
-
-      boolean this_present_fData = true;
-      boolean that_present_fData = true;
-      if (this_present_fData || that_present_fData) {
-        if (!(this_present_fData && that_present_fData))
-          return false;
-        if (this.fData != that.fData)
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id)
-        {
-          case KEY:
-            if (field.type == TType.STRING) {
-              this.key = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case FDATA:
-            if (field.type == TType.BOOL) {
-              this.fData = iprot.readBool();
-              this.__isset.fData = true;
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-            break;
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.key != null) {
-        oprot.writeFieldBegin(KEY_FIELD_DESC);
-        oprot.writeString(this.key);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldBegin(F_DATA_FIELD_DESC);
-      oprot.writeBool(this.fData);
-      oprot.writeFieldEnd();
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("touch_args(");
-      boolean first = true;
-
-      sb.append("key:");
-      if (this.key == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.key);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("fData:");
-      sb.append(this.fData);
       first = false;
       sb.append(")");
       return sb.toString();

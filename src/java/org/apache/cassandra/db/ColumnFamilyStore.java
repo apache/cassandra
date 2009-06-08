@@ -259,34 +259,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    void touch(String key, boolean fData) throws IOException
-    {
-        /* Scan the SSTables on disk first */
-        lock_.readLock().lock();
-        try
-        {
-            List<String> files = new ArrayList<String>(ssTables_);
-            for (String file : files)
-            {
-                /*
-                 * Get the BloomFilter associated with this file. Check if the key
-                 * is present in the BloomFilter. If not continue to the next file.
-                */
-                boolean bVal = SSTable.isKeyInFile(key, file);
-                if (!bVal)
-                {
-                    continue;
-                }
-                SSTable ssTable = new SSTable(file, StorageService.getPartitioner());
-                ssTable.touch(key, fData);
-            }
-        }
-        finally
-        {
-            lock_.readLock().unlock();
-        }
-    }
-
     /*
      * This method forces a compaction of the SSTables on disk. We wait
      * for the process to complete by waiting on a future pointer.
