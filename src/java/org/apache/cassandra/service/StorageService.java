@@ -691,6 +691,19 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
     
+    /**
+     * Trigger the immediate compaction of all tables.
+     */
+    public void forceTableCompaction()
+    {
+        List<String> tables = DatabaseDescriptor.getTables();
+        for ( String tName : tables )
+        {
+            Table table = Table.open(tName);
+            table.forceCompaction();
+        }        
+    }
+    
     public void forceHandoff(String directories, String host) throws IOException
     {       
         List<File> filesList = new ArrayList<File>();

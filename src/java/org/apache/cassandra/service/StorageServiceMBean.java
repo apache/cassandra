@@ -37,6 +37,7 @@ public interface StorageServiceMBean
     public Map<Range, List<EndPoint>> getRangeToEndPointMap();
     public String getLoadInfo();
     public int getCurrentGenerationNumber();
+    public void forceTableCompaction();
     
     /**
      * This method will cause the local node initiate
