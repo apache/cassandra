@@ -77,8 +77,6 @@ public class SSTable
     private static final int indexInterval_ = 128;
     /* Key associated with block index written to disk */
     public static final String blockIndexKey_ = "BLOCK-INDEX";
-    /* Position in SSTable after the first Block Index */
-    private static long positionAfterFirstBlockIndex_ = 0L;
     /* Required extension for temporary files created during compactions. */
     public static final String temporaryFile_ = "tmp";
     /* Use this long as a 64 bit entity to turn on some bits for various settings */
@@ -90,89 +88,6 @@ public class SSTable
      */
     private static Map<String, BloomFilter> bfs_ = new Hashtable<String, BloomFilter>();
 
-    /**
-     * This class holds the position of a key in a block
-     * and the size of the data associated with this key.
-     */
-    protected static class BlockMetadata
-    {
-        protected static final BlockMetadata NULL = new BlockMetadata(-1L, -1L);
-
-        long position_;
-        long size_;
-
-        BlockMetadata(long position, long size)
-        {
-            position_ = position;
-            size_ = size;
-        }
-    }
-
-    /*
-     * This abstraction provides LRU symantics for the keys that are 
-     * "touched". Currently it holds the offset of the key in a data
-     * file. May change to hold a reference to a IFileReader which
-     * memory maps the key and its associated data on a touch.
-    */
-    private static class TouchedKeyCache extends LinkedHashMap<String, Long>
-    {
-        private final int capacity_;
-
-        TouchedKeyCache(int capacity)
-        {
-            super(capacity + 1, 1.1f, true);
-            capacity_ = capacity;
-        }
-
-        protected boolean removeEldestEntry(Map.Entry<String, Long> entry)
-        {
-            return (size() > capacity_);
-        }
-    }
-
-    /**
-     * This is a simple container for the index Key and its corresponding position
-     * in the data file. Binary search is performed on a list of these objects
-     * to lookup keys within the SSTable data file.
-     */
-    public static class KeyPositionInfo implements Comparable<KeyPositionInfo>
-    {
-        private final String decoratedKey;
-        private long position_;
-        private IPartitioner partitioner;
-
-        public KeyPositionInfo(String decoratedKey, IPartitioner partitioner)
-        {
-            this.decoratedKey = decoratedKey;
-            this.partitioner = partitioner;
-        }
-
-        public KeyPositionInfo(String decoratedKey, IPartitioner partitioner, long position)
-        {
-            this(decoratedKey, partitioner);
-            position_ = position;
-        }
-
-        public String key()
-        {
-            return decoratedKey;
-        }
-
-        public long position()
-        {
-            return position_;
-        }
-
-        public int compareTo(KeyPositionInfo kPosInfo)
-        {
-            return partitioner.getDecoratedKeyComparator().compare(decoratedKey, kPosInfo.decoratedKey);
-        }
-
-        public String toString()
-        {
-            return decoratedKey + ":" + position_;
-        }
-    }
 
     public static int indexInterval()
     {
@@ -239,17 +154,17 @@ public class SSTable
     public static List<String> getIndexedKeys()
     {
         Set<String> indexFiles = indexMetadataMap_.keySet();
-        List<KeyPositionInfo> keyPositionInfos = new ArrayList<KeyPositionInfo>();
+        List<KeyPositionInfo> KeyPositions = new ArrayList<KeyPositionInfo>();
 
         for (String indexFile : indexFiles)
         {
-            keyPositionInfos.addAll(indexMetadataMap_.get(indexFile));
+            KeyPositions.addAll(indexMetadataMap_.get(indexFile));
         }
 
         List<String> indexedKeys = new ArrayList<String>();
-        for (KeyPositionInfo keyPositionInfo : keyPositionInfos)
+        for (KeyPositionInfo position : KeyPositions)
         {
-            indexedKeys.add(keyPositionInfo.decoratedKey);
+            indexedKeys.add(position.decoratedKey);
         }
 
         Collections.sort(indexedKeys);
@@ -323,9 +238,9 @@ public class SSTable
     private long firstBlockPosition_ = 0L;
     private int indexKeysWritten_ = 0;
     /* Holds the keys and their respective positions of the current block index */
-    private SortedMap<String, BlockMetadata> blockIndex_;
+    private SortedMap<String, SSTableIndex.BlockMetadata> blockIndex_;
     /* Holds all the block indicies for this SSTable */
-    private List<SortedMap<String, BlockMetadata>> blockIndexes_;
+    private List<SortedMap<String, SSTableIndex.BlockMetadata>> blockIndexes_;
     private IPartitioner partitioner_;
 
     /**
@@ -348,10 +263,9 @@ public class SSTable
     {
         dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";
         partitioner_ = partitioner;
-        blockIndex_ = new TreeMap<String, BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
-        blockIndexes_ = new ArrayList<SortedMap<String, BlockMetadata>>();
+        blockIndex_ = new TreeMap<String, SSTableIndex.BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
+        blockIndexes_ = new ArrayList<SortedMap<String, SSTableIndex.BlockMetadata>>();
         dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4 * 1024 * 1024);
-        SSTable.positionAfterFirstBlockIndex_ = dataWriter_.getCurrentPosition();
     }
 
     private void loadBloomFilter(IFileReader indexReader, long size) throws IOException
@@ -408,8 +322,8 @@ public class SSTable
             long currentPosition = indexReader.getCurrentPosition();
             indexReader.readDirect(bytes);
             long firstBlockIndexPosition = BasicUtilities.byteArrayToLong(bytes);
-            List<KeyPositionInfo> keyPositionInfos = new ArrayList<KeyPositionInfo>();
-            indexMetadataMap_.put(dataFile_, keyPositionInfos);
+            List<KeyPositionInfo> KeyPositions = new ArrayList<KeyPositionInfo>();
+            indexMetadataMap_.put(dataFile_, KeyPositions);
             DataOutputBuffer bufOut = new DataOutputBuffer();
             DataInputBuffer bufIn = new DataInputBuffer();
 
@@ -447,7 +361,7 @@ public class SSTable
                             /* size of data associated with the key */
                             bufIn.readLong();
                             /* load the actual position of the block index into the index map */
-                            keyPositionInfos.add(new KeyPositionInfo(largestKeyInBlock, partitioner_, currentPosition));
+                            KeyPositions.add(new KeyPositionInfo(largestKeyInBlock, currentPosition, partitioner_));
                         }
                         else
                         {
@@ -464,7 +378,7 @@ public class SSTable
             }
             bufIn.close();
             bufOut.close();
-            Collections.sort(keyPositionInfos);
+            Collections.sort(KeyPositions);
         }
         finally
         {
@@ -522,18 +436,18 @@ public class SSTable
             logger_.info("Writing into file " + dataFile_);
             throw new IOException("Keys must be written in ascending order.");
         }
-        return (lastWrittenKey_ == null) ? SSTable.positionAfterFirstBlockIndex_ : dataWriter_.getCurrentPosition();
+        return (lastWrittenKey_ == null) ? 0 : dataWriter_.getCurrentPosition();
     }
 
     private void afterAppend(String decoratedKey, long position, long size) throws IOException
     {
         ++indexKeysWritten_;
         lastWrittenKey_ = decoratedKey;
-        blockIndex_.put(decoratedKey, new BlockMetadata(position, size));
+        blockIndex_.put(decoratedKey, new SSTableIndex.BlockMetadata(position, size));
         if (indexKeysWritten_ == indexInterval_)
         {
             blockIndexes_.add(blockIndex_);
-            blockIndex_ = new TreeMap<String, BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
+            blockIndex_ = new TreeMap<String, SSTableIndex.BlockMetadata>(partitioner_.getReverseDecoratedKeyComparator());
             indexKeysWritten_ = 0;
         }
     }
@@ -547,13 +461,13 @@ public class SSTable
     private void dumpBlockIndexes() throws IOException
     {
         firstBlockPosition_ = dataWriter_.getCurrentPosition();
-        for (SortedMap<String, BlockMetadata> block : blockIndexes_)
+        for (SortedMap<String, SSTableIndex.BlockMetadata> block : blockIndexes_)
         {
             dumpBlockIndex(block);
         }
     }
 
-    private void dumpBlockIndex(SortedMap<String, BlockMetadata> blockIndex) throws IOException
+    private void dumpBlockIndex(SortedMap<String, SSTableIndex.BlockMetadata> blockIndex) throws IOException
     {
         /* Block Index is empty so bail. */
         if (blockIndex.size() == 0)
@@ -573,7 +487,7 @@ public class SSTable
         for (String decoratedKey : keys)
         {
             bufOut.writeUTF(decoratedKey);
-            BlockMetadata blockMetadata = blockIndex.get(decoratedKey);
+            SSTableIndex.BlockMetadata blockMetadata = blockIndex.get(decoratedKey);
             /* position of the key as a relative offset */
             bufOut.writeLong(position - blockMetadata.position_);
             bufOut.writeLong(blockMetadata.size_);
@@ -581,14 +495,14 @@ public class SSTable
         /* Write out the block index. */
         dataWriter_.append(SSTable.blockIndexKey_, bufOut);
         /* Load this index into the in memory index map */
-        List<KeyPositionInfo> keyPositionInfos = SSTable.indexMetadataMap_.get(dataFile_);
-        if (keyPositionInfos == null)
+        List<KeyPositionInfo> KeyPositions = SSTable.indexMetadataMap_.get(dataFile_);
+        if (KeyPositions == null)
         {
-            keyPositionInfos = new ArrayList<KeyPositionInfo>();
-            SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
+            KeyPositions = new ArrayList<KeyPositionInfo>();
+            SSTable.indexMetadataMap_.put(dataFile_, KeyPositions);
         }
 
-        keyPositionInfos.add(new KeyPositionInfo(blockIndex.firstKey(), partitioner_, position));
+        KeyPositions.add(new KeyPositionInfo(blockIndex.firstKey(), position, partitioner_));
         blockIndex.clear();
     }
 
@@ -616,7 +530,7 @@ public class SSTable
         assert indexInfo != null && indexInfo.size() > 0;
         long start = 0L;
         long end;
-        int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey, partitioner));
+        int index = Collections.binarySearch(indexInfo, new KeyPositionInfo(decoratedKey, -1, partitioner));
         if (index < 0)
         {
             /*
@@ -628,10 +542,10 @@ public class SSTable
              * This means key is not present at all. Hence
              * a scan is in order.
             */
-            start = (index == 0) ? 0 : indexInfo.get(index - 1).position();
+            start = (index == 0) ? 0 : indexInfo.get(index - 1).position;
             if (index < indexInfo.size())
             {
-                end = indexInfo.get(index).position();
+                end = indexInfo.get(index).position;
             }
             else
             {
@@ -647,7 +561,7 @@ public class SSTable
              * like to have a retreive(key, fromPosition) but for now
              * we use scan(start, start + 1) - a hack.
             */
-            start = indexInfo.get(index).position();
+            start = indexInfo.get(index).position;
             end = start;
         }
         return new Coordinate(start, end);
@@ -739,8 +653,8 @@ public class SSTable
         dataFile.renameTo(new File(dataFileName));
         dataFile_ = dataFileName;
         /* Now repair the in memory index associated with the old name */
-        List<KeyPositionInfo> keyPositionInfos = SSTable.indexMetadataMap_.remove(tmpDataFile);
-        SSTable.indexMetadataMap_.put(dataFile_, keyPositionInfos);
+        List<KeyPositionInfo> KeyPositions = SSTable.indexMetadataMap_.remove(tmpDataFile);
+        SSTable.indexMetadataMap_.put(dataFile_, KeyPositions);
     }
 
     private void close(byte[] footer, int size) throws IOException
@@ -752,70 +666,21 @@ public class SSTable
          * block index and the last one is the position of
          * the Bloom Filter.
          */
-        if (dataWriter_ != null)
-        {
-            long bloomFilterPosition = dataWriter_.getCurrentPosition();
-            dataWriter_.close(footer, size);
-            /* write the version field into the SSTable */
-            dataWriter_.writeDirect(BasicUtilities.longToByteArray(version_));
-            /* write the relative position of the first block index from current position */
-            long blockPosition = dataWriter_.getCurrentPosition() - firstBlockPosition_;
-            dataWriter_.writeDirect(BasicUtilities.longToByteArray(blockPosition));
+        assert dataWriter_ != null;
+        long bloomFilterPosition = dataWriter_.getCurrentPosition();
+        dataWriter_.close(footer, size);
+        /* write the version field into the SSTable */
+        dataWriter_.writeDirect(BasicUtilities.longToByteArray(version_));
+        /* write the relative position of the first block index from current position */
+        long blockPosition = dataWriter_.getCurrentPosition() - firstBlockPosition_;
+        dataWriter_.writeDirect(BasicUtilities.longToByteArray(blockPosition));
 
-            /* write the position of the bloom filter */
-            long bloomFilterRelativePosition = dataWriter_.getCurrentPosition() - bloomFilterPosition;
-            dataWriter_.writeDirect(BasicUtilities.longToByteArray(bloomFilterRelativePosition));
-            dataWriter_.close();
-        }
+        /* write the position of the bloom filter */
+        long bloomFilterRelativePosition = dataWriter_.getCurrentPosition() - bloomFilterPosition;
+        dataWriter_.writeDirect(BasicUtilities.longToByteArray(bloomFilterRelativePosition));
+        dataWriter_.close();
     }
 
-    /**
-     * wraps a Map to ensure that all filenames used as keys are cannonicalized.
-     * (Note that cannonical paths are cached by the JDK so the performance hit is negligible.)
-     */
-    static class IndexMap
-    {
-        private final Hashtable<String, List<KeyPositionInfo>> hashtable = new Hashtable<String, List<KeyPositionInfo>>();
-
-        private String cannonicalize(String filename)
-        {
-            try
-            {
-                return new File(filename).getCanonicalPath();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public List<KeyPositionInfo> get(String filename)
-        {
-            return hashtable.get(cannonicalize(filename));
-        }
-
-        public List<KeyPositionInfo> put(String filename, List<KeyPositionInfo> value)
-        {
-            return hashtable.put(cannonicalize(filename), value);
-        }
-
-        public void clear()
-        {
-            hashtable.clear();
-        }
-
-        public Set<String> keySet()
-        {
-            return hashtable.keySet();
-        }
-
-        public List<KeyPositionInfo> remove(String filename)
-        {
-            return hashtable.remove(cannonicalize(filename));
-        }
-    }
-    
-    
     /**
      * obtain a BlockReader for the getColumnSlice call.
      */
@@ -838,5 +703,105 @@ public class SSTable
                 dataReader.close();
         }
         return reader;
+    }
+}
+
+
+/*
+ * This abstraction provides LRU symantics for the keys that are
+ * "touched". Currently it holds the offset of the key in a data
+ * file. May change to hold a reference to a IFileReader which
+ * memory maps the key and its associated data on a touch.
+*/
+class TouchedKeyCache extends LinkedHashMap<String, Long>
+{
+    private final int capacity_;
+
+    TouchedKeyCache(int capacity)
+    {
+        super(capacity + 1, 1.1f, true);
+        capacity_ = capacity;
+    }
+
+    protected boolean removeEldestEntry(Map.Entry<String, Long> entry)
+    {
+        return (size() > capacity_);
+    }
+}
+
+/**
+ * This is a simple container for the index Key and its corresponding position
+ * in the data file. Binary search is performed on a list of these objects
+ * to lookup keys within the SSTable data file.
+ *
+ * All keys are decorated.
+ */
+class KeyPositionInfo implements Comparable<KeyPositionInfo>
+{
+    public final String decoratedKey;
+    public final long position;
+    private final IPartitioner partitioner; // TODO rip out the static uses of KP so we can just use the parent SSTable's partitioner, when necessary
+
+    public KeyPositionInfo(String decoratedKey, long position, IPartitioner partitioner)
+    {
+        this.decoratedKey = decoratedKey;
+        this.position = position;
+        this.partitioner = partitioner;
+    }
+
+    public int compareTo(KeyPositionInfo kp)
+    {
+        return partitioner.getDecoratedKeyComparator().compare(decoratedKey, kp.decoratedKey);
+    }
+
+    public String toString()
+    {
+        return decoratedKey + ":" + position;
+    }
+}
+
+/**
+ * wraps a Map to ensure that all filenames used as keys are cannonicalized.
+ * (Note that cannonical paths are cached by the JDK so the performance hit is negligible.)
+ */
+class IndexMap
+{
+    private final Hashtable<String, List<KeyPositionInfo>> hashtable = new Hashtable<String, List<KeyPositionInfo>>();
+
+    private String cannonicalize(String filename)
+    {
+        try
+        {
+            return new File(filename).getCanonicalPath();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<KeyPositionInfo> get(String filename)
+    {
+        return hashtable.get(cannonicalize(filename));
+    }
+
+    public List<KeyPositionInfo> put(String filename, List<KeyPositionInfo> value)
+    {
+        return hashtable.put(cannonicalize(filename), value);
+    }
+
+    public void clear()
+    {
+        hashtable.clear();
+    }
+
+    public Set<String> keySet()
+    {
+        return hashtable.keySet();
+    }
+
+    public List<KeyPositionInfo> remove(String filename)
+    {
+        return hashtable.remove(cannonicalize(filename));
     }
 }

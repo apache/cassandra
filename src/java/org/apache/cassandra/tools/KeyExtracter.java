@@ -18,21 +18,10 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SequenceFile;
-import org.apache.cassandra.io.SSTable.KeyPositionInfo;
-import org.apache.cassandra.utils.BasicUtilities;
+import org.apache.cassandra.io.*;
 
 
 public class KeyExtracter

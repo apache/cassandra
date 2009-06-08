@@ -30,29 +30,25 @@ public class BasicUtilities
 	public static byte[] longToByteArray(long arg)
 	{      
         byte[] retVal = new byte[8];
-        ByteBuffer bb= ByteBuffer.wrap(retVal);
-        bb.putLong(arg);
+        ByteBuffer.wrap(retVal).putLong(arg);
         return retVal; 
 	 }
 	
 	public static long byteArrayToLong(byte[] arg)
 	{
-		ByteBuffer bb= ByteBuffer.wrap(arg);
-		return bb.getLong();
+        return ByteBuffer.wrap(arg).getLong();
 	}
 	
 	public static byte[] intToByteArray(int arg)
 	{      
         byte[] retVal = new byte[4];
-        ByteBuffer bb= ByteBuffer.wrap(retVal);
-        bb.putInt(arg);
+        ByteBuffer.wrap(retVal).putInt(arg);
         return retVal; 
 	 }
 	
 	public static int byteArrayToInt(byte[] arg)
 	{
-		ByteBuffer bb= ByteBuffer.wrap(arg);
-		return bb.getInt();
+        return ByteBuffer.wrap(arg).getInt();
 	}
 	
 	public static byte[] shortToByteArray(short arg)
@@ -65,7 +61,6 @@ public class BasicUtilities
 	
 	public static short byteArrayToShort(byte[] arg)
 	{
-		ByteBuffer bb= ByteBuffer.wrap(arg);
-		return bb.getShort();
+        return ByteBuffer.wrap(arg).getShort();
     }
 }
