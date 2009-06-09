@@ -38,14 +38,13 @@ public class TimeSortTest extends CleanupHelper
         for (int i = 900; i < 1000; ++i)
         {
             String key = Integer.toString(i);
-            RowMutation rm;
+            RowMutation rm = new RowMutation("Table1", key);
             for (int j = 0; j < 8; ++j)
             {
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                rm = new RowMutation("Table1", key);
                 rm.add("StandardByTime1:" + "Column-" + j, bytes, j * 2);
-                rm.apply();
             }
+            rm.apply();
         }
 
         validateTimeSort(table);
@@ -55,20 +54,19 @@ public class TimeSortTest extends CleanupHelper
 
         // interleave some new data to test memtable + sstable
         String key = "900";
-        RowMutation rm;
+        RowMutation rm = new RowMutation("Table1", key);
         for (int j = 0; j < 4; ++j)
         {
-            rm = new RowMutation("Table1", key);
             rm.add("StandardByTime1:" + "Column+" + j, ArrayUtils.EMPTY_BYTE_ARRAY, j * 2 + 1);
-            rm.apply();
         }
+        rm.apply();
         // and some overwrites
+        rm = new RowMutation("Table1", key);
         for (int j = 4; j < 8; ++j)
         {
-            rm = new RowMutation("Table1", key);
             rm.add("StandardByTime1:" + "Column-" + j, ArrayUtils.EMPTY_BYTE_ARRAY, j * 3);
-            rm.apply();
         }
+        rm.apply();
         // verify
         ColumnFamily cf = table.getRow(key, "StandardByTime1", 0).getColumnFamilies().iterator().next();
         SortedSet<IColumn> columns = cf.getAllColumns();
