@@ -98,8 +98,7 @@ public class PreLoad
         /* Load the indexes into memory */
         for ( String df : ssTables )
         {
-        	SSTable ssTable = new SSTable(df, StorageService.getPartitioner());
-        	ssTable.close();
+        	new SSTable(df, StorageService.getPartitioner());
         }
         /* We should have only one file since we just compacted. */        
         List<String> indexedKeys = SSTable.getIndexedKeys();        

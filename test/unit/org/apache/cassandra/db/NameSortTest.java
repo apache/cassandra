@@ -20,15 +20,14 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.SortedSet;
-import java.util.Iterator;
 import java.util.Collection;
 import java.util.Arrays;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
-public class NameSortTest extends ColumnFamilyStoreTest
+import org.apache.cassandra.CleanupHelper;
+
+public class NameSortTest extends CleanupHelper
 {
     @Test
     public void testNameSort1() throws IOException, ExecutionException, InterruptedException
@@ -64,7 +63,7 @@ public class NameSortTest extends ColumnFamilyStoreTest
             // standard
             for (int j = 0; j < 8; ++j)
             {
-                byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
+                byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 rm = new RowMutation("Table1", key);
                 rm.add("Standard1:" + "Column-" + j, bytes, j);
                 rm.apply();
@@ -75,7 +74,7 @@ public class NameSortTest extends ColumnFamilyStoreTest
             {
                 for (int k = 0; k < 4; ++k)
                 {
-                    byte[] bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
+                    byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
                     rm = new RowMutation("Table1", key);
                     rm.add("Super1:" + "SuperColumn-" + j + ":Column-" + k, bytes, k);
                     rm.apply();
@@ -102,7 +101,7 @@ public class NameSortTest extends ColumnFamilyStoreTest
             for (IColumn column : columns)
             {
                 int j = Integer.valueOf(column.name().split("-")[1]);
-                byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
+                byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 assert Arrays.equals(bytes, column.value());
             }
 
@@ -118,7 +117,7 @@ public class NameSortTest extends ColumnFamilyStoreTest
                 for (IColumn subColumn : subColumns)
                 {
                     int k = Integer.valueOf(subColumn.name().split("-")[1]);
-                    byte[] bytes = (j + k) % 2 == 0 ? bytes1 : bytes2;
+                    byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
                     assert Arrays.equals(bytes, subColumn.value());
                 }
             }

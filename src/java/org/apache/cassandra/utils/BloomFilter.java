@@ -120,6 +120,14 @@ public class BloomFilter extends Filter
         }
         return n;
     }
+
+    /** @return a BloomFilter that always returns a positive match, for testing */
+    public static BloomFilter alwaysMatchingBloomFilter()
+    {
+        BitSet set = new BitSet(64);
+        set.set(0, 64);
+        return new BloomFilter(1, set);
+    }
 }
 
 class BloomFilterSerializer implements ICompactSerializer<BloomFilter>

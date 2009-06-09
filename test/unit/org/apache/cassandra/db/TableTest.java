@@ -22,11 +22,14 @@ import java.util.SortedSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
+import java.io.IOException;
 
+import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.io.SSTable;
 
 public class TableTest extends CleanupHelper
 {
@@ -200,7 +203,7 @@ public class TableTest extends CleanupHelper
     private RowMutation makeSimpleRowMutation()
     {
         RowMutation rm = new RowMutation(TABLE_NAME,TEST_KEY);
-        ColumnFamily cf = new ColumnFamily("Standard1","Standard");
+        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
         cf.addColumn(new Column("col1","val1".getBytes(), 1L));
         cf.addColumn(new Column("col2","val2".getBytes(), 1L));
         cf.addColumn(new Column("col3","val3".getBytes(), 1L));
@@ -209,8 +212,45 @@ public class TableTest extends CleanupHelper
     }
 
     @Test
+    public void testGetSliceNoMatch() throws Throwable
+    {
+        Table table = Table.open(TABLE_NAME);
+        RowMutation rm = new RowMutation(TABLE_NAME, "row1000");
+        ColumnFamily cf = new ColumnFamily("Standard2", "Standard");
+        cf.addColumn(new Column("col1", "val1".getBytes(), 1));
+        rm.add(cf);
+        rm.apply();
+
+        validateGetSliceNoMatch(table);
+        table.getColumnFamilyStore("Standard2").forceBlockingFlush();
+        validateGetSliceNoMatch(table);
+
+        SortedSet<String> ssTables = table.getColumnFamilyStore("Standard2").getSSTableFilenames();
+        assertEquals(1, ssTables.size());
+        SSTable.forceBloomFilterFailures(ssTables.iterator().next());
+        validateGetSliceNoMatch(table);
+    }
+
+    private void validateGetSliceNoMatch(Table table) throws IOException
+    {
+        Row result;
+        ColumnFamily cf;
+
+        // key before the rows that exists
+        result = table.getSliceFrom("a", "Standard2", true, 0);
+        cf = result.getColumnFamily("Standard2");
+        assertColumns(cf);
+
+        // key after the rows that exist
+        result = table.getSliceFrom("z", "Standard2", true, 0);
+        cf = result.getColumnFamily("Standard2");
+        assertColumns(cf);
+    }
+
+    @Test
     public void testGetSliceFromBasic() throws Throwable
     {
+        // tests slicing against data from one row in a memtable and then flushed to an sstable
         Table table = Table.open(TABLE_NAME);
         String ROW = "row1";
         RowMutation rm = new RowMutation(TABLE_NAME, ROW);
@@ -227,9 +267,8 @@ public class TableTest extends CleanupHelper
         rm = new RowMutation(TABLE_NAME, ROW);
         rm.delete("Standard1:col4", 2L);
         rm.apply();
+
         validateGetSliceFromBasic(table, ROW);
-        
-        // flush to disk
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
         validateGetSliceFromBasic(table, ROW);        
     }
@@ -237,6 +276,7 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetSliceFromAdvanced() throws Throwable
     {
+        // tests slicing against data from one row spread across two sstables
         Table table = Table.open(TABLE_NAME);
         String ROW = "row2";
         RowMutation rm = new RowMutation(TABLE_NAME, ROW);
@@ -249,7 +289,6 @@ public class TableTest extends CleanupHelper
         cf.addColumn(new Column("col6", "val6".getBytes(), 1L));
         rm.add(cf);
         rm.apply();
-        // flush to disk
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
         
         rm = new RowMutation(TABLE_NAME, ROW);
@@ -259,9 +298,8 @@ public class TableTest extends CleanupHelper
         cf.addColumn(new Column("col3", "valx".getBytes(), 2L));
         rm.add(cf);
         rm.apply();
+
         validateGetSliceFromAdvanced(table, ROW);
-        
-        // flush to disk
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
         validateGetSliceFromAdvanced(table, ROW);
     }
@@ -269,6 +307,7 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetSliceFromLarge() throws Throwable
     {
+        // tests slicing against 1000 columns in an sstable
         Table table = Table.open(TABLE_NAME);
         String ROW = "row3";
         RowMutation rm = new RowMutation(TABLE_NAME, ROW);
@@ -277,7 +316,6 @@ public class TableTest extends CleanupHelper
             cf.addColumn(new Column("col" + i, ("vvvvvvvvvvvvvvvv" + i).getBytes(), 1L));
         rm.add(cf);
         rm.apply();
-        // flush to disk
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
         Row result;
@@ -311,7 +349,7 @@ public class TableTest extends CleanupHelper
         assertEquals(new String(cfres.getColumn("col1992").value()), "vvvvvvvvvvvvvvvv1992");
     }
 
-    private void assertColumns(ColumnFamily columnFamily, String... columnFamilyNames)
+    private void assertColumns(ColumnFamily columnFamily, String... columnNames)
     {
         assertNotNull(columnFamily);
         SortedSet<IColumn> columns = columnFamily.getAllColumns();
@@ -320,7 +358,8 @@ public class TableTest extends CleanupHelper
         {
             L.add(column.name());
         }
-        assert Arrays.equals(L.toArray(new String[columns.size()]), columnFamilyNames);
+        assert Arrays.equals(L.toArray(new String[columns.size()]), columnNames)
+                : "Columns [" + StringUtils.join(columns, ", ") + "] is not expected [" + StringUtils.join(columnNames, ", ") + "]";
     }
 
     private void validateGetSliceFromAdvanced(Table table, String row) throws Throwable
@@ -333,7 +372,7 @@ public class TableTest extends CleanupHelper
         assertColumns(cfres, "col2", "col3", "col4");
         assertEquals(new String(cfres.getColumn("col2").value()), "valx");
         assertEquals(new String(cfres.getColumn("col3").value()), "valx");
-        assertEquals(new String(cfres.getColumn("col4").value()), "val4");        
+        assertEquals(new String(cfres.getColumn("col4").value()), "val4");
     }
 
     private void validateGetSliceFromBasic(Table table, String row) throws Throwable

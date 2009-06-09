@@ -115,10 +115,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         store.forceBlockingFlush();
 
         List<String> ssTables = table.getAllSSTablesOnDisk();
-        /* the following call can happen if BF is wrong. Should return an empty buffer. */
-        IFilter filter = new IdentityFilter(); 
-        SSTable ssTable = new SSTable(ssTables.get(0), StorageService.getPartitioner());
-        DataInputBuffer bufIn = filter.next("key2", "Standard1:Column1", ssTable);
-        assertEquals(bufIn.getLength(), 0);
+        assertEquals(1, ssTables.size());
+        SSTable.forceBloomFilterFailures(ssTables.get(0));
+        ColumnFamily cf = store.getColumnFamily("key2", "Standard1:Column1", new IdentityFilter());
+        assertNull(cf);
     }
 }

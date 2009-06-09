@@ -268,8 +268,7 @@ public class Table
                  * list of the associated Column Family. Also merge the CBF into the
                  * sampler.
                 */                
-                SSTable ssTable = new SSTable(streamContext.getTargetFile(), StorageService.getPartitioner());
-                ssTable.close();
+                new SSTable(streamContext.getTargetFile(), StorageService.getPartitioner());
                 logger_.debug("Merging the counting bloom filter in the sampler ...");                
                 String[] peices = FBUtilities.strip(fileName, "-");
                 Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(streamContext.getTargetFile());                
@@ -756,11 +755,13 @@ public class Table
     {
         Row row = new Row(key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
+        String cfName = values[0];
+        String startWith = values.length > 1 ? values[1] : "";
+        ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
         long start1 = System.currentTimeMillis();
         try
         {
-            ColumnFamily columnFamily = cfStore.getSliceFrom(key, values[0], values[1], isAscending, count);
+            ColumnFamily columnFamily = cfStore.getSliceFrom(key, cfName, startWith, isAscending, count);
             if (columnFamily != null)
                 row.addColumnFamily(columnFamily);
             long timeTaken = System.currentTimeMillis() - start1;

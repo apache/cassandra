@@ -248,12 +248,13 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     {
         return this.curr_;
     }
-    
+
     public long length() throws IOException
     {
+        // max accounts for the case where we have written past the old file length, but not yet flushed our buffer
         return Math.max(this.curr_, super.length());
     }
-    
+
     public int read() throws IOException
     {
         if (this.curr_ >= this.hi_)

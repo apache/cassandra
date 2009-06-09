@@ -246,6 +246,7 @@ public final class ColumnFamily
 
     void clear()
     {
+        logger_.debug("clearing");
     	columns_.clear();
     	size_.set(0);
     }

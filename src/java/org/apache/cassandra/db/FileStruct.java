@@ -85,26 +85,14 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     {
         try
         {
-            Coordinate range = SSTable.getCoordinates(seekKey, reader, partitioner);
-            reader.seek(range.end_);
-            long position = reader.getPositionFromBlockIndex(seekKey);
-            if (position == -1)
+            long position = SSTable.getNearestPosition(seekKey, reader, partitioner);
+            if (position < 0)
             {
-                reader.seek(range.start_);
+                exhausted = true;
+                return;
             }
-            else
-            {
-                reader.seek(position);
-            }
-
-            while (!exhausted)
-            {
-                advance();
-                if (key.compareTo(seekKey) >= 0)
-                {
-                    break;
-                }
-            }
+            reader.seek(position);
+            advance();
         }
         catch (IOException e)
         {
@@ -144,12 +132,6 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 
         bufIn.reset(bufOut.getData(), bufOut.getLength());
         key = bufIn.readUTF();
-        /* If the key we read is the Block Index Key then omit and read the next key. */
-        if (key.equals(SSTable.blockIndexKey_))
-        {
-            reader.close();
-            exhausted = true;
-        }
     }
 
     public boolean hasNext()
@@ -199,7 +181,7 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 
         protected String computeNext()
         {
-            if (key.equals(SSTable.blockIndexKey_))
+            if (isExhausted())
             {
                 return endOfData();
             }

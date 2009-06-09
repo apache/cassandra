@@ -180,6 +180,7 @@ public class SequenceFile
 
         public void close() throws IOException
         {
+            file_.getChannel().force(true);
             file_.close();
         }
 
@@ -552,13 +553,13 @@ public class SequenceFile
         private int localDeletionTime_;
         private long markedForDeleteAt_;
 
-        ColumnGroupReader(String filename, String key, String cfName, String startColumn, boolean isAscending, Coordinate section) throws IOException
+        ColumnGroupReader(String filename, String key, String cfName, String startColumn, boolean isAscending, long position) throws IOException
         {
             super(filename, 128 * 1024);
             this.cfName_ = cfName;
             this.key_ = key;
             this.isAscending_ = isAscending;
-            init(startColumn, section);
+            init(startColumn, position);
         }
 
         /**
@@ -593,10 +594,10 @@ public class SequenceFile
             return fullColIndexList;
         }
 
-        private void init(String startColumn, Coordinate section) throws IOException
+        private void init(String startColumn, long position) throws IOException
         {
             String keyInDisk = null;
-            if (seekTo(key_, section) >= 0)
+            if (seekTo(position) >= 0)
                 keyInDisk = file_.readUTF();
 
             if ( keyInDisk != null && keyInDisk.equals(key_))
@@ -629,7 +630,7 @@ public class SequenceFile
                 int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnNameIndexInfo(startColumn));
                 curRangeIndex_ = index < 0 ? (++index) * (-1) - 1 : index;
             }
-            else 
+            else
             {
                 /* no keys found in this file because of a false positive in BF */
                 curRangeIndex_ = -1;
@@ -689,70 +690,8 @@ public class SequenceFile
             return filename_;
         }
 
-        /**
-         * Return the position of the given key from the block index.
-         *
-         * @param key the key whose offset is to be extracted from the current block index
-         */
-        public long getPositionFromBlockIndex(String key) throws IOException
+        long seekTo(long position) throws IOException
         {
-            long position = -1L;
-            /* note the beginning of the block index */
-            long blockIndexPosition = file_.getFilePointer();
-            /* read the block key. */
-            String blockIndexKey = file_.readUTF();
-            if (!blockIndexKey.equals(SSTable.blockIndexKey_))
-                throw new IOException("Unexpected position to be reading the block index from.");
-            /* read the size of the block index */
-            int size = file_.readInt();
-
-            /* Read the entire block index. */
-            byte[] bytes = new byte[size];
-            file_.readFully(bytes);
-
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(bytes, bytes.length);
-            /* Number of keys in the block. */
-            int keys = bufIn.readInt();
-            for (int i = 0; i < keys; ++i)
-            {
-                String keyInBlock = bufIn.readUTF();
-                if (keyInBlock.equals(key))
-                {
-                    position = bufIn.readLong();
-                    break;
-                }
-                else
-                {
-                    /*
-                     * This is not the key we are looking for. So read its position
-                     * and the size of the data associated with it. This was strored
-                     * as the BlockMetadata.
-                    */
-                    bufIn.readLong();
-                    bufIn.readLong();
-                }
-            }
-
-            /* we do this because relative position of the key within a block is stored. */
-            if (position != -1L)
-                position = blockIndexPosition - position;
-            return position;
-        }
-
-        /**
-         * This method seek the disk head to the block index, finds
-         * the offset of the key within the block and seeks to that
-         * offset.
-         *
-         * @param key     we are interested in.
-         * @param section indicates the location of the block index.
-         * @throws IOException
-         */
-        protected long seekTo(String key, Coordinate section) throws IOException
-        {
-            seek(section.end_);
-            long position = getPositionFromBlockIndex(key);
             if (position >= 0)
                 seek(position);
             return position;
@@ -842,18 +781,19 @@ public class SequenceFile
          * @param columnNames columnNames we are interested in
          * OR
          * @param timeRange time range we are interested in
-         * @param section   region of the file that needs to be read
+         * @param position
          * @return number of bytes that were read.
          * @throws IOException
          */
-        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, Coordinate section) throws IOException
+        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException
         {
             assert !columnFamilyName.contains(":");
             assert timeRange == null || columnNames == null; // at most one may be non-null
 
             long bytesRead = -1L;
-            if (isEOF() || seekTo(key, section) < 0)
+            if (isEOF() || seekTo(position) < 0)
                 return bytesRead;
+
             /* note the position where the key starts */
             long startPosition = file_.getFilePointer();
             String keyInDisk = file_.readUTF();
@@ -1092,61 +1032,6 @@ public class SequenceFile
             */
             if (key.equals(SequenceFile.marker_))
                 bytesRead = -1L;
-            return bytesRead;
-        }
-
-        /**
-         * This method dumps the next key/value into the DataOuputStream
-         * passed in.
-         *
-         * @param key     - key we are interested in.
-         * @param bufOut  DataOutputStream that needs to be filled.
-         * @param section region of the file that needs to be read
-         * @return total number of bytes read/considered
-         */
-        public long next(String key, DataOutputBuffer bufOut, Coordinate section) throws IOException
-        {
-            long bytesRead = -1L;
-            if (isEOF() || seekTo(key, section) < 0)
-                return bytesRead;
-            /* note the position where the key starts */
-            long startPosition = file_.getFilePointer();
-            String keyInDisk = file_.readUTF();
-            if (keyInDisk != null)
-            {
-                /*
-                 * If key on disk is greater than requested key
-                 * we can bail out since we exploit the property
-                 * of the SSTable format.
-                */
-                if (keyInDisk.compareTo(key) > 0)
-                    return bytesRead;
-
-                /*
-                 * If we found the key then we populate the buffer that
-                 * is passed in. If not then we skip over this key and
-                 * position ourselves to read the next one.
-                */
-                int dataSize = file_.readInt();
-                if (keyInDisk.equals(key))
-                {
-                    /* write the key into buffer */
-                    bufOut.writeUTF(keyInDisk);
-                    /* write data size into buffer */
-                    bufOut.writeInt(dataSize);
-                    /* write the data into buffer */
-                    bufOut.write(file_, dataSize);
-                }
-                else
-                {
-                    /* skip over data portion */
-                    file_.seek(dataSize + file_.getFilePointer());
-                }
-
-                long endPosition = file_.getFilePointer();
-                bytesRead = endPosition - startPosition;
-            }
-
             return bytesRead;
         }
     }

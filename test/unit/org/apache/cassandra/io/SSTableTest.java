@@ -49,8 +49,14 @@ public class SSTableTest extends CleanupHelper
         ssTable.close(bf);
 
         // verify
+        verifySingle(f, bytes, key);
         SSTable.indexMetadataMap_.clear(); // force reloading the index
-        ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
+        verifySingle(f, bytes, key);
+    }
+
+    private void verifySingle(File f, byte[] bytes, String key) throws IOException
+    {
+        SSTable ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         fs.seekTo(key);
         int size = fs.getBufIn().readInt();
@@ -80,10 +86,16 @@ public class SSTableTest extends CleanupHelper
         ssTable.close(bf);
 
         // verify
+        verifyMany(f, map);
         SSTable.indexMetadataMap_.clear(); // force reloading the index
+        verifyMany(f, map);
+    }
+
+    private void verifyMany(File f, TreeMap<String, byte[]> map) throws IOException
+    {
         List<String> keys = new ArrayList(map.keySet());
         Collections.shuffle(keys);
-        ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         for (String key : keys)
         {

@@ -26,7 +26,9 @@ import java.util.Iterator;
 import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
-public class TimeSortTest extends ColumnFamilyStoreTest
+import org.apache.cassandra.CleanupHelper;
+
+public class TimeSortTest extends CleanupHelper
 {
     @Test
     public void testTimeSort() throws IOException, ExecutionException, InterruptedException
@@ -39,7 +41,7 @@ public class TimeSortTest extends ColumnFamilyStoreTest
             RowMutation rm;
             for (int j = 0; j < 8; ++j)
             {
-                byte[] bytes = j % 2 == 0 ? bytes1 : bytes2;
+                byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 rm = new RowMutation("Table1", key);
                 rm.add("StandardByTime1:" + "Column-" + j, bytes, j * 2);
                 rm.apply();

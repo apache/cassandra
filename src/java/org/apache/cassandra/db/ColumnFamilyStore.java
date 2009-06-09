@@ -434,7 +434,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         });
         f.get();
-        assert oldMemtable.isFlushed() || oldMemtable.isClean();
+        /* this assert is not threadsafe -- the memtable could have been clean when forceFlush
+           checked it, but dirty now thanks to another thread.  But as long as we are only
+           calling this from single-threaded test code it is useful to have as a sanity check. */
+        assert oldMemtable.isFlushed() || oldMemtable.isClean(); 
     }
 
     void forceFlushBinary()
