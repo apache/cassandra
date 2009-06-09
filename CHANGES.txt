@@ -1,0 +1,18 @@
+0.3.0
+
+ * Range queries on keys, including user-defined key collation
+ * Remove support
+ * Workarounds for a weird bug in JDK select/register that seems
+   particularly common on VM environments. Cassandra should deploy
+   fine on EC2 now
+ * Much improved infrastructure: the beginnings of a decent test suite
+   ("ant test" for unit tests; "nosetests" for system tests), code
+   coverage reporting, etc.
+ * Expanded node status reporting via JMX
+ * Improved error reporting/logging on both server and client
+ * Reduced memory footprint in default configuration
+ * Combined blocking and non-blocking versions of insert APIs
+ * Added FlushPeriodInMinutes configuration parameter to force
+   flushing of infrequently-updated ColumnFamilies
+
+   
