@@ -58,6 +58,25 @@ def _insert_super():
     client.insert('Table1', 'key1', 'Super1:sc2:c6', 'value6', 0, False)
     time.sleep(0.1)
 
+def _insert_range():
+    client.insert('Table1', 'key1', 'Standard1:c1', 'value1', 0, True)
+    client.insert('Table1', 'key1', 'Standard1:c2', 'value2', 0, True)
+    client.insert('Table1', 'key1', 'Standard1:c3', 'value3', 0, True)
+    time.sleep(0.1)
+
+def _verify_range():
+    result = client.get_slice_by_name_range('Table1','key1', 'Standard1', 'c1', 'c2' , -1)
+    assert len(result) == 2
+    assert result[0].columnName == 'c1'
+    assert result[1].columnName == 'c2'
+
+    result = client.get_slice_by_name_range('Table1','key1', 'Standard1', 'a', 'z' , -1)
+    assert len(result) == 3
+    
+    result = client.get_slice_by_name_range('Table1','key1', 'Standard1', 'a', 'z' , 2)
+    assert len(result) == 2
+
+	 	
 def _verify_super(supercolumn='Super1'):
     assert client.get_column('Table1', 'key1', supercolumn + ':sc1:c4') == \
         column_t(columnName='c4', value='value4', timestamp=0)
@@ -289,3 +308,8 @@ class TestMutations(CassandraTester):
     
         L = client.get_key_range('Table1', [], '1', '', 10)
         assert L == ['1', '10', '11', '12', '13', '14', '15', '16', '17', '18'], L
+
+    def test_get_slice_by_name_range(self):
+	_insert_range()
+	_verify_range()
+ 
