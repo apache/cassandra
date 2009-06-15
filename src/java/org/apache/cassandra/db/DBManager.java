@@ -19,10 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -39,22 +36,12 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DBManager
 {
     private static DBManager dbMgr_;
-    private static Lock lock_ = new ReentrantLock();
 
-    public static DBManager instance() throws IOException
+    public static synchronized DBManager instance() throws IOException
     {
-        if ( dbMgr_ == null )
+        if (dbMgr_ == null)
         {
-            lock_.lock();
-            try
-            {
-                if ( dbMgr_ == null )
-                    dbMgr_ = new DBManager();
-            }
-            finally
-            {
-                lock_.unlock();
-            }
+           dbMgr_ = new DBManager();
         }
         return dbMgr_;
     }
