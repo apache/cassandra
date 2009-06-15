@@ -228,34 +228,6 @@ public class SequenceFile
         }
     }
 
-    public static class ChecksumWriter extends Writer
-    {
-
-        ChecksumWriter(String filename, int size) throws IOException
-        {
-            super(filename, size);
-        }
-
-        @Override
-        protected void init(String filename) throws IOException
-        {
-            init(filename, 0);
-        }
-
-        @Override
-        protected void init(String filename, int size) throws IOException
-        {
-            File file = new File(filename);
-            file_ = new ChecksumRandomAccessFile(file, "rw", size);
-        }
-
-        @Override
-        public void close() throws IOException
-        {
-            super.close();
-            ChecksumManager.close(filename_);
-        }
-    }
 
     public static class ConcurrentWriter extends AbstractWriter
     {
@@ -1110,22 +1082,6 @@ public class SequenceFile
         protected void init(String filename) throws IOException
         {
             file_ = new BufferedRandomAccessFile(filename, "r", size_);
-        }
-    }
-
-    public static class ChecksumReader extends Reader
-    {
-        private int size_;
-
-        ChecksumReader(String filename, int size) throws IOException
-        {
-            super(filename);
-            size_ = size;
-        }
-
-        protected void init(String filename) throws IOException
-        {
-            file_ = new ChecksumRandomAccessFile(filename, "r", size_);
         }
     }
 

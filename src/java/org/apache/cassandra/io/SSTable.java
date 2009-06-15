@@ -89,8 +89,6 @@ public class SSTable
     {
         /* remove the cached index table from memory */
         indexMetadataMap_.remove(dataFile);
-        /* Delete the checksum file associated with this data file */
-        ChecksumManager.onFileDelete(dataFile);
 
         deleteWithConfirm(new File(dataFile));
         deleteWithConfirm(new File(indexFilename(dataFile)));
