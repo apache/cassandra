@@ -1,0 +1,137 @@
+<!--
+ ~ Licensed to the Apache Software Foundation (ASF) under one
+ ~ or more contributor license agreements.  See the NOTICE file
+ ~ distributed with this work for additional information
+ ~ regarding copyright ownership.  The ASF licenses this file
+ ~ to you under the Apache License, Version 2.0 (the
+ ~ "License"); you may not use this file except in compliance
+ ~ with the License.  You may obtain a copy of the License at
+ ~
+ ~    http://www.apache.org/licenses/LICENSE-2.0
+ ~
+ ~ Unless required by applicable law or agreed to in writing,
+ ~ software distributed under the License is distributed on an
+ ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ ~ KIND, either express or implied.  See the License for the
+ ~ specific language governing permissions and limitations
+ ~ under the License.
+ -->
+<Storage>
+    <!--======================================================================-->
+    <!-- Basic Configuration                                                  -->
+    <!--======================================================================-->
+    <ClusterName>Test Cluster</ClusterName>
+
+    <!-- Tables and ColumnFamilies                                            -->
+    <Tables>
+        <Table Name="Table1">
+            <!-- if FlushPeriodInMinutes is configured and positive, it will be
+                 flushed to disk with that period whether it is dirty or not.
+                 This is intended for lightly-used columnfamilies so that they
+                 do not prevent commitlog segments from being purged. -->
+            <ColumnFamily ColumnSort="Name" Name="Standard1" FlushPeriodInMinutes="60"/>
+            <ColumnFamily ColumnSort="Name" Name="Standard2"/>
+            <ColumnFamily ColumnSort="Time" Name="StandardByTime1"/>
+            <ColumnFamily ColumnSort="Time" Name="StandardByTime2"/>
+            <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super1"/>
+            <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super2"/>
+        </Table>
+    </Tables>
+
+    <!-- Partitioner: any IPartitioner may be used, including your own
+         as long as it is on the classpath.  Out of the box,
+         Cassandra provides
+         org.apache.cassandra.dht.RandomPartitioner and
+         org.apache.cassandra.dht.OrderPreservingPartitioner.
+         Range queries require using OrderPreservingPartitioner or a subclass.
+
+         Achtung!  Changing this parameter requires wiping your data directories,
+         since the partitioner can modify the sstable on-disk format.
+    -->
+    <Partitioner>org.apache.cassandra.dht.RandomPartitioner</Partitioner>
+
+    <!-- RackAware: Setting this to true instructs Cassandra to try and place the replicas in
+         a different rack in the same datacenter and one in a different datacenter
+    -->
+    <RackAware>false</RackAware>
+
+    <!-- Number of replicas of the data-->
+    <ReplicationFactor>1</ReplicationFactor>
+
+    <!-- Directories: Specify where Cassandra should store different data on disk
+         Keep the data disks and the CommitLog disks separate for best performance
+    -->
+    <CommitLogDirectory>/var/cassandra/commitlog</CommitLogDirectory>
+    <MetadataDirectory>/var/cassandra/system</MetadataDirectory>
+    <DataFileDirectories>
+        <DataFileDirectory>/var/cassandra/data</DataFileDirectory>
+    </DataFileDirectories>
+    <CalloutLocation>/var/cassandra/callouts</CalloutLocation>
+    <BootstrapFileDirectory>/var/cassandra/bootstrap</BootstrapFileDirectory>
+    <StagingFileDirectory>/var/cassandra/staging</StagingFileDirectory>
+
+
+    <!-- Add names of hosts that are deemed contact points. Cassandra nodes use
+         this list of hosts to find each other and learn the topology of the ring.
+    -->
+    <Seeds>
+        <Seed>127.0.0.1</Seed>
+    </Seeds>
+
+    <!-- Miscellaneous -->
+    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
+    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
+    <CommitLogFastSync>false</CommitLogFastSync>
+
+    <!-- Hosts and Ports -->
+    <ListenAddress>localhost</ListenAddress>
+    <StoragePort>7000</StoragePort>
+    <ControlPort>7001</ControlPort>
+    <ThriftPort>9160</ThriftPort>
+    <HttpPort>7002</HttpPort>
+
+
+    <!--======================================================================-->
+    <!-- Memory, Disk, and Performance                                        -->
+    <!--======================================================================-->
+
+    <!-- Threshold for adding a column index in a row -->
+    <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
+
+    <!--
+      The maximum amount of data to store in memory before flushing to
+      disk. Note: There is one memtable per column family, and this threshold
+      is based solely on the amount of data stored, not actual heap memory
+      usage (there is some overhead in indexing the columns).
+    -->
+    <MemtableSizeInMB>32</MemtableSizeInMB>
+
+    <!--
+      The maximum number of columns in millions to store in memory
+      before flushing to disk.  This is also a per-memtable setting.
+      Use with MemtableSizeInMB to tune memory usage.
+    -->
+    <MemtableObjectCountInMillions>0.02</MemtableObjectCountInMillions>
+
+    <!-- Time to wait before garbage-collection deletion markers.
+         Set this to a large enough value that you are confident
+         that the deletion marker will be propagated to all replicas
+         by the time this many seconds has elapsed, even in the
+         face of hardware failures.  The default value is ten days.
+    -->
+    <GCGraceSeconds>864000</GCGraceSeconds>
+
+
+    <!--======================================================================-->
+    <!-- OPTIONAL                                                             -->
+    <!--======================================================================-->
+    <!-- This final section contains configuration information for optional
+         and experimental features in Cassandra that are not yet fully functional.
+         Basic features in Cassandra should work fine without configuring this section.
+    -->
+    <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
+    <MulticastChannel>230.0.0.1</MulticastChannel>
+    <GangliaServers>
+        <GangliaServer>127.0.0.1:12000</GangliaServer>
+    </GangliaServers>
+</Storage>
