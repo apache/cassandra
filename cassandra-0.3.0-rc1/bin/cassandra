@@ -1,0 +1,113 @@
+#!/bin/sh
+
+
+# OPTIONS:
+#   -f: start in foreground
+#   -p <filename>: log the pid to a file (useful to kill it later)
+
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
+    for include in /usr/share/cassandra/cassandra.in.sh \
+                   /usr/local/share/cassandra/cassandra.in.sh \
+                   /opt/cassandra/cassandra.in.sh \
+                   `dirname $0`/cassandra.in.sh; do
+        if [ -r $include ]; then
+            . $include
+            break
+        fi
+    done
+elif [ -r $CASSANDRA_INCLUDE ]; then
+    . $CASSANDRA_INCLUDE
+fi
+
+if [ -z $CASSANDRA_CONF -o -z $CLASSPATH ]; then
+    echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
+    exit 1
+fi
+
+# Special-case path variables.
+case "`uname`" in
+    CYGWIN*) 
+        CLASSPATH=`cygpath -p -w "$CLASSPATH"`
+        CASSANDRA_CONF=`cygpath -p -w "$CASSANDRA_CONF"`
+    ;;
+esac
+
+launch_service()
+{
+    pidpath=$1
+    foreground=$2
+    cassandra_parms="-Dcassandra -Dstorage-config=$CASSANDRA_CONF"
+
+    if [ "x$pidpath" != "x" ]; then
+        cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
+    fi
+
+    # The cassandra-foreground option will tell CassandraDaemon not
+    # to close stdout/stderr, but it's up to us not to background.
+    if [ "x$foreground" != "x" ]; then
+        cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
+        java $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
+                org.apache.cassandra.service.CassandraDaemon
+    # Startup CassandraDaemon, background it, and write the pid.
+    else
+        exec java $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
+                    org.apache.cassandra.service.CassandraDaemon <&- &
+        [ ! -z $pidpath ] && echo -n $! > $pidpath
+    fi
+
+    return $?
+}
+
+# Parse any command line options.
+args=`getopt fhp: "$@"`
+eval set -- "$args"
+
+while true; do
+    case "$1" in
+        -p)
+            pidfile="$2"
+            shift 2
+        ;;
+        -f)
+            foreground="yes"
+            shift
+        ;;
+        -h)
+            echo "Usage: $0 [-f] [-h] [-p pidfile]"
+            exit 0
+        ;;
+        --)
+            shift
+            break
+        ;;
+        *)
+            echo "Error parsing arguments!" >&2
+            exit 1
+        ;;
+    esac
+done
+
+# Start up the service
+launch_service "$pidfile" "$foreground"
+
+exit $?
+
+# vi:ai sw=4 ts=4 tw=0 et

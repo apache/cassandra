@@ -1,0 +1,21 @@
+#!/bin/sh
+
+classpath()
+{
+    cassandra_home=`dirname $0`/..
+    classp=$cassandra_home/build/classes
+
+    for j in $cassandra_home/lib/*.jar; do
+        classp=$classp:$j
+    done
+
+    printf $classp
+}
+
+if [ -z $CLASSPATH ]; then
+    jvmargs="-cp `classpath`"
+fi
+
+java $jvmargs org.apache.cassandra.cli.CliMain "$@"
+
+# vi:ai sw=4 ts=4 tw=0 et
