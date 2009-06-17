@@ -31,6 +31,9 @@ import org.apache.cassandra.service.StorageService;
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
+ *
+ * A Range is responsible for the tokens between [left, right).
+ * 
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
@@ -46,7 +49,7 @@ public class Range implements Comparable<Range>, Serializable
     {
         return serializer_;
     }
-    
+
     private final Token left_;
     private final Token right_;
 
@@ -101,7 +104,7 @@ public class Range implements Comparable<Range>, Serializable
             /*
              * This is the range [a, b) where a < b. 
             */
-            return ( bi.compareTo(left_) >= 0 && right_.compareTo(bi) >=0 );
+            return ( bi.compareTo(left_) >= 0 && right_.compareTo(bi) > 0 );
         }        
         else
     	{
