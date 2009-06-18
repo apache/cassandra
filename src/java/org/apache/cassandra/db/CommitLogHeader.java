@@ -19,13 +19,10 @@
 package org.apache.cassandra.db;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.*;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -34,7 +31,7 @@ import org.apache.cassandra.io.*;
 class CommitLogHeader
 {
     private static ICompactSerializer<CommitLogHeader> serializer_;
-    
+
     static
     {
         serializer_ = new CommitLogHeaderSerializer();
@@ -115,13 +112,13 @@ class CommitLogHeader
         return true;
     }
     
-    private byte[] header_ = new byte[0];
-    private int[] position_ = new int[0];
+    private byte[] dirty = new byte[0]; // columnfamilies with un-flushed data in this CommitLog
+    private int[] lastFlushedAt = new int[0]; // position at which each CF was last flushed
     
     CommitLogHeader(int size)
     {
-        header_ = new byte[size];
-        position_ = new int[size];
+        dirty = new byte[size];
+        lastFlushedAt = new int[size];
     }
     
     /*
@@ -129,89 +126,84 @@ class CommitLogHeader
      * also builds an index of position to column family
      * Id.
     */
-    CommitLogHeader(byte[] header, int[] position)
+    CommitLogHeader(byte[] dirty, int[] lastFlushedAt)
     {
-        header_ = header;
-        position_ = position;
+        this.dirty = dirty;
+        this.lastFlushedAt = lastFlushedAt;
     }
     
     CommitLogHeader(CommitLogHeader clHeader)
     {
-        header_ = new byte[clHeader.header_.length];
-        System.arraycopy(clHeader.header_, 0, header_, 0, header_.length);
-        position_ = new int[clHeader.position_.length];
-        System.arraycopy(clHeader.position_, 0, position_, 0, position_.length);
+        dirty = new byte[clHeader.dirty.length];
+        System.arraycopy(clHeader.dirty, 0, dirty, 0, dirty.length);
+        lastFlushedAt = new int[clHeader.lastFlushedAt.length];
+        System.arraycopy(clHeader.lastFlushedAt, 0, lastFlushedAt, 0, lastFlushedAt.length);
     }
     
     byte get(int index)
     {
-        return header_[index];
+        return dirty[index];
     } 
     
     int getPosition(int index)
     {
-        return position_[index];
+        return lastFlushedAt[index];
     }
     
     void turnOn(int index, long position)
     {
-        turnOn(header_, index, position);
+        turnOn(dirty, index, position);
     }
     
     void turnOn(byte[] bytes, int index, long position)
     {
         bytes[index] = (byte)1;
-        position_[index] = (int)position;
+        lastFlushedAt[index] = (int)position;
     }
     
     void turnOff(int index)
     {
-        turnOff(header_, index);
+        turnOff(dirty, index);
     }
     
     void turnOff(byte[] bytes, int index)
     {
         bytes[index] = (byte)0;
-        position_[index] = 0; 
+        lastFlushedAt[index] = 0;
     }
     
     boolean isSafeToDelete() throws IOException
     {
-        return isSafeToDelete(header_);
-    }
-    
-    boolean isSafeToDelete(byte[] bytes) throws IOException
-    {        
-        for ( byte b : bytes )
+        for (byte b : dirty)
         {
-            if ( b == 1 )
+            if (b == 1)
                 return false;
         }
         return true;
     }
-    
+
     byte[] getBitSet()
     {
-        return header_;
+        return dirty;
     }
     
     int[] getPositions()
     {
-        return position_;
+        return lastFlushedAt;
     }
     
     void zeroPositions()
     {
-        int size = position_.length;
-        position_ = new int[size];
+        int size = lastFlushedAt.length;
+        lastFlushedAt = new int[size];
     }
     
     void and (CommitLogHeader commitLogHeader)
     {        
-        byte[] clh2 = commitLogHeader.header_;
-        for ( int i = 0; i < header_.length; ++i )
+        byte[] clh2 = commitLogHeader.dirty;
+        for ( int i = 0; i < dirty.length; ++i )
         {            
-            header_[i] = (byte)(header_[i] & clh2[i]);
+            dirty[i] = (byte)(dirty[i] & clh2[i]);
         }
     }
     
@@ -226,16 +218,16 @@ class CommitLogHeader
     public String toString()
     {
         StringBuilder sb = new StringBuilder("");        
-        for ( int i = 0; i < header_.length; ++i )
+        for ( int i = 0; i < dirty.length; ++i )
         {
-            sb.append(header_[i]);
+            sb.append(dirty[i]);
             sb.append(":");
             Table table = Table.open( DatabaseDescriptor.getTables().get(0));
             sb.append(table.getColumnFamilyName(i));
             sb.append(" ");
         }        
         sb.append(" | " );        
-        for ( int position : position_ )
+        for ( int position : lastFlushedAt)
         {
             sb.append(position);
             sb.append(" ");

@@ -43,19 +43,26 @@ import org.apache.commons.lang.StringUtils;
  * header represented by the abstraction CommitLogHeader. The header
  * contains a bit array and an array of longs and both the arrays are
  * of size, #column families for the Table, the Commit Log represents.
+ *
  * Whenever a ColumnFamily is written to, for the first time its bit flag
  * is set to one in the CommitLogHeader. When it is flushed to disk by the
  * Memtable its corresponding bit in the header is set to zero. This helps
  * track which CommitLogs can be thrown away as a result of Memtable flushes.
- * However if a ColumnFamily is flushed and again written to disk then its
+ * Additionally, when a ColumnFamily is flushed and written to disk, its
  * entry in the array of longs is updated with the offset in the Commit Log
  * file where it was written. This helps speed up recovery since we can seek
  * to these offsets and start processing the commit log.
- * Every Commit Log is rolled over everytime it reaches its threshold in size.
+ *
+ * Every Commit Log is rolled over everytime it reaches its threshold in size;
+ * the new log inherits the "dirty" bits from the old.
+ *
  * Over time there could be a number of commit logs that would be generated.
- * Hovever whenever we flush a column family disk and update its bit flag we
- * take this bit array and bitwise & it with the headers of the other commit
- * logs that are older.
+ * To allow cleaning up non-active commit logs, whenever we flush a column family and update its bit flag in
+ * the active CL, we take the dirty bit array and bitwise & it with the headers of the older logs.
+ * If the result is 0, then it is safe to remove the older file.  (Since the new CL
+ * inherited the old's dirty bitflags, getting a zero for any given bit in the anding
+ * means that either the CF was clean in the old CL or it has been flushed since the
+ * switch in the new.)
  *
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -66,34 +73,24 @@ public class CommitLog
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(CommitLog.class);
     private static Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
-    
+
     public static final class CommitLogContext
     {
         static CommitLogContext NULL = new CommitLogContext(null, -1L);
         /* Commit Log associated with this operation */
-        private String file_;
+        public final String file;
         /* Offset within the Commit Log where this row as added */
-        private long position_;
+        public final long position;
 
         public CommitLogContext(String file, long position)
         {
-            file_ = file;
-            position_ = position;
+            this.file = file;
+            this.position = position;
         }
 
         boolean isValidContext()
         {
-            return (position_ != -1L);
-        }
-
-        String file()
-        {
-            return file_;
-        }
-
-        long position()
-        {
-            return position_;
+            return (position != -1L);
         }
     }
 
@@ -193,13 +190,8 @@ public class CommitLog
     */
     private void setNextFileName()
     {
-        logFile_ = DatabaseDescriptor.getLogFileLocation() +
-                            System.getProperty("file.separator") +
-                            "CommitLog-" +
-                            table_ +
-                            "-" +
-                            System.currentTimeMillis() +
-                            ".log";
+        logFile_ = DatabaseDescriptor.getLogFileLocation() + System.getProperty("file.separator") +
+                   "CommitLog-" + table_ + "-" + System.currentTimeMillis() + ".log";
     }
 
     /*
@@ -316,17 +308,6 @@ public class CommitLog
         doRecovery(filesNeeded, header);
     }
 
-    private void printHeader(byte[] header)
-    {
-        StringBuilder sb = new StringBuilder("");
-        for ( byte b : header )
-        {
-            sb.append(b);
-            sb.append(" ");
-        }
-        logger_.debug(sb.toString());
-    }
-
     private void doRecovery(Stack<File> filesNeeded, byte[] header) throws IOException
     {
         Table table = Table.open(table_);
@@ -395,19 +376,19 @@ public class CommitLog
                     }
                     catch ( IOException e )
                     {
-                        logger_.debug( LogUtil.throwableToString(e) );
+                        logger_.error("Unexpected error reading " + file.getName() + "; attempting to continue with the next entry", e);
                     }
                 }
                 reader.close();
-                /* apply the rows read */
+                /* apply the rows read -- success will result in the CL file being discarded */
                 table.flush(true);
             }
-            catch ( Throwable th )
+            catch (Throwable th)
             {
-                logger_.info( LogUtil.throwableToString(th) );
+                logger_.error("Fatal error reading " + file.getName(), th);
                 /* close the reader and delete this commit log. */
                 reader.close();
-                FileUtils.delete( new File[]{file} );
+                FileUtils.delete(new File[]{ file });
             }
         }
     }
@@ -449,8 +430,7 @@ public class CommitLog
         long currentPosition = -1L;
         CommitLogContext cLogCtx = null;
         DataOutputBuffer cfBuffer = new DataOutputBuffer();
-        long fileSize = 0L;
-        
+
         try
         {
             /* serialize the row */
@@ -494,11 +474,7 @@ public class CommitLog
     /*
      * Check if old commit logs can be deleted. However we cannot
      * do this anymore in the Fast Sync mode and hence I think we
-     * should get rid of Fast Sync mode altogether. If there is
-     * a pathological event where few CF's are rarely being updated
-     * then their Memtable never gets flushed.
-     * This will prevent commit logs from being deleted. WE NEED to
-     * fix this using some hueristic and force flushing such Memtables.
+     * should get rid of Fast Sync mode altogether.
      *
      * param @ cLogCtx The commitLog context .
      * param @ id id of the columnFamily being flushed to disk.
@@ -507,14 +483,14 @@ public class CommitLog
     private void discard(CommitLog.CommitLogContext cLogCtx, int id) throws IOException
     {
         /* retrieve the commit log header associated with the file in the context */
-        CommitLogHeader commitLogHeader = clHeaders_.get(cLogCtx.file());
+        CommitLogHeader commitLogHeader = clHeaders_.get(cLogCtx.file);
         if(commitLogHeader == null )
         {
-            if( logFile_.equals(cLogCtx.file()) )
+            if( logFile_.equals(cLogCtx.file) )
             {
                 /* this means we are dealing with the current commit log. */
                 commitLogHeader = clHeader_;
-                clHeaders_.put(cLogCtx.file(), clHeader_);
+                clHeaders_.put(cLogCtx.file, clHeader_);
             }
             else
                 return;
@@ -525,7 +501,7 @@ public class CommitLog
          * flush. Right now this cannot happen since Memtables are flushed on a single
          * thread.
         */
-        if ( cLogCtx.position() < commitLogHeader.getPosition(id) )
+        if ( cLogCtx.position < commitLogHeader.getPosition(id) )
             return;
         commitLogHeader.turnOff(id);
         /* Sort the commit logs based on creation time */
@@ -542,7 +518,7 @@ public class CommitLog
         */
         for(String oldFile : oldFiles)
         {
-            if(oldFile.equals(cLogCtx.file()))
+            if(oldFile.equals(cLogCtx.file))
             {
                 /*
                  * We need to turn on again. This is because we always keep
@@ -550,8 +526,8 @@ public class CommitLog
                  * commit log needs to be read. When a flush occurs we turn off
                  * perform & operation and then turn on with the new position.
                 */
-                commitLogHeader.turnOn(id, cLogCtx.position());
-                writeCommitLogHeader(cLogCtx.file(), commitLogHeader.toByteArray());
+                commitLogHeader.turnOn(id, cLogCtx.position);
+                writeCommitLogHeader(cLogCtx.file, commitLogHeader.toByteArray());
                 break;
             }
             else
@@ -577,66 +553,30 @@ public class CommitLog
         }
     }
 
-    private void checkThresholdAndRollLog()
+    private void checkThresholdAndRollLog() throws IOException
     {
-        try
+        if (logWriter_.getFileSize() >= SEGMENT_SIZE)
         {
-            if (logWriter_.getFileSize() >= SEGMENT_SIZE)
-            {
-                /* Rolls the current log file over to a new one. */
-                setNextFileName();
-                String oldLogFile = logWriter_.getFileName();
-                //history_.add(oldLogFile);
-                logWriter_.close();
+            /* Rolls the current log file over to a new one. */
+            setNextFileName();
+            String oldLogFile = logWriter_.getFileName();
+            //history_.add(oldLogFile);
+            logWriter_.close();
 
-                /* point reader/writer to a new commit log file. */
-                // logWriter_ = SequenceFile.writer(logFile_);
-                logWriter_ = CommitLog.createWriter(logFile_);
-                /* squirrel away the old commit log header */
-                clHeaders_.put(oldLogFile, new CommitLogHeader(clHeader_));
-                /*
-                 * We need to zero out positions because the positions in
-                 * the old file do not make sense in the new one.
-                */
-                clHeader_.zeroPositions();
-                writeCommitLogHeader(clHeader_.toByteArray(), false);
-                // Get the list of files in commit log directory if it is greater than a certain number
-                // Force flush all the column families that way we ensure that a slowly populated column family is not screwing up
-                // by accumulating the commit logs .
-            }
-        }
-        catch (IOException e)
-        {
-            logger_.info(LogUtil.throwableToString(e));
-        }
-    }
-
-    public static void main(String[] args) throws Throwable
-    {
-        LogUtil.init();
-        
-        File logDir = new File(DatabaseDescriptor.getLogFileLocation());
-        File[] files = logDir.listFiles();
-        Arrays.sort( files, new FileUtils.FileComparator() );
-
-        byte[] bytes = new byte[CommitLogHeader.size(Integer.parseInt(args[0]))];
-        for ( File file : files )
-        {
-            CommitLog clog = new CommitLog( file );
-            clog.readCommitLogHeader(file.getAbsolutePath(), bytes);
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(bytes, 0, bytes.length);
-            CommitLogHeader clHeader = CommitLogHeader.serializer().deserialize(bufIn);
+            /* point reader/writer to a new commit log file. */
+            // logWriter_ = SequenceFile.writer(logFile_);
+            logWriter_ = CommitLog.createWriter(logFile_);
+            /* squirrel away the old commit log header */
+            clHeaders_.put(oldLogFile, new CommitLogHeader(clHeader_));
             /*
-            StringBuilder sb = new StringBuilder("");
-            for ( byte b : bytes )
-            {
-                sb.append(b);
-                sb.append(" ");
-            }
+             * We need to zero out positions because the positions in
+             * the old file do not make sense in the new one.
             */
-            System.out.println("FILE:" + file);
-            System.out.println(clHeader.toString());
+            clHeader_.zeroPositions();
+            writeCommitLogHeader(clHeader_.toByteArray(), false);
+            // Get the list of files in commit log directory if it is greater than a certain number
+            // Force flush all the column families that way we ensure that a slowly populated column family is not screwing up
+            // by accumulating the commit logs .
         }
     }
 }
