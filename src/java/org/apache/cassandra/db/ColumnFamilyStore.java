@@ -550,7 +550,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     continue;
                 }
-                ColumnFamily columnFamily = fetchColumnFamily(key, cf, filter, file);
+                ColumnFamily columnFamily = null;
+                try
+                {
+                    columnFamily = fetchColumnFamily(key, cf, filter, file);
+                }
+                catch (IOException e)
+                {
+                    throw new IOException("Error fetching " + key + ":" + cf + " from " + file, e);
+                }
                 if (columnFamily != null)
                 {
                     columnFamilies.add(columnFamily);
