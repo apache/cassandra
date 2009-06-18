@@ -27,7 +27,7 @@ import java.util.BitSet;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
-class BitSetSerializer
+public class BitSetSerializer
 {
     public static void serialize(BitSet bs, DataOutputStream dos) throws IOException
     {

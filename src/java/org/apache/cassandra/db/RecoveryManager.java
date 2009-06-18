@@ -34,11 +34,13 @@ public class RecoveryManager
 {
     private static RecoveryManager instance_;
     private static Logger logger_ = Logger.getLogger(RecoveryManager.class);
-    
+
     synchronized static RecoveryManager instance() throws IOException
     {
-        if ( instance_ == null )
+        if (instance_ == null)
+        {
             instance_ = new RecoveryManager();
+        }
         return instance_;
     }
 
@@ -46,48 +48,14 @@ public class RecoveryManager
     {
         String directory = DatabaseDescriptor.getLogFileLocation();
         File file = new File(directory);
-        File[] files = file.listFiles();
-        return files;
+        return file.listFiles();
     }
-    
-    public static Map<String, List<File>> getListOFCommitLogsPerTable()
-    {
-        File[] files = getListofCommitLogs();
-        /* Maintains a mapping of table name to a list of commit log files */
-        Map<String, List<File>> tableToCommitLogs = new HashMap<String, List<File>>();
-        
-        for (File f : files)
-        {
-            String table = CommitLog.getTableName(f.getName());
-            List<File> clogs = tableToCommitLogs.get(table);
-            if ( clogs == null )
-            {
-                clogs = new ArrayList<File>();
-                tableToCommitLogs.put(table, clogs);
-            }
-            clogs.add(f);
-        }
-        return tableToCommitLogs;
-    }
-    
+
     public static void doRecovery() throws IOException
     {
         File[] files = getListofCommitLogs();
-        Map<String, List<File>> tableToCommitLogs = getListOFCommitLogsPerTable();
-        recoverEachTable(tableToCommitLogs);
+        Arrays.sort(files, new FileUtils.FileComparator());
+        new CommitLog(DatabaseDescriptor.getTables().get(0), true).recover(files);
         FileUtils.delete(files);
-    }
-    
-    private static void recoverEachTable(Map<String, List<File>> tableToCommitLogs) throws IOException
-    {
-        Comparator<File> fCmp = new FileUtils.FileComparator();
-        Set<String> tables = tableToCommitLogs.keySet();
-        for ( String table : tables )
-        {
-            List<File> clogs = tableToCommitLogs.get(table);
-            Collections.sort(clogs, fCmp);
-            CommitLog clog = new CommitLog(table, true);
-            clog.recover(clogs);
-        }
     }
 }

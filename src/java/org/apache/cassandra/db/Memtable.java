@@ -389,7 +389,7 @@ public class Memtable implements Comparable<Memtable>
         };
     }
 
-    public void clearUnsafe()
+    void clearUnsafe()
     {
         columnFamilies_.clear();
     }

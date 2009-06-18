@@ -29,12 +29,10 @@ import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import org.apache.commons.lang.StringUtils;
 
 /*
  * Commit Log tracks every write operation into the system. The aim
@@ -182,7 +180,6 @@ public class CommitLog
     /* header for current commit log */
     private CommitLogHeader clHeader_;
     private IFileWriter logWriter_;
-    private long commitHeaderStartPos_;
 
     /*
      * Generates a file name of the format CommitLog-<table>-<timestamp>.log in the
@@ -221,27 +218,22 @@ public class CommitLog
     CommitLog(File logFile) throws IOException
     {
         table_ = CommitLog.getTableName(logFile.getName());
-        logFile_ = logFile.getAbsolutePath();        
+        logFile_ = logFile.getAbsolutePath();
         logWriter_ = CommitLog.createWriter(logFile_);
-        commitHeaderStartPos_ = 0L;
     }
 
     String getLogFile()
     {
         return logFile_;
     }
-
-    void readCommitLogHeader(String logFile, byte[] bytes) throws IOException
+    
+    private CommitLogHeader readCommitLogHeader(IFileReader logReader) throws IOException
     {
-        IFileReader logReader = SequenceFile.reader(logFile);
-        try
-        {
-            logReader.readDirect(bytes);
-        }
-        finally
-        {
-            logReader.close();
-        }
+        int size = (int)logReader.readLong();
+        byte[] bytes = new byte[size];
+        logReader.readDirect(bytes);
+        ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
+        return CommitLogHeader.serializer().deserialize(new DataInputStream(byteStream));
     }
 
     /*
@@ -253,7 +245,6 @@ public class CommitLog
         Table table = Table.open(table_);
         int cfSize = table.getNumberOfColumnFamilies();
         /* record the beginning of the commit header */
-        commitHeaderStartPos_ = logWriter_.getCurrentPosition();
         /* write the commit log header */
         clHeader_ = new CommitLogHeader(cfSize);
         writeCommitLogHeader(clHeader_.toByteArray(), false);
@@ -263,69 +254,28 @@ public class CommitLog
     {
         /* record the current position */
         long currentPos = logWriter_.getCurrentPosition();
-        logWriter_.seek(commitHeaderStartPos_);
+        logWriter_.seek(0);
         /* write the commit log header */
+        logWriter_.writeLong(bytes.length);
         logWriter_.writeDirect(bytes);
-        if ( reset )
+        if (reset)
         {
             /* seek back to the old position */
             logWriter_.seek(currentPos);
         }
     }
 
-    void recover(List<File> clogs) throws IOException
+    void recover(File[] clogs) throws IOException
     {
-        Table table = Table.open(table_);
-        int cfSize = table.getNumberOfColumnFamilies();
-        int size = CommitLogHeader.size(cfSize);
-        byte[] header = new byte[size];
-        byte[] header2 = new byte[size];
-        int index = clogs.size() - 1;
-
-        File file = clogs.get(index);
-        readCommitLogHeader(file.getAbsolutePath(), header);
-
-        Stack<File> filesNeeded = new Stack<File>();
-        filesNeeded.push(file);
-
-        /*
-         * Identify files that we need for processing. This can be done
-         * using the information in the header of each file. Simply and
-         * the byte[] (which are the headers) and stop at the file where
-         * the result is a zero.
-        */
-        for ( int i = (index - 1); i >= 0; --i )
-        {
-            file = clogs.get(i);
-            readCommitLogHeader(file.getAbsolutePath(), header2);
-            byte[] result = CommitLogHeader.and(header, header2);
-            if (CommitLogHeader.isZero(result))
-                break;
-            filesNeeded.push(file);
-        }
-
-        logger_.info("Replaying logs from " + StringUtils.join(filesNeeded, ", "));
-        doRecovery(filesNeeded, header);
-    }
-
-    private void doRecovery(Stack<File> filesNeeded, byte[] header) throws IOException
-    {
-        Table table = Table.open(table_);
-
         DataInputBuffer bufIn = new DataInputBuffer();
-        DataOutputBuffer bufOut = new DataOutputBuffer();        
 
-        while ( !filesNeeded.isEmpty() )
+        for (File file : clogs)
         {
-            File file = filesNeeded.pop();
             // IFileReader reader = SequenceFile.bufferedReader(file.getAbsolutePath(), DatabaseDescriptor.getLogFileSizeThreshold());
             IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
             try
             {
-                reader.readDirect(header);
-                /* deserialize the commit log header */
-                bufIn.reset(header, 0, header.length);
-                CommitLogHeader clHeader = CommitLogHeader.serializer().deserialize(bufIn);
+                CommitLogHeader clHeader = readCommitLogHeader(reader);
                 /* seek to the lowest position */
                 int lowPos = CommitLogHeader.getLowestPosition(clHeader);
                 /*
@@ -337,24 +287,21 @@ public class CommitLog
                 else
                     reader.seek(lowPos);
 
+                Set<Table> tablesRecovered = new HashSet<Table>();
+
                 /* read the logs populate RowMutation and apply */
                 while ( !reader.isEOF() )
                 {
-                    bufOut.reset();
-                    long bytesRead = reader.next(bufOut);
-                    if ( bytesRead == -1 )
-                        break;
+                    byte[] bytes = new byte[(int)reader.readLong()];
+                    reader.readDirect(bytes);
+                    bufIn.reset(bytes, bytes.length);
 
-                    bufIn.reset(bufOut.getData(), bufOut.getLength());
-                    /* Skip over the commit log key portion */
-                    bufIn.readUTF();
-                    /* Skip over data size */
-                    bufIn.readInt();
-                    
                     /* read the commit log entry */
                     try
                     {                        
                         Row row = Row.serializer().deserialize(bufIn);
+                        Table table = Table.open(table_);
+                        tablesRecovered.add(table);
                         Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
                         /* remove column families that have already been flushed */
                         for (ColumnFamily columnFamily : columnFamilies)
@@ -366,7 +313,7 @@ public class CommitLog
                         		continue;
                         	}	
                             int id = table.getColumnFamilyId(columnFamily.name());
-                            if ( clHeader.get(id) == 0 || reader.getCurrentPosition() < clHeader.getPosition(id) )
+                            if ( !clHeader.isDirty(id) || reader.getCurrentPosition() < clHeader.getPosition(id) )
                                 row.removeColumnFamily(columnFamily);
                         }
                         if ( !row.isEmpty() )
@@ -381,7 +328,10 @@ public class CommitLog
                 }
                 reader.close();
                 /* apply the rows read -- success will result in the CL file being discarded */
-                table.flush(true);
+                for (Table table : tablesRecovered)
+                {
+                    table.flush(true);
+                }
             }
             catch (Throwable th)
             {
@@ -397,20 +347,20 @@ public class CommitLog
      * Update the header of the commit log if a new column family
      * is encountered for the first time.
     */
-    private void updateHeader(Row row) throws IOException
+    private void maybeUpdateHeader(Row row) throws IOException
     {
         Table table = Table.open(table_);
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-        	int id = table.getColumnFamilyId(columnFamily.name());
-        	if ( clHeader_.get(id) == 0 || ( clHeader_.get(id) == 1 && clHeader_.getPosition(id) == 0 ) )
-        	{
-            	if ( clHeader_.get(id) == 0 || ( clHeader_.get(id) == 1 && clHeader_.getPosition(id) == 0 ) )
-            	{
-	        		clHeader_.turnOn( id, logWriter_.getCurrentPosition() );
-	        		writeCommitLogHeader(clHeader_.toByteArray(), true);
-            	}
-        	}
+            int id = table.getColumnFamilyId(columnFamily.name());
+            if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
+            {
+                if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
+                {
+                    clHeader_.turnOn(id, logWriter_.getCurrentPosition());
+                    writeCommitLogHeader(clHeader_.toByteArray(), true);
+                }
+            }
         }
     }
     
@@ -439,8 +389,9 @@ public class CommitLog
             currentPosition = logWriter_.getCurrentPosition();
             cLogCtx = new CommitLogContext(logFile_, currentPosition);
             /* Update the header */
-            updateHeader(row);
-            logWriter_.append(table_, cfBuffer);
+            maybeUpdateHeader(row);
+            logWriter_.writeLong(cfBuffer.getLength());
+            logWriter_.append(cfBuffer);
             checkThresholdAndRollLog();
         }
         catch (IOException e)
