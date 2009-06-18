@@ -70,7 +70,7 @@ public class RecoveryManager
         return tableToCommitLogs;
     }
     
-    public void doRecovery() throws IOException
+    public static void doRecovery() throws IOException
     {
         File[] files = getListofCommitLogs();
         Map<String, List<File>> tableToCommitLogs = getListOFCommitLogsPerTable();
@@ -78,7 +78,7 @@ public class RecoveryManager
         FileUtils.delete(files);
     }
     
-    private void recoverEachTable(Map<String, List<File>> tableToCommitLogs) throws IOException
+    private static void recoverEachTable(Map<String, List<File>> tableToCommitLogs) throws IOException
     {
         Comparator<File> fCmp = new FileUtils.FileComparator();
         Set<String> tables = tableToCommitLogs.keySet();
@@ -89,13 +89,5 @@ public class RecoveryManager
             CommitLog clog = new CommitLog(table, true);
             clog.recover(clogs);
         }
-    }
-    
-    public static void main(String[] args) throws Throwable
-    {
-        long start = System.currentTimeMillis();
-        RecoveryManager rm = RecoveryManager.instance();
-        rm.doRecovery();  
-        logger_.debug( "Time taken : " + (System.currentTimeMillis() - start) + " ms.");
     }
 }

@@ -19,17 +19,40 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import static org.apache.cassandra.db.TableTest.assertColumns;
 
 public class RecoveryManagerTest extends CleanupHelper
 {
     @Test
-    public void testDoRecovery() throws IOException {
+    public void testNothing() throws IOException {
         // TODO nothing to recover
         RecoveryManager rm = RecoveryManager.instance();
         rm.doRecovery();  
+    }
+
+    @Test
+    public void testSomething() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table1 = Table.open("Table1");
+
+        RowMutation rm;
+        ColumnFamily cf;
+
+        rm = new RowMutation("Table1", "keymulti");
+        cf = new ColumnFamily("Standard1", "Standard");
+        cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
+        rm.add(cf);
+        rm.apply();
+
+        table1.getColumnFamilyStore("Standard1").clearUnsafe();
+
+        RecoveryManager.doRecovery();
+
+        assertColumns(table1.get("keymulti", "Standard1"), "col1");
     }
 }

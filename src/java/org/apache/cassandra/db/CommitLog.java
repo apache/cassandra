@@ -61,7 +61,7 @@ import org.apache.commons.lang.StringUtils;
  */
 public class CommitLog
 {
-    private static final int bufSize_ = 128*1024*1024;
+    private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
     private static Map<String, CommitLog> instances_ = new HashMap<String, CommitLog>();
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(CommitLog.class);
@@ -112,6 +112,16 @@ public class CommitLog
         }
     }
 
+    public static void setSegmentSize(int size)
+    {
+        SEGMENT_SIZE = size;
+    }
+
+    static int getSegmentCount()
+    {
+        return clHeaders_.size();
+    }
+
     static long getCreationTime(String file)
     {
         String[] entries = FBUtilities.strip(file, "-.");
@@ -134,9 +144,7 @@ public class CommitLog
     {        
         if ( DatabaseDescriptor.isFastSync() )
         {
-            /* Add this to the threshold */
-            int bufSize = 4*1024*1024;
-            return SequenceFile.fastWriter(file, CommitLog.bufSize_ + bufSize);
+            return SequenceFile.fastWriter(file, 4*1024*1024);
         }
         else
             return SequenceFile.writer(file);
@@ -178,9 +186,6 @@ public class CommitLog
     private CommitLogHeader clHeader_;
     private IFileWriter logWriter_;
     private long commitHeaderStartPos_;
-    /* Force rollover the commit log on the next insert */
-    private boolean forcedRollOver_ = false;
-
 
     /*
      * Generates a file name of the format CommitLog-<table>-<timestamp>.log in the
@@ -456,8 +461,7 @@ public class CommitLog
             /* Update the header */
             updateHeader(row);
             logWriter_.append(table_, cfBuffer);
-            fileSize = logWriter_.getFileSize();                       
-            checkThresholdAndRollLog(fileSize);            
+            checkThresholdAndRollLog();
         }
         catch (IOException e)
         {
@@ -573,50 +577,38 @@ public class CommitLog
         }
     }
 
-    private void checkThresholdAndRollLog( long fileSize )
+    private void checkThresholdAndRollLog()
     {
         try
         {
-            if ( fileSize >= DatabaseDescriptor.getLogFileSizeThreshold() || forcedRollOver_ )
+            if (logWriter_.getFileSize() >= SEGMENT_SIZE)
             {
-                if ( logWriter_.getFileSize() >= DatabaseDescriptor.getLogFileSizeThreshold() || forcedRollOver_ )
-                {
-	                /* Rolls the current log file over to a new one. */
-	                setNextFileName();
-	                String oldLogFile = logWriter_.getFileName();
-	                //history_.add(oldLogFile);
-	                logWriter_.close();
-	
-	                /* point reader/writer to a new commit log file. */
-	                // logWriter_ = SequenceFile.writer(logFile_);
-	                logWriter_ = CommitLog.createWriter(logFile_);
-	                /* squirrel away the old commit log header */
-	                clHeaders_.put(oldLogFile, new CommitLogHeader( clHeader_ ));
-	                /*
-	                 * We need to zero out positions because the positions in
-	                 * the old file do not make sense in the new one.
-	                */
-	                clHeader_.zeroPositions();
-	                writeCommitLogHeader(clHeader_.toByteArray(), false);
-	                // Get the list of files in commit log directory if it is greater than a certain number  
-	                // Force flush all the column families that way we ensure that a slowly populated column family is not screwing up 
-	                // by accumulating the commit logs .
-                }
+                /* Rolls the current log file over to a new one. */
+                setNextFileName();
+                String oldLogFile = logWriter_.getFileName();
+                //history_.add(oldLogFile);
+                logWriter_.close();
+
+                /* point reader/writer to a new commit log file. */
+                // logWriter_ = SequenceFile.writer(logFile_);
+                logWriter_ = CommitLog.createWriter(logFile_);
+                /* squirrel away the old commit log header */
+                clHeaders_.put(oldLogFile, new CommitLogHeader(clHeader_));
+                /*
+                 * We need to zero out positions because the positions in
+                 * the old file do not make sense in the new one.
+                */
+                clHeader_.zeroPositions();
+                writeCommitLogHeader(clHeader_.toByteArray(), false);
+                // Get the list of files in commit log directory if it is greater than a certain number
+                // Force flush all the column families that way we ensure that a slowly populated column family is not screwing up
+                // by accumulating the commit logs .
             }
         }
-        catch ( IOException e )
+        catch (IOException e)
         {
             logger_.info(LogUtil.throwableToString(e));
         }
-        finally
-        {
-        	forcedRollOver_ = false;
-        }
-    }
-
-    public void setForcedRollOver()
-    {
-    	forcedRollOver_ = true;
     }
 
     public static void main(String[] args) throws Throwable

@@ -24,10 +24,7 @@ import java.io.*;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.TypeInfo;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
 import org.w3c.dom.Node;
@@ -63,7 +60,6 @@ public class DatabaseDescriptor
     private static int currentIndex_ = 0;
     private static String logFileDirectory_;
     private static String bootstrapFileDirectory_;
-    private static int logRotationThreshold_ = 128*1024*1024;
     private static boolean fastSync_ = false;
     private static boolean rackAware_ = false;
     private static int threadsPerPool_ = 4;
@@ -293,7 +289,7 @@ public class DatabaseDescriptor
             /* threshold after which commit log should be rotated. */
             String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
             if ( value != null)
-                logRotationThreshold_ = Integer.parseInt(value) * 1024 * 1024;
+                CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
             /* fast sync option */
             value = xmlUtils.getNodeValue("/Storage/CommitLogFastSync");
@@ -741,11 +737,6 @@ public class DatabaseDescriptor
     public static void setBootstrapFileLocation(String bfLocation)
     {
         bootstrapFileDirectory_ = bfLocation;
-    }
-
-    public static int getLogFileSizeThreshold()
-    {
-        return logRotationThreshold_;
     }
 
     public static String getLogFileLocation()

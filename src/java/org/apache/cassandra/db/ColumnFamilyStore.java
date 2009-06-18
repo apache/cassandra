@@ -1661,4 +1661,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             lock_.readLock().unlock();
         }
     }
+
+    void clearUnsafe()
+    {
+        lock_.writeLock().lock();
+        try
+        {
+            memtable_.clearUnsafe();
+        }
+        finally
+        {
+            lock_.writeLock().unlock();
+        }
+    }
 }

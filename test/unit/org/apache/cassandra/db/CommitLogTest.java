@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
@@ -27,32 +28,33 @@ import org.apache.cassandra.CleanupHelper;
 public class CommitLogTest extends CleanupHelper
 {
     @Test
-    public void testMain() throws IOException {
-        // TODO this is useless, since it assumes we have a working set of commit logs to parse
-        /*
-        File logDir = new File(DatabaseDescriptor.getLogFileLocation());
-        File[] files = logDir.listFiles();
-        Arrays.sort( files, new FileUtils.FileComparator() );
+    public void testCleanup() throws IOException, ExecutionException, InterruptedException
+    {
+        assert CommitLog.getSegmentCount() == 0;
+        CommitLog.setSegmentSize(1000);
 
-        byte[] bytes = new byte[CommitLogHeader.size(Integer.parseInt(args[0]))];
-        for ( File file : files )
+        Table table = Table.open("Table1");
+        ColumnFamilyStore store1 = table.getColumnFamilyStore("Standard1");
+        ColumnFamilyStore store2 = table.getColumnFamilyStore("Standard2");
+        RowMutation rm;
+        byte[] value = new byte[501];
+
+        // add data.  use relatively large values to force quick segment creation since we have a low flush threshold in the test config.
+        for (int i = 0; i < 10; i++)
         {
-            CommitLog clog = new CommitLog( file );
-            clog.readCommitLogHeader(file.getAbsolutePath(), bytes);
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(bytes, 0, bytes.length);
-            CommitLogHeader clHeader = CommitLogHeader.serializer().deserialize(bufIn);
-
-            StringBuilder sb = new StringBuilder("");
-            for ( byte b : bytes )
-            {
-                sb.append(b);
-                sb.append(" ");
-            }
-
-            System.out.println("FILE:" + file);
-            System.out.println(clHeader.toString());
+            rm = new RowMutation("Table1", "key1");
+            rm.add("Standard1:Column1", value, 0);
+            rm.add("Standard2:Column1", value, 0);
+            rm.apply();
         }
-        */
+        assert CommitLog.getSegmentCount() > 1;
+
+        // nothing should get removed after flushing just Standard1
+        store1.forceBlockingFlush();
+        assert CommitLog.getSegmentCount() > 1;
+
+        // after flushing Standard2 we should be able to clean out all segments
+        store2.forceBlockingFlush();
+        assert CommitLog.getSegmentCount() == 1;
     }
 }

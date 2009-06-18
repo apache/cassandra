@@ -349,7 +349,7 @@ public class TableTest extends CleanupHelper
         assertEquals(new String(cfres.getColumn("col1992").value()), "vvvvvvvvvvvvvvvv1992");
     }
 
-    private void assertColumns(ColumnFamily columnFamily, String... columnNames)
+    public static void assertColumns(ColumnFamily columnFamily, String... columnNames)
     {
         assertNotNull(columnFamily);
         SortedSet<IColumn> columns = columnFamily.getAllColumns();
