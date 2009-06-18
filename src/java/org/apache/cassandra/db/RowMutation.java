@@ -252,16 +252,17 @@ public class RowMutation implements Serializable
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
     */
-    void load(Row row) throws IOException, ExecutionException, InterruptedException
+    void applyBinary(Row emptyRow) throws IOException, ExecutionException, InterruptedException
     {
+        assert emptyRow.getColumnFamilies().size() == 0;
         Table table = Table.open(table_);
         Set<String> cfNames = modifications_.keySet();
         for (String cfName : cfNames)
         {
             assert table.isValidColumnFamily(cfName);
-            row.addColumnFamily(modifications_.get(cfName));
+            emptyRow.addColumnFamily(modifications_.get(cfName));
         }
-        table.load(row);
+        table.load(emptyRow);
     }
 
     public Message makeRowMutationMessage() throws IOException

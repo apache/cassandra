@@ -822,10 +822,10 @@ public class Table
         }
     }
 
+    // for binary load path.  skips commitlog.
     void load(Row row) throws IOException
     {
         String key = row.key();
-        /* Add row to the commit log. */
         long start = System.currentTimeMillis();
                 
         for (ColumnFamily columnFamily : row.getColumnFamilies())

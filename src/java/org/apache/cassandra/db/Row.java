@@ -23,7 +23,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
 import java.util.Arrays;
@@ -47,7 +46,7 @@ public class Row
 
     private String key_;
 
-    private Map<String, ColumnFamily> columnFamilies_ = new Hashtable<String, ColumnFamily>();
+    private Map<String, ColumnFamily> columnFamilies_ = new HashMap<String, ColumnFamily>();
 
     protected Row()
     {
