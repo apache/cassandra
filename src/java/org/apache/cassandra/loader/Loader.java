@@ -154,7 +154,7 @@ public class Loader
         BufferedReader bufReader = new BufferedReader(new InputStreamReader(
                 new FileInputStream(filepath)), 16 * 1024 * 1024);
         String line = null;
-        String delimiter_ = new String(",");
+        String delimiter_ = ",";
         RowMutation rm = null;
         Map<String, RowMutation> rms = new HashMap<String, RowMutation>();
         if(importer_.columnFamily.delimiter != null)

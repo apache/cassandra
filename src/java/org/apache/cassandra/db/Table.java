@@ -316,7 +316,7 @@ public class Table
                     String[] peices = FBUtilities.strip(sourceFile.getName(), "-");
                     String newFileName = fileNames.get( peices[1] + "-" + peices[2] );
                     
-                    String file = new String(DatabaseDescriptor.getDataFileLocation() + System.getProperty("file.separator") + newFileName + "-Data.db");
+                    String file = DatabaseDescriptor.getDataFileLocation() + File.separator + newFileName + "-Data.db";
                     logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);
                     addStreamContext(message.getFrom().getHost(), streamContext, streamStatus);                                            
