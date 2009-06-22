@@ -529,11 +529,11 @@ public class CassandraServer implements Cassandra.Iface
         return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamilies, startWith, stopAt, maxResults));
     }
 
-	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String end, int count)
+	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String finish, int count)
     throws InvalidRequestException, NotFoundException, TException
     {
 		logger.debug("get_slice_by_range");
-        ColumnFamily cfamily = readColumnFamily(new SliceByRangeReadCommand(tablename, key, columnParent, start, end, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceByRangeReadCommand(tablename, key, columnParent, start, finish, count));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;

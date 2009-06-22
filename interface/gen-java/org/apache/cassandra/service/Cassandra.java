@@ -24,7 +24,7 @@ public class Cassandra {
 
     public List<column_t> get_slice(String tablename, String key, String columnParent, int start, int count) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String end, int count) throws InvalidRequestException, NotFoundException, TException;
+    public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String finish, int count) throws InvalidRequestException, NotFoundException, TException;
 
     public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException, NotFoundException, TException;
 
@@ -132,13 +132,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice failed: unknown result");
     }
 
-    public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String end, int count) throws InvalidRequestException, NotFoundException, TException
+    public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String finish, int count) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_slice_by_name_range(tablename, key, columnParent, start, end, count);
+      send_get_slice_by_name_range(tablename, key, columnParent, start, finish, count);
       return recv_get_slice_by_name_range();
     }
 
-    public void send_get_slice_by_name_range(String tablename, String key, String columnParent, String start, String end, int count) throws TException
+    public void send_get_slice_by_name_range(String tablename, String key, String columnParent, String start, String finish, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_by_name_range", TMessageType.CALL, seqid_));
       get_slice_by_name_range_args args = new get_slice_by_name_range_args();
@@ -146,7 +146,7 @@ public class Cassandra {
       args.key = key;
       args.columnParent = columnParent;
       args.start = start;
-      args.end = end;
+      args.finish = finish;
       args.count = count;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -919,7 +919,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_by_name_range_result result = new get_slice_by_name_range_result();
         try {
-          result.success = iface_.get_slice_by_name_range(args.tablename, args.key, args.columnParent, args.start, args.end, args.count);
+          result.success = iface_.get_slice_by_name_range(args.tablename, args.key, args.columnParent, args.start, args.finish, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -2274,7 +2274,7 @@ public class Cassandra {
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("columnParent", TType.STRING, (short)3);
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)4);
-    private static final TField END_FIELD_DESC = new TField("end", TType.STRING, (short)5);
+    private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)5);
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)6);
 
     public String tablename;
@@ -2285,8 +2285,8 @@ public class Cassandra {
     public static final int COLUMNPARENT = 3;
     public String start;
     public static final int START = 4;
-    public String end;
-    public static final int END = 5;
+    public String finish;
+    public static final int FINISH = 5;
     public int count;
     public static final int COUNT = 6;
 
@@ -2304,7 +2304,7 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(END, new FieldMetaData("end", TFieldRequirementType.DEFAULT, 
+      put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
@@ -2324,7 +2324,7 @@ public class Cassandra {
       String key,
       String columnParent,
       String start,
-      String end,
+      String finish,
       int count)
     {
       this();
@@ -2332,7 +2332,7 @@ public class Cassandra {
       this.key = key;
       this.columnParent = columnParent;
       this.start = start;
-      this.end = end;
+      this.finish = finish;
       this.count = count;
       this.__isset.count = true;
     }
@@ -2353,8 +2353,8 @@ public class Cassandra {
       if (other.isSetStart()) {
         this.start = other.start;
       }
-      if (other.isSetEnd()) {
-        this.end = other.end;
+      if (other.isSetFinish()) {
+        this.finish = other.finish;
       }
       __isset.count = other.__isset.count;
       this.count = other.count;
@@ -2457,26 +2457,26 @@ public class Cassandra {
       }
     }
 
-    public String getEnd() {
-      return this.end;
+    public String getFinish() {
+      return this.finish;
     }
 
-    public void setEnd(String end) {
-      this.end = end;
+    public void setFinish(String finish) {
+      this.finish = finish;
     }
 
-    public void unsetEnd() {
-      this.end = null;
+    public void unsetFinish() {
+      this.finish = null;
     }
 
-    // Returns true if field end is set (has been asigned a value) and false otherwise
-    public boolean isSetEnd() {
-      return this.end != null;
+    // Returns true if field finish is set (has been asigned a value) and false otherwise
+    public boolean isSetFinish() {
+      return this.finish != null;
     }
 
-    public void setEndIsSet(boolean value) {
+    public void setFinishIsSet(boolean value) {
       if (!value) {
-        this.end = null;
+        this.finish = null;
       }
     }
 
@@ -2536,11 +2536,11 @@ public class Cassandra {
         }
         break;
 
-      case END:
+      case FINISH:
         if (value == null) {
-          unsetEnd();
+          unsetFinish();
         } else {
-          setEnd((String)value);
+          setFinish((String)value);
         }
         break;
 
@@ -2571,8 +2571,8 @@ public class Cassandra {
       case START:
         return getStart();
 
-      case END:
-        return getEnd();
+      case FINISH:
+        return getFinish();
 
       case COUNT:
         return new Integer(getCount());
@@ -2593,8 +2593,8 @@ public class Cassandra {
         return isSetColumnParent();
       case START:
         return isSetStart();
-      case END:
-        return isSetEnd();
+      case FINISH:
+        return isSetFinish();
       case COUNT:
         return isSetCount();
       default:
@@ -2651,12 +2651,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_end = true && this.isSetEnd();
-      boolean that_present_end = true && that.isSetEnd();
-      if (this_present_end || that_present_end) {
-        if (!(this_present_end && that_present_end))
+      boolean this_present_finish = true && this.isSetFinish();
+      boolean that_present_finish = true && that.isSetFinish();
+      if (this_present_finish || that_present_finish) {
+        if (!(this_present_finish && that_present_finish))
           return false;
-        if (!this.end.equals(that.end))
+        if (!this.finish.equals(that.finish))
           return false;
       }
 
@@ -2716,9 +2716,9 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case END:
+          case FINISH:
             if (field.type == TType.STRING) {
-              this.end = iprot.readString();
+              this.finish = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2768,9 +2768,9 @@ public class Cassandra {
         oprot.writeString(this.start);
         oprot.writeFieldEnd();
       }
-      if (this.end != null) {
-        oprot.writeFieldBegin(END_FIELD_DESC);
-        oprot.writeString(this.end);
+      if (this.finish != null) {
+        oprot.writeFieldBegin(FINISH_FIELD_DESC);
+        oprot.writeString(this.finish);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(COUNT_FIELD_DESC);
@@ -2817,11 +2817,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("end:");
-      if (this.end == null) {
+      sb.append("finish:");
+      if (this.finish == null) {
         sb.append("null");
       } else {
-        sb.append(this.end);
+        sb.append(this.finish);
       }
       first = false;
       if (!first) sb.append(", ");
