@@ -18,21 +18,15 @@
 
 package org.apache.cassandra.db;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
 
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
-import org.apache.cassandra.service.*;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.concurrent.*;
+
 import org.apache.cassandra.net.*;
 
 /**
@@ -82,7 +76,8 @@ public class RowMutationVerbHandler implements IVerbHandler
             }
 
             rowMutationCtx.row_.clear();
-            rowMutationCtx.row_.key(rm.key());
+            rowMutationCtx.row_.setTable(rm.table());
+            rowMutationCtx.row_.setKey(rm.key());
             rm.apply(rowMutationCtx.row_);
 
             WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);

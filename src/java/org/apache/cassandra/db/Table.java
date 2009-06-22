@@ -659,7 +659,7 @@ public class Table
     */
     public Row getSliceFrom(String key, String cf, boolean isAscending, int count) throws IOException
     {
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         String cfName = values[0];
         String startWith = values.length > 1 ? values[1] : "";

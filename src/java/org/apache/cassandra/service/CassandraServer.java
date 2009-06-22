@@ -227,7 +227,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("get_column requires non-empty columnfamily");
         }
-        if (DatabaseDescriptor.getColumnFamilyType(null, values[0]).equals("Standard"))
+        if (DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
         {
             if (values.length != 2)
             {

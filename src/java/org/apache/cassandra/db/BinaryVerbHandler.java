@@ -52,7 +52,7 @@ public class BinaryVerbHandler implements IVerbHandler
 	    {
             RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(rowMutationCtx.buffer_);
             RowMutation rm = rmMsg.getRowMutation();            	                
-            rowMutationCtx.row_.key(rm.key());
+            rowMutationCtx.row_.setKey(rm.key());
             rm.applyBinary(rowMutationCtx.row_);
 	
 	    }        

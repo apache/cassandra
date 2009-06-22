@@ -38,42 +38,45 @@ public class Row
 {
     private static Logger logger_ = Logger.getLogger(Row.class);
     private String table_;
+    private static RowSerializer serializer = new RowSerializer();
 
-    public Row(String table_, String key) {
-        this.table_ = table_;
+    static RowSerializer serializer()
+    {
+        return serializer;
+    }
+
+    public Row(String table, String key) {
+        assert table != null;
+        this.table_ = table;
         this.key_ = key;
+    }
+
+    // only for use by RMVH
+    Row()
+    {
     }
 
     public String getTable() {
         return table_;
     }
 
-    static RowSerializer serializer()
-    {
-        return new RowSerializer();
-    }
-
     private String key_;
 
     private Map<String, ColumnFamily> columnFamilies_ = new HashMap<String, ColumnFamily>();
-
-    protected Row()
-    {
-    }
-
-    public Row(String key)
-    {
-        key_ = key;
-    }
 
     public String key()
     {
         return key_;
     }
 
-    void key(String key)
+    void setKey(String key)
     {
         key_ = key;
+    }
+
+    public void setTable(String table)
+    {
+        table_ = table;
     }
 
     public Set<String> getColumnFamilyNames()
