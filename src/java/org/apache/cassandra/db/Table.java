@@ -79,6 +79,18 @@ public class Table
         private static IFileWriter writer_;
         private static IFileReader reader_;
         private static HashMap<String,TableMetadata> tableMetadataMap_ = new HashMap<String,TableMetadata>();
+        private static Map<Integer, String> idCfMap_ = new HashMap<Integer, String>();
+        static
+        {
+            try
+            {
+                DatabaseDescriptor.storeMetadata();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
 
         private static TableMetadata getTableMetadata(String table)
         {
@@ -140,7 +152,6 @@ public class Table
         /* The mapping between column family and the column type. */
         private Map<String, String> cfTypeMap_ = new HashMap<String, String>();
         private Map<String, Integer> cfIdMap_ = new HashMap<String, Integer>();
-        private Map<Integer, String> idCfMap_ = new HashMap<Integer, String>();        
         
         private static String getFileName(String table)
         {
@@ -154,6 +165,8 @@ public class Table
         
         public void add(String cf, int id, String type)
         {
+            logger_.debug("adding " + cf + " as " + id);
+            assert !idCfMap_.containsKey(id);
             cfIdMap_.put(cf, id);
             idCfMap_.put(id, cf);
             cfTypeMap_.put(cf, type);
@@ -169,7 +182,7 @@ public class Table
             return cfIdMap_.get(columnFamily);
         }
 
-        String getColumnFamilyName(int id)
+        public static String getColumnFamilyName(int id)
         {
             return idCfMap_.get(id);
         }
@@ -346,7 +359,7 @@ public class Table
             }
         }
         
-        private Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts)
+        private Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts) throws IOException
         {
             /* 
              * Mapping for each file with unique CF-i ---> new file name. For eg.
@@ -405,7 +418,7 @@ public class Table
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies_;
 
-    public static Table open(String table)
+    public static Table open(String table) throws IOException
     {
         Table tableInstance = instances_.get(table);
         /*
@@ -574,22 +587,14 @@ public class Table
         return list;
     }
 
-    private Table(String table)
+    private Table(String table) throws IOException
     {
         table_ = table;
         dbAnalyticsSource_ = new DBAnalyticsSource();
-        try
+        tableMetadata_ = Table.TableMetadata.instance(table);
+        for (String columnFamily : tableMetadata_.getColumnFamilies())
         {
-            tableMetadata_ = Table.TableMetadata.instance(table);
-            Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
-            for ( String columnFamily : columnFamilies )
-            {
-                columnFamilyStores_.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
-            }
-        }
-        catch ( IOException ex )
-        {
-            logger_.info(LogUtil.throwableToString(ex));
+            columnFamilyStores_.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
         }
     }
 

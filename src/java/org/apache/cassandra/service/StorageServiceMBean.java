@@ -37,7 +37,7 @@ public interface StorageServiceMBean
     public Map<Range, List<EndPoint>> getRangeToEndPointMap();
     public String getLoadInfo();
     public int getCurrentGenerationNumber();
-    public void forceTableCompaction();
+    public void forceTableCompaction() throws IOException;
     
     /**
      * This method will cause the local node initiate
@@ -54,7 +54,7 @@ public interface StorageServiceMBean
     /**
      * 
      */
-    public void forceTableCleanup();
+    public void forceTableCleanup() throws IOException;
 
     /**
      * Stream the files in the bootstrap directory over to the

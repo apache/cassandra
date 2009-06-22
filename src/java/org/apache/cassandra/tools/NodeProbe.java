@@ -228,7 +228,7 @@ public class NodeProbe
     /**
      * Trigger a cleanup of keys on all tables.
      */
-    public void forceTableCleanup()
+    public void forceTableCleanup() throws IOException
     {
         ssProxy.forceTableCleanup();
     }
@@ -236,7 +236,7 @@ public class NodeProbe
     /**
      * Trigger compaction of all tables.
      */
-    public void forceTableCompaction()
+    public void forceTableCompaction() throws IOException
     {
         ssProxy.forceTableCompaction();
     }
@@ -372,7 +372,7 @@ public class NodeProbe
     /**
      * @param args
      */
-    public static void main(String[] args)
+    public static void main(String[] args) throws IOException
     {
         NodeProbe probe = null;
         try

@@ -84,10 +84,9 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new TableNotDefinedException("Table " + tablename + " does not exist in this schema.");
         }
-        Table table = Table.open(tablename);
         for (String cfName : columnFamilyNames)
         {
-            if (!table.getColumnFamilies().contains(cfName))
+            if (DatabaseDescriptor.getColumnType(tablename, cfName) == null)
             {
                 throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " is invalid.");
             }

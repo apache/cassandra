@@ -146,8 +146,7 @@ class CommitLogHeader
         {
             sb.append((dirty.get(i) ? 0 : 1));
             sb.append(":");
-            Table table = Table.open( DatabaseDescriptor.getTables().get(0));
-            sb.append(table.getColumnFamilyName(i));
+            sb.append(Table.TableMetadata.getColumnFamilyName(i));
             sb.append(" ");
         }        
         sb.append(" | " );        

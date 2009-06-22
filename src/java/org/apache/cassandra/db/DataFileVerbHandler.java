@@ -42,11 +42,11 @@ public class DataFileVerbHandler implements IVerbHandler
         String table = new String(bytes);
         logger_.info("**** Received a request from " + message.getFrom());
         
-        List<String> allFiles = Table.open(table).getAllSSTablesOnDisk();        
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
         try
         {
+            List<String> allFiles = Table.open(table).getAllSSTablesOnDisk();
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(bos);
             dos.writeInt(allFiles.size());
             for ( String file : allFiles )
             {
@@ -55,9 +55,9 @@ public class DataFileVerbHandler implements IVerbHandler
             Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bos.toByteArray());
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
         }
-        catch ( IOException ex )
+        catch (IOException ex)
         {
-            logger_.warn(LogUtil.throwableToString(ex));
+            logger_.error("Error listing data files", ex);
         }
     }
 }

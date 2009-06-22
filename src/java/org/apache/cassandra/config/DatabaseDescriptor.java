@@ -439,15 +439,6 @@ public class DatabaseDescriptor
         {
             throw new RuntimeException(e);
         }
-        
-        try
-        {
-            storeMetadata();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
     
 
@@ -456,9 +447,9 @@ public class DatabaseDescriptor
      * the table name and the column families that make up the table.
      * Each column family also has an associated ID which is an int.
     */
-    private static void storeMetadata() throws IOException
+    public static void storeMetadata() throws IOException
     {
-        AtomicInteger idGenerator = new AtomicInteger(0);
+        int cfId = 0;
         Set<String> tables = tableToCFMetaDataMap_.keySet();
 
         for ( String table : tables )
@@ -472,23 +463,32 @@ public class DatabaseDescriptor
 
                 for (String columnFamily : columnFamilies.keySet())
                 {
-                    tmetadata.add(columnFamily, idGenerator.getAndIncrement(), DatabaseDescriptor.getColumnType(table, columnFamily));
+                    tmetadata.add(columnFamily, cfId++, DatabaseDescriptor.getColumnType(table, columnFamily));
                 }
 
                 /*
                  * Here we add all the system related column families.
                 */
                 /* Add the TableMetadata column family to this map. */
-                tmetadata.add(Table.TableMetadata.cfName_, idGenerator.getAndIncrement());
+                tmetadata.add(Table.TableMetadata.cfName_, cfId++);
                 /* Add the LocationInfo column family to this map. */
-                tmetadata.add(SystemTable.cfName_, idGenerator.getAndIncrement());
+                tmetadata.add(SystemTable.cfName_, cfId++);
                 /* Add the recycle column family to this map. */
-                tmetadata.add(Table.recycleBin_, idGenerator.getAndIncrement());
+                tmetadata.add(Table.recycleBin_, cfId++);
                 /* Add the Hints column family to this map. */
-                tmetadata.add(Table.hints_, idGenerator.getAndIncrement(), ColumnFamily.getColumnType("Super"));
+                tmetadata.add(Table.hints_, cfId++, ColumnFamily.getColumnType("Super"));
                 tmetadata.apply();
-                idGenerator.set(0);
             }
+
+            /*
+             * Here we add all the system related column families.
+            */
+            /* Add the LocationInfo column family to this map. */
+            tmetadata.add(SystemTable.cfName_, cfId++);
+            /* Add the recycle column family to this map. */
+            tmetadata.add(Table.recycleBin_, cfId++);
+            /* Add the Hints column family to this map. */
+            tmetadata.add(Table.hints_, cfId++, ColumnFamily.getColumnType("Super"));
         }
     }
 

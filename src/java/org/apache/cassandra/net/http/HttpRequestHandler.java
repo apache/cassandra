@@ -88,15 +88,22 @@ public class HttpRequestHandler implements Runnable
     {
         logger_.debug("Handling " + request_.getMethod());
         HttpWriteResponse httpServerResponse = new HttpWriteResponse(request_);
-        if(request_.getMethod().toUpperCase().equals("GET"))
+        try
         {
+            if(request_.getMethod().toUpperCase().equals("GET"))
+            {
             // handle the get request type
-            doGet(request_, httpServerResponse);
+                doGet(request_, httpServerResponse);
+            }
+            else if(request_.getMethod().toUpperCase().equals("POST"))
+            {
+                // handle the POST request type
+                doPost(request_, httpServerResponse);
+            }
         }
-        else if(request_.getMethod().toUpperCase().equals("POST"))
+        catch (IOException e)
         {
-            // handle the POST request type
-            doPost(request_, httpServerResponse);
+            throw new RuntimeException(e);
         }
 
         // write the response we have constructed into the socket
@@ -106,7 +113,7 @@ public class HttpRequestHandler implements Runnable
         request_.getHttpConnection().write(buffer);
     }
 
-    private void doGet(org.apache.cassandra.net.http.HttpRequest httpRequest, HttpWriteResponse httpResponse)
+    private void doGet(org.apache.cassandra.net.http.HttpRequest httpRequest, HttpWriteResponse httpResponse) throws IOException
     {
         boolean fServeSummary = true;
         HTMLFormatter formatter = new HTMLFormatter();
@@ -175,7 +182,7 @@ public class HttpRequestHandler implements Runnable
      * As a result of the POST query, we currently only send back some
      * javascript that updates the data in some place on the browser.
     */
-    private void doPost(org.apache.cassandra.net.http.HttpRequest httpRequest, HttpWriteResponse httpResponse)
+    private void doPost(org.apache.cassandra.net.http.HttpRequest httpRequest, HttpWriteResponse httpResponse) throws IOException
     {
         String query = httpRequest.getQuery();
 
@@ -215,7 +222,7 @@ public class HttpRequestHandler implements Runnable
     	httpResponse.println(formatter.toString());
     }
 
-    private String handleNodeDetails()
+    private String handleNodeDetails() throws IOException
     {
         HTMLFormatter formatter = new HTMLFormatter();
 
@@ -248,7 +255,7 @@ public class HttpRequestHandler implements Runnable
         return formatter.toString();
     }
 
-    private void displayDBStatistics(HTMLFormatter formatter, java.text.DecimalFormat df)
+    private void displayDBStatistics(HTMLFormatter formatter, java.text.DecimalFormat df) throws IOException
     {
 
         List<String> tables = DatabaseDescriptor.getTables();
@@ -269,7 +276,7 @@ public class HttpRequestHandler implements Runnable
         }
     }
 
-    private String handlePageDisplay(String queryFormData, String insertFormData, String scriptFormData)
+    private String handlePageDisplay(String queryFormData, String insertFormData, String scriptFormData) throws IOException
     {
     	StringBuilder sb = new StringBuilder();
 		sb.append("\n<div id=\"header\"> \n");
@@ -404,7 +411,7 @@ public class HttpRequestHandler implements Runnable
     /*
      * Returns the HTML code for a form to query data from the db cluster.
      */
-    private String serveQueryForm(String queryResult)
+    private String serveQueryForm(String queryResult) throws IOException
     {
         HTMLFormatter formatter = new HTMLFormatter();
         formatter.appendLine("<BR><fieldset><legend>Query the cluster</legend>");
@@ -453,7 +460,7 @@ public class HttpRequestHandler implements Runnable
     /*
      * Returns the HTML code for a form to insert data into the db cluster.
      */
-    private String serveInsertForm(String insertResult)
+    private String serveInsertForm(String insertResult) throws IOException
     {
         HTMLFormatter formatter = new HTMLFormatter();
         formatter.appendLine("<BR><fieldset>\n<legend>Insert data into the cluster</legend>\n");
@@ -481,7 +488,7 @@ public class HttpRequestHandler implements Runnable
     /*
      * Handle the query of some data from the client.
      */
-    private String handleQuery(org.apache.cassandra.net.http.HttpRequest httpRequest)
+    private String handleQuery(org.apache.cassandra.net.http.HttpRequest httpRequest) throws IOException
     {
     	boolean fQuerySuccess = false;
     	String sRetVal = "";
@@ -535,7 +542,7 @@ public class HttpRequestHandler implements Runnable
     /*
      * Handle the query of some data from the client.
      */
-    private String handleInsert(org.apache.cassandra.net.http.HttpRequest httpRequest)
+    private String handleInsert(org.apache.cassandra.net.http.HttpRequest httpRequest) throws IOException
     {
     	boolean fInsertSuccess = false;
     	String sRetVal = "";
@@ -577,7 +584,7 @@ public class HttpRequestHandler implements Runnable
     /*
      * Handle the script to be run on the server.
      */
-    private String handleScript(org.apache.cassandra.net.http.HttpRequest httpRequest)
+    private String handleScript(org.apache.cassandra.net.http.HttpRequest httpRequest) throws IOException
     {
     	boolean fQuerySuccess = false;
     	String sRetVal = "";
@@ -678,7 +685,7 @@ public class HttpRequestHandler implements Runnable
         return "Loading...";
     }
 
-    private String handleCompactMe()
+    private String handleCompactMe() throws IOException
     {
         Table table = Table.open(DatabaseDescriptor.getTables().get(0));
         table.forceCompaction();

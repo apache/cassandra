@@ -157,9 +157,9 @@ public class HintedHandOffManager
         // 7. I guess we r done
         for ( String tableName:DatabaseDescriptor.getTables() )
         {
-            Table table = Table.open(tableName);
             try
             {
+                Table table = Table.open(tableName);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(table.get(key_, Table.hints_), Integer.MAX_VALUE);
                 if (hintColumnFamily == null)
                 {
@@ -194,7 +194,7 @@ public class HintedHandOffManager
             }
             catch (Exception ex)
             {
-                logger_.error(ex.getMessage());
+                logger_.error("error delivering hints", ex);
             }
             finally
             {
@@ -212,9 +212,9 @@ public class HintedHandOffManager
         // 3. Delete that recepient from the key if write was successful
         for ( String tableName:DatabaseDescriptor.getTables() )
         {
-            Table table = Table.open(tableName);
             try
             {
+                Table table = Table.open(tableName);
                 ColumnFamily hintedColumnFamily = table.get(key_, Table.hints_);
                 if (hintedColumnFamily == null)
                 {
@@ -244,7 +244,7 @@ public class HintedHandOffManager
             }
             catch (Exception ex)
             {
-                logger_.error(ex.getMessage());
+                logger_.error("Error delivering hints", ex);
             }
             finally
             {

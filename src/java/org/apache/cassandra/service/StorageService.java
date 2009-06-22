@@ -681,7 +681,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         doBootstrap(nodes);
     }
     
-    public void forceTableCleanup()
+    public void forceTableCleanup() throws IOException
     {
         List<String> tables = DatabaseDescriptor.getTables();
         for ( String tName : tables )
@@ -694,7 +694,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     /**
      * Trigger the immediate compaction of all tables.
      */
-    public void forceTableCompaction()
+    public void forceTableCompaction() throws IOException
     {
         List<String> tables = DatabaseDescriptor.getTables();
         for ( String tName : tables )
