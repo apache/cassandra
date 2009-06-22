@@ -355,11 +355,8 @@ public class CommitLog
             int id = table.getColumnFamilyId(columnFamily.name());
             if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
             {
-                if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
-                {
-                    clHeader_.turnOn(id, logWriter_.getCurrentPosition());
-                    writeCommitLogHeader(clHeader_.toByteArray(), true);
-                }
+                clHeader_.turnOn(id, logWriter_.getCurrentPosition());
+                writeCommitLogHeader(clHeader_.toByteArray(), true);
             }
         }
     }
@@ -446,14 +443,14 @@ public class CommitLog
             else
                 return;
         }
+
         /*
-         * We do any processing only if there is a change in the position in the context.
-         * This can happen if an older Memtable's flush comes in after a newer Memtable's
-         * flush. Right now this cannot happen since Memtables are flushed on a single
-         * thread.
+         * log replay assumes that we only have to look at entries past the last
+         * flush position, so verify that this flush happens after the last.
+         * (Currently Memtables are flushed on a single thread so this should be fine.)
         */
-        if ( cLogCtx.position < commitLogHeader.getPosition(id) )
-            return;
+        assert cLogCtx.position >= commitLogHeader.getPosition(id);
+
         commitLogHeader.turnOff(id);
         /* Sort the commit logs based on creation time */
         List<String> oldFiles = new ArrayList<String>(clHeaders_.keySet());
@@ -511,23 +508,17 @@ public class CommitLog
             /* Rolls the current log file over to a new one. */
             setNextFileName();
             String oldLogFile = logWriter_.getFileName();
-            //history_.add(oldLogFile);
             logWriter_.close();
 
             /* point reader/writer to a new commit log file. */
-            // logWriter_ = SequenceFile.writer(logFile_);
             logWriter_ = CommitLog.createWriter(logFile_);
             /* squirrel away the old commit log header */
             clHeaders_.put(oldLogFile, new CommitLogHeader(clHeader_));
-            /*
-             * We need to zero out positions because the positions in
-             * the old file do not make sense in the new one.
-            */
+            // we leave the old 'dirty' bits alone, so we can test for
+            // whether it's safe to remove a given log segment by and-ing its dirty
+            // with the current one.
             clHeader_.zeroPositions();
             writeCommitLogHeader(clHeader_.toByteArray(), false);
-            // Get the list of files in commit log directory if it is greater than a certain number
-            // Force flush all the column families that way we ensure that a slowly populated column family is not screwing up
-            // by accumulating the commit logs .
         }
     }
 }
