@@ -150,13 +150,13 @@ public class SSTable
      * associated with these files. Also caches the file handles 
      * associated with these files.
     */
-    public static void onStart(List<String> filenames, String tableName) throws IOException
+    public static void onStart(List<String> filenames) throws IOException
     {
         for (String filename : filenames)
         {
             try
             {
-                new SSTable(filename, tableName, StorageService.getPartitioner());
+                new SSTable(filename, StorageService.getPartitioner());
             }
             catch (IOException ex)
             {
@@ -205,17 +205,15 @@ public class SSTable
     private String lastWrittenKey_;
     private IPartitioner partitioner_;
 
-    private String table_;
     /**
      * This ctor basically gets passed in the full path name
      * of the data file associated with this SSTable. Use this
      * ctor to read the data in this file.
      */
-    public SSTable(String dataFileName, String tableName, IPartitioner partitioner) throws IOException
+    public SSTable(String dataFileName, IPartitioner partitioner) throws IOException
     {
         dataFile_ = dataFileName;
         partitioner_ = partitioner;
-        table_ = tableName;
         /*
          * this is to prevent multiple threads from
          * loading the same index files multiple times
@@ -237,13 +235,18 @@ public class SSTable
      * This ctor is used for writing data into the SSTable. Use this
      * version for non DB writes to the SSTable.
      */
-    public SSTable(String directory, String filename, String tableName, IPartitioner partitioner) throws IOException
+    public SSTable(String directory, String filename, IPartitioner partitioner) throws IOException
     {
         dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";
         partitioner_ = partitioner;
         dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4 * 1024 * 1024);
-        table_ = tableName;
         indexRAF_ = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
+    }
+
+    static String parseTableName(String filename)
+    {
+        String[] parts = new File(filename).getName().split("-"); // table, cf, index, [filetype]
+        return parts[0];
     }
 
     private void loadBloomFilter() throws IOException
@@ -477,7 +480,7 @@ public class SSTable
         IFileReader dataReader = null;
         try
         {
-            dataReader = SequenceFile.reader(dataFile_, table_);
+            dataReader = SequenceFile.reader(dataFile_);
             String decoratedKey = partitioner_.decorateKey(clientKey);
             long position = getPosition(decoratedKey, dataReader, partitioner_);
 
@@ -559,22 +562,19 @@ public class SSTable
      */
     public ColumnGroupReader getColumnGroupReader(String key, String cfName, String startColumn, boolean isAscending) throws IOException
     {
-        ColumnGroupReader reader = null;
-        IFileReader dataReader = SequenceFile.reader(table_, dataFile_);
+        IFileReader dataReader = SequenceFile.reader(dataFile_);
 
         try
         {
             /* Morph key into actual key based on the partition type. */
             String decoratedKey = partitioner_.decorateKey(key);
             long position = getPosition(decoratedKey, dataReader, partitioner_);
-            reader = new ColumnGroupReader(dataFile_, decoratedKey, cfName, startColumn, isAscending, position);
+            return new ColumnGroupReader(dataFile_, decoratedKey, cfName, startColumn, isAscending, position);
         }
         finally
         {
-            if (dataReader != null)
-                dataReader.close();
+            dataReader.close();
         }
-        return reader;
     }
 
     /** obviously only for testing */

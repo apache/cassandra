@@ -96,8 +96,7 @@ public final class ColumnFamily
     {
         Comparator<IColumn> comparator;
         String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
-        if ("Super".equals(columnType)
-            || DatabaseDescriptor.isNameSortingEnabled(tableName, cfName))
+        if (DatabaseDescriptor.isNameSortingEnabled(tableName, cfName))
         {
             comparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
         }
@@ -299,10 +298,6 @@ public final class ColumnFamily
         return table_;
     }
 
-    public void setTable_(String table_) {
-        this.table_ = table_;
-    }
-
     /*
      * This function will calculate the difference between 2 column families.
      * The external input is assumed to be a superset of internal.
@@ -349,7 +344,7 @@ public final class ColumnFamily
         return columns_.getComparator();
     }
 
-    private ColumnComparatorFactory.ComparatorType getComparatorType()
+    public ColumnComparatorFactory.ComparatorType getComparatorType()
     {
         return getComparator() == ColumnComparatorFactory.nameComparator_
                ? ColumnComparatorFactory.ComparatorType.NAME

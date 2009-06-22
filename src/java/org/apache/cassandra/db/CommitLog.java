@@ -272,7 +272,7 @@ public class CommitLog
         for (File file : clogs)
         {
             // IFileReader reader = SequenceFile.bufferedReader(file.getAbsolutePath(), DatabaseDescriptor.getLogFileSizeThreshold());
-            IFileReader reader = SequenceFile.reader(table_, file.getAbsolutePath());
+            IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
             try
             {
                 CommitLogHeader clHeader = readCommitLogHeader(reader);

@@ -57,8 +57,7 @@ public class ColumnIndexer
         dos.write(bufOut.getData(), 0, bufOut.getLength());
 
         /* Do the indexing */
-        TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(columnFamily.getTable(), columnFamily.name());
-        doIndexing(typeInfo, columns, dos);        
+        doIndexing(columnFamily.getComparatorType(), columns, dos);
 	}
     
     /**
@@ -92,30 +91,14 @@ public class ColumnIndexer
         return bf;
     }
     
-    private static IndexHelper.ColumnIndexInfo getColumnIndexInfo(TypeInfo typeInfo, IColumn column)
+    private static IndexHelper.ColumnIndexInfo getColumnIndexInfo(ColumnComparatorFactory.ComparatorType typeInfo, IColumn column)
     {
         IndexHelper.ColumnIndexInfo cIndexInfo = null;
         
-        if ( column instanceof SuperColumn )
-        {
-            cIndexInfo = IndexHelper.ColumnIndexFactory.instance(TypeInfo.STRING);            
-            cIndexInfo.set(column.name());
-        }
-        else
-        {
-            cIndexInfo = IndexHelper.ColumnIndexFactory.instance(typeInfo);                        
-            switch(typeInfo)
-            {
-                case STRING:
-                    cIndexInfo.set(column.name());                        
-                    break;
-                    
-                case LONG:
-                    cIndexInfo.set(column.timestamp());                        
-                    break;
-            }
-        }
-        
+        cIndexInfo = IndexHelper.ColumnIndexFactory.instance(typeInfo);
+        cIndexInfo.set(typeInfo == ColumnComparatorFactory.ComparatorType.NAME
+                       ? column.name() : column.timestamp());
+
         return cIndexInfo;
     }
 
@@ -124,13 +107,11 @@ public class ColumnIndexer
      * the name index is generated and written into the provided
      * stream
      * @param columns for whom the name index needs to be generated
-     * @param bf bloom filter that summarizes the columns that make
-     *           up the column family.
      * @param dos stream into which the serialized name index needs
      *            to be written.
      * @throws IOException
      */
-    private static void doIndexing(TypeInfo typeInfo, Collection<IColumn> columns, DataOutputStream dos) throws IOException
+    private static void doIndexing(ColumnComparatorFactory.ComparatorType typeInfo, Collection<IColumn> columns, DataOutputStream dos) throws IOException
     {
         /* we are going to write column indexes */
         int numColumns = 0;

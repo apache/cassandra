@@ -37,6 +37,19 @@ public class TableTest extends CleanupHelper
     private static final String TEST_KEY = "key1";
     private static final String TABLE_NAME = "Table1";
 
+    interface Runner
+    {
+        public void run() throws Exception;
+    }
+
+    private void reTest(Runner setup, ColumnFamilyStore cfs, Runner verify) throws Exception
+    {
+        setup.run();
+        verify.run();
+        cfs.forceBlockingFlush();
+        verify.run();
+    }
+
     @Test
     public void testOpen() throws Throwable {
         Table table = Table.open("Mailbox");
@@ -47,40 +60,66 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetRowSingleColumn() throws Throwable
     {
-        Table table = Table.open(TABLE_NAME);
-        RowMutation rm = makeSimpleRowMutation();
-        rm.apply();
-        Row result = table.getRow(TEST_KEY, "Standard1:col1");
-        ColumnFamily cres = result.getColumnFamily("Standard1");
-        assertNotNull(cres);
-        assertEquals(1, cres.getColumnCount());
-        assertNotNull(cres.getColumn("col1"));
+        final Table table = Table.open(TABLE_NAME);
+        Runner setup = new Runner()
+        {
+            public void run() throws Exception
+            {
+                RowMutation rm = makeSimpleRowMutation();
+                rm.apply();
+            }
+        };
+        Runner verify = new Runner()
+        {
+            public void run() throws Exception
+            {
+                Row result;
+
+                result = table.getRow(TEST_KEY, "Standard1:col1");
+                assertColumns(result.getColumnFamily("Standard1"), "col1");
+
+                result = table.getRow(TEST_KEY, "Standard1:col3");
+                assertColumns(result.getColumnFamily("Standard1"), "col3");
+            }
+        };
+        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
     }
     
     @Test
     public void testGetRowOffsetCount() throws Throwable
     {
-        Table table = Table.open(TABLE_NAME);
-        
-        RowMutation rm = makeSimpleRowMutation(); //inserts col1, col2, col3
+        final Table table = Table.open(TABLE_NAME);
 
-        
-        rm.apply();
-        Row result = table.getRow(TEST_KEY, "Standard1", 0, 2);
-        ColumnFamily cres = result.getColumnFamily("Standard1");
-        assertNotNull(cres);
-        assertEquals(cres.getColumnCount(), 2);
-        // should have col1 and col2
-        assertNotNull(cres.getColumn("col1"));
-        assertNotNull(cres.getColumn("col2"));
+        Runner setup = new Runner()
+        {
+            public void run() throws Exception
+            {
+                RowMutation rm = makeSimpleRowMutation(); //inserts col1, col2, col3
+                rm.apply();
+            }
+        };
+        Runner verify = new Runner()
+        {
+            public void run() throws Exception
+            {
+                Row result = table.getRow(TEST_KEY, "Standard1", 0, 2);
+                ColumnFamily cres = result.getColumnFamily("Standard1");
+                assertNotNull(cres);
+                assertEquals(cres.getColumnCount(), 2);
+                // should have col1 and col2
+                assertNotNull(cres.getColumn("col1"));
+                assertNotNull(cres.getColumn("col2"));
 
-        result = table.getRow(TEST_KEY, "Standard1", 1, 2);
-        cres = result.getColumnFamily("Standard1");
-        assertNotNull(cres);
-        assertEquals(2, cres.getColumnCount());
-        // offset is 1, so we should have col2 and col3
-        assertNotNull(cres.getColumn("col2"));
-        assertNotNull(cres.getColumn("col3"));
+                result = table.getRow(TEST_KEY, "Standard1", 1, 2);
+                cres = result.getColumnFamily("Standard1");
+                assertNotNull(cres);
+                assertEquals(2, cres.getColumnCount());
+                // offset is 1, so we should have col2 and col3
+                assertNotNull(cres.getColumn("col2"));
+                assertNotNull(cres.getColumn("col3"));
+            }
+        };
+        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
     }
     
     @Test
@@ -251,57 +290,114 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromBasic() throws Throwable
     {
         // tests slicing against data from one row in a memtable and then flushed to an sstable
-        Table table = Table.open(TABLE_NAME);
-        String ROW = "row1";
-        RowMutation rm = new RowMutation(TABLE_NAME, ROW);
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
-        cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
-        cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
-        cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
-        cf.addColumn(new Column("col7", "val7".getBytes(), 1L));
-        cf.addColumn(new Column("col9", "val9".getBytes(), 1L));
-        rm.add(cf);
-        rm.apply();
-        
-        rm = new RowMutation(TABLE_NAME, ROW);
-        rm.delete("Standard1:col4", 2L);
-        rm.apply();
+        final Table table = Table.open(TABLE_NAME);
+        final String ROW = "row1";
+        Runner setup = new Runner()
+        {
+            public void run() throws Exception
+            {
+                RowMutation rm = new RowMutation(TABLE_NAME, ROW);
+                ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+                cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
+                cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
+                cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
+                cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
+                cf.addColumn(new Column("col7", "val7".getBytes(), 1L));
+                cf.addColumn(new Column("col9", "val9".getBytes(), 1L));
+                rm.add(cf);
+                rm.apply();
 
-        validateGetSliceFromBasic(table, ROW);
-        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        validateGetSliceFromBasic(table, ROW);        
+                rm = new RowMutation(TABLE_NAME, ROW);
+                rm.delete("Standard1:col4", 2L);
+                rm.apply();
+            }
+        };
+
+        Runner verify = new Runner()
+        {
+            public void run() throws Exception
+            {
+                Row result;
+                ColumnFamily cf;
+
+                result = table.getSliceFrom(ROW, "Standard1:col5", true, 2);
+                cf = result.getColumnFamily("Standard1");
+                assertColumns(cf, "col5", "col7");
+
+                result = table.getSliceFrom(ROW, "Standard1:col4", true, 2);
+                cf = result.getColumnFamily("Standard1");
+                assertColumns(cf, "col4", "col5", "col7");
+
+                result = table.getSliceFrom(ROW, "Standard1:col5", false, 2);
+                cf = result.getColumnFamily("Standard1");
+                assertColumns(cf, "col3", "col4", "col5");
+
+                result = table.getSliceFrom(ROW, "Standard1:col6", false, 2);
+                cf = result.getColumnFamily("Standard1");
+                assertColumns(cf, "col3", "col4", "col5");
+
+                result = table.getSliceFrom(ROW, "Standard1:col95", true, 2);
+                cf = result.getColumnFamily("Standard1");
+                assertColumns(cf);
+
+                result = table.getSliceFrom(ROW, "Standard1:col0", false, 2);
+                cf = result.getColumnFamily("Standard1");
+                assertColumns(cf);
+            }
+        };
+
+        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
     public void testGetSliceFromAdvanced() throws Throwable
     {
         // tests slicing against data from one row spread across two sstables
-        Table table = Table.open(TABLE_NAME);
-        String ROW = "row2";
-        RowMutation rm = new RowMutation(TABLE_NAME, ROW);
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
-        cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
-        cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
-        cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
-        cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
-        cf.addColumn(new Column("col6", "val6".getBytes(), 1L));
-        rm.add(cf);
-        rm.apply();
-        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        
-        rm = new RowMutation(TABLE_NAME, ROW);
-        cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn(new Column("col1", "valx".getBytes(), 2L));
-        cf.addColumn(new Column("col2", "valx".getBytes(), 2L));
-        cf.addColumn(new Column("col3", "valx".getBytes(), 2L));
-        rm.add(cf);
-        rm.apply();
+        final Table table = Table.open(TABLE_NAME);
+        final String ROW = "row2";
+        Runner setup = new Runner()
+        {
+            public void run() throws Exception
+            {
+                RowMutation rm = new RowMutation(TABLE_NAME, ROW);
+                ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+                cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
+                cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
+                cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
+                cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
+                cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
+                cf.addColumn(new Column("col6", "val6".getBytes(), 1L));
+                rm.add(cf);
+                rm.apply();
+                table.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
-        validateGetSliceFromAdvanced(table, ROW);
-        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        validateGetSliceFromAdvanced(table, ROW);
+                rm = new RowMutation(TABLE_NAME, ROW);
+                cf = ColumnFamily.create("Table1", "Standard1");
+                cf.addColumn(new Column("col1", "valx".getBytes(), 2L));
+                cf.addColumn(new Column("col2", "valx".getBytes(), 2L));
+                cf.addColumn(new Column("col3", "valx".getBytes(), 2L));
+                rm.add(cf);
+                rm.apply();
+            }
+        };
+
+        Runner verify = new Runner()
+        {
+            public void run() throws Exception
+            {
+                Row result;
+                ColumnFamily cfres;
+
+                result = table.getSliceFrom(ROW, "Standard1:col2", true, 3);
+                cfres = result.getColumnFamily("Standard1");
+                assertColumns(cfres, "col2", "col3", "col4");
+                assertEquals(new String(cfres.getColumn("col2").value()), "valx");
+                assertEquals(new String(cfres.getColumn("col3").value()), "valx");
+                assertEquals(new String(cfres.getColumn("col4").value()), "val4");
+            }
+        };
+
+        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
@@ -362,46 +458,4 @@ public class TableTest extends CleanupHelper
                 : "Columns [" + StringUtils.join(columns, ", ") + "] is not expected [" + StringUtils.join(columnNames, ", ") + "]";
     }
 
-    private void validateGetSliceFromAdvanced(Table table, String row) throws Throwable
-    {
-        Row result;
-        ColumnFamily cfres;
-
-        result = table.getSliceFrom(row, "Standard1:col2", true, 3);
-        cfres = result.getColumnFamily("Standard1");
-        assertColumns(cfres, "col2", "col3", "col4");
-        assertEquals(new String(cfres.getColumn("col2").value()), "valx");
-        assertEquals(new String(cfres.getColumn("col3").value()), "valx");
-        assertEquals(new String(cfres.getColumn("col4").value()), "val4");
-    }
-
-    private void validateGetSliceFromBasic(Table table, String row) throws Throwable
-    {
-        Row result;
-        ColumnFamily cf;
-
-        result = table.getSliceFrom(row, "Standard1:col5", true, 2);
-        cf = result.getColumnFamily("Standard1");
-        assertColumns(cf, "col5", "col7");
-
-        result = table.getSliceFrom(row, "Standard1:col4", true, 2);
-        cf = result.getColumnFamily("Standard1");
-        assertColumns(cf, "col4", "col5", "col7");
-
-        result = table.getSliceFrom(row, "Standard1:col5", false, 2);
-        cf = result.getColumnFamily("Standard1");
-        assertColumns(cf, "col3", "col4", "col5");
-
-        result = table.getSliceFrom(row, "Standard1:col6", false, 2);
-        cf = result.getColumnFamily("Standard1");
-        assertColumns(cf, "col3", "col4", "col5");
-
-        result = table.getSliceFrom(row, "Standard1:col95", true, 2);
-        cf = result.getColumnFamily("Standard1");
-        assertColumns(cf);
-
-        result = table.getSliceFrom(row, "Standard1:col0", false, 2);
-        cf = result.getColumnFamily("Standard1");
-        assertColumns(cf);
-    }
 }

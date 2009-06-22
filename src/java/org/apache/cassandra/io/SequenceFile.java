@@ -516,6 +516,8 @@ public class SequenceFile
     {
         private String key_;
         private String cfName_;
+        private String cfType_;
+        private int indexType_;
         private boolean isAscending_;
 
         private List<IndexHelper.ColumnIndexInfo> columnIndexList_;
@@ -585,16 +587,18 @@ public class SequenceFile
                 /* read the index */
                 List<IndexHelper.ColumnIndexInfo> colIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
                 if (hasColumnIndexes)
-                    totalBytesRead += IndexHelper.deserializeIndex(null, cfName_, file_, colIndexList);
+                    totalBytesRead += IndexHelper.deserializeIndex(getTableName(), cfName_, file_, colIndexList);
 
                 /* need to do two things here.
                  * 1. move the file pointer to the beginning of the list of stored columns
                  * 2. calculate the size of all columns */
                 String cfName = file_.readUTF();
+                cfType_ = file_.readUTF();
+                indexType_ = file_.readInt();
                 localDeletionTime_ = file_.readInt();
                 markedForDeleteAt_ = file_.readLong();
                 int totalNumCols = file_.readInt();
-                allColumnsSize_ = dataSize - (totalBytesRead + utfPrefix_ + cfName.length() + 4 + 8 + 4);
+                allColumnsSize_ = dataSize - (totalBytesRead + 2 * utfPrefix_ + cfName.length() + cfType_.length() + 4 + 4 + 8 + 4);
 
                 columnStartPosition_ = file_.getFilePointer();
                 columnIndexList_ = getFullColumnIndexList(colIndexList, totalNumCols);
@@ -627,6 +631,8 @@ public class SequenceFile
             bufOut.reset();
             // write CF info
             bufOut.writeUTF(cfName_);
+            bufOut.writeUTF(cfType_);
+            bufOut.writeInt(indexType_);
             bufOut.writeInt(localDeletionTime_);
             bufOut.writeLong(markedForDeleteAt_);
             // now write the columns
@@ -651,12 +657,15 @@ public class SequenceFile
         private static final short utfPrefix_ = 2;
         protected RandomAccessFile file_;
         protected String filename_;
-        private String table_;
 
-        AbstractReader(String filename, String tableName)
+        AbstractReader(String filename)
         {
             filename_ = filename;
-            table_ = tableName;
+        }
+
+        String getTableName()
+        {
+            return SSTable.parseTableName(filename_);
         }
 
         public String getFileName()
@@ -703,10 +712,11 @@ public class SequenceFile
             /* if we do then deserialize the index */
             if (hasColumnIndexes)
             {
-                if (DatabaseDescriptor.isNameSortingEnabled(table_, cfName) || DatabaseDescriptor.getColumnFamilyType(table_, cfName).equals("Super"))
+                String tableName = getTableName();
+                if (DatabaseDescriptor.isNameSortingEnabled(tableName, cfName))
                 {
                     /* read the index */
-                    totalBytesRead += IndexHelper.deserializeIndex(table_, cfName, file_, columnIndexList);
+                    totalBytesRead += IndexHelper.deserializeIndex(tableName, cfName, file_, columnIndexList);
                 }
                 else
                 {
@@ -734,7 +744,7 @@ public class SequenceFile
                 if (DatabaseDescriptor.isTimeSortingEnabled(null, cfName))
                 {
                     /* read the index */
-                    totalBytesRead += IndexHelper.deserializeIndex(table_, cfName, file_, columnIndexList);
+                    totalBytesRead += IndexHelper.deserializeIndex(getTableName(), cfName, file_, columnIndexList);
                 }
                 else
                 {
@@ -832,6 +842,12 @@ public class SequenceFile
             String cfName = file_.readUTF();
             dataSize -= (utfPrefix_ + cfName.length());
 
+            String cfType = file_.readUTF();
+            dataSize -= (utfPrefix_ + cfType.length());
+
+            int indexType = file_.readInt();
+            dataSize -= 4;
+
             /* read local deletion time */
             int localDeletionTime = file_.readInt();
             dataSize -=4;
@@ -852,19 +868,13 @@ public class SequenceFile
             file_.skipBytes((int) coordinate.start_);
             dataSize = (int) (coordinate.end_ - coordinate.start_);
 
-            /*
-             * write the number of columns in the column family we are returning:
-             *  dataSize that we are reading +
-             *  length of column family name +
-             *  one booleanfor deleted or not +
-             *  one int for number of columns
-            */
-            bufOut.writeInt(dataSize + utfPrefix_ + cfName.length() + 4 + 8 + 4);
-            /* write the column family name */
+            // returned data size
+            bufOut.writeInt(dataSize + utfPrefix_ * 2 + cfName.length() + cfType.length() + 4 + 4 + 8 + 4);
+            // echo back the CF data we read
             bufOut.writeUTF(cfName);
-            /* write local deletion time */
+            bufOut.writeUTF(cfType);
+            bufOut.writeInt(indexType);
             bufOut.writeInt(localDeletionTime);
-            /* write if this cf is marked for delete */
             bufOut.writeLong(markedForDeleteAt);
             /* write number of columns */
             bufOut.writeInt(columnRange.count());
@@ -911,6 +921,12 @@ public class SequenceFile
                 String cfName = file_.readUTF();
                 dataSize -= (utfPrefix_ + cfName.length());
 
+                String cfType = file_.readUTF();
+                dataSize -= (utfPrefix_ + cfType.length());
+
+                int indexType = file_.readInt();
+                dataSize -= 4;
+
                 /* read local deletion time */
                 int localDeletionTime = file_.readInt();
                 dataSize -=4;
@@ -940,19 +956,13 @@ public class SequenceFile
                     dataSizeReturned += coordinate.end_ - coordinate.start_;
                 }
 
-                /*
-                 * write the number of columns in the column family we are returning:
-                 * 	dataSize that we are reading +
-                 * 	length of column family name +
-                 * 	one booleanfor deleted or not +
-                 * 	one int for number of columns
-                */
-                bufOut.writeInt(dataSizeReturned + utfPrefix_ + cfName.length() + 4 + 8 + 4);
-                /* write the column family name */
+                // returned data size
+                bufOut.writeInt(dataSizeReturned + utfPrefix_ * 2 + cfName.length() + cfType.length() + 4 + 4 + 8 + 4);
+                // echo back the CF data we read
                 bufOut.writeUTF(cfName);
-                /* write local deletion time */
+                bufOut.writeUTF(cfType);
+                bufOut.writeInt(indexType);
                 bufOut.writeInt(localDeletionTime);
-                /* write if this cf is marked for delete */
                 bufOut.writeLong(markedForDeleteAt);
                 /* write number of columns */
                 bufOut.writeInt(numColsReturned);
@@ -1012,9 +1022,9 @@ public class SequenceFile
 
     public static class Reader extends AbstractReader
     {
-        Reader(String filename, String tableName) throws IOException
+        Reader(String filename) throws IOException
         {
-            super(filename, tableName);
+            super(filename);
             init(filename);
         }
 
@@ -1077,7 +1087,7 @@ public class SequenceFile
 
         BufferReader(String filename, int size) throws IOException
         {
-            super(filename, null);
+            super(filename);
             size_ = size;
         }
 
@@ -1106,9 +1116,9 @@ public class SequenceFile
         return new FastConcurrentWriter(filename, size);
     }
 
-    public static IFileReader reader(String filename, String tableName) throws IOException
+    public static IFileReader reader(String filename) throws IOException
     {
-        return new Reader(filename, tableName);
+        return new Reader(filename);
     }
 
     public static IFileReader bufferedReader(String filename, int size) throws IOException

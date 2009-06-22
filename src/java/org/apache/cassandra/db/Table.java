@@ -92,7 +92,7 @@ public class Table
             {
                 String file = getFileName(table);
                 writer_ = SequenceFile.writer(file);        
-                reader_ = SequenceFile.reader(file, table);
+                reader_ = SequenceFile.reader(file);
                 Table.TableMetadata.load(table);
 
                 metadata = new Table.TableMetadata();
@@ -118,7 +118,7 @@ public class Table
                 
                 if ( reader_ == null )
                 {
-                    reader_ = SequenceFile.reader(file, table);
+                    reader_ = SequenceFile.reader(file);
                 }
                 
                 while ( !reader_.isEOF() )
@@ -962,7 +962,7 @@ public class Table
             // sstables
             for (String filename : cfs.getSSTableFilenames())
             {
-                FileStruct fs = new FileStruct(SequenceFile.reader(filename, table_), StorageService.getPartitioner());
+                FileStruct fs = new FileStruct(SequenceFile.reader(filename), StorageService.getPartitioner());
                 fs.seekTo(startWith);
                 iterators.add(fs);
             }

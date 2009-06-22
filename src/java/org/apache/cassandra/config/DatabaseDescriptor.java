@@ -358,6 +358,10 @@ public class DatabaseDescriptor
                     {
                         throw new ConfigurationException("invalid column sort value " + rawColumnIndexType);
                     }
+                    if ("Super".equals(columnType) && !"Name".equals(columnIndexType))
+                    {
+                        throw new ConfigurationException("Super columnfamilies may only be name-sorted");
+                    }
 
                     // see if flush period is set
                     String flushPeriodInMinutes = XMLUtils.getAttributeValue(columnFamily, "FlushPeriodInMinutes");
@@ -816,17 +820,17 @@ public class DatabaseDescriptor
         return dataFileDirectory;
     }
     
-    public static TypeInfo getTypeInfo(String tableName, String cfName)
+    public static ColumnComparatorFactory.ComparatorType getTypeInfo(String tableName, String cfName)
     {
         assert tableName != null;
         CFMetaData cfMetadata = DatabaseDescriptor.getCFMetaData(tableName, cfName);
         if ( cfMetadata.indexProperty_.equals("Name") )
         {
-            return TypeInfo.STRING;
+            return ColumnComparatorFactory.ComparatorType.NAME;
         }
         else
         {
-            return TypeInfo.LONG;
+            return ColumnComparatorFactory.ComparatorType.TIMESTAMP;
         }
     }
 

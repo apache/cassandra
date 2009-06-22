@@ -58,7 +58,7 @@ class SSTableColumnIterator extends AbstractIterator<IColumn> implements ColumnI
     throws IOException
     {
         this.isAscending = isAscending;
-        SSTable ssTable = new SSTable(filename, null, StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(filename, StorageService.getPartitioner());
         reader = ssTable.getColumnGroupReader(key, cfName, startColumn, isAscending);
         this.startColumn = startColumn;
         curColumnIndex = isAscending ? 0 : -1;

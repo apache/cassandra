@@ -82,7 +82,7 @@ public class SystemTable
         table_ = table;
         String systemTable = getFileName();
         writer_ = SequenceFile.writer(systemTable);
-        reader_ = SequenceFile.reader(systemTable, table);
+        reader_ = SequenceFile.reader(systemTable);
     }
 
     private String getFileName()

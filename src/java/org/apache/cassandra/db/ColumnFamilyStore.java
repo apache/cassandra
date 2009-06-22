@@ -188,7 +188,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         /* There are no files to compact just add to the list of SSTables */
         ssTables_.addAll(filenames);
         /* Load the index files and the Bloom Filters associated with them. */
-        SSTable.onStart(filenames, table_);
+        SSTable.onStart(filenames);
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
         if (columnFamily_.equals(Table.hints_))
         {
@@ -577,7 +577,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, String ssTableFile) throws IOException
     {
-        SSTable ssTable = new SSTable(ssTableFile, null, StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(ssTableFile, StorageService.getPartitioner());
         DataInputBuffer bufIn;
         bufIn = filter.next(key, cf, ssTable);
         if (bufIn.getLength() == 0)
@@ -1119,15 +1119,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (ssTableRange == null)
                     {
                         String [] temp = null;
-                        String tableName;
-                        temp = rangeFileLocation.split("-");
-                        tableName = temp[0];
                         if (target != null)
                         {
                             rangeFileLocation = rangeFileLocation + System.getProperty("file.separator") + "bootstrap";
                         }
                         FileUtils.createDirectory(rangeFileLocation);
-                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, tableName, StorageService.getPartitioner());
+                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, StorageService.getPartitioner());
                     }
                     try
                     {
@@ -1323,7 +1320,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (ssTable == null)
                 {
-                    ssTable = new SSTable(compactionFileLocation, mergedFileName, null, StorageService.getPartitioner());
+                    ssTable = new SSTable(compactionFileLocation, mergedFileName, StorageService.getPartitioner());
                 }
                 ssTable.append(lastkey, bufOut);
 

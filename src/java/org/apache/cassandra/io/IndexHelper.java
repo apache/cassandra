@@ -26,7 +26,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.TypeInfo;
+import org.apache.cassandra.db.ColumnComparatorFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -152,12 +152,8 @@ public class IndexHelper
         DataInputBuffer indexIn = new DataInputBuffer();
         indexIn.reset(indexOut.getData(), indexOut.getLength());
         
-        TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(tableName, cfName);
-        if ( DatabaseDescriptor.getColumnFamilyType(tableName, cfName).equals("Super") || DatabaseDescriptor.isNameSortingEnabled(tableName, cfName) )
-        {
-            typeInfo = TypeInfo.STRING;
-        }
-        
+        ColumnComparatorFactory.ComparatorType typeInfo = DatabaseDescriptor.getTypeInfo(tableName, cfName);
+
         while(indexIn.available() > 0)
         {            
             ColumnIndexInfo cIndexInfo = ColumnIndexFactory.instance(typeInfo);
@@ -281,7 +277,7 @@ public class IndexHelper
          *  binary search.        
         */        
         Comparator<IndexHelper.ColumnIndexInfo> comparator = Collections.reverseOrder(); 
-        IndexHelper.ColumnIndexInfo rhs = IndexHelper.ColumnIndexFactory.instance(TypeInfo.LONG);
+        IndexHelper.ColumnIndexInfo rhs = IndexHelper.ColumnIndexFactory.instance(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
         rhs.set(timeRange.rhs());
         int index = Collections.binarySearch(columnIndexList, rhs, comparator);
         if ( index < 0 )
@@ -307,7 +303,7 @@ public class IndexHelper
         {            
             int chunks = columnIndexList.size();
             /* Index info for the lower bound of the time range */
-            IndexHelper.ColumnIndexInfo lhs = IndexHelper.ColumnIndexFactory.instance(TypeInfo.LONG);
+            IndexHelper.ColumnIndexInfo lhs = IndexHelper.ColumnIndexFactory.instance(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
             lhs.set(timeRange.lhs());
             int i = index + 1;
             for ( ; i < chunks; ++i )
@@ -339,21 +335,11 @@ public class IndexHelper
     
     public static class ColumnIndexFactory
     {
-        public static ColumnIndexInfo instance(TypeInfo typeInfo)
+        public static ColumnIndexInfo instance(ColumnComparatorFactory.ComparatorType typeInfo)
         {
-            ColumnIndexInfo cIndexInfo = null;
-            switch(typeInfo)
-            {
-                case STRING:
-                    cIndexInfo = new ColumnNameIndexInfo();
-                    break;
-                    
-                case LONG:
-                    cIndexInfo = new ColumnTimestampIndexInfo();
-                    break;
-            }
-            return cIndexInfo;
-        }    
+            return typeInfo == ColumnComparatorFactory.ComparatorType.NAME
+                    ? new ColumnNameIndexInfo() : new ColumnTimestampIndexInfo();
+        }
     }
     
     /**

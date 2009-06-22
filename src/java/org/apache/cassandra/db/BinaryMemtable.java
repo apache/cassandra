@@ -145,7 +145,7 @@ public class BinaryMemtable
          * Use the SSTable to write the contents of the TreeMap
          * to disk.
         */
-        SSTable ssTable = new SSTable(directory, filename, null, StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
         Collections.sort(keys);        
         /* Use this BloomFilter to decide if a key exists in a SSTable */
