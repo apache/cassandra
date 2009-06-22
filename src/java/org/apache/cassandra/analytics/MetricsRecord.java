@@ -80,7 +80,7 @@ public class MetricsRecord {
 	 * @throws MetricsException if the tagName conflicts with the configuration
 	 */
 	public void setTag(String tagName, int tagValue) {
-		tagTable.put(tagName, new Integer(tagValue));
+		tagTable.put(tagName, Integer.valueOf(tagValue));
 	}
 
 	/**
@@ -91,7 +91,7 @@ public class MetricsRecord {
 	 * @throws MetricsException if the tagName conflicts with the configuration
 	 */
 	public void setTag(String tagName, short tagValue) {
-		tagTable.put(tagName, new Short(tagValue));
+		tagTable.put(tagName, Short.valueOf(tagValue));
 	}
 
 	/**
@@ -103,7 +103,7 @@ public class MetricsRecord {
 	 */
 	public void setTag(String tagName, byte tagValue)
 	{
-		tagTable.put(tagName, new Byte(tagValue));
+		tagTable.put(tagName, Byte.valueOf(tagValue));
 	}
 
 	/**
@@ -116,7 +116,7 @@ public class MetricsRecord {
 	 */
 	public void setMetric(String metricName, int metricValue)
 	{
-		setAbsolute(metricName, new Integer(metricValue));
+		setAbsolute(metricName, Integer.valueOf(metricValue));
 	}
 
 	/**
@@ -129,7 +129,7 @@ public class MetricsRecord {
 	 */
 	public void setMetric(String metricName, short metricValue)
 	{
-		setAbsolute(metricName, new Short(metricValue));
+		setAbsolute(metricName, Short.valueOf(metricValue));
 	}
 
 	/**
@@ -142,7 +142,7 @@ public class MetricsRecord {
 	 */
 	public void setMetric(String metricName, byte metricValue)
 	{
-		setAbsolute(metricName, new Byte(metricValue));
+		setAbsolute(metricName, Byte.valueOf(metricValue));
 	}
 
 	/**
@@ -155,7 +155,7 @@ public class MetricsRecord {
 	 */
 	public void setMetric(String metricName, float metricValue)
 	{
-		setAbsolute(metricName, new Float(metricValue));
+		setAbsolute(metricName, Float.valueOf(metricValue));
 	}
 
 	/**
@@ -168,7 +168,7 @@ public class MetricsRecord {
 	 */
 	public void incrMetric(String metricName, int metricValue)
 	{
-		setIncrement(metricName, new Integer(metricValue));
+		setIncrement(metricName, Integer.valueOf(metricValue));
 	}
 
 	/**
@@ -181,7 +181,7 @@ public class MetricsRecord {
 	 */
 	public void incrMetric(String metricName, short metricValue)
 	{
-		setIncrement(metricName, new Short(metricValue));
+		setIncrement(metricName, Short.valueOf(metricValue));
 	}
 
 	/**
@@ -194,7 +194,7 @@ public class MetricsRecord {
 	 */
 	public void incrMetric(String metricName, byte metricValue)
 	{
-		setIncrement(metricName, new Byte(metricValue));
+		setIncrement(metricName, Byte.valueOf(metricValue));
 	}
 
 	/**
@@ -207,7 +207,7 @@ public class MetricsRecord {
 	 */
 	public void incrMetric(String metricName, float metricValue)
 	{
-		setIncrement(metricName, new Float(metricValue));
+		setIncrement(metricName, Float.valueOf(metricValue));
 	}
 
 	/**

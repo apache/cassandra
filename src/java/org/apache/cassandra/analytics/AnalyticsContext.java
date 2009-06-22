@@ -628,19 +628,19 @@ public class AnalyticsContext
 	{
 		if (a instanceof Integer)
 		{
-			return new Integer(a.intValue() + b.intValue());
+			return Integer.valueOf(a.intValue() + b.intValue());
 		}
 		else if (a instanceof Float)
 		{
-			return new Float(a.floatValue() + b.floatValue());
+			return Float.valueOf(a.floatValue() + b.floatValue());
 		}
 		else if (a instanceof Short)
 		{
-			return new Short((short)(a.shortValue() + b.shortValue()));
+			return Short.valueOf((short)(a.shortValue() + b.shortValue()));
 		}
 		else if (a instanceof Byte)
 		{
-			return new Byte((byte)(a.byteValue() + b.byteValue()));
+			return Byte.valueOf((byte)(a.byteValue() + b.byteValue()));
 		}
 		else
 		{
