@@ -36,12 +36,21 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class Row
 {
-    private static RowSerializer serializer_ = new RowSerializer();
     private static Logger logger_ = Logger.getLogger(Row.class);
+    private String table_;
 
-    static RowSerializer serializer()
+    public Row(String table_, String key) {
+        this.table_ = table_;
+        this.key_ = key;
+    }
+
+    public String getTable() {
+        return table_;
+    }
+
+    static RowSerializer serializer(String tableName)
     {
-        return serializer_;
+        return new RowSerializer(tableName);
     }
 
     private String key_;
@@ -130,7 +139,7 @@ public class Row
      */
     public Row diff(Row rowComposite)
     {
-        Row rowDiff = new Row(key_);
+        Row rowDiff = new Row(table_, key_);
 
         for (ColumnFamily cfComposite : rowComposite.getColumnFamilies())
         {
@@ -152,7 +161,7 @@ public class Row
 
     public Row cloneMe()
     {
-        Row row = new Row(key_);
+        Row row = new Row(table_, key_);
         row.columnFamilies_ = new HashMap<String, ColumnFamily>(columnFamilies_);
         return row;
     }
@@ -188,6 +197,12 @@ public class Row
 
 class RowSerializer implements ICompactSerializer<Row>
 {
+    private String table_;
+
+    public RowSerializer(String tableName)
+    {
+        this.table_ = tableName;
+    }
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
         dos.writeUTF(row.key());
@@ -207,7 +222,7 @@ class RowSerializer implements ICompactSerializer<Row>
     public Row deserialize(DataInputStream dis) throws IOException
     {
         String key = dis.readUTF();
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         int size = dis.readInt();
 
         if (size > 0)

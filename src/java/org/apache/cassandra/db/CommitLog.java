@@ -272,7 +272,7 @@ public class CommitLog
         for (File file : clogs)
         {
             // IFileReader reader = SequenceFile.bufferedReader(file.getAbsolutePath(), DatabaseDescriptor.getLogFileSizeThreshold());
-            IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
+            IFileReader reader = SequenceFile.reader(table_, file.getAbsolutePath());
             try
             {
                 CommitLogHeader clHeader = readCommitLogHeader(reader);
@@ -299,7 +299,7 @@ public class CommitLog
                     /* read the commit log entry */
                     try
                     {                        
-                        Row row = Row.serializer().deserialize(bufIn);
+                        Row row = Row.serializer(table_).deserialize(bufIn);
                         Table table = Table.open(table_);
                         tablesRecovered.add(table);
                         Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
@@ -382,7 +382,7 @@ public class CommitLog
         {
             /* serialize the row */
             cfBuffer.reset();
-            Row.serializer().serialize(row, cfBuffer);
+            Row.serializer(table_).serialize(row, cfBuffer);
             currentPosition = logWriter_.getCurrentPosition();
             cLogCtx = new CommitLogContext(logFile_, currentPosition);
             /* Update the header */

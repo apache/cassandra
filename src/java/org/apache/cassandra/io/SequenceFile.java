@@ -506,7 +506,7 @@ public class SequenceFile
         }
     }
 
-    
+
     /**
      *  This is a reader that finds the block for a starting column and returns
      *  blocks before/after it for each next call. This function assumes that
@@ -585,7 +585,7 @@ public class SequenceFile
                 /* read the index */
                 List<IndexHelper.ColumnIndexInfo> colIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
                 if (hasColumnIndexes)
-                    totalBytesRead += IndexHelper.deserializeIndex(cfName_, file_, colIndexList);
+                    totalBytesRead += IndexHelper.deserializeIndex(null, cfName_, file_, colIndexList);
 
                 /* need to do two things here.
                  * 1. move the file pointer to the beginning of the list of stored columns
@@ -651,10 +651,12 @@ public class SequenceFile
         private static final short utfPrefix_ = 2;
         protected RandomAccessFile file_;
         protected String filename_;
+        private String table_;
 
-        AbstractReader(String filename)
+        AbstractReader(String filename, String tableName)
         {
             filename_ = filename;
+            table_ = tableName;
         }
 
         public String getFileName()
@@ -701,10 +703,10 @@ public class SequenceFile
             /* if we do then deserialize the index */
             if (hasColumnIndexes)
             {
-                if (DatabaseDescriptor.isNameSortingEnabled(cfName) || DatabaseDescriptor.getColumnFamilyType(cfName).equals("Super"))
+                if (DatabaseDescriptor.isNameSortingEnabled(table_, cfName) || DatabaseDescriptor.getColumnFamilyType(table_, cfName).equals("Super"))
                 {
                     /* read the index */
-                    totalBytesRead += IndexHelper.deserializeIndex(cfName, file_, columnIndexList);
+                    totalBytesRead += IndexHelper.deserializeIndex(table_, cfName, file_, columnIndexList);
                 }
                 else
                 {
@@ -729,10 +731,10 @@ public class SequenceFile
             /* if we do then deserialize the index */
             if (hasColumnIndexes)
             {
-                if (DatabaseDescriptor.isTimeSortingEnabled(cfName))
+                if (DatabaseDescriptor.isTimeSortingEnabled(null, cfName))
                 {
                     /* read the index */
-                    totalBytesRead += IndexHelper.deserializeIndex(cfName, file_, columnIndexList);
+                    totalBytesRead += IndexHelper.deserializeIndex(table_, cfName, file_, columnIndexList);
                 }
                 else
                 {
@@ -829,7 +831,7 @@ public class SequenceFile
             /* read the column family name */
             String cfName = file_.readUTF();
             dataSize -= (utfPrefix_ + cfName.length());
-            
+
             /* read local deletion time */
             int localDeletionTime = file_.readInt();
             dataSize -=4;
@@ -997,10 +999,10 @@ public class SequenceFile
 
             /*
              * If we have read the bloom filter in the data
-             * file we know we are at the end of the file 
+             * file we know we are at the end of the file
              * and no further key processing is required. So
              * we return -1 indicating we are at the end of
-             * the file. 
+             * the file.
             */
             if (key.equals(SequenceFile.marker_))
                 bytesRead = -1L;
@@ -1010,9 +1012,9 @@ public class SequenceFile
 
     public static class Reader extends AbstractReader
     {
-        Reader(String filename) throws IOException
+        Reader(String filename, String tableName) throws IOException
         {
-            super(filename);
+            super(filename, tableName);
             init(filename);
         }
 
@@ -1075,7 +1077,7 @@ public class SequenceFile
 
         BufferReader(String filename, int size) throws IOException
         {
-            super(filename);
+            super(filename, null);
             size_ = size;
         }
 
@@ -1104,9 +1106,9 @@ public class SequenceFile
         return new FastConcurrentWriter(filename, size);
     }
 
-    public static IFileReader reader(String filename) throws IOException
+    public static IFileReader reader(String filename, String tableName) throws IOException
     {
-        return new Reader(filename);
+        return new Reader(filename, tableName);
     }
 
     public static IFileReader bufferedReader(String filename, int size) throws IOException

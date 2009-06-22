@@ -57,7 +57,7 @@ public class ColumnIndexer
         dos.write(bufOut.getData(), 0, bufOut.getLength());
 
         /* Do the indexing */
-        TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(columnFamily.name());        
+        TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(columnFamily.getTable(), columnFamily.name());
         doIndexing(typeInfo, columns, dos);        
 	}
     

@@ -459,16 +459,16 @@ public class DatabaseDescriptor
 
         for ( String table : tables )
         {
-            Table.TableMetadata tmetadata = Table.TableMetadata.instance();
+            Table.TableMetadata tmetadata = Table.TableMetadata.instance(table);
             if (tmetadata.isEmpty())
             {
-                tmetadata = Table.TableMetadata.instance();
+                tmetadata = Table.TableMetadata.instance(table);
                 /* Column families associated with this table */
                 Map<String, CFMetaData> columnFamilies = tableToCFMetaDataMap_.get(table);
 
                 for (String columnFamily : columnFamilies.keySet())
                 {
-                    tmetadata.add(columnFamily, idGenerator.getAndIncrement(), DatabaseDescriptor.getColumnType(columnFamily));
+                    tmetadata.add(columnFamily, idGenerator.getAndIncrement(), DatabaseDescriptor.getColumnType(table, columnFamily));
                 }
 
                 /*
@@ -580,9 +580,10 @@ public class DatabaseDescriptor
     	return sb.toString();
     }
     
-    public static Map<String, CFMetaData> getTableMetaData(String table)
+    public static Map<String, CFMetaData> getTableMetaData(String tableName)
     {
-        return tableToCFMetaDataMap_.get(table);
+        assert tableName != null;
+        return tableToCFMetaDataMap_.get(tableName);
     }
 
     /*
@@ -590,19 +591,20 @@ public class DatabaseDescriptor
      * meta data. If the table name or column family name is not valid
      * this function returns null.
      */
-    public static CFMetaData getCFMetaData(String table, String cfName)
+    public static CFMetaData getCFMetaData(String tableName, String cfName)
     {
-        Map<String, CFMetaData> cfInfo = tableToCFMetaDataMap_.get(table);
+        assert tableName != null;
+        Map<String, CFMetaData> cfInfo = tableToCFMetaDataMap_.get(tableName);
         if (cfInfo == null)
             return null;
         
         return cfInfo.get(cfName);
     }
     
-    public static String getColumnType(String cfName)
+    public static String getColumnType(String tableName, String cfName)
     {
-        String table = getTables().get(0);
-        CFMetaData cfMetaData = getCFMetaData(table, cfName);
+        assert tableName != null;
+        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
         
         if (cfMetaData == null)
             return null;
@@ -611,6 +613,7 @@ public class DatabaseDescriptor
 
     public static int getFlushPeriod(String tableName, String columnFamilyName)
     {
+        assert tableName != null;
         CFMetaData cfMetaData = getCFMetaData(tableName, columnFamilyName);
         
         if (cfMetaData == null)
@@ -618,10 +621,10 @@ public class DatabaseDescriptor
         return cfMetaData.flushPeriodInMinutes;
     }
 
-    public static boolean isNameSortingEnabled(String cfName)
+    public static boolean isNameSortingEnabled(String tableName, String cfName)
     {
-        String table = getTables().get(0);
-        CFMetaData cfMetaData = getCFMetaData(table, cfName);
+        assert tableName != null;
+        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
 
         if (cfMetaData == null)
             return false;
@@ -629,21 +632,27 @@ public class DatabaseDescriptor
     	return "Name".equals(cfMetaData.indexProperty_);
     }
     
-    public static boolean isTimeSortingEnabled(String cfName)
+    public static boolean isTimeSortingEnabled(String tableName, String cfName)
     {
-        String table = getTables().get(0);
-        CFMetaData cfMetaData = getCFMetaData(table, cfName);
+        assert tableName != null;
+        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
 
         if (cfMetaData == null)
             return false;
 
         return "Time".equals(cfMetaData.indexProperty_);
     }
-    
 
     public static List<String> getTables()
     {
         return tables_;
+    }
+
+    public static String getTable(String tableName)
+    {
+        assert tableName != null;
+        int index = getTables().indexOf(tableName);
+        return index >= 0 ? getTables().get(index) : null;
     }
 
     public static void  setTables(String table)
@@ -764,9 +773,10 @@ public class DatabaseDescriptor
         return seeds_;
     }
 
-    public static String getColumnFamilyType(String cfName)
+    public static String getColumnFamilyType(String tableName, String cfName)
     {
-        String cfType = getColumnType(cfName);
+        assert tableName != null;
+        String cfType = getColumnType(tableName, cfName);
         if ( cfType == null )
             cfType = "Standard";
     	return cfType;
@@ -806,10 +816,10 @@ public class DatabaseDescriptor
         return dataFileDirectory;
     }
     
-    public static TypeInfo getTypeInfo(String cfName)
+    public static TypeInfo getTypeInfo(String tableName, String cfName)
     {
-        String table = DatabaseDescriptor.getTables().get(0);
-        CFMetaData cfMetadata = DatabaseDescriptor.getCFMetaData(table, cfName);
+        assert tableName != null;
+        CFMetaData cfMetadata = DatabaseDescriptor.getCFMetaData(tableName, cfName);
         if ( cfMetadata.indexProperty_.equals("Name") )
         {
             return TypeInfo.STRING;

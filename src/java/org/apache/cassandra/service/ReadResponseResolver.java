@@ -121,7 +121,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         }
         
         /* Now calculate the resolved row */
-		retRow = new Row(key);		
+		retRow = new Row(table, key);
 		for (int i = 0 ; i < rowList.size(); i++)
 		{
 			retRow.repair(rowList.get(i));			

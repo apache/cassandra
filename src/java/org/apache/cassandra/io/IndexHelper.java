@@ -131,12 +131,12 @@ public class IndexHelper
     
     /**
      * Deserialize the index into a structure and return the number of bytes read.
-     * @param in Input from which the serialized form of the index is read
-     * @param columnIndexList the structure which is filled in with the deserialized index
-     * @return number of bytes read from the input
+     * @param tableName
+     *@param in Input from which the serialized form of the index is read
+     * @param columnIndexList the structure which is filled in with the deserialized index   @return number of bytes read from the input
      * @throws IOException
      */
-	static int deserializeIndex(String cfName, DataInput in, List<ColumnIndexInfo> columnIndexList) throws IOException
+	static int deserializeIndex(String tableName, String cfName, DataInput in, List<ColumnIndexInfo> columnIndexList) throws IOException
 	{
 		/* read only the column index list */
 		int columnIndexSize = in.readInt();
@@ -152,8 +152,8 @@ public class IndexHelper
         DataInputBuffer indexIn = new DataInputBuffer();
         indexIn.reset(indexOut.getData(), indexOut.getLength());
         
-        TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(cfName);
-        if ( DatabaseDescriptor.getColumnFamilyType(cfName).equals("Super") || DatabaseDescriptor.isNameSortingEnabled(cfName) )
+        TypeInfo typeInfo = DatabaseDescriptor.getTypeInfo(tableName, cfName);
+        if ( DatabaseDescriptor.getColumnFamilyType(tableName, cfName).equals("Super") || DatabaseDescriptor.isNameSortingEnabled(tableName, cfName) )
         {
             typeInfo = TypeInfo.STRING;
         }

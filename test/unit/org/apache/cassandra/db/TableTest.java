@@ -89,7 +89,7 @@ public class TableTest extends CleanupHelper
         Table table = Table.open("Table1");
         
         RowMutation rm = new RowMutation(TABLE_NAME,KEY2);
-        ColumnFamily cf = new ColumnFamily("Standard1","Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         // First write 5, 6
         cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
         cf.addColumn(new Column("col6", "val6".getBytes(), 1L));
@@ -104,7 +104,7 @@ public class TableTest extends CleanupHelper
         // Flushed memtable to disk, we're now inserting into a new memtable
 
         rm = new RowMutation(TABLE_NAME, KEY2);
-        cf = new ColumnFamily("Standard1","Standard");
+        cf = ColumnFamily.create("Table1", "Standard1");
         // now write 7, 8, 4 into new memtable
         cf.addColumn(new Column("col7", "val7".getBytes(), 1L));
         cf.addColumn(new Column("col8", "val8".getBytes(), 1L));
@@ -137,7 +137,7 @@ public class TableTest extends CleanupHelper
     	String key = TEST_KEY+"slicerow";
     	Table table = Table.open(TABLE_NAME);
     	RowMutation rm = new RowMutation(TABLE_NAME,key);
-        ColumnFamily cf = new ColumnFamily("Standard1","Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(new Column("a", "val1".getBytes(), 1L));
         cf.addColumn(new Column("b", "val2".getBytes(), 1L));
@@ -165,7 +165,7 @@ public class TableTest extends CleanupHelper
         Table table = Table.open(TABLE_NAME);
         
         RowMutation rm = new RowMutation(TABLE_NAME,TEST_KEY);
-        ColumnFamily cf = new ColumnFamily("Super1","Super");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Super1");
         SuperColumn sc1 = new SuperColumn("sc1");
         sc1.addColumn(new Column("col1","val1".getBytes(), 1L));
         sc1.addColumn(new Column("col2","val2".getBytes(), 1L));
@@ -203,7 +203,7 @@ public class TableTest extends CleanupHelper
     private RowMutation makeSimpleRowMutation()
     {
         RowMutation rm = new RowMutation(TABLE_NAME,TEST_KEY);
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn(new Column("col1","val1".getBytes(), 1L));
         cf.addColumn(new Column("col2","val2".getBytes(), 1L));
         cf.addColumn(new Column("col3","val3".getBytes(), 1L));
@@ -216,7 +216,7 @@ public class TableTest extends CleanupHelper
     {
         Table table = Table.open(TABLE_NAME);
         RowMutation rm = new RowMutation(TABLE_NAME, "row1000");
-        ColumnFamily cf = new ColumnFamily("Standard2", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard2");
         cf.addColumn(new Column("col1", "val1".getBytes(), 1));
         rm.add(cf);
         rm.apply();
@@ -254,7 +254,7 @@ public class TableTest extends CleanupHelper
         Table table = Table.open(TABLE_NAME);
         String ROW = "row1";
         RowMutation rm = new RowMutation(TABLE_NAME, ROW);
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
         cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
         cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
@@ -280,7 +280,7 @@ public class TableTest extends CleanupHelper
         Table table = Table.open(TABLE_NAME);
         String ROW = "row2";
         RowMutation rm = new RowMutation(TABLE_NAME, ROW);
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
         cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
         cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
@@ -292,7 +292,7 @@ public class TableTest extends CleanupHelper
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
         
         rm = new RowMutation(TABLE_NAME, ROW);
-        cf = new ColumnFamily("Standard1", "Standard");
+        cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn(new Column("col1", "valx".getBytes(), 2L));
         cf.addColumn(new Column("col2", "valx".getBytes(), 2L));
         cf.addColumn(new Column("col3", "valx".getBytes(), 2L));
@@ -311,7 +311,7 @@ public class TableTest extends CleanupHelper
         Table table = Table.open(TABLE_NAME);
         String ROW = "row3";
         RowMutation rm = new RowMutation(TABLE_NAME, ROW);
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(new Column("col" + i, ("vvvvvvvvvvvvvvvv" + i).getBytes(), 1L));
         rm.add(cf);

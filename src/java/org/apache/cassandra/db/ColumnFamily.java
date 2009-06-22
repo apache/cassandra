@@ -51,6 +51,7 @@ public final class ColumnFamily
     private static Map<String, String> columnTypes_ = new HashMap<String, String>();
     private static Map<String, String> indexTypes_ = new HashMap<String, String>();
     private String type_;
+    private String table_;
 
     static
     {
@@ -91,6 +92,23 @@ public final class ColumnFamily
         return indexTypes_.get(columnIndexProperty);
     }
 
+    public static ColumnFamily create(String tableName, String cfName)
+    {
+        Comparator<IColumn> comparator;
+        String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
+        if ("Super".equals(columnType)
+            || DatabaseDescriptor.isNameSortingEnabled(tableName, cfName))
+        {
+            comparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
+        }
+        /* if this columnfamily has simple columns, and no index on name sort by timestamp */
+        else
+        {
+            comparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
+        }
+        return new ColumnFamily(cfName, columnType, comparator);
+    }
+
     private transient AbstractColumnFactory columnFactory_;
 
     private String name_;
@@ -101,66 +119,24 @@ public final class ColumnFamily
     private AtomicInteger size_ = new AtomicInteger(0);
     private EfficientBidiMap columns_;
 
-    private Comparator<IColumn> columnComparator_;
-
-	private Comparator<IColumn> getColumnComparator(String cfName, String columnType)
-	{
-		if(columnComparator_ == null)
-		{
-			/*
-			 * if this columnfamily has supercolumns or there is an index on the column name,
-			 * then sort by name
-			*/
-			if("Super".equals(columnType) || DatabaseDescriptor.isNameSortingEnabled(cfName))
-			{
-				columnComparator_ = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
-			}
-			/* if this columnfamily has simple columns, and no index on name sort by timestamp */
-			else
-			{
-				columnComparator_ = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
-			}
-		}
-
-		return columnComparator_;
-	}
-
-    public ColumnFamily(String cfName, String columnType)
+    public ColumnFamily(String cfName, String columnType, Comparator<IColumn> comparator)
     {
         name_ = cfName;
         type_ = columnType;
-        createColumnFactoryAndColumnSerializer(columnType);
+        columnFactory_ = AbstractColumnFactory.getColumnFactory(columnType);
+        columnSerializer_ = columnFactory_.createColumnSerializer();
+        if(columns_ == null)
+            columns_ = new EfficientBidiMap(comparator);
     }
 
-    void createColumnFactoryAndColumnSerializer(String columnType)
+    public ColumnFamily(String cfName, String columnType, ColumnComparatorFactory.ComparatorType indexType)
     {
-        if ( columnFactory_ == null )
-        {
-            columnFactory_ = AbstractColumnFactory.getColumnFactory(columnType);
-            columnSerializer_ = columnFactory_.createColumnSerializer();
-            if(columns_ == null)
-                columns_ = new EfficientBidiMap(getColumnComparator(name_, columnType));
-        }
-    }
-
-    void createColumnFactoryAndColumnSerializer()
-    {
-    	String columnType = DatabaseDescriptor.getColumnFamilyType(name_);
-        if ( columnType == null )
-        {
-        	List<String> tables = DatabaseDescriptor.getTables();
-        	if ( tables.size() > 0 )
-        	{
-        		String table = tables.get(0);
-        		columnType = Table.open(table).getColumnFamilyType(name_);
-        	}
-        }
-        createColumnFactoryAndColumnSerializer(columnType);
+        this(cfName, columnType, ColumnComparatorFactory.getComparator(indexType));
     }
 
     ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(name_, type_);
+        ColumnFamily cf = new ColumnFamily(name_, type_, getComparator());
         cf.markedForDeleteAt = markedForDeleteAt;
         cf.localDeletionTime = localDeletionTime;
         return cf;
@@ -192,7 +168,6 @@ public final class ColumnFamily
 
     public ICompactSerializer2<IColumn> getColumnSerializer()
     {
-        createColumnFactoryAndColumnSerializer();
     	return columnSerializer_;
     }
 
@@ -320,13 +295,21 @@ public final class ColumnFamily
         return markedForDeleteAt > Long.MIN_VALUE;
     }
 
+    public String getTable() {
+        return table_;
+    }
+
+    public void setTable_(String table_) {
+        this.table_ = table_;
+    }
+
     /*
      * This function will calculate the difference between 2 column families.
      * The external input is assumed to be a superset of internal.
      */
     ColumnFamily diff(ColumnFamily cfComposite)
     {
-    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_);
+    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator());
         if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             cfDiff.delete(cfComposite.getLocalDeletionTime(), cfComposite.getMarkedForDeleteAt());
@@ -359,6 +342,18 @@ public final class ColumnFamily
         	return cfDiff;
         else
         	return null;
+    }
+
+    private Comparator<IColumn> getComparator()
+    {
+        return columns_.getComparator();
+    }
+
+    private ColumnComparatorFactory.ComparatorType getComparatorType()
+    {
+        return getComparator() == ColumnComparatorFactory.nameComparator_
+               ? ColumnComparatorFactory.ComparatorType.NAME
+               : ColumnComparatorFactory.ComparatorType.TIMESTAMP;
     }
 
     int size()
@@ -489,6 +484,8 @@ public final class ColumnFamily
             Collection<IColumn> columns = columnFamily.getAllColumns();
 
             dos.writeUTF(columnFamily.name());
+            dos.writeUTF(columnFamily.type_);
+            dos.writeInt(columnFamily.getComparatorType().ordinal());
             dos.writeInt(columnFamily.localDeletionTime);
             dos.writeLong(columnFamily.markedForDeleteAt);
 
@@ -505,8 +502,9 @@ public final class ColumnFamily
         */
         private ColumnFamily defreezeColumnFamily(DataInputStream dis) throws IOException
         {
-            String name = dis.readUTF();
-            ColumnFamily cf = new ColumnFamily(name, DatabaseDescriptor.getColumnFamilyType(name));
+            ColumnFamily cf = new ColumnFamily(dis.readUTF(),
+                                               dis.readUTF(),
+                                               ColumnComparatorFactory.ComparatorType.values()[dis.readInt()]);
             cf.delete(dis.readInt(), dis.readLong());
             return cf;
         }
@@ -515,11 +513,11 @@ public final class ColumnFamily
         {
             ColumnFamily cf = defreezeColumnFamily(dis);
             int size = dis.readInt();
-            IColumn column = null;
-            for ( int i = 0; i < size; ++i )
+            IColumn column;
+            for (int i = 0; i < size; ++i)
             {
                 column = cf.getColumnSerializer().deserialize(dis);
-                if(column != null)
+                if (column != null)
                 {
                     cf.addColumn(column);
                 }
@@ -587,5 +585,6 @@ public final class ColumnFamily
             throw new UnsupportedOperationException("This operation is not yet supported.");
         }
     }
+
 }
 

@@ -135,7 +135,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(indices);
         int value = (indices.size() > 0) ? (indices.get(indices.size() - 1)) : 0;
 
-        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(columnFamily)), value);
+        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(table, columnFamily)), value);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -188,7 +188,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         /* There are no files to compact just add to the list of SSTables */
         ssTables_.addAll(filenames);
         /* Load the index files and the Bloom Filters associated with them. */
-        SSTable.onStart(filenames);
+        SSTable.onStart(filenames, table_);
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
         if (columnFamily_.equals(Table.hints_))
         {
@@ -577,7 +577,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, String ssTableFile) throws IOException
     {
-        SSTable ssTable = new SSTable(ssTableFile, StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(ssTableFile, null, StorageService.getPartitioner());
         DataInputBuffer bufIn;
         bufIn = filter.next(key, cf, ssTable);
         if (bufIn.getLength() == 0)
@@ -1118,12 +1118,16 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     if (ssTableRange == null)
                     {
+                        String [] temp = null;
+                        String tableName;
+                        temp = rangeFileLocation.split("-");
+                        tableName = temp[0];
                         if (target != null)
                         {
                             rangeFileLocation = rangeFileLocation + System.getProperty("file.separator") + "bootstrap";
                         }
                         FileUtils.createDirectory(rangeFileLocation);
-                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, StorageService.getPartitioner());
+                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, tableName, StorageService.getPartitioner());
                     }
                     try
                     {
@@ -1319,7 +1323,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (ssTable == null)
                 {
-                    ssTable = new SSTable(compactionFileLocation, mergedFileName, StorageService.getPartitioner());
+                    ssTable = new SSTable(compactionFileLocation, mergedFileName, null, StorageService.getPartitioner());
                 }
                 ssTable.append(lastkey, bufOut);
 
@@ -1539,6 +1543,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return readStats_.mean();
     }
+    public String getTableName()
+    {
+        return table_;
+    }
 
     /**
      * get a list of columns starting from a given column, in a specified order
@@ -1604,7 +1612,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 comparator = new ReverseComparator(comparator);
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
-                return new ColumnFamily(cfName, DatabaseDescriptor.getColumnFamilyType(cfName));
+                return ColumnFamily.create(table_, cfName);
             ReducingIterator<IColumn> reduced = new ReducingIterator<IColumn>(collated)
             {
                 ColumnFamily curCF = returnCF.cloneMeShallow();

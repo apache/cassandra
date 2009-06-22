@@ -250,18 +250,23 @@ public class HttpRequestHandler implements Runnable
 
     private void displayDBStatistics(HTMLFormatter formatter, java.text.DecimalFormat df)
     {
-        String tableStats = Table.open( DatabaseDescriptor.getTables().get(0) ).tableStats("\n<br>\n", df);
 
-        if ( tableStats.length() == 0 )
-            return;
+        List<String> tables = DatabaseDescriptor.getTables();
+        for ( String table:tables )
+        {
+            String tableStats = Table.open( table ).tableStats("\n<br>\n", df);
 
-        formatter.appendLine("DB statistics:");
-        formatter.appendLine("<br>");
-        formatter.appendLine("<br>");
+            if ( tableStats.length() == 0 )
+                return;
 
-        formatter.appendLine(tableStats);
-        formatter.appendLine("<br>");
-        formatter.appendLine("<br>");
+            formatter.appendLine("DB statistics: " + table);
+            formatter.appendLine("<br>");
+            formatter.appendLine("<br>");
+
+            formatter.appendLine(tableStats);
+            formatter.appendLine("<br>");
+            formatter.appendLine("<br>");
+        }
     }
 
     private String handlePageDisplay(String queryFormData, String insertFormData, String scriptFormData)

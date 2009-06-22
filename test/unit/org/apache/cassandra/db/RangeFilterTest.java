@@ -29,7 +29,7 @@ public class RangeFilterTest
     @Test
     public void testRangeFilterOnColumns() throws IOException
     {
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         byte[] val = "test value".getBytes();
         cf.addColumn(new Column("a", val, System.currentTimeMillis()));
         cf.addColumn(new Column("b", val, System.currentTimeMillis()));
@@ -47,7 +47,7 @@ public class RangeFilterTest
     @Test
     public void testRangeFilterOnColumnsWithCount() throws IOException
     {
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         byte[] val = "test value".getBytes();
         cf.addColumn(new Column("a", val, System.currentTimeMillis()));
         cf.addColumn(new Column("b", val, System.currentTimeMillis()));
@@ -65,7 +65,7 @@ public class RangeFilterTest
     @Test
     public void testRangeFilterOnSuperColumns() throws IOException
     {
-        ColumnFamily cf = new ColumnFamily("Super1", "Super");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Super1");
         byte[] val = "test value".getBytes();
         SuperColumn sc = null;
         sc = new SuperColumn("a");

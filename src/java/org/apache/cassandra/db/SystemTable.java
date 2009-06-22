@@ -82,7 +82,7 @@ public class SystemTable
         table_ = table;
         String systemTable = getFileName();
         writer_ = SequenceFile.writer(systemTable);
-        reader_ = SequenceFile.reader(systemTable);
+        reader_ = SequenceFile.reader(systemTable, table);
     }
 
     private String getFileName()
@@ -106,13 +106,13 @@ public class SystemTable
              * This buffer contains key and value so we need to strip
              * certain parts
            */
-            // read the key
+            // read the key            
             bufIn.readUTF();
             // read the data length and then deserialize
             bufIn.readInt();
             try
             {
-                systemRow_ = Row.serializer().deserialize(bufIn);
+                systemRow_ = Row.serializer(table_).deserialize(bufIn);
             }
             catch ( IOException e )
             {
@@ -133,7 +133,7 @@ public class SystemTable
         String file = getFileName();
         long currentPos = writer_.getCurrentPosition();
         DataOutputBuffer bufOut = new DataOutputBuffer();
-        Row.serializer().serialize(row, bufOut);
+        Row.serializer(row.getTable()).serialize(row, bufOut);
         try
         {
             writer_.append(row.key(), bufOut);

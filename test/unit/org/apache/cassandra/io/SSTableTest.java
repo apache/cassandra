@@ -56,7 +56,7 @@ public class SSTableTest extends CleanupHelper
 
     private void verifySingle(File f, byte[] bytes, String key) throws IOException
     {
-        SSTable ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getPath() + "-Data.db", "Table1", new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         fs.seekTo(key);
         int size = fs.getBufIn().readInt();
@@ -95,7 +95,7 @@ public class SSTableTest extends CleanupHelper
     {
         List<String> keys = new ArrayList(map.keySet());
         Collections.shuffle(keys);
-        SSTable ssTable = new SSTable(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getPath() + "-Data.db", "Table1", new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         for (String key : keys)
         {

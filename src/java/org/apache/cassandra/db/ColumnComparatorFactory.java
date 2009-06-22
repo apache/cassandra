@@ -34,8 +34,8 @@ public class ColumnComparatorFactory
         TIMESTAMP
     }
 
-    private static Comparator<IColumn> nameComparator_ = new ColumnNameComparator();
-    private static Comparator<IColumn> timestampComparator_ = new ColumnTimestampComparator();
+    public static final Comparator<IColumn> nameComparator_ = new ColumnNameComparator();
+    public static final Comparator<IColumn> timestampComparator_ = new ColumnTimestampComparator();
 
     public static Comparator<IColumn> getComparator(ComparatorType comparatorType)
     {

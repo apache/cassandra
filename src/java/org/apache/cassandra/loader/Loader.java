@@ -294,46 +294,51 @@ public class Loader
 	
     void preLoad(File rootDirectory) throws Throwable
     {
-        String table = DatabaseDescriptor.getTables().get(0);
-        String cfName = Table.recycleBin_ + ":" + "Keys";
-        /* populate just the keys. */
-        preParse(rootDirectory, table, cfName);
-        /* dump the memtables */
-        Table.open(table).flush(false);
-        /* force a compaction of the files. */
-        Table.open(table).forceCompaction(null,null,null);
-        
-        /*
-         * This is a hack to let everyone finish. Just sleep for
-         * a couple of minutes. 
-        */
-        logger_.info("Taking a nap after forcing a compaction ...");
-        Thread.sleep(Loader.siesta_);
-        
-        /* Figure out the keys in the index file to relocate the node */
-        List<String> ssTables = Table.open(table).getAllSSTablesOnDisk();
-        /* Load the indexes into memory */
-        for ( String df : ssTables )
+        List<String> tables = DatabaseDescriptor.getTables();
+        for ( String table:tables )
         {
-        	new SSTable(df, StorageService.getPartitioner());
+            String cfName = Table.recycleBin_ + ":" + "Keys";
+            /* populate just the keys. */
+            preParse(rootDirectory, table, cfName);
+            /* dump the memtables */
+            Table.open(table).flush(false);
+            /* force a compaction of the files. */
+            Table.open(table).forceCompaction(null,null,null);
+
+            /*
+             * This is a hack to let everyone finish. Just sleep for
+             * a couple of minutes.
+            */
+            logger_.info("Taking a nap after forcing a compaction ...");
+            Thread.sleep(Loader.siesta_);
+
+            /* Figure out the keys in the index file to relocate the node */
+            List<String> ssTables = Table.open(table).getAllSSTablesOnDisk();
+            /* Load the indexes into memory */
+            for ( String df : ssTables )
+            {
+                new SSTable(df, table, StorageService.getPartitioner());
+            }
+            /* We should have only one file since we just compacted. */
+            List<String> indexedKeys = SSTable.getIndexedKeys();
+            storageService_.relocate(indexedKeys.toArray( new String[0]) );
+
+            /*
+             * This is a hack to let everyone relocate and learn about
+             * each other. Just sleep for a couple of minutes.
+            */
+            logger_.info("Taking a nap after relocating ...");
+            Thread.sleep(Loader.siesta_);
+
+            /*
+             * Do the cleanup necessary. Delete all commit logs and
+             * the SSTables and reset the load state in the StorageService.
+            */
+
+            // TODO Hmm need to double check here
+            SSTable.delete(ssTables.get(0));
+            logger_.info("Finished all the requisite clean up ...");
         }
-        /* We should have only one file since we just compacted. */        
-        List<String> indexedKeys = SSTable.getIndexedKeys();        
-        storageService_.relocate(indexedKeys.toArray( new String[0]) );
-        
-        /*
-         * This is a hack to let everyone relocate and learn about
-         * each other. Just sleep for a couple of minutes. 
-        */
-        logger_.info("Taking a nap after relocating ...");
-        Thread.sleep(Loader.siesta_);  
-        
-        /* 
-         * Do the cleanup necessary. Delete all commit logs and
-         * the SSTables and reset the load state in the StorageService. 
-        */
-        SSTable.delete(ssTables.get(0));
-        logger_.info("Finished all the requisite clean up ...");
     }
     
 	void load(String xmlFile) throws Throwable

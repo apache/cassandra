@@ -162,7 +162,7 @@ public class RowMutation implements Serializable
         {
             if ( columnFamily == null )
             {
-            	columnFamily = new ColumnFamily(values[0], ColumnFamily.getColumnType("Standard"));
+            	columnFamily = ColumnFamily.create(table_, values[0]);
             }
         	columnFamily.addColumn(values[1], value, timestamp);
         }
@@ -170,7 +170,7 @@ public class RowMutation implements Serializable
         {
             if ( columnFamily == null )
             {
-            	columnFamily = new ColumnFamily(values[0], ColumnFamily.getColumnType("Super"));
+            	columnFamily = ColumnFamily.create(table_, values[0]);
             }
         	columnFamily.addColumn(values[1]+ ":" + values[2], value, timestamp);
         }
@@ -193,7 +193,7 @@ public class RowMutation implements Serializable
 
         ColumnFamily columnFamily = modifications_.get(cfName);
         if (columnFamily == null)
-            columnFamily = new ColumnFamily(cfName, DatabaseDescriptor.getColumnType(cfName));
+            columnFamily = ColumnFamily.create(table_, cfName);
         if (values.length == 2)
         {
             if (columnFamily.isSuper())
@@ -229,7 +229,7 @@ public class RowMutation implements Serializable
     */
     public void apply() throws IOException
     {
-        Row row = new Row(key_);
+        Row row = new Row(table_, key_);
         apply(row);
     }
 
@@ -329,7 +329,8 @@ public class RowMutation implements Serializable
     public String toString()
     {
         return "RowMutation(" +
-               "key='" + key_ + '\'' +
+               "table='" + table_ + '\'' +
+               ", key='" + key_ + '\'' +
                ", modifications=[" + StringUtils.join(modifications_.values(), ", ") + "]" +
                ')';
     }

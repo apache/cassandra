@@ -41,7 +41,7 @@ public class ColumnFamilyTest
         random.nextBytes(bytes);
         ColumnFamily cf;
 
-        cf = new ColumnFamily("Standard1", "Standard");
+        cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn("C", bytes, 1);
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer().serialize(cf, bufOut);
@@ -66,7 +66,7 @@ public class ColumnFamilyTest
         }
 
         // write
-        cf = new ColumnFamily("Standard1", "Standard");
+        cf = ColumnFamily.create("Table1", "Standard1");
         DataOutputBuffer bufOut = new DataOutputBuffer();
         for (String cName : map.navigableKeySet())
         {
@@ -89,7 +89,7 @@ public class ColumnFamilyTest
     @Test
     public void testGetColumnCount()
     {
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         byte val[] = "sample value".getBytes();
 
         cf.addColumn("col1", val, 1);
@@ -103,7 +103,7 @@ public class ColumnFamilyTest
     @Test
     public void testTimestamp()
     {
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         byte val1[] = "sample 1".getBytes();
         byte val2[] = "sample 2".getBytes();
         byte val3[] = "sample 3".getBytes();
@@ -118,9 +118,9 @@ public class ColumnFamilyTest
     @Test
     public void testMergeAndAdd()
     {
-        ColumnFamily cf_new = new ColumnFamily("Standard1", "Standard");
-        ColumnFamily cf_old = new ColumnFamily("Standard1", "Standard");
-        ColumnFamily cf_result = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf_new = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf_old = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf_result = ColumnFamily.create("Table1", "Standard1");
         byte val[] = "sample value".getBytes();
         byte val2[] = "x value ".getBytes();
 
@@ -141,7 +141,7 @@ public class ColumnFamilyTest
     @Test
     public void testEmptyDigest()
     {
-        ColumnFamily cf = new ColumnFamily("Standard1", "Standard");
+        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         assert cf.digest().length == 0;
     }
 }

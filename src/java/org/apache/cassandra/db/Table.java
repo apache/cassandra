@@ -67,6 +67,7 @@ public class Table
     {
         /* Name of the column family */
         public final static String cfName_ = "TableMetadata";
+        private String table_;
         private static ICompactSerializer<TableMetadata> serializer_;
         static
         {
@@ -77,19 +78,28 @@ public class Table
         /* Use the following writer/reader to write/read to Metadata table */
         private static IFileWriter writer_;
         private static IFileReader reader_;
-        
-        public static Table.TableMetadata instance() throws IOException
+        private static HashMap<String,TableMetadata> tableMetadataMap_ = new HashMap<String,TableMetadata>();
+
+        private static TableMetadata getTableMetadata(String table)
         {
-            if ( tableMetadata_ == null )
+          return tableMetadataMap_.get(table);
+        }
+
+        public static Table.TableMetadata instance(String table) throws IOException
+        {
+            TableMetadata metadata = getTableMetadata(table);
+            if ( metadata == null )
             {
-                String file = getFileName();
+                String file = getFileName(table);
                 writer_ = SequenceFile.writer(file);        
-                reader_ = SequenceFile.reader(file);
-                Table.TableMetadata.load();
-                if ( tableMetadata_ == null )
-                    tableMetadata_ = new Table.TableMetadata();
+                reader_ = SequenceFile.reader(file, table);
+                Table.TableMetadata.load(table);
+
+                metadata = new Table.TableMetadata();
+                metadata.table_ = table;
+                tableMetadataMap_.put(table,metadata);
             }
-            return tableMetadata_;
+            return metadata;
         }
 
         static ICompactSerializer<TableMetadata> serializer()
@@ -97,9 +107,9 @@ public class Table
             return serializer_;
         }
         
-        private static void load() throws IOException
+        private static void load(String table) throws IOException
         {            
-            String file = Table.TableMetadata.getFileName();
+            String file = Table.TableMetadata.getFileName(table);
             File f = new File(file);
             if ( f.exists() )
             {
@@ -108,7 +118,7 @@ public class Table
                 
                 if ( reader_ == null )
                 {
-                    reader_ = SequenceFile.reader(file);
+                    reader_ = SequenceFile.reader(file, table);
                 }
                 
                 while ( !reader_.isEOF() )
@@ -132,9 +142,8 @@ public class Table
         private Map<String, Integer> cfIdMap_ = new HashMap<String, Integer>();
         private Map<Integer, String> idCfMap_ = new HashMap<Integer, String>();        
         
-        private static String getFileName()
+        private static String getFileName(String table)
         {
-            String table = DatabaseDescriptor.getTables().get(0);
             return DatabaseDescriptor.getMetadataDirectory() + System.getProperty("file.separator") + table + "-Metadata.db";
         }
 
@@ -187,12 +196,11 @@ public class Table
         
         public void apply() throws IOException
         {
-            String table = DatabaseDescriptor.getTables().get(0);
             DataOutputBuffer bufOut = new DataOutputBuffer();
             Table.TableMetadata.serializer_.serialize(this, bufOut);
             try
             {
-                writer_.append(table, bufOut);
+                writer_.append(table_, bufOut);
             }
             catch ( IOException ex )
             {
@@ -262,13 +270,17 @@ public class Table
             {
                 File file = new File( streamContext.getTargetFile() );
                 String fileName = file.getName();
+                String [] temp = null;
+                String tableName;
+                temp = fileName.split("-");
+                tableName = temp[0];
                 /*
                  * If the file is a Data File we need to load the indicies associated
                  * with this file. We also need to cache the file name in the SSTables
                  * list of the associated Column Family. Also merge the CBF into the
                  * sampler.
                 */                
-                new SSTable(streamContext.getTargetFile(), StorageService.getPartitioner());
+                new SSTable(streamContext.getTargetFile(), tableName, StorageService.getPartitioner());
                 logger_.debug("Merging the counting bloom filter in the sampler ...");                
                 String[] peices = FBUtilities.strip(fileName, "-");
                 Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(streamContext.getTargetFile());                
@@ -348,17 +360,19 @@ public class Table
             for ( StreamContextManager.StreamContext streamContext : streamContexts )
             {
                 String[] peices = FBUtilities.strip(streamContext.getTargetFile(), "-");
-                distinctEntries.add(peices[1] + "-" + peices[2]);
+                distinctEntries.add(peices[0] + "-" + peices[1] + "-" + peices[2]);
             }
             
             /* Generate unique file names per entry */
-            Table table = Table.open( DatabaseDescriptor.getTables().get(0) );
-            Map<String, ColumnFamilyStore> columnFamilyStores = table.getColumnFamilyStores();
-            
             for ( String distinctEntry : distinctEntries )
             {
+                String tableName;
                 String[] peices = FBUtilities.strip(distinctEntry, "-");
-                ColumnFamilyStore cfStore = columnFamilyStores.get(peices[0]);
+                tableName = peices[0];
+                Table table = Table.open( tableName );
+                Map<String, ColumnFamilyStore> columnFamilyStores = table.getColumnFamilyStores();
+
+                ColumnFamilyStore cfStore = columnFamilyStores.get(peices[1]);
                 logger_.debug("Generating file name for " + distinctEntry + " ...");
                 fileNames.put(distinctEntry, cfStore.getNextFileName());
             }
@@ -566,7 +580,7 @@ public class Table
         dbAnalyticsSource_ = new DBAnalyticsSource();
         try
         {
-            tableMetadata_ = Table.TableMetadata.instance();
+            tableMetadata_ = Table.TableMetadata.instance(table);
             Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
             for ( String columnFamily : columnFamilies )
             {
@@ -614,7 +628,7 @@ public class Table
     */
     public Row get(String key) throws IOException
     {        
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
         long start = System.currentTimeMillis();
         for ( String columnFamily : columnFamilies )
@@ -654,7 +668,7 @@ public class Table
     */
     public Row getRow(String key, String cf) throws IOException
     {
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         ColumnFamily columnFamily = get(key, cf);
         if ( columnFamily != null )
         	row.addColumnFamily(columnFamily);
@@ -666,7 +680,7 @@ public class Table
     */
     public Row getRow(String key, String cf, int start, int count) throws IOException
     {
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
         long start1 = System.currentTimeMillis();
@@ -693,7 +707,7 @@ public class Table
     
     public Row getRow(String key, String cf, String startColumn, String endColumn, int count) throws IOException
     {
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
         long start1 = System.currentTimeMillis();
@@ -712,7 +726,7 @@ public class Table
     
     public Row getRow(String key, String cf, long sinceTimeStamp) throws IOException
     {
-        Row row = new Row(key);
+        Row row = new Row(table_, key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
         long start1 = System.currentTimeMillis();
@@ -735,7 +749,7 @@ public class Table
     */
     public Row getRow(String key, String cf, List<String> columns) throws IOException
     {
-    	Row row = new Row(key);
+    	Row row = new Row(table_, key);
         String[] values = RowMutation.getColumnAndColumnFamily(cf);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
 
@@ -948,7 +962,7 @@ public class Table
             // sstables
             for (String filename : cfs.getSSTableFilenames())
             {
-                FileStruct fs = new FileStruct(SequenceFile.reader(filename), StorageService.getPartitioner());
+                FileStruct fs = new FileStruct(SequenceFile.reader(filename, table_), StorageService.getPartitioner());
                 fs.seekTo(startWith);
                 iterators.add(fs);
             }

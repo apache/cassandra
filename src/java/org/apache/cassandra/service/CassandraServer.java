@@ -205,7 +205,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("get_slice_from");
         String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        if (values.length != 2 || DatabaseDescriptor.getColumnFamilyType(values[0]) != "Standard")
+        if (values.length != 2 || DatabaseDescriptor.getColumnFamilyType(tablename, values[0]) != "Standard")
             throw new InvalidRequestException("get_slice_from requires a standard CF name and a starting column name");
         if (count <= 0)
             throw new InvalidRequestException("get_slice_from requires positive count");
@@ -228,7 +228,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("get_column requires non-empty columnfamily");
         }
-        if (DatabaseDescriptor.getColumnFamilyType(values[0]).equals("Standard"))
+        if (DatabaseDescriptor.getColumnFamilyType(null, values[0]).equals("Standard"))
         {
             if (values.length != 2)
             {

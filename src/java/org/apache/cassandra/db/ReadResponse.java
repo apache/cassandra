@@ -114,7 +114,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         
         if( !rm.isDigestQuery() && rm.row() != null )
         {            
-            Row.serializer().serialize(rm.row(), dos);
+            Row.serializer(rm.table()).serialize(rm.row(), dos);
         }				
 	}
 	
@@ -129,7 +129,7 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         Row row = null;
         if ( !isDigest )
         {
-            row = Row.serializer().deserialize(dis);
+            row = Row.serializer(table).deserialize(dis);
         }
 		
 		ReadResponse rmsg = null;

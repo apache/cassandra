@@ -253,7 +253,7 @@ public class Memtable implements Comparable<Memtable>
 
         String directory = DatabaseDescriptor.getDataFileLocation();
         String filename = cfStore.getTempFileName();
-        SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(directory, filename, table_, StorageService.getPartitioner());
 
         // sort keys in the order they would be in when decorated
         final IPartitioner partitioner = StorageService.getPartitioner();
@@ -333,14 +333,14 @@ public class Memtable implements Comparable<Memtable>
         if (cf != null)
             columnFamily = cf.cloneMeShallow();
         else
-            columnFamily = new ColumnFamily(cfName, DatabaseDescriptor.getColumnFamilyType(cfName));
+            columnFamily = ColumnFamily.create(table_, cfName);
 
         final IColumn columns[] = (cf == null ? columnFamily : cf).getAllColumns().toArray(new IColumn[columnFamily.getAllColumns().size()]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
         if (!isAscending)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
-        if (DatabaseDescriptor.getColumnFamilyType(cfName).equals("Standard"))
+        if (DatabaseDescriptor.getColumnFamilyType(table_, cfName).equals("Standard"))
             startIColumn = new Column(startColumn);
         else
             startIColumn = new SuperColumn(startColumn);

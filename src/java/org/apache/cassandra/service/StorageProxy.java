@@ -596,7 +596,7 @@ public class StorageProxy implements StorageProxyMBean
         endpoints.remove(StorageService.getLocalStorageEndPoint());
         // TODO: throw a thrift exception if we do not have N nodes
 
-        Table table = Table.open(DatabaseDescriptor.getTables().get(0));
+        Table table = Table.open(command.table);
         Row row = command.getRow(table);
 
         /*

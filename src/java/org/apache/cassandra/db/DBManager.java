@@ -108,8 +108,8 @@ public class DBManager
             int generation = 1;
 
             String key = FBUtilities.getHostAddress();
-            row = new Row(key);
-            ColumnFamily cf = new ColumnFamily(SystemTable.cfName_, "Standard");
+            row = new Row(SystemTable.name_, key);
+            ColumnFamily cf = ColumnFamily.create("system", SystemTable.cfName_); // TODO create system table
             cf.addColumn(new Column(SystemTable.token_, p.getTokenFactory().toByteArray(token)));
             cf.addColumn(new Column(SystemTable.generation_, BasicUtilities.intToByteArray(generation)) );
             row.addColumnFamily(cf);
