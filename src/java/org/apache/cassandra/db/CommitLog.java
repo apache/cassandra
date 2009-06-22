@@ -67,7 +67,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class CommitLog
 {
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
-    private static Map<String, CommitLog> instances_ = new HashMap<String, CommitLog>();
+    private static volatile CommitLog instance_;
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(CommitLog.class);
     private static Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
@@ -145,19 +145,17 @@ public class CommitLog
             return SequenceFile.writer(file);
     }
 
-    static CommitLog open(String table) throws IOException
+    static CommitLog open() throws IOException
     {
-        CommitLog commitLog = instances_.get(table);
-        if ( commitLog == null )
+        if ( instance_ == null )
         {
             CommitLog.lock_.lock();
             try
             {
-                commitLog = instances_.get(table);
-                if ( commitLog == null )
+
+                if ( instance_ == null )
                 {
-                    commitLog = new CommitLog(table, false);
-                    instances_.put(table, commitLog);
+                    instance_ = new CommitLog(false);
                 }
             }
             finally
@@ -165,16 +163,9 @@ public class CommitLog
                 CommitLog.lock_.unlock();
             }
         }
-        return commitLog;
+        return instance_;
     }
 
-    static String getTableName(String file)
-    {
-        String[] values = file.split("-");
-        return values[1];
-    }
-
-    private String table_;
     /* Current commit log file */
     private String logFile_;
     /* header for current commit log */
@@ -188,7 +179,7 @@ public class CommitLog
     private void setNextFileName()
     {
         logFile_ = DatabaseDescriptor.getLogFileLocation() + System.getProperty("file.separator") +
-                   "CommitLog-" + table_ + "-" + System.currentTimeMillis() + ".log";
+                   "CommitLog-" + System.currentTimeMillis() + ".log";
     }
 
     /*
@@ -197,9 +188,8 @@ public class CommitLog
      * param @ recoverymode - is commit log being instantiated in
      *                        in recovery mode.
     */
-    CommitLog(String table, boolean recoveryMode) throws IOException
+    CommitLog(boolean recoveryMode) throws IOException
     {
-        table_ = table;
         if ( !recoveryMode )
         {
             setNextFileName();            
@@ -217,7 +207,6 @@ public class CommitLog
     */
     CommitLog(File logFile) throws IOException
     {
-        table_ = CommitLog.getTableName(logFile.getName());
         logFile_ = logFile.getAbsolutePath();
         logWriter_ = CommitLog.createWriter(logFile_);
     }
@@ -242,8 +231,7 @@ public class CommitLog
     */
     private void writeCommitLogHeader() throws IOException
     {
-        Table table = Table.open(table_);
-        int cfSize = table.getNumberOfColumnFamilies();
+        int cfSize = Table.TableMetadata.getColumnFamilyCount();
         /* record the beginning of the commit header */
         /* write the commit log header */
         clHeader_ = new CommitLogHeader(cfSize);
@@ -299,8 +287,8 @@ public class CommitLog
                     /* read the commit log entry */
                     try
                     {                        
-                        Row row = Row.serializer(table_).deserialize(bufIn);
-                        Table table = Table.open(table_);
+                        Row row = Row.serializer().deserialize(bufIn);
+                        Table table = Table.open(row.getTable());
                         tablesRecovered.add(table);
                         Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
                         /* remove column families that have already been flushed */
@@ -349,7 +337,7 @@ public class CommitLog
     */
     private void maybeUpdateHeader(Row row) throws IOException
     {
-        Table table = Table.open(table_);
+        Table table = Table.open(row.getTable());
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
             int id = table.getColumnFamilyId(columnFamily.name());
@@ -382,7 +370,7 @@ public class CommitLog
         {
             /* serialize the row */
             cfBuffer.reset();
-            Row.serializer(table_).serialize(row, cfBuffer);
+            Row.serializer().serialize(row, cfBuffer);
             currentPosition = logWriter_.getCurrentPosition();
             cLogCtx = new CommitLogContext(logFile_, currentPosition);
             /* Update the header */
@@ -410,9 +398,9 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    synchronized void onMemtableFlush(String cf, CommitLog.CommitLogContext cLogCtx) throws IOException
+    synchronized void onMemtableFlush(String tableName, String cf, CommitLog.CommitLogContext cLogCtx) throws IOException
     {
-        Table table = Table.open(table_);
+        Table table = Table.open(tableName);
         int id = table.getColumnFamilyId(cf);
         /* trying discarding old commit log files */
         discard(cLogCtx, id);

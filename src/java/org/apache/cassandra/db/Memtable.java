@@ -153,7 +153,7 @@ public class Memtable implements Comparable<Memtable>
         try
         {
             Table.open(table_).getColumnFamilyStore(cfName_).switchMemtable();
-            enqueueFlush(CommitLog.open(table_).getContext());
+            enqueueFlush(CommitLog.open().getContext());
         }
         catch (IOException ex)
         {

@@ -55,7 +55,7 @@ public class RecoveryManager
     {
         File[] files = getListofCommitLogs();
         Arrays.sort(files, new FileUtils.FileComparator());
-        new CommitLog(DatabaseDescriptor.getTables().get(0), true).recover(files);
+        new CommitLog(true).recover(files);
         FileUtils.delete(files);
     }
 }

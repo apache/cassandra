@@ -48,9 +48,9 @@ public class Row
         return table_;
     }
 
-    static RowSerializer serializer(String tableName)
+    static RowSerializer serializer()
     {
-        return new RowSerializer(tableName);
+        return new RowSerializer();
     }
 
     private String key_;
@@ -197,41 +197,31 @@ public class Row
 
 class RowSerializer implements ICompactSerializer<Row>
 {
-    private String table_;
-
-    public RowSerializer(String tableName)
-    {
-        this.table_ = tableName;
-    }
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
+        dos.writeUTF(row.getTable());
         dos.writeUTF(row.key());
         Collection<ColumnFamily> columnFamilies = row.getColumnFamilies();
         int size = columnFamilies.size();
         dos.writeInt(size);
 
-        if (size > 0)
+        for (ColumnFamily cf : columnFamilies)
         {
-            for (ColumnFamily cf : columnFamilies)
-            {
-                ColumnFamily.serializer().serialize(cf, dos);
-            }
+            ColumnFamily.serializer().serialize(cf, dos);
         }
     }
 
     public Row deserialize(DataInputStream dis) throws IOException
     {
+        String table = dis.readUTF();
         String key = dis.readUTF();
-        Row row = new Row(table_, key);
+        Row row = new Row(table, key);
         int size = dis.readInt();
 
-        if (size > 0)
+        for (int i = 0; i < size; ++i)
         {
-            for (int i = 0; i < size; ++i)
-            {
-                ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
-                row.addColumnFamily(cf);
-            }
+            ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
+            row.addColumnFamily(cf);
         }
         return row;
     }

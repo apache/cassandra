@@ -709,7 +709,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         if (cLogCtx.isValidContext())
         {
-            CommitLog.open(table_).onMemtableFlush(columnFamily_, cLogCtx);
+            CommitLog.open().onMemtableFlush(table_, columnFamily_, cLogCtx);
         }
     }
 
@@ -1667,6 +1667,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    /**
+     * for testing.  no effort is made to clear historical memtables.
+     */
     void clearUnsafe()
     {
         lock_.writeLock().lock();

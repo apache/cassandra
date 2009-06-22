@@ -51,6 +51,10 @@
        <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super1"/>
        <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super2"/>
      </Table>
+     <Table Name = "Table2">
+       <ColumnFamily ColumnSort="Name" Name="Standard1"/>
+       <ColumnFamily ColumnSort="Name" Name="Standard3"/>
+     </Table>
    </Tables>
    <Seeds>
      <!-- Add names of hosts that are deemed contact points -->

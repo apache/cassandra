@@ -112,7 +112,7 @@ public class SystemTable
             bufIn.readInt();
             try
             {
-                systemRow_ = Row.serializer(table_).deserialize(bufIn);
+                systemRow_ = Row.serializer().deserialize(bufIn);
             }
             catch ( IOException e )
             {
@@ -133,7 +133,7 @@ public class SystemTable
         String file = getFileName();
         long currentPos = writer_.getCurrentPosition();
         DataOutputBuffer bufOut = new DataOutputBuffer();
-        Row.serializer(row.getTable()).serialize(row, bufOut);
+        Row.serializer().serialize(row, bufOut);
         try
         {
             writer_.append(row.key(), bufOut);

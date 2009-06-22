@@ -87,7 +87,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
     				rowList.add(result.row());
     				endPoints.add(response.getFrom());
     				key = result.row().key();
-    				table = result.table();
+    				table = result.row().getTable();
     			}
     			else
     			{

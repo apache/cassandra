@@ -59,27 +59,19 @@ private static ICompactSerializer<ReadResponse> serializer_;
         return message;
     }
 	
-	private String table_;
 	private Row row_;
 	private byte[] digest_ = ArrayUtils.EMPTY_BYTE_ARRAY;
     private boolean isDigestQuery_ = false;
 
-	public ReadResponse(String table, byte[] digest )
+	public ReadResponse(byte[] digest )
     {
         assert digest != null;
-		table_ = table;
 		digest_= digest;
 	}
 
-	public ReadResponse(String table, Row row)
+	public ReadResponse(Row row)
     {
-		table_ = table;
 		row_ = row;
-	}
-
-	public String table() 
-    {
-		return table_;
 	}
 
 	public Row row() 
@@ -107,20 +99,18 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
 {
 	public void serialize(ReadResponse rm, DataOutputStream dos) throws IOException
 	{
-		dos.writeUTF(rm.table());
         dos.writeInt(rm.digest().length);
         dos.write(rm.digest());
         dos.writeBoolean(rm.isDigestQuery());
         
         if( !rm.isDigestQuery() && rm.row() != null )
         {            
-            Row.serializer(rm.table()).serialize(rm.row(), dos);
+            Row.serializer().serialize(rm.row(), dos);
         }				
 	}
 	
     public ReadResponse deserialize(DataInputStream dis) throws IOException
     {
-    	String table = dis.readUTF();
         int digestSize = dis.readInt();
         byte[] digest = new byte[digestSize];
         dis.read(digest, 0 , digestSize);
@@ -129,17 +119,17 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         Row row = null;
         if ( !isDigest )
         {
-            row = Row.serializer(table).deserialize(dis);
+            row = Row.serializer().deserialize(dis);
         }
 		
 		ReadResponse rmsg = null;
     	if( isDigest  )
         {
-    		rmsg =  new ReadResponse(table, digest);
+    		rmsg =  new ReadResponse(digest);
         }
     	else
         {
-    		rmsg =  new ReadResponse(table, row);
+    		rmsg =  new ReadResponse(row);
         }
         rmsg.setIsDigestQuery(isDigest);
     	return rmsg;

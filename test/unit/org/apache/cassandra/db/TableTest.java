@@ -22,6 +22,7 @@ import java.util.SortedSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
 import java.io.IOException;
 
 import org.apache.commons.lang.StringUtils;
@@ -35,7 +36,6 @@ public class TableTest extends CleanupHelper
 {
     private static final String KEY2 = "key2";
     private static final String TEST_KEY = "key1";
-    private static final String TABLE_NAME = "Table1";
 
     interface Runner
     {
@@ -60,7 +60,7 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetRowSingleColumn() throws Throwable
     {
-        final Table table = Table.open(TABLE_NAME);
+        final Table table = Table.open("Table1");
         Runner setup = new Runner()
         {
             public void run() throws Exception
@@ -88,7 +88,7 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetRowOffsetCount() throws Throwable
     {
-        final Table table = Table.open(TABLE_NAME);
+        final Table table = Table.open("Table1");
 
         Runner setup = new Runner()
         {
@@ -127,7 +127,7 @@ public class TableTest extends CleanupHelper
     {
         Table table = Table.open("Table1");
         
-        RowMutation rm = new RowMutation(TABLE_NAME,KEY2);
+        RowMutation rm = new RowMutation("Table1",KEY2);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         // First write 5, 6
         cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
@@ -142,7 +142,7 @@ public class TableTest extends CleanupHelper
         table.getColumnFamilyStore("Standard1").forceBlockingFlush();
         // Flushed memtable to disk, we're now inserting into a new memtable
 
-        rm = new RowMutation(TABLE_NAME, KEY2);
+        rm = new RowMutation("Table1", KEY2);
         cf = ColumnFamily.create("Table1", "Standard1");
         // now write 7, 8, 4 into new memtable
         cf.addColumn(new Column("col7", "val7".getBytes(), 1L));
@@ -174,8 +174,8 @@ public class TableTest extends CleanupHelper
     public void testGetRowSliceByRange() throws Throwable
     {
     	String key = TEST_KEY+"slicerow";
-    	Table table = Table.open(TABLE_NAME);
-    	RowMutation rm = new RowMutation(TABLE_NAME,key);
+    	Table table = Table.open("Table1");
+    	RowMutation rm = new RowMutation("Table1",key);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(new Column("a", "val1".getBytes(), 1L));
@@ -201,9 +201,9 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetRowSuperColumnOffsetCount() throws Throwable
     {
-        Table table = Table.open(TABLE_NAME);
+        Table table = Table.open("Table1");
         
-        RowMutation rm = new RowMutation(TABLE_NAME,TEST_KEY);
+        RowMutation rm = new RowMutation("Table1",TEST_KEY);
         ColumnFamily cf = ColumnFamily.create("Table1", "Super1");
         SuperColumn sc1 = new SuperColumn("sc1");
         sc1.addColumn(new Column("col1","val1".getBytes(), 1L));
@@ -241,7 +241,7 @@ public class TableTest extends CleanupHelper
 
     private RowMutation makeSimpleRowMutation()
     {
-        RowMutation rm = new RowMutation(TABLE_NAME,TEST_KEY);
+        RowMutation rm = new RowMutation("Table1",TEST_KEY);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn(new Column("col1","val1".getBytes(), 1L));
         cf.addColumn(new Column("col2","val2".getBytes(), 1L));
@@ -253,8 +253,8 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetSliceNoMatch() throws Throwable
     {
-        Table table = Table.open(TABLE_NAME);
-        RowMutation rm = new RowMutation(TABLE_NAME, "row1000");
+        Table table = Table.open("Table1");
+        RowMutation rm = new RowMutation("Table1", "row1000");
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard2");
         cf.addColumn(new Column("col1", "val1".getBytes(), 1));
         rm.add(cf);
@@ -290,13 +290,13 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromBasic() throws Throwable
     {
         // tests slicing against data from one row in a memtable and then flushed to an sstable
-        final Table table = Table.open(TABLE_NAME);
+        final Table table = Table.open("Table1");
         final String ROW = "row1";
         Runner setup = new Runner()
         {
             public void run() throws Exception
             {
-                RowMutation rm = new RowMutation(TABLE_NAME, ROW);
+                RowMutation rm = new RowMutation("Table1", ROW);
                 ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
                 cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
                 cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
@@ -307,7 +307,7 @@ public class TableTest extends CleanupHelper
                 rm.add(cf);
                 rm.apply();
 
-                rm = new RowMutation(TABLE_NAME, ROW);
+                rm = new RowMutation("Table1", ROW);
                 rm.delete("Standard1:col4", 2L);
                 rm.apply();
             }
@@ -353,13 +353,13 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromAdvanced() throws Throwable
     {
         // tests slicing against data from one row spread across two sstables
-        final Table table = Table.open(TABLE_NAME);
+        final Table table = Table.open("Table1");
         final String ROW = "row2";
         Runner setup = new Runner()
         {
             public void run() throws Exception
             {
-                RowMutation rm = new RowMutation(TABLE_NAME, ROW);
+                RowMutation rm = new RowMutation("Table1", ROW);
                 ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
                 cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
                 cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
@@ -371,7 +371,7 @@ public class TableTest extends CleanupHelper
                 rm.apply();
                 table.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
-                rm = new RowMutation(TABLE_NAME, ROW);
+                rm = new RowMutation("Table1", ROW);
                 cf = ColumnFamily.create("Table1", "Standard1");
                 cf.addColumn(new Column("col1", "valx".getBytes(), 2L));
                 cf.addColumn(new Column("col2", "valx".getBytes(), 2L));
@@ -404,9 +404,9 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromLarge() throws Throwable
     {
         // tests slicing against 1000 columns in an sstable
-        Table table = Table.open(TABLE_NAME);
+        Table table = Table.open("Table1");
         String ROW = "row3";
-        RowMutation rm = new RowMutation(TABLE_NAME, ROW);
+        RowMutation rm = new RowMutation("Table1", ROW);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(new Column("col" + i, ("vvvvvvvvvvvvvvvv" + i).getBytes(), 1L));

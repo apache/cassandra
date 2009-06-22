@@ -39,20 +39,29 @@ public class RecoveryManagerTest extends CleanupHelper
     public void testSomething() throws IOException, ExecutionException, InterruptedException
     {
         Table table1 = Table.open("Table1");
+        Table table2 = Table.open("Table2");
 
         RowMutation rm;
         ColumnFamily cf;
 
         rm = new RowMutation("Table1", "keymulti");
-        cf = new ColumnFamily("Standard1", "Standard");
+        cf = ColumnFamily.create("Table1", "Standard1");
         cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
         rm.add(cf);
         rm.apply();
 
+        rm = new RowMutation("Table2", "keymulti");
+        cf = ColumnFamily.create("Table2", "Standard3");
+        cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
+        rm.add(cf);
+        rm.apply();
+
         table1.getColumnFamilyStore("Standard1").clearUnsafe();
+        table2.getColumnFamilyStore("Standard3").clearUnsafe();
 
         RecoveryManager.doRecovery();
 
         assertColumns(table1.get("keymulti", "Standard1"), "col1");
+        assertColumns(table2.get("keymulti", "Standard3"), "col2");
     }
 }

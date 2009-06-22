@@ -150,6 +150,11 @@ public class Table
             
             return sb.toString();
         }
+
+        public static int getColumnFamilyCount()
+        {
+            return idCfMap_.size();
+        }
     }
 
     /**
@@ -688,7 +693,7 @@ public class Table
     {
         /* Add row to the commit log. */
         long start = System.currentTimeMillis();
-        CommitLog.CommitLogContext cLogCtx = CommitLog.open(table_).add(row);
+        CommitLog.CommitLogContext cLogCtx = CommitLog.open().add(row);
 
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {

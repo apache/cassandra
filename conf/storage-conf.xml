@@ -22,7 +22,10 @@
     <!--======================================================================-->
     <ClusterName>Test Cluster</ClusterName>
 
-    <!-- Tables and ColumnFamilies                                            -->
+    <!-- Tables and ColumnFamilies                                            
+         Think of a table as a namespace, not a relational table.
+         (ColumnFamilies are closer in meaning to those.)
+    -->
     <Tables>
         <Table Name="Table1">
             <!-- if FlushPeriodInMinutes is configured and positive, it will be
@@ -32,9 +35,7 @@
             <ColumnFamily ColumnSort="Name" Name="Standard1" FlushPeriodInMinutes="60"/>
             <ColumnFamily ColumnSort="Name" Name="Standard2"/>
             <ColumnFamily ColumnSort="Time" Name="StandardByTime1"/>
-            <ColumnFamily ColumnSort="Time" Name="StandardByTime2"/>
             <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super1"/>
-            <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super2"/>
         </Table>
     </Tables>
 

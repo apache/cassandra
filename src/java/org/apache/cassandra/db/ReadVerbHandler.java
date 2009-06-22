@@ -79,11 +79,11 @@ public class ReadVerbHandler implements IVerbHandler
             ReadResponse readResponse = null;
             if (readCommand.isDigestQuery())
             {
-                readResponse = new ReadResponse(table.getTableName(), row.digest());
+                readResponse = new ReadResponse(row.digest());
             }
             else
             {
-                readResponse = new ReadResponse(table.getTableName(), row);
+                readResponse = new ReadResponse(row);
             }
             readResponse.setIsDigestQuery(readCommand.isDigestQuery());
             /* serialize the ReadResponseMessage. */
