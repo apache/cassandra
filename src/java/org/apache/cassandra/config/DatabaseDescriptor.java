@@ -465,19 +465,6 @@ public class DatabaseDescriptor
                 {
                     tmetadata.add(columnFamily, cfId++, DatabaseDescriptor.getColumnType(table, columnFamily));
                 }
-
-                /*
-                 * Here we add all the system related column families.
-                */
-                /* Add the TableMetadata column family to this map. */
-                tmetadata.add(Table.TableMetadata.cfName_, cfId++);
-                /* Add the LocationInfo column family to this map. */
-                tmetadata.add(SystemTable.cfName_, cfId++);
-                /* Add the recycle column family to this map. */
-                tmetadata.add(Table.recycleBin_, cfId++);
-                /* Add the Hints column family to this map. */
-                tmetadata.add(Table.hints_, cfId++, ColumnFamily.getColumnType("Super"));
-                tmetadata.apply();
             }
 
             /*

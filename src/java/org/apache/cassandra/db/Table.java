@@ -19,8 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.File;
 import java.util.concurrent.locks.Lock;
@@ -35,10 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.IFileWriter;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.net.EndPoint;
@@ -65,19 +59,6 @@ public class Table
     */
     public static class TableMetadata
     {
-        /* Name of the column family */
-        public final static String cfName_ = "TableMetadata";
-        private String table_;
-        private static ICompactSerializer<TableMetadata> serializer_;
-        static
-        {
-            serializer_ = new TableMetadataSerializer();
-        }
-        
-        private static TableMetadata tableMetadata_;
-        /* Use the following writer/reader to write/read to Metadata table */
-        private static IFileWriter writer_;
-        private static IFileReader reader_;
         private static HashMap<String,TableMetadata> tableMetadataMap_ = new HashMap<String,TableMetadata>();
         private static Map<Integer, String> idCfMap_ = new HashMap<Integer, String>();
         static
@@ -92,71 +73,18 @@ public class Table
             }
         }
 
-        private static TableMetadata getTableMetadata(String table)
+        public static synchronized Table.TableMetadata instance(String tableName) throws IOException
         {
-          return tableMetadataMap_.get(table);
-        }
-
-        public static Table.TableMetadata instance(String table) throws IOException
-        {
-            TableMetadata metadata = getTableMetadata(table);
-            if ( metadata == null )
+            if ( tableMetadataMap_.get(tableName) == null )
             {
-                String file = getFileName(table);
-                writer_ = SequenceFile.writer(file);        
-                reader_ = SequenceFile.reader(file);
-                Table.TableMetadata.load(table);
-
-                metadata = new Table.TableMetadata();
-                metadata.table_ = table;
-                tableMetadataMap_.put(table,metadata);
+                tableMetadataMap_.put(tableName, new Table.TableMetadata());
             }
-            return metadata;
+            return tableMetadataMap_.get(tableName);
         }
 
-        static ICompactSerializer<TableMetadata> serializer()
-        {
-            return serializer_;
-        }
-        
-        private static void load(String table) throws IOException
-        {            
-            String file = Table.TableMetadata.getFileName(table);
-            File f = new File(file);
-            if ( f.exists() )
-            {
-                DataOutputBuffer bufOut = new DataOutputBuffer();
-                DataInputBuffer bufIn = new DataInputBuffer();
-                
-                if ( reader_ == null )
-                {
-                    reader_ = SequenceFile.reader(file);
-                }
-                
-                while ( !reader_.isEOF() )
-                {
-                    /* Read the metadata info. */
-                    reader_.next(bufOut);
-                    bufIn.reset(bufOut.getData(), bufOut.getLength());
-
-                    /* The key is the table name */
-                    bufIn.readUTF();
-                    /* read the size of the data we ignore this value */
-                    bufIn.readInt();
-                    tableMetadata_ = Table.TableMetadata.serializer().deserialize(bufIn);
-                    break;
-                }        
-            }            
-        }
-        
         /* The mapping between column family and the column type. */
         private Map<String, String> cfTypeMap_ = new HashMap<String, String>();
         private Map<String, Integer> cfIdMap_ = new HashMap<String, Integer>();
-        
-        private static String getFileName(String table)
-        {
-            return DatabaseDescriptor.getMetadataDirectory() + System.getProperty("file.separator") + table + "-Metadata.db";
-        }
 
         public void add(String cf, int id)
         {
@@ -206,21 +134,6 @@ public class Table
         {
             return cfIdMap_.containsKey(cfName);
         }
-        
-        public void apply() throws IOException
-        {
-            DataOutputBuffer bufOut = new DataOutputBuffer();
-            Table.TableMetadata.serializer_.serialize(this, bufOut);
-            try
-            {
-                writer_.append(table_, bufOut);
-            }
-            catch ( IOException ex )
-            {
-                writer_.seek(0L);
-                logger_.debug(LogUtil.throwableToString(ex));
-            }
-        }
 
         public String toString()
         {
@@ -236,37 +149,6 @@ public class Table
             }
             
             return sb.toString();
-        }
-    }
-
-    static class TableMetadataSerializer implements ICompactSerializer<TableMetadata>
-    {
-        public void serialize(TableMetadata tmetadata, DataOutputStream dos) throws IOException
-        {
-            int size = tmetadata.cfIdMap_.size();
-            dos.writeInt(size);
-            Set<String> cfNames = tmetadata.cfIdMap_.keySet();
-
-            for ( String cfName : cfNames )
-            {
-                dos.writeUTF(cfName);
-                dos.writeInt( tmetadata.cfIdMap_.get(cfName).intValue() );
-                dos.writeUTF(tmetadata.getColumnFamilyType(cfName));
-            }            
-        }
-
-        public TableMetadata deserialize(DataInputStream dis) throws IOException
-        {
-            TableMetadata tmetadata = new TableMetadata();
-            int size = dis.readInt();
-            for( int i = 0; i < size; ++i )
-            {
-                String cfName = dis.readUTF();
-                int id = dis.readInt();
-                String type = dis.readUTF();
-                tmetadata.add(cfName, id, type);
-            }            
-            return tmetadata;
         }
     }
 
