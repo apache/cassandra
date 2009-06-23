@@ -577,7 +577,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, String ssTableFile) throws IOException
     {
-        SSTable ssTable = new SSTable(ssTableFile, StorageService.getPartitioner());
+        SSTable ssTable = SSTable.open(ssTableFile, StorageService.getPartitioner());
         DataInputBuffer bufIn;
         bufIn = filter.next(key, cf, ssTable);
         if (bufIn.getLength() == 0)

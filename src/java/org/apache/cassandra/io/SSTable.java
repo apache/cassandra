@@ -156,7 +156,7 @@ public class SSTable
         {
             try
             {
-                new SSTable(filename, StorageService.getPartitioner());
+                SSTable.open(filename, StorageService.getPartitioner());
             }
             catch (IOException ex)
             {
@@ -205,30 +205,26 @@ public class SSTable
     private String lastWrittenKey_;
     private IPartitioner partitioner_;
 
-    /**
-     * This ctor basically gets passed in the full path name
-     * of the data file associated with this SSTable. Use this
-     * ctor to read the data in this file.
-     */
-    public SSTable(String dataFileName, IPartitioner partitioner) throws IOException
+    public static synchronized SSTable open(String dataFileName, IPartitioner partitioner) throws IOException
     {
-        dataFile_ = dataFileName;
-        partitioner_ = partitioner;
-        /*
-         * this is to prevent multiple threads from
-         * loading the same index files multiple times
-         * into memory.
-        */
-        synchronized (indexLoadLock_)
+        SSTable sstable = new SSTable(dataFileName, partitioner);
+        sstable.dataWriter_.close(); // todo this is dumb
+        if (indexMetadataMap_.get(dataFileName) == null)
         {
-            if (indexMetadataMap_.get(dataFile_) == null)
-            {
-                long start = System.currentTimeMillis();
-                loadIndexFile();
-                loadBloomFilter();
-                logger_.debug("INDEX LOAD TIME: " + (System.currentTimeMillis() - start) + " ms.");
-            }
+            long start = System.currentTimeMillis();
+            sstable.loadIndexFile();
+            sstable.loadBloomFilter();
+            logger_.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
         }
+        return sstable;
+    }
+
+    public SSTable(String filename, IPartitioner partitioner) throws IOException
+    {
+        dataFile_ = filename;
+        partitioner_ = partitioner;
+        dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4 * 1024 * 1024);
+        indexRAF_ = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
     }
 
     /**
@@ -237,10 +233,7 @@ public class SSTable
      */
     public SSTable(String directory, String filename, IPartitioner partitioner) throws IOException
     {
-        dataFile_ = directory + System.getProperty("file.separator") + filename + "-Data.db";
-        partitioner_ = partitioner;
-        dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4 * 1024 * 1024);
-        indexRAF_ = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
+        this(directory + System.getProperty("file.separator") + filename + "-Data.db", partitioner);
     }
 
     static String parseTableName(String filename)
