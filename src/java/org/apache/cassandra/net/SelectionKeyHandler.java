@@ -65,4 +65,20 @@ public class SelectionKeyHandler
     {
         throw new UnsupportedOperationException("write() cannot be called on " + getClass().getName() + "!");
     }
+    
+    protected static void turnOnInterestOps(SelectionKey key, int ops)
+    {
+        synchronized(key)
+        {
+            key.interestOps(key.interestOps() | ops);
+        }
+    }
+    
+    protected static void turnOffInterestOps(SelectionKey key, int ops)
+    {
+        synchronized(key)
+        {
+            key.interestOps(key.interestOps() & (~ops) );
+        }
+    }
 }
