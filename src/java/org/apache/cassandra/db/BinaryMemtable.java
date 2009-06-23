@@ -160,7 +160,7 @@ public class BinaryMemtable
                 bf.add(key);
             }
         }
-        ssTable.closeRename(bf);
+        ssTable.close(bf);
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         columnFamilies_.clear();       
     }

@@ -19,7 +19,6 @@
 package org.apache.cassandra.loader;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.util.List;
@@ -117,7 +116,7 @@ public class PreLoad
              * Do the cleanup necessary. Delete all commit logs and
              * the SSTables and reset the load state in the StorageService.
             */
-            SSTable.delete(ssTables.get(0));
+            SSTable.open(ssTables.get(0), null).delete();
         }
         logger_.info("Finished all the requisite clean up ...");
     }

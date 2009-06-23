@@ -155,6 +155,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     public void close() throws IOException
     {
         this.flush();
+        this.buff_ = null;
         super.close();
     }
     

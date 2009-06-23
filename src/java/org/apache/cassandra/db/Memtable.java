@@ -282,7 +282,7 @@ public class Memtable implements Comparable<Memtable>
                 bf.add(key);
             }
         }
-        ssTable.closeRename(bf);
+        ssTable.close(bf);
         cfStore.onMemtableFlush(cLogCtx);
         cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
         buffer.close();

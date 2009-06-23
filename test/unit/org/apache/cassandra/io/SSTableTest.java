@@ -33,11 +33,10 @@ public class SSTableTest extends CleanupHelper
 {
     @Test
     public void testSingleWrite() throws IOException {
-        File f = File.createTempFile("sstable", "");
-        SSTable ssTable;
+        File f = File.createTempFile("sstable", "-" + SSTable.temporaryFile_);
 
         // write test data
-        ssTable = new SSTable(f.getParent(), f.getName(), new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getParent(), f.getName(), new OrderPreservingPartitioner());
         BloomFilter bf = new BloomFilter(1000, 8);
         Random random = new Random();
         byte[] bytes = new byte[1024];
@@ -49,14 +48,14 @@ public class SSTableTest extends CleanupHelper
         ssTable.close(bf);
 
         // verify
-        verifySingle(f, bytes, key);
-        SSTable.indexMetadataMap_.clear(); // force reloading the index
-        verifySingle(f, bytes, key);
+        verifySingle(ssTable.dataFile_, bytes, key);
+        SSTable.reopenUnsafe(); // force reloading the index
+        verifySingle(ssTable.dataFile_, bytes, key);
     }
 
-    private void verifySingle(File f, byte[] bytes, String key) throws IOException
+    private void verifySingle(String filename, byte[] bytes, String key) throws IOException
     {
-        SSTable ssTable = SSTable.open(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
+        SSTable ssTable = SSTable.open(filename, new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         fs.seekTo(key);
         int size = fs.getBufIn().readInt();
@@ -67,8 +66,7 @@ public class SSTableTest extends CleanupHelper
 
     @Test
     public void testManyWrites() throws IOException {
-        File f = File.createTempFile("sstable", "");
-        SSTable ssTable;
+        File f = File.createTempFile("sstable", "-" + SSTable.temporaryFile_);
 
         TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
         for ( int i = 100; i < 1000; ++i )
@@ -77,7 +75,7 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        ssTable = new SSTable(f.getParent(), f.getName(), new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getParent(), f.getName(), new OrderPreservingPartitioner());
         BloomFilter bf = new BloomFilter(1000, 8);
         for (String key: map.navigableKeySet())
         {
@@ -86,16 +84,16 @@ public class SSTableTest extends CleanupHelper
         ssTable.close(bf);
 
         // verify
-        verifyMany(f, map);
-        SSTable.indexMetadataMap_.clear(); // force reloading the index
-        verifyMany(f, map);
+        verifyMany(ssTable.dataFile_, map);
+        SSTable.reopenUnsafe(); // force reloading the index
+        verifyMany(ssTable.dataFile_, map);
     }
 
-    private void verifyMany(File f, TreeMap<String, byte[]> map) throws IOException
+    private void verifyMany(String filename, TreeMap<String, byte[]> map) throws IOException
     {
         List<String> keys = new ArrayList(map.keySet());
         Collections.shuffle(keys);
-        SSTable ssTable = SSTable.open(f.getPath() + "-Data.db", new OrderPreservingPartitioner());
+        SSTable ssTable = SSTable.open(filename, new OrderPreservingPartitioner());
         FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
         for (String key : keys)
         {

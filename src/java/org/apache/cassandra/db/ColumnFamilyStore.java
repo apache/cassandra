@@ -25,7 +25,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -46,7 +45,6 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.comparators.ReverseComparator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -994,7 +992,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     SSTable.storeBloomFilter(newfile, compactedBloomFilters.get(0));
                 }
             }
-            SSTable.delete(file);
+            SSTable.open(file, null).delete();
         }
         finally
         {
@@ -1183,7 +1181,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (ssTableRange != null)
         {
-            ssTableRange.closeRename(compactedRangeBloomFilter);
+            ssTableRange.close(compactedRangeBloomFilter);
             if (fileList != null)
             {
                 fileList.add(ssTableRange.getDataFileLocation());
@@ -1360,7 +1358,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (ssTable != null)
         {
             // TODO if all the keys were the same nothing will be done here
-            ssTable.closeRename(compactedBloomFilter);
+            ssTable.close(compactedBloomFilter);
             newfile = ssTable.getDataFileLocation();
         }
         lock_.writeLock().lock();
@@ -1379,7 +1377,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             for (String file : files)
             {
-                SSTable.delete(file);
+                SSTable.open(file, null).delete();
             }
         }
         finally

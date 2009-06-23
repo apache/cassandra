@@ -39,7 +39,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.locator.EndPointSnitch;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
@@ -48,7 +47,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.cassandra.utils.*;
 
 
 /**
@@ -336,7 +334,7 @@ public class Loader
             */
 
             // TODO Hmm need to double check here
-            SSTable.delete(ssTables.get(0));
+            SSTable.open(ssTables.get(0), null).delete();
             logger_.info("Finished all the requisite clean up ...");
         }
     }

@@ -48,8 +48,6 @@ import org.apache.cassandra.utils.LogUtil;
 public class SSTable
 {
     private static Logger logger_ = Logger.getLogger(SSTable.class);
-    /* use this as a monitor to lock when loading index. */
-    private static Object indexLoadLock_ = new Object();
     /* Every 128th key is an index. */
     private static final int indexInterval_ = 128;
     /* Required extension for temporary files created during compactions. */
@@ -61,38 +59,12 @@ public class SSTable
      */
     private static Map<String, BloomFilter> bfs_ = new Hashtable<String, BloomFilter>();
 
+    private static FileSSTableMap openedFiles = new FileSSTableMap();
+
 
     public static int indexInterval()
     {
         return indexInterval_;
-    }
-
-    /*
-     * Maintains a list of KeyPosition objects per SSTable file loaded.
-     * We do this so that we don't read the index file into memory multiple
-     * times.
-     *
-     * The positions here refer to positions _in the index file_, not in
-     * the sstable file directly.  So looking up a data location is a two
-     * step process: use this map to find the location of the original index
-     * entry, then read the data file at the location given by the index.
-    */
-    static IndexMap indexMetadataMap_ = new IndexMap();
-
-    /**
-     * This method deletes both the specified data file
-     * and the associated index file
-     *
-     * @param dataFile - data file associated with the SSTable
-     */
-    public static void delete(String dataFile) throws IOException
-    {
-        /* remove the cached index table from memory */
-        indexMetadataMap_.remove(dataFile);
-
-        deleteWithConfirm(new File(dataFile));
-        deleteWithConfirm(new File(indexFilename(dataFile)));
-        deleteWithConfirm(new File(filterFilename(dataFile)));
     }
 
     private static void deleteWithConfirm(File file) throws IOException
@@ -104,19 +76,18 @@ public class SSTable
         }
     }
 
+    // todo can we refactor to take list of sstables?
     public static int getApproximateKeyCount(List<String> dataFiles)
     {
         int count = 0;
 
-        for (String dataFile : dataFiles)
+        for (String dataFileName : dataFiles)
         {
-            List<KeyPosition> index = indexMetadataMap_.get(dataFile);
-            if (index != null)
-            {
-                int indexKeyCount = index.size();
-                count = count + (indexKeyCount + 1) * indexInterval_;
-                logger_.debug("index size for bloom filter calc for file  : " + dataFile + "   : " + count);
-            }
+            SSTable sstable = openedFiles.get(dataFileName);
+            assert sstable != null;
+            int indexKeyCount = sstable.getIndexPositions().size();
+            count = count + (indexKeyCount + 1) * indexInterval_;
+            logger_.debug("index size for bloom filter calc for file  : " + dataFileName + "   : " + count);
         }
 
         return count;
@@ -127,21 +98,17 @@ public class SSTable
      */
     public static List<String> getIndexedKeys()
     {
-        Set<String> indexFiles = indexMetadataMap_.keySet();
-        List<KeyPosition> positions = new ArrayList<KeyPosition>();
-
-        for (String indexFile : indexFiles)
-        {
-            positions.addAll(indexMetadataMap_.get(indexFile));
-        }
-
         List<String> indexedKeys = new ArrayList<String>();
-        for (KeyPosition kp : positions)
-        {
-            indexedKeys.add(kp.key);
-        }
 
+        for (SSTable sstable : openedFiles.values())
+        {
+            for (KeyPosition kp : sstable.getIndexPositions())
+            {
+                indexedKeys.add(kp.key);
+            }
+        }
         Collections.sort(indexedKeys);
+
         return indexedKeys;
     }
 
@@ -204,17 +171,25 @@ public class SSTable
     private BufferedRandomAccessFile indexRAF_;
     private String lastWrittenKey_;
     private IPartitioner partitioner_;
+    List<KeyPosition> indexPositions_;
+
 
     public static synchronized SSTable open(String dataFileName, IPartitioner partitioner) throws IOException
     {
-        SSTable sstable = new SSTable(dataFileName, partitioner);
-        sstable.dataWriter_.close(); // todo this is dumb
-        if (indexMetadataMap_.get(dataFileName) == null)
+        SSTable sstable = openedFiles.get(dataFileName);
+        if (sstable == null)
         {
+            assert partitioner != null;
+            sstable = new SSTable(dataFileName, partitioner);
+            sstable.dataWriter_.close(); // todo this is dumb
+            sstable.indexRAF_.close();
+
             long start = System.currentTimeMillis();
             sstable.loadIndexFile();
             sstable.loadBloomFilter();
             logger_.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
+
+            openedFiles.put(dataFileName, sstable);
         }
         return sstable;
     }
@@ -242,6 +217,11 @@ public class SSTable
         return parts[0];
     }
 
+    public List<KeyPosition> getIndexPositions()
+    {
+        return indexPositions_;
+    }
+
     private void loadBloomFilter() throws IOException
     {
         assert bfs_.get(dataFile_) == null;
@@ -252,7 +232,7 @@ public class SSTable
     private void loadIndexFile() throws IOException
     {
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
-        ArrayList<KeyPosition> indexEntries = new ArrayList<KeyPosition>();
+        indexPositions_ = new ArrayList<KeyPosition>();
 
         int i = 0;
         long indexSize = input.length();
@@ -267,11 +247,9 @@ public class SSTable
             input.readLong();
             if (i++ % indexInterval_ == 0)
             {
-                indexEntries.add(new KeyPosition(decoratedKey, indexPosition, partitioner_));
+                indexPositions_.add(new KeyPosition(decoratedKey, indexPosition, partitioner_));
             }
         }
-
-        indexMetadataMap_.put(dataFile_, indexEntries);
     }
 
     private static String indexFilename(String dataFile)
@@ -339,13 +317,11 @@ public class SSTable
 
         if (keysWritten++ % indexInterval_ != 0)
             return;
-        List<KeyPosition> indexEntries = SSTable.indexMetadataMap_.get(dataFile_);
-        if (indexEntries == null)
+        if (indexPositions_ == null)
         {
-            indexEntries = new ArrayList<KeyPosition>();
-            SSTable.indexMetadataMap_.put(dataFile_, indexEntries);
+            indexPositions_ = new ArrayList<KeyPosition>();
         }
-        indexEntries.add(new KeyPosition(decoratedKey, indexPosition, partitioner_));
+        indexPositions_.add(new KeyPosition(decoratedKey, indexPosition, partitioner_));
         logger_.trace("wrote index of " + decoratedKey + " at " + indexPosition);
     }
 
@@ -367,7 +343,7 @@ public class SSTable
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
     private static long getIndexScanPosition(String decoratedKey, IFileReader dataReader, IPartitioner partitioner)
     {
-        List<KeyPosition> positions = indexMetadataMap_.get(dataReader.getFileName());
+        List<KeyPosition> positions = openedFiles.get(dataReader.getFileName()).getIndexPositions();
         assert positions != null && positions.size() > 0;
         int index = Collections.binarySearch(positions, new KeyPosition(decoratedKey, -1, partitioner));
         if (index < 0)
@@ -509,6 +485,16 @@ public class SSTable
         return next(clientKey, columnFamilyName, cnNames);
     }
 
+    private static String rename(String tmpFilename)
+    {
+        String filename = tmpFilename.replace("-" + temporaryFile_, "");
+        new File(tmpFilename).renameTo(new File(filename));
+        return filename;
+    }
+
+    /**
+     * Renames temporary SSTable files to valid data, index, and bloom filter files
+     */
     public void close(BloomFilter bf) throws IOException
     {
         // bloom filter
@@ -525,29 +511,12 @@ public class SSTable
 
         // main data
         dataWriter_.close(); // calls force
-    }
-    
-    private static String rename(String tmpFilename)
-    {
-        String filename = tmpFilename.replace("-" + temporaryFile_, "");
-        new File(tmpFilename).renameTo(new File(filename));
-        return filename;
-    }
 
-    /**
-     * Renames temporary SSTable files to valid data, index, and bloom filter files
-     */
-    public void closeRename(BloomFilter bf) throws IOException
-    {
-    	close(bf);
-
-        String oldDataFileName = dataFile_;
         rename(indexFilename());
         rename(filterFilename());
         dataFile_ = rename(dataFile_); // important to do this last since index & filter file names are derived from it
 
-    	List<KeyPosition> positions = SSTable.indexMetadataMap_.remove(oldDataFileName);
-    	SSTable.indexMetadataMap_.put(dataFile_, positions);
+        openedFiles.put(dataFile_, this);
     }
 
     /**
@@ -570,10 +539,28 @@ public class SSTable
         }
     }
 
+    public void delete() throws IOException
+    {
+        deleteWithConfirm(new File(dataFile_));
+        deleteWithConfirm(new File(indexFilename(dataFile_)));
+        deleteWithConfirm(new File(filterFilename(dataFile_)));
+    }
+
     /** obviously only for testing */
     public static void forceBloomFilterFailures(String filename)
     {
         SSTable.bfs_.put(filename, BloomFilter.alwaysMatchingBloomFilter());
+    }
+
+    static void reopenUnsafe() throws IOException // testing only
+    {
+        Collection<SSTable> sstables = new ArrayList<SSTable>(openedFiles.values());
+        openedFiles.clear();
+        bfs_.clear();
+        for (SSTable sstable : sstables)
+        {
+            SSTable.open(sstable.dataFile_, sstable.partitioner_);
+        }
     }
 }
 
@@ -608,19 +595,15 @@ class KeyPosition implements Comparable<KeyPosition>
     }
 }
 
-/**
- * wraps a Map to ensure that all filenames used as keys are cannonicalized.
- * (Note that cannonical paths are cached by the JDK so the performance hit is negligible.)
- */
-class IndexMap
+class FileSSTableMap
 {
-    private final Hashtable<String, List<KeyPosition>> hashtable = new Hashtable<String, List<KeyPosition>>();
+    private final HashMap<String, SSTable> map = new HashMap<String, SSTable>();
 
-    private String cannonicalize(String filename)
+    public SSTable get(String filename)
     {
         try
         {
-            return new File(filename).getCanonicalPath();
+            return map.get(new File(filename).getCanonicalPath());
         }
         catch (IOException e)
         {
@@ -628,28 +611,25 @@ class IndexMap
         }
     }
 
-    public List<KeyPosition> get(String filename)
+    public SSTable put(String filename, SSTable value)
     {
-        return hashtable.get(cannonicalize(filename));
+        try
+        {
+            return map.put(new File(filename).getCanonicalPath(), value);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
-    public List<KeyPosition> put(String filename, List<KeyPosition> value)
+    public Collection<SSTable> values()
     {
-        return hashtable.put(cannonicalize(filename), value);
+        return map.values();
     }
 
     public void clear()
     {
-        hashtable.clear();
-    }
-
-    public Set<String> keySet()
-    {
-        return hashtable.keySet();
-    }
-
-    public List<KeyPosition> remove(String filename)
-    {
-        return hashtable.remove(cannonicalize(filename));
+        map.clear();
     }
 }
