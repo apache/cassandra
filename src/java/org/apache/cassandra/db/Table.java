@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SequenceFile;
+import org.apache.cassandra.io.FileStruct;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -453,15 +454,15 @@ public class Table
     /*
      * Get the list of all SSTables on disk.  Not safe unless you aquire the CFS readlocks!
     */
-    public List<String> getAllSSTablesOnDisk()
+    public List<SSTable> getAllSSTablesOnDisk()
     {
-        List<String> list = new ArrayList<String>();
+        List<SSTable> list = new ArrayList<SSTable>();
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
-                list.addAll(cfStore.getSSTableFilenames());
+                list.addAll(cfStore.getSSTables());
         }
         return list;
     }
@@ -829,9 +830,9 @@ public class Table
             }
 
             // sstables
-            for (String filename : cfs.getSSTableFilenames())
+            for (SSTable sstable : cfs.getSSTables())
             {
-                FileStruct fs = new FileStruct(SequenceFile.reader(filename), StorageService.getPartitioner());
+                FileStruct fs = sstable.getFileStruct();
                 fs.seekTo(startWith);
                 iterators.add(fs);
             }

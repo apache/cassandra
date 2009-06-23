@@ -58,9 +58,9 @@ public class CompactionsTest
             if (ft.get() == 0)
                 break;
         }
-        if (store.getSSTableFilenames().size() > 1)
+        if (store.getSSTables().size() > 1)
         {
-            store.doCompaction(store.getSSTableFilenames().size());
+            store.doCompaction(store.getSSTables().size());
         }
         assertEquals(table.getKeyRange(Arrays.asList("Standard1"), "", "", 10000).size(), inserted.size());
     }

@@ -27,10 +27,9 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.utils.LogUtil;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -48,7 +47,7 @@ import org.apache.cassandra.utils.LogUtil;
 public class SSTable
 {
     private static Logger logger_ = Logger.getLogger(SSTable.class);
-    /* Every 128th key is an index. */
+    /* Every 128th index entry is loaded into memory so we know where to start looking for the actual key w/o seeking */
     private static final int indexInterval_ = 128;
     /* Required extension for temporary files created during compactions. */
     public static final String temporaryFile_ = "tmp";
@@ -59,15 +58,6 @@ public class SSTable
     public static int indexInterval()
     {
         return indexInterval_;
-    }
-
-    private static void deleteWithConfirm(File file) throws IOException
-    {
-        assert file.exists() : "attempted to delete non-existing file " + file.getName();
-        if (!file.delete())
-        {
-            throw new IOException("Failed to delete " + file.getName());
-        }
     }
 
     // todo can we refactor to take list of sstables?
@@ -195,7 +185,7 @@ public class SSTable
             input.readLong();
             if (i++ % indexInterval_ == 0)
             {
-                indexPositions_.add(new KeyPosition(decoratedKey, indexPosition, partitioner_));
+                indexPositions_.add(new KeyPosition(decoratedKey, indexPosition));
             }
         }
     }
@@ -259,7 +249,7 @@ public class SSTable
         {
             indexPositions_ = new ArrayList<KeyPosition>();
         }
-        indexPositions_.add(new KeyPosition(decoratedKey, indexPosition, partitioner_));
+        indexPositions_.add(new KeyPosition(decoratedKey, indexPosition));
         logger_.trace("wrote index of " + decoratedKey + " at " + indexPosition);
     }
 
@@ -279,11 +269,10 @@ public class SSTable
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
-    private static long getIndexScanPosition(String decoratedKey, IFileReader dataReader, IPartitioner partitioner)
+    private long getIndexScanPosition(String decoratedKey, IPartitioner partitioner)
     {
-        List<KeyPosition> positions = openedFiles.get(dataReader.getFileName()).getIndexPositions();
-        assert positions != null && positions.size() > 0;
-        int index = Collections.binarySearch(positions, new KeyPosition(decoratedKey, -1, partitioner));
+        assert indexPositions_ != null && indexPositions_.size() > 0;
+        int index = Collections.binarySearch(indexPositions_, new KeyPosition(decoratedKey, -1));
         if (index < 0)
         {
             // binary search gives us the first index _greater_ than the key searched for,
@@ -291,27 +280,26 @@ public class SSTable
             int greaterThan = (index + 1) * -1;
             if (greaterThan == 0)
                 return -1;
-            return positions.get(greaterThan - 1).position;
+            return indexPositions_.get(greaterThan - 1).position;
         }
         else
         {
-            return positions.get(index).position;
+            return indexPositions_.get(index).position;
         }
     }
 
     /**
      * returns the position in the data file to find the given key, or -1 if the key is not present
      */
-    /* TODO having this static means we have to keep re-opening the index file, which sucks.  Need to move towards
-       greater encapsulation. */
-    public static long getPosition(String decoratedKey, IFileReader dataReader, IPartitioner partitioner) throws IOException
+    public long getPosition(String decoratedKey, IPartitioner partitioner) throws IOException
     {
-        long start = getIndexScanPosition(decoratedKey, dataReader, partitioner);
+        long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
         {
             return -1;
         }
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataReader.getFileName()), "r");
+        // TODO mmap the index file?
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataFile_), "r");
         input.seek(start);
         int i = 0;
         try
@@ -343,14 +331,14 @@ public class SSTable
     }
 
     /** like getPosition, but if key is not found will return the location of the first key _greater_ than the desired one, or -1 if no such key exists. */
-    public static long getNearestPosition(String decoratedKey, IFileReader dataReader, IPartitioner partitioner) throws IOException
+    public long getNearestPosition(String decoratedKey) throws IOException
     {
-        long start = getIndexScanPosition(decoratedKey, dataReader, partitioner);
+        long start = getIndexScanPosition(decoratedKey, partitioner_);
         if (start < 0)
         {
             return 0;
         }
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataReader.getFileName()), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataFile_), "r");
         input.seek(start);
         try
         {
@@ -366,7 +354,7 @@ public class SSTable
                     return -1;
                 }
                 long position = input.readLong();
-                int v = partitioner.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
+                int v = partitioner_.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
                 if (v >= 0)
                     return position;
             }
@@ -389,7 +377,7 @@ public class SSTable
         {
             dataReader = SequenceFile.reader(dataFile_);
             String decoratedKey = partitioner_.decorateKey(clientKey);
-            long position = getPosition(decoratedKey, dataReader, partitioner_);
+            long position = getPosition(decoratedKey, partitioner_);
 
             DataOutputBuffer bufOut = new DataOutputBuffer();
             DataInputBuffer bufIn = new DataInputBuffer();
@@ -468,7 +456,7 @@ public class SSTable
         {
             /* Morph key into actual key based on the partition type. */
             String decoratedKey = partitioner_.decorateKey(key);
-            long position = getPosition(decoratedKey, dataReader, partitioner_);
+            long position = getPosition(decoratedKey, partitioner_);
             return new ColumnGroupReader(dataFile_, decoratedKey, cfName, startColumn, isAscending, position);
         }
         finally
@@ -479,9 +467,10 @@ public class SSTable
 
     public void delete() throws IOException
     {
-        deleteWithConfirm(new File(dataFile_));
-        deleteWithConfirm(new File(indexFilename(dataFile_)));
-        deleteWithConfirm(new File(filterFilename(dataFile_)));
+        FileUtils.deleteWithConfirm(new File(dataFile_));
+        FileUtils.deleteWithConfirm(new File(indexFilename(dataFile_)));
+        FileUtils.deleteWithConfirm(new File(filterFilename(dataFile_)));
+        openedFiles.remove(dataFile_);
     }
 
     /** obviously only for testing */
@@ -504,42 +493,59 @@ public class SSTable
     {
         return bf.isPresent(partitioner_.decorateKey(clientKey));
     }
-}
 
-/**
- * This is a simple container for the index Key and its corresponding position
- * in the data file. Binary search is performed on a list of these objects
- * to lookup keys within the SSTable data file.
- *
- * All keys are decorated.
- */
-class KeyPosition implements Comparable<KeyPosition>
-{
-    public final String key; // decorated
-    public final long position;
-    private final IPartitioner partitioner; // TODO rip out the static uses of KP so we can just use the parent SSTable's partitioner, when necessary
-
-    public KeyPosition(String key, long position, IPartitioner partitioner)
+    IPartitioner getPartitioner()
     {
-        this.key = key;
-        this.position = position;
-        this.partitioner = partitioner;
+        return partitioner_;
     }
 
-    public int compareTo(KeyPosition kp)
+    public FileStruct getFileStruct() throws IOException
     {
-        return partitioner.getDecoratedKeyComparator().compare(key, kp.key);
+        return new FileStruct(this);
     }
 
-    public String toString()
+    public static void deleteAll() throws IOException
     {
-        return key + ":" + position;
+        for (SSTable sstable : openedFiles.values())
+        {
+            sstable.delete();
+        }
     }
+
+    /**
+     * This is a simple container for the index Key and its corresponding position
+     * in the data file. Binary search is performed on a list of these objects
+     * to lookup keys within the SSTable data file.
+     *
+     * All keys are decorated.
+     */
+    class KeyPosition implements Comparable<KeyPosition>
+    {
+        public final String key; // decorated
+        public final long position;
+
+        public KeyPosition(String key, long position)
+        {
+            this.key = key;
+            this.position = position;
+        }
+
+        public int compareTo(KeyPosition kp)
+        {
+            return partitioner_.getDecoratedKeyComparator().compare(key, kp.key);
+        }
+
+        public String toString()
+        {
+            return key + ":" + position;
+        }
+    }
+
 }
 
 class FileSSTableMap
 {
-    private final HashMap<String, SSTable> map = new HashMap<String, SSTable>();
+    private final Map<String, SSTable> map = new NonBlockingHashMap<String, SSTable>();
 
     public SSTable get(String filename)
     {
@@ -573,5 +579,10 @@ class FileSSTableMap
     public void clear()
     {
         map.clear();
+    }
+
+    public void remove(String filename) throws IOException
+    {
+        map.remove(new File(filename).getCanonicalPath());
     }
 }

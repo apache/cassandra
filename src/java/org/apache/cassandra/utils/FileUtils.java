@@ -52,6 +52,15 @@ public class FileUtils
     	deleter_.shutdownNow();
     }
 
+    public static void deleteWithConfirm(File file) throws IOException
+    {
+        assert file.exists() : "attempted to delete non-existing file " + file.getName();
+        if (!file.delete())
+        {
+            throw new IOException("Failed to delete " + file.getName());
+        }
+    }
+
     public static class Deleter implements Runnable
     {
     	File file_ = null;

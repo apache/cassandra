@@ -310,13 +310,6 @@ public class Loader
             logger_.info("Taking a nap after forcing a compaction ...");
             Thread.sleep(Loader.siesta_);
 
-            /* Figure out the keys in the index file to relocate the node */
-            List<String> ssTables = Table.open(table).getAllSSTablesOnDisk();
-            /* Load the indexes into memory */
-            for ( String df : ssTables )
-            {
-                SSTable.open(df, StorageService.getPartitioner());
-            }
             /* We should have only one file since we just compacted. */
             List<String> indexedKeys = SSTable.getIndexedKeys();
             storageService_.relocate(indexedKeys.toArray( new String[0]) );
@@ -334,7 +327,7 @@ public class Loader
             */
 
             // TODO Hmm need to double check here
-            SSTable.get(ssTables.get(0)).delete();
+            SSTable.deleteAll();
             logger_.info("Finished all the requisite clean up ...");
         }
     }

@@ -25,7 +25,7 @@ import java.util.*;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.FileStruct;
+import org.apache.cassandra.io.FileStruct;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 
 public class SSTableTest extends CleanupHelper
@@ -45,15 +45,14 @@ public class SSTableTest extends CleanupHelper
         ssTable.close();
 
         // verify
-        verifySingle(ssTable.dataFile_, bytes, key);
+        verifySingle(ssTable, bytes, key);
         SSTable.reopenUnsafe(); // force reloading the index
-        verifySingle(ssTable.dataFile_, bytes, key);
+        verifySingle(ssTable, bytes, key);
     }
 
-    private void verifySingle(String filename, byte[] bytes, String key) throws IOException
+    private void verifySingle(SSTable sstable, byte[] bytes, String key) throws IOException
     {
-        SSTable ssTable = SSTable.open(filename, new OrderPreservingPartitioner());
-        FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
+        FileStruct fs = sstable.getFileStruct();
         fs.seekTo(key);
         int size = fs.getBufIn().readInt();
         byte[] bytes2 = new byte[size];
@@ -80,17 +79,16 @@ public class SSTableTest extends CleanupHelper
         ssTable.close();
 
         // verify
-        verifyMany(ssTable.dataFile_, map);
+        verifyMany(ssTable, map);
         SSTable.reopenUnsafe(); // force reloading the index
-        verifyMany(ssTable.dataFile_, map);
+        verifyMany(ssTable, map);
     }
 
-    private void verifyMany(String filename, TreeMap<String, byte[]> map) throws IOException
+    private void verifyMany(SSTable sstable, TreeMap<String, byte[]> map) throws IOException
     {
         List<String> keys = new ArrayList(map.keySet());
         Collections.shuffle(keys);
-        SSTable ssTable = SSTable.open(filename, new OrderPreservingPartitioner());
-        FileStruct fs = new FileStruct(SequenceFile.bufferedReader(ssTable.dataFile_, 128 * 1024), new OrderPreservingPartitioner());
+        FileStruct fs = sstable.getFileStruct();
         for (String key : keys)
         {
             fs.seekTo(key);

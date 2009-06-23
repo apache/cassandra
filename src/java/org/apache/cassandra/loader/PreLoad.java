@@ -95,12 +95,6 @@ public class PreLoad
             Thread.sleep(PreLoad.siesta_);
 
             /* Figure out the keys in the index file to relocate the node */
-            List<String> ssTables = Table.open(table).getAllSSTablesOnDisk();
-            /* Load the indexes into memory */
-            for ( String df : ssTables )
-            {
-                SSTable.open(df, StorageService.getPartitioner());
-            }
             /* We should have only one file since we just compacted. */
             List<String> indexedKeys = SSTable.getIndexedKeys();
             storageService_.relocate(indexedKeys.toArray( new String[0]) );
@@ -116,7 +110,7 @@ public class PreLoad
              * Do the cleanup necessary. Delete all commit logs and
              * the SSTables and reset the load state in the StorageService.
             */
-            SSTable.get(ssTables.get(0)).delete();
+            SSTable.deleteAll();
         }
         logger_.info("Finished all the requisite clean up ...");
     }

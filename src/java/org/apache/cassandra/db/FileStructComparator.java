@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import java.util.Comparator;
 
+import org.apache.cassandra.io.FileStruct;
+
 class FileStructComparator implements Comparator<FileStruct>
 {
     public int compare(FileStruct f, FileStruct f2)

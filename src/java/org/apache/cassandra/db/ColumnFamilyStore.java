@@ -34,11 +34,7 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.IndexHelper;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SequenceFile;
+import org.apache.cassandra.io.*;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
@@ -766,7 +762,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 try
                 {
-                    fs = new FileStruct(SequenceFile.bufferedReader(file, bufferSize), StorageService.getPartitioner());
+                    fs = SSTable.get(file).getFileStruct();
                     fs.advance();
                     if (fs.isExhausted())
                     {
@@ -1503,9 +1499,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** not threadsafe.  caller must have lock_ acquired. */
-    public SortedSet<String> getSSTableFilenames()
+    public Collection<SSTable> getSSTables()
     {
-        return Collections.unmodifiableSortedSet((SortedSet<String>)ssTables_.keySet());
+        return Collections.unmodifiableCollection(ssTables_.values());
     }
 
     public ReentrantReadWriteLock.ReadLock getReadLock()

@@ -18,11 +18,7 @@
 
 package org.apache.cassandra.db;
 
-import java.util.SortedSet;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.ExecutionException;
+import java.util.*;
 import java.io.IOException;
 
 import org.apache.commons.lang.StringUtils;
@@ -264,9 +260,9 @@ public class TableTest extends CleanupHelper
         table.getColumnFamilyStore("Standard2").forceBlockingFlush();
         validateGetSliceNoMatch(table);
 
-        SortedSet<String> ssTables = table.getColumnFamilyStore("Standard2").getSSTableFilenames();
+        Collection<SSTable> ssTables = table.getColumnFamilyStore("Standard2").getSSTables();
         assertEquals(1, ssTables.size());
-        SSTable.get(ssTables.iterator().next()).forceBloomFilterFailures();
+        ssTables.iterator().next().forceBloomFilterFailures();
         validateGetSliceNoMatch(table);
     }
 

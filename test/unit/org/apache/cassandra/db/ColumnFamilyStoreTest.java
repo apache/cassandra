@@ -114,9 +114,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         store.forceBlockingFlush();
 
-        List<String> ssTables = table.getAllSSTablesOnDisk();
+        List<SSTable> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
-        SSTable.get(ssTables.get(0)).forceBloomFilterFailures();
+        ssTables.get(0).forceBloomFilterFailures();
         ColumnFamily cf = store.getColumnFamily("key2", "Standard1:Column1", new IdentityFilter());
         assertNull(cf);
     }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.io;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -25,7 +25,6 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.Coordinate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.log4j.Logger;
 import com.google.common.collect.AbstractIterator;
@@ -40,13 +39,13 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     private IFileReader reader;
     private DataInputBuffer bufIn;
     private DataOutputBuffer bufOut;
-    private IPartitioner partitioner;
+    private SSTable sstable;
     private FileStructIterator iterator;
 
-    public FileStruct(IFileReader reader, IPartitioner partitioner)
+    FileStruct(SSTable sstable) throws IOException
     {
-        this.reader = reader;
-        this.partitioner = partitioner;
+        this.reader = SequenceFile.bufferedReader(sstable.getFilename(), 1024 * 1024);
+        this.sstable = sstable;
         bufIn = new DataInputBuffer();
         bufOut = new DataOutputBuffer();
     }
@@ -78,14 +77,14 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 
     public int compareTo(FileStruct f)
     {
-        return partitioner.getDecoratedKeyComparator().compare(key, f.key);
+        return sstable.getPartitioner().getDecoratedKeyComparator().compare(key, f.key);
     }    
 
     public void seekTo(String seekKey)
     {
         try
         {
-            long position = SSTable.getNearestPosition(seekKey, reader, partitioner);
+            long position = sstable.getNearestPosition(seekKey);
             if (position < 0)
             {
                 exhausted = true;

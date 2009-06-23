@@ -29,6 +29,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.io.SSTable;
+
 import org.apache.log4j.Logger;
 
 
@@ -44,13 +46,13 @@ public class DataFileVerbHandler implements IVerbHandler
         
         try
         {
-            List<String> allFiles = Table.open(table).getAllSSTablesOnDisk();
+            List<SSTable> ssTables = Table.open(table).getAllSSTablesOnDisk();
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(bos);
-            dos.writeInt(allFiles.size());
-            for ( String file : allFiles )
+            dos.writeInt(ssTables.size());
+            for (SSTable sstable : ssTables)
             {
-                dos.writeUTF(file);
+                dos.writeUTF(sstable.getFilename());
             }
             Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bos.toByteArray());
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());

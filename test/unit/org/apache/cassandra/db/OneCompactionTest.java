@@ -48,7 +48,7 @@ public class OneCompactionTest
         }
         Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2);
         ft.get();
-        assertEquals(1, store.getSSTableFilenames().size());
+        assertEquals(1, store.getSSTables().size());
         assertEquals(table.getKeyRange(Arrays.asList(columnFamilyName), "", "", 10000).size(), inserted.size());
     }
 
