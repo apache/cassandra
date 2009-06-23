@@ -346,14 +346,6 @@ public class Table
     {
         return columnFamilyStores_.get(cfName);
     }
-    
-    String getColumnFamilyType(String cfName)
-    {
-        String cfType = null;
-        if ( tableMetadata_ != null )
-          cfType = tableMetadata_.getColumnFamilyType(cfName);
-        return cfType;
-    }
 
     /*
      * This method is called to obtain statistics about
@@ -485,29 +477,14 @@ public class Table
         }
     }
 
-    String getTableName()
-    {
-        return table_;
-    }
-    
     boolean isApplicationColumnFamily(String columnFamily)
     {
         return DatabaseDescriptor.isApplicationColumnFamily(columnFamily);
     }
 
-    int getNumberOfColumnFamilies()
-    {
-        return tableMetadata_.size();
-    }
-
     int getColumnFamilyId(String columnFamily)
     {
         return tableMetadata_.getColumnFamilyId(columnFamily);
-    }
-
-    String getColumnFamilyName(int id)
-    {
-        return tableMetadata_.getColumnFamilyName(id);
     }
 
     boolean isValidColumnFamily(String columnFamily)

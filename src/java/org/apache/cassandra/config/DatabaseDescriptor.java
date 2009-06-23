@@ -60,7 +60,6 @@ public class DatabaseDescriptor
     private static int currentIndex_ = 0;
     private static String logFileDirectory_;
     private static String bootstrapFileDirectory_;
-    private static boolean fastSync_ = false;
     private static boolean rackAware_ = false;
     private static int threadsPerPool_ = 4;
     private static List<String> tables_ = new ArrayList<String>();
@@ -290,11 +289,6 @@ public class DatabaseDescriptor
             String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
             if ( value != null)
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
-
-            /* fast sync option */
-            value = xmlUtils.getNodeValue("/Storage/CommitLogFastSync");
-            if ( value != null )
-                fastSync_ = Boolean.parseBoolean(value);
 
             tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
 
@@ -747,11 +741,6 @@ public class DatabaseDescriptor
     public static void setLogFileLocation(String logLocation)
     {
         logFileDirectory_ = logLocation;
-    }
-
-    public static boolean isFastSync()
-    {
-        return fastSync_;
     }
 
     public static boolean isRackAware()

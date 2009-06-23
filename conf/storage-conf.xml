@@ -94,7 +94,6 @@
     <!-- Miscellaneous -->
     <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
     <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
-    <CommitLogFastSync>false</CommitLogFastSync>
 
     <!-- Hosts and Ports -->
     <ListenAddress>localhost</ListenAddress>

@@ -137,12 +137,7 @@ public class CommitLog
 
     private static IFileWriter createWriter(String file) throws IOException
     {        
-        if ( DatabaseDescriptor.isFastSync() )
-        {
-            return SequenceFile.fastWriter(file, 4*1024*1024);
-        }
-        else
-            return SequenceFile.writer(file);
+        return SequenceFile.writer(file);
     }
 
     static CommitLog open() throws IOException
@@ -406,11 +401,8 @@ public class CommitLog
         discard(cLogCtx, id);
     }
 
-
     /*
-     * Check if old commit logs can be deleted. However we cannot
-     * do this anymore in the Fast Sync mode and hence I think we
-     * should get rid of Fast Sync mode altogether.
+     * Check if old commit logs can be deleted.
      *
      * param @ cLogCtx The commitLog context .
      * param @ id id of the columnFamily being flushed to disk.

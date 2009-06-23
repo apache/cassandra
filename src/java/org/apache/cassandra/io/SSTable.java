@@ -584,29 +584,6 @@ public class SSTable
     }
 }
 
-
-/*
- * This abstraction provides LRU symantics for the keys that are
- * "touched". Currently it holds the offset of the key in a data
- * file. May change to hold a reference to a IFileReader which
- * memory maps the key and its associated data on a touch.
-*/
-class TouchedKeyCache extends LinkedHashMap<String, Long>
-{
-    private final int capacity_;
-
-    TouchedKeyCache(int capacity)
-    {
-        super(capacity + 1, 1.1f, true);
-        capacity_ = capacity;
-    }
-
-    protected boolean removeEldestEntry(Map.Entry<String, Long> entry)
-    {
-        return (size() > capacity_);
-    }
-}
-
 /**
  * This is a simple container for the index Key and its corresponding position
  * in the data file. Binary search is performed on a list of these objects

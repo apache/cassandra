@@ -1540,10 +1540,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return readStats_.mean();
     }
-    public String getTableName()
-    {
-        return table_;
-    }
 
     /**
      * get a list of columns starting from a given column, in a specified order
