@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.FileStruct;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.utils.BloomFilter;
 
 public class SSTableTest extends CleanupHelper
 {
@@ -36,16 +35,14 @@ public class SSTableTest extends CleanupHelper
         File f = File.createTempFile("sstable", "-" + SSTable.temporaryFile_);
 
         // write test data
-        SSTable ssTable = new SSTable(f.getParent(), f.getName(), new OrderPreservingPartitioner());
-        BloomFilter bf = new BloomFilter(1000, 8);
+        SSTable ssTable = new SSTable(f.getParent(), f.getName(), 1, new OrderPreservingPartitioner());
         Random random = new Random();
         byte[] bytes = new byte[1024];
         random.nextBytes(bytes);
 
         String key = Integer.toString(1);
         ssTable.append(key, bytes);
-        bf.add(key);
-        ssTable.close(bf);
+        ssTable.close();
 
         // verify
         verifySingle(ssTable.dataFile_, bytes, key);
@@ -75,13 +72,12 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTable ssTable = new SSTable(f.getParent(), f.getName(), new OrderPreservingPartitioner());
-        BloomFilter bf = new BloomFilter(1000, 8);
+        SSTable ssTable = new SSTable(f.getParent(), f.getName(), 1000, new OrderPreservingPartitioner());
         for (String key: map.navigableKeySet())
         {
             ssTable.append(key, map.get(key));
         }
-        ssTable.close(bf);
+        ssTable.close();
 
         // verify
         verifyMany(ssTable.dataFile_, map);

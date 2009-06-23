@@ -180,10 +180,10 @@ public class Table
                  * list of the associated Column Family. Also merge the CBF into the
                  * sampler.
                 */                
-                new SSTable(streamContext.getTargetFile(), tableName, StorageService.getPartitioner());
+                SSTable sstable = SSTable.open(streamContext.getTargetFile(), StorageService.getPartitioner());
                 logger_.debug("Merging the counting bloom filter in the sampler ...");                
                 String[] peices = FBUtilities.strip(fileName, "-");
-                Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(streamContext.getTargetFile());                
+                Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(sstable);                
             }
             
             EndPoint to = new EndPoint(host, DatabaseDescriptor.getStoragePort());

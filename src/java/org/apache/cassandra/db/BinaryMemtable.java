@@ -145,11 +145,10 @@ public class BinaryMemtable
          * Use the SSTable to write the contents of the TreeMap
          * to disk.
         */
-        SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
-        Collections.sort(keys);        
+        SSTable ssTable = new SSTable(directory, filename, keys.size(), StorageService.getPartitioner());
+        Collections.sort(keys);
         /* Use this BloomFilter to decide if a key exists in a SSTable */
-        BloomFilter bf = new BloomFilter(keys.size(), 8);
         for ( String key : keys )
         {           
             byte[] bytes = columnFamilies_.get(key);
@@ -157,11 +156,10 @@ public class BinaryMemtable
             {            	
                 /* Now write the key and value to disk */
                 ssTable.append(key, bytes);
-                bf.add(key);
             }
         }
-        ssTable.close(bf);
-        cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
+        ssTable.close();
+        cfStore.storeLocation(ssTable);
         columnFamilies_.clear();       
     }
 }

@@ -85,7 +85,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private SortedSet<String> ssTables_ = new TreeSet<String>(new FileNameComparator(FileNameComparator.Descending));
+    private SortedMap<String, SSTable> ssTables_ = new TreeMap<String, SSTable>(new FileNameComparator(FileNameComparator.Descending));
 
     /* Modification lock used for protecting reads from compactions. */
     private ReentrantReadWriteLock lock_ = new ReentrantReadWriteLock(true);
@@ -152,7 +152,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void onStart() throws IOException
     {
         /* Do major compaction */
-        List<File> ssTables = new ArrayList<File>();
+        List<File> sstableFiles = new ArrayList<File>();
         String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocations();
         for (String directory : dataFileDirectories)
         {
@@ -172,21 +172,32 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     && tblCfName[1].equals(columnFamily_)
                     && filename.contains("-Data.db"))
                 {
-                    ssTables.add(file.getAbsoluteFile());
+                    sstableFiles.add(file.getAbsoluteFile());
                 }
             }
         }
-        Collections.sort(ssTables, new FileUtils.FileComparator());
+        Collections.sort(sstableFiles, new FileUtils.FileComparator());
         List<String> filenames = new ArrayList<String>();
-        for (File ssTable : ssTables)
+        for (File ssTable : sstableFiles)
         {
             filenames.add(ssTable.getAbsolutePath());
         }
 
-        /* There are no files to compact just add to the list of SSTables */
-        ssTables_.addAll(filenames);
         /* Load the index files and the Bloom Filters associated with them. */
-        SSTable.onStart(filenames);
+        for (String filename : filenames)
+        {
+            try
+            {
+                SSTable sstable = SSTable.open(filename, StorageService.getPartitioner());
+                ssTables_.put(filename, sstable);
+            }
+            catch (IOException ex)
+            {
+                logger_.info("Deleting corrupted file " + filename);
+                FileUtils.delete(filename);
+                logger_.warn(LogUtil.throwableToString(ex));
+            }
+        }
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
         if (columnFamily_.equals(Table.hints_))
         {
@@ -227,9 +238,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sb.append("Number of files on disk : " + ssTables_.size());
         sb.append(newLineSeparator);
         double totalSpace = 0d;
-        for (String file : ssTables_)
+        for (SSTable sstable: ssTables_.values())
         {
-            File f = new File(file);
+            File f = new File(sstable.getFilename());
             totalSpace += f.length();
         }
         String diskSpace = FileUtils.stringifyFileSize(totalSpace);
@@ -244,12 +255,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * This is called after bootstrap to add the files
      * to the list of files maintained.
     */
-    void addToList(String file)
+    void addToList(SSTable file)
     {
         lock_.writeLock().lock();
         try
         {
-            ssTables_.add(file);
+            ssTables_.put(file.getFilename(), file);
         }
         finally
         {
@@ -537,13 +548,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         lock_.readLock().lock();
         try
         {
-            for (String file : ssTables_)
+            for (SSTable sstable : ssTables_.values())
             {
                 /*
                  * Get the BloomFilter associated with this file. Check if the key
                  * is present in the BloomFilter. If not continue to the next file.
                 */
-                boolean bVal = SSTable.isKeyInFile(key, file);
+                boolean bVal = sstable.isKeyPossible(key);
                 if (!bVal)
                 {
                     continue;
@@ -551,11 +562,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 ColumnFamily columnFamily = null;
                 try
                 {
-                    columnFamily = fetchColumnFamily(key, cf, filter, file);
+                    columnFamily = fetchColumnFamily(key, cf, filter, sstable);
                 }
                 catch (IOException e)
                 {
-                    throw new IOException("Error fetching " + key + ":" + cf + " from " + file, e);
+                    throw new IOException("Error fetching " + key + ":" + cf + " from " + sstable, e);
                 }
                 if (columnFamily != null)
                 {
@@ -573,9 +584,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, String ssTableFile) throws IOException
+    private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, SSTable ssTable) throws IOException
     {
-        SSTable ssTable = SSTable.open(ssTableFile, StorageService.getPartitioner());
         DataInputBuffer bufIn;
         bufIn = filter.next(key, cf, ssTable);
         if (bufIn.getLength() == 0)
@@ -721,14 +731,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ filename - filename just flushed to disk
      * param @ bf - bloom filter which indicates the keys that are in this file.
     */
-    void storeLocation(String filename, BloomFilter bf)
+    void storeLocation(SSTable sstable)
     {
         int ssTableCount;
         lock_.writeLock().lock();
         try
         {
-            ssTables_.add(filename);
-            SSTable.storeBloomFilter(filename, bf);
+            ssTables_.put(sstable.getFilename(), sstable);
             ssTableCount = ssTables_.size();
         }
         finally
@@ -832,7 +841,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     int doCompaction(int threshold) throws IOException
     {
-        List<String> files = new ArrayList<String>(ssTables_);
+        List<String> files = new ArrayList<String>(ssTables_.keySet());
         int filesCompacted = 0;
         Set<List<String>> buckets = getCompactionBuckets(files, 50L * 1024L * 1024L);
         for (List<String> fileList : buckets)
@@ -873,7 +882,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void doMajorCompactionInternal(long skip) throws IOException
     {
-        List<String> filesInternal = new ArrayList<String>(ssTables_);
+        List<String> filesInternal = new ArrayList<String>(ssTables_.keySet());
         List<String> files;
         if (skip > 0L)
         {
@@ -931,8 +940,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     boolean doAntiCompaction(List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
     {
-        List<String> files = new ArrayList<String>(ssTables_);
-        return doFileAntiCompaction(files, ranges, target, fileList, null);
+        List<String> files = new ArrayList<String>(ssTables_.keySet());
+        return doFileAntiCompaction(files, ranges, target, fileList);
     }
 
     void forceCleanup()
@@ -948,7 +957,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void doCleanupCompaction() throws IOException
     {
-        List<String> files = new ArrayList<String>(ssTables_);
+        List<String> files = new ArrayList<String>(ssTables_.keySet());
         for (String file : files)
         {
             doCleanup(file);
@@ -974,25 +983,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<String> newFiles = new ArrayList<String>();
         Map<EndPoint, List<Range>> endPointtoRangeMap = StorageService.instance().constructEndPointToRangesMap();
         myRanges = endPointtoRangeMap.get(StorageService.getLocalStorageEndPoint());
-        List<BloomFilter> compactedBloomFilters = new ArrayList<BloomFilter>();
-        doFileAntiCompaction(files, myRanges, null, newFiles, compactedBloomFilters);
+        doFileAntiCompaction(files, myRanges, null, newFiles);
         logger_.debug("Original file : " + file + " of size " + new File(file).length());
         lock_.writeLock().lock();
         try
         {
             ssTables_.remove(file);
-            SSTable.removeAssociatedBloomFilter(file);
             for (String newfile : newFiles)
             {
                 logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
-                if (newfile != null)
-                {
-                    ssTables_.add(newfile);
-                    logger_.debug("Inserting bloom filter for file " + newfile);
-                    SSTable.storeBloomFilter(newfile, compactedBloomFilters.get(0));
-                }
+                assert newfile != null;
+                ssTables_.put(newfile, SSTable.open(newfile, StorageService.getPartitioner()));
             }
-            SSTable.open(file, null).delete();
+            SSTable.get(file).delete();
         }
         finally
         {
@@ -1011,7 +1014,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return
      * @throws IOException
      */
-    boolean doFileAntiCompaction(List<String> files, List<Range> ranges, EndPoint target, List<String> fileList, List<BloomFilter> compactedBloomFilters) throws IOException
+    boolean doFileAntiCompaction(List<String> files, List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
     {
         boolean result = false;
         long startTime = System.currentTimeMillis();
@@ -1048,8 +1051,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int expectedBloomFilterSize = SSTable.getApproximateKeyCount(files);
         expectedBloomFilterSize = (expectedBloomFilterSize > 0) ? expectedBloomFilterSize : SSTable.indexInterval();
         logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
-        /* Create the bloom filter for the compacted file. */
-        BloomFilter compactedRangeBloomFilter = new BloomFilter(expectedBloomFilterSize, 15);
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
 
         while (pq.size() > 0 || lfs.size() > 0)
@@ -1116,18 +1117,16 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     if (ssTableRange == null)
                     {
-                        String [] temp = null;
                         if (target != null)
                         {
                             rangeFileLocation = rangeFileLocation + System.getProperty("file.separator") + "bootstrap";
                         }
                         FileUtils.createDirectory(rangeFileLocation);
-                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, StorageService.getPartitioner());
+                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, expectedBloomFilterSize, StorageService.getPartitioner());
                     }
                     try
                     {
                         ssTableRange.append(lastkey, bufOut);
-                        compactedRangeBloomFilter.add(lastkey);
                     }
                     catch (Exception ex)
                     {
@@ -1181,14 +1180,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (ssTableRange != null)
         {
-            ssTableRange.close(compactedRangeBloomFilter);
+            ssTableRange.close();
             if (fileList != null)
             {
-                fileList.add(ssTableRange.getDataFileLocation());
-            }
-            if (compactedBloomFilters != null)
-            {
-                compactedBloomFilters.add(compactedRangeBloomFilter);
+                fileList.add(ssTableRange.getFilename());
             }
         }
 
@@ -1252,8 +1247,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         int expectedBloomFilterSize = SSTable.getApproximateKeyCount(files);
         expectedBloomFilterSize = (expectedBloomFilterSize > 0) ? expectedBloomFilterSize : SSTable.indexInterval();
         logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
-        /* Create the bloom filter for the compacted file. */
-        BloomFilter compactedBloomFilter = new BloomFilter(expectedBloomFilterSize, 15);
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
 
         while (pq.size() > 0 || lfs.size() > 0)
@@ -1318,13 +1311,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (ssTable == null)
                 {
-                    ssTable = new SSTable(compactionFileLocation, mergedFileName, StorageService.getPartitioner());
+                    ssTable = new SSTable(compactionFileLocation, mergedFileName, expectedBloomFilterSize, StorageService.getPartitioner());
                 }
                 ssTable.append(lastkey, bufOut);
-
-                /* Fill the bloom filter with the key */
-                doFill(compactedBloomFilter, lastkey);
                 totalkeysWritten++;
+
                 for (FileStruct filestruct : lfs)
                 {
                     try
@@ -1358,8 +1349,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (ssTable != null)
         {
             // TODO if all the keys were the same nothing will be done here
-            ssTable.close(compactedBloomFilter);
-            newfile = ssTable.getDataFileLocation();
+            ssTable.close();
+            newfile = ssTable.getFilename();
         }
         lock_.writeLock().lock();
         try
@@ -1367,17 +1358,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (String file : files)
             {
                 ssTables_.remove(file);
-                SSTable.removeAssociatedBloomFilter(file);
             }
             if (newfile != null)
             {
-                SSTable.storeBloomFilter(newfile, compactedBloomFilter);
-                ssTables_.add(newfile);
+                ssTables_.put(newfile, ssTable);
                 totalBytesWritten += (new File(newfile)).length();
             }
             for (String file : files)
             {
-                SSTable.open(file, null).delete();
+                SSTable.get(file).delete();
             }
         }
         finally
@@ -1385,9 +1374,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             lock_.writeLock().unlock();
         }
 
-        String format = "Compacted [%s] to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
+        String format = "Compacted to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;
-        logger_.info(String.format(format, StringUtils.join(files, ", "), newfile, totalBytesRead, totalBytesWritten, totalkeysRead, totalkeysWritten, dTime));
+        logger_.info(String.format(format, newfile, totalBytesRead, totalBytesWritten, totalkeysRead, totalkeysWritten, dTime));
         return files.size();
     }
 
@@ -1516,7 +1505,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** not threadsafe.  caller must have lock_ acquired. */
     public SortedSet<String> getSSTableFilenames()
     {
-        return Collections.unmodifiableSortedSet(ssTables_);
+        return Collections.unmodifiableSortedSet((SortedSet<String>)ssTables_.keySet());
     }
 
     public ReentrantReadWriteLock.ReadLock getReadLock()
@@ -1576,13 +1565,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             /* add the SSTables on disk */
-            List<String> files = new ArrayList<String>(ssTables_);
-            for (String file : files)
+            List<SSTable> sstables = new ArrayList<SSTable>(ssTables_.values());
+            for (SSTable sstable : sstables)
             {
                 // If the key is not present in the SSTable's BloomFilter, continue to the next file
-                if (!SSTable.isKeyInFile(key, file))
+                if (!sstable.isKeyPossible(key))
                     continue;
-                iter = new SSTableColumnIterator(file, key, cfName, startColumn, isAscending);
+                iter = new SSTableColumnIterator(sstable.getFilename(), key, cfName, startColumn, isAscending);
                 if (iter.hasNext())
                 {
                     returnCF.delete(iter.getColumnFamily());

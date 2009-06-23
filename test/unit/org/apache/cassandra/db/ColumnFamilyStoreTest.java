@@ -116,7 +116,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         List<String> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
-        SSTable.forceBloomFilterFailures(ssTables.get(0));
+        SSTable.get(ssTables.get(0)).forceBloomFilterFailures();
         ColumnFamily cf = store.getColumnFamily("key2", "Standard1:Column1", new IdentityFilter());
         assertNull(cf);
     }

@@ -266,7 +266,7 @@ public class TableTest extends CleanupHelper
 
         SortedSet<String> ssTables = table.getColumnFamilyStore("Standard2").getSSTableFilenames();
         assertEquals(1, ssTables.size());
-        SSTable.forceBloomFilterFailures(ssTables.iterator().next());
+        SSTable.get(ssTables.iterator().next()).forceBloomFilterFailures();
         validateGetSliceNoMatch(table);
     }
 

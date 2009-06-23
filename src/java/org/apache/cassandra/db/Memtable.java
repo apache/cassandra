@@ -253,7 +253,7 @@ public class Memtable implements Comparable<Memtable>
 
         String directory = DatabaseDescriptor.getDataFileLocation();
         String filename = cfStore.getTempFileName();
-        SSTable ssTable = new SSTable(directory, filename, StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(directory, filename, columnFamilies_.size(), StorageService.getPartitioner());
 
         // sort keys in the order they would be in when decorated
         final IPartitioner partitioner = StorageService.getPartitioner();
@@ -267,8 +267,6 @@ public class Memtable implements Comparable<Memtable>
             }
         });
         DataOutputBuffer buffer = new DataOutputBuffer();
-        /* Use this BloomFilter to decide if a key exists in a SSTable */
-        BloomFilter bf = new BloomFilter(columnFamilies_.size(), 15);
         for (String key : orderedKeys)
         {
             buffer.reset();
@@ -279,12 +277,11 @@ public class Memtable implements Comparable<Memtable>
                 ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
                 /* Now write the key and value to disk */
                 ssTable.append(partitioner.decorateKey(key), buffer);
-                bf.add(key);
             }
         }
-        ssTable.close(bf);
+        ssTable.close();
         cfStore.onMemtableFlush(cLogCtx);
-        cfStore.storeLocation( ssTable.getDataFileLocation(), bf );
+        cfStore.storeLocation(ssTable);
         buffer.close();
         isFlushed_ = true;
         logger_.info("Completed flushing " + this);

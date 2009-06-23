@@ -315,7 +315,7 @@ public class Loader
             /* Load the indexes into memory */
             for ( String df : ssTables )
             {
-                new SSTable(df, table, StorageService.getPartitioner());
+                SSTable.open(df, StorageService.getPartitioner());
             }
             /* We should have only one file since we just compacted. */
             List<String> indexedKeys = SSTable.getIndexedKeys();
@@ -334,7 +334,7 @@ public class Loader
             */
 
             // TODO Hmm need to double check here
-            SSTable.open(ssTables.get(0), null).delete();
+            SSTable.get(ssTables.get(0)).delete();
             logger_.info("Finished all the requisite clean up ...");
         }
     }

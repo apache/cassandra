@@ -52,12 +52,6 @@ public class SSTable
     private static final int indexInterval_ = 128;
     /* Required extension for temporary files created during compactions. */
     public static final String temporaryFile_ = "tmp";
-    /*
-     * This map has the SSTable as key and a BloomFilter as value. This
-     * BloomFilter will tell us if a key/column pair is in the SSTable.
-     * If not we can avoid scanning it.
-     */
-    private static Map<String, BloomFilter> bfs_ = new Hashtable<String, BloomFilter>();
 
     private static FileSSTableMap openedFiles = new FileSSTableMap();
 
@@ -112,59 +106,6 @@ public class SSTable
         return indexedKeys;
     }
 
-    /*
-     * Intialize the index files and also cache the Bloom Filters
-     * associated with these files. Also caches the file handles 
-     * associated with these files.
-    */
-    public static void onStart(List<String> filenames) throws IOException
-    {
-        for (String filename : filenames)
-        {
-            try
-            {
-                SSTable.open(filename, StorageService.getPartitioner());
-            }
-            catch (IOException ex)
-            {
-                logger_.info("Deleting corrupted file " + filename);
-                FileUtils.delete(filename);
-                logger_.warn(LogUtil.throwableToString(ex));
-            }
-        }
-    }
-
-    /*
-     * Stores the Bloom Filter associated with the given file.
-    */
-    public static void storeBloomFilter(String filename, BloomFilter bf)
-    {
-        bfs_.put(filename, bf);
-    }
-
-    /*
-     * Removes the bloom filter associated with the specified file.
-    */
-    public static void removeAssociatedBloomFilter(String filename)
-    {
-        bfs_.remove(filename);
-    }
-
-    /*
-     * Determines if the given key is in the specified file. If the
-     * key is not present then we skip processing this file.
-    */
-    public static boolean isKeyInFile(String clientKey, String filename)
-    {
-        boolean bVal = false;
-        BloomFilter bf = bfs_.get(filename);
-        if (bf != null)
-        {
-            bVal = bf.isPresent(clientKey);
-        }
-        return bVal;
-    }
-
     String dataFile_;
     private long keysWritten;
     private IFileWriter dataWriter_;
@@ -172,7 +113,7 @@ public class SSTable
     private String lastWrittenKey_;
     private IPartitioner partitioner_;
     List<KeyPosition> indexPositions_;
-
+    BloomFilter bf;
 
     public static synchronized SSTable open(String dataFileName, IPartitioner partitioner) throws IOException
     {
@@ -180,7 +121,7 @@ public class SSTable
         if (sstable == null)
         {
             assert partitioner != null;
-            sstable = new SSTable(dataFileName, partitioner);
+            sstable = new SSTable(dataFileName, 1, partitioner);
             sstable.dataWriter_.close(); // todo this is dumb
             sstable.indexRAF_.close();
 
@@ -194,21 +135,29 @@ public class SSTable
         return sstable;
     }
 
-    public SSTable(String filename, IPartitioner partitioner) throws IOException
+    public static synchronized SSTable get(String dataFileName) throws IOException
+    {
+        SSTable sstable = openedFiles.get(dataFileName);
+        assert sstable != null;
+        return sstable;
+    }
+
+    private SSTable(String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
         dataFile_ = filename;
         partitioner_ = partitioner;
         dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4 * 1024 * 1024);
         indexRAF_ = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
+        bf = new BloomFilter(keyCount, 15);
     }
 
     /**
      * This ctor is used for writing data into the SSTable. Use this
      * version for non DB writes to the SSTable.
      */
-    public SSTable(String directory, String filename, IPartitioner partitioner) throws IOException
+    public SSTable(String directory, String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
-        this(directory + System.getProperty("file.separator") + filename + "-Data.db", partitioner);
+        this(directory + System.getProperty("file.separator") + filename + "-Data.db", keyCount, partitioner);
     }
 
     static String parseTableName(String filename)
@@ -224,9 +173,8 @@ public class SSTable
 
     private void loadBloomFilter() throws IOException
     {
-        assert bfs_.get(dataFile_) == null;
         DataInputStream stream = new DataInputStream(new FileInputStream(filterFilename()));
-        bfs_.put(dataFile_, BloomFilter.serializer().deserialize(stream));
+        bf = BloomFilter.serializer().deserialize(stream);
     }
 
     private void loadIndexFile() throws IOException
@@ -274,20 +222,9 @@ public class SSTable
         return filterFilename(dataFile_);
     }
 
-
-    private String getFile(String name) throws IOException
+    public String getFilename()
     {
-        File file = new File(name);
-        if (file.exists())
-        {
-            return file.getAbsolutePath();
-        }
-        throw new IOException("File " + name + " was not found on disk.");
-    }
-
-    public String getDataFileLocation() throws IOException
-    {
-        return getFile(dataFile_);
+        return dataFile_;
     }
 
     private long beforeAppend(String decoratedKey) throws IOException
@@ -309,6 +246,7 @@ public class SSTable
 
     private void afterAppend(String decoratedKey, long position) throws IOException
     {
+        bf.add(decoratedKey);
         lastWrittenKey_ = decoratedKey;
         long indexPosition = indexRAF_.getFilePointer();
         indexRAF_.writeUTF(decoratedKey);
@@ -495,7 +433,7 @@ public class SSTable
     /**
      * Renames temporary SSTable files to valid data, index, and bloom filter files
      */
-    public void close(BloomFilter bf) throws IOException
+    public void close() throws IOException
     {
         // bloom filter
         FileOutputStream fos = new FileOutputStream(filterFilename());
@@ -547,20 +485,24 @@ public class SSTable
     }
 
     /** obviously only for testing */
-    public static void forceBloomFilterFailures(String filename)
+    public void forceBloomFilterFailures()
     {
-        SSTable.bfs_.put(filename, BloomFilter.alwaysMatchingBloomFilter());
+        bf = BloomFilter.alwaysMatchingBloomFilter();
     }
 
     static void reopenUnsafe() throws IOException // testing only
     {
         Collection<SSTable> sstables = new ArrayList<SSTable>(openedFiles.values());
         openedFiles.clear();
-        bfs_.clear();
         for (SSTable sstable : sstables)
         {
             SSTable.open(sstable.dataFile_, sstable.partitioner_);
         }
+    }
+
+    public boolean isKeyPossible(String clientKey)
+    {
+        return bf.isPresent(partitioner_.decorateKey(clientKey));
     }
 }
 
@@ -573,7 +515,7 @@ public class SSTable
  */
 class KeyPosition implements Comparable<KeyPosition>
 {
-    public final String key;
+    public final String key; // decorated
     public final long position;
     private final IPartitioner partitioner; // TODO rip out the static uses of KP so we can just use the parent SSTable's partitioner, when necessary
 

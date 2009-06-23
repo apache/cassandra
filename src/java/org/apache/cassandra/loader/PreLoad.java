@@ -99,7 +99,7 @@ public class PreLoad
             /* Load the indexes into memory */
             for ( String df : ssTables )
             {
-                new SSTable(df, table, StorageService.getPartitioner());
+                SSTable.open(df, StorageService.getPartitioner());
             }
             /* We should have only one file since we just compacted. */
             List<String> indexedKeys = SSTable.getIndexedKeys();
@@ -116,7 +116,7 @@ public class PreLoad
              * Do the cleanup necessary. Delete all commit logs and
              * the SSTables and reset the load state in the StorageService.
             */
-            SSTable.open(ssTables.get(0), null).delete();
+            SSTable.get(ssTables.get(0)).delete();
         }
         logger_.info("Finished all the requisite clean up ...");
     }
