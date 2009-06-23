@@ -136,7 +136,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
             httpChannel_ = (SocketChannel)key.channel();
         }
         /* deregister interest for read */
-        key.interestOps( key.interestOps() & ( ~SelectionKey.OP_READ ) );
+        turnOffInterestOps(key, SelectionKey.OP_READ);
         /* Add a task to process the HTTP request */
         MessagingService.getReadExecutor().execute(httpReader_);
     }
@@ -330,7 +330,7 @@ public class HttpConnection extends SelectionKeyHandler implements HttpStartLine
         }
         finally
         {
-            httpKey_.interestOps(httpKey_.interestOps() | SelectionKey.OP_READ);
+            turnOnInterestOps(httpKey_, SelectionKey.OP_READ);
         }
     }
 

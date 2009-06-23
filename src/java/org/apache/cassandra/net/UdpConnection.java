@@ -131,7 +131,7 @@ public class UdpConnection extends SelectionKeyHandler
     
     public void read(SelectionKey key)
     {        
-        key.interestOps( key.interestOps() & (~SelectionKey.OP_READ) );
+        turnOffInterestOps(key, SelectionKey.OP_READ);
         ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
         try
         {
@@ -160,7 +160,7 @@ public class UdpConnection extends SelectionKeyHandler
         }
         finally
         {
-            key.interestOps( key_.interestOps() | SelectionKey.OP_READ );
+            turnOnInterestOps(key_, SelectionKey.OP_READ );
         }
     }
 }

@@ -183,7 +183,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 if (buffer.remaining() > 0) 
                 {                   
                     pendingWrites_.add(buffer);
-                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                    turnOnInterestOps(key_, SelectionKey.OP_WRITE);
                 }
             }
         }
@@ -229,7 +229,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                     if (buffer.remaining() > 0)
                     {
                         pendingWrites_.add(buffer);
-                        key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                        turnOnInterestOps(key_, SelectionKey.OP_WRITE);
                         condition_.await();
                     }
                 }
@@ -245,7 +245,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 */
                 if ( bytesTransferred < limit && bytesWritten != total )
                 {                    
-                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                    turnOnInterestOps(key_, SelectionKey.OP_WRITE);
                     condition_.await();
                 }
             }
@@ -346,17 +346,20 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     // called in the selector thread
     public void connect(SelectionKey key)
     {       
-        key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));
+        turnOffInterestOps(key, SelectionKey.OP_CONNECT);
         try
         {
             if (socketChannel_.finishConnect())
             {
-                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+                turnOnInterestOps(key, SelectionKey.OP_READ);
                 
-                // this will flush the pending                
-                if (!pendingWrites_.isEmpty()) 
+                synchronized(this)
                 {
-                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                    // this will flush the pending                
+                    if (!pendingWrites_.isEmpty()) 
+                    {
+                        turnOnInterestOps(key_, SelectionKey.OP_WRITE);
+                    }
                 }
                 resumeStreaming();
             } 
@@ -376,7 +379,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     // called in the selector thread
     public void write(SelectionKey key)
     {   
-        key.interestOps( key.interestOps() & ( ~SelectionKey.OP_WRITE ) );                
+        turnOffInterestOps(key, SelectionKey.OP_WRITE);                
         doPendingWrites();
         /*
          * This is executed only if we are in streaming mode.
@@ -415,7 +418,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             {    
                 if (!pendingWrites_.isEmpty())
                 {                    
-                    key_.interestOps(key_.interestOps() | SelectionKey.OP_WRITE);
+                    turnOnInterestOps(key_, SelectionKey.OP_WRITE);
                 }
             }
         }
@@ -424,7 +427,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     // called in the selector thread
     public void read(SelectionKey key)
     {
-        key.interestOps( key.interestOps() & ( ~SelectionKey.OP_READ ) );
+        turnOffInterestOps(key, SelectionKey.OP_READ);
         // publish this event onto to the TCPReadEvent Queue.
         MessagingService.getReadExecutor().execute(readWork_);
     }
@@ -486,7 +489,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             }
             finally
             {
-                key_.interestOps(key_.interestOps() | SelectionKey.OP_READ);
+                turnOnInterestOps(key_, SelectionKey.OP_READ);
             }
         }
         
