@@ -118,7 +118,7 @@ public class RowMutation implements Serializable
 
     void addHints(String hint) throws IOException
     {
-        String cfName = Table.HINTS_CF + ":" + hint;
+        String cfName = HintedHandOffManager.HINTS_CF + ":" + hint;
         add(cfName, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 

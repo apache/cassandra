@@ -467,12 +467,8 @@ public class DatabaseDescriptor
 
         // Hardcoded system table
         Table.TableMetadata tmetadata = Table.TableMetadata.instance(Table.SYSTEM_TABLE);
-        /* Add the LocationInfo column family to this map. */
         tmetadata.add(SystemTable.cfName_, cfId++);
-        /* Add the recycle column family to this map. */
-        tmetadata.add(Table.recycleBin_, cfId++);
-        /* Add the Hints column family to this map. */
-        tmetadata.add(Table.HINTS_CF, cfId++, ColumnFamily.getColumnType("Super"));
+        tmetadata.add(HintedHandOffManager.HINTS_CF, cfId++, ColumnFamily.getColumnType("Super"));
     }
 
     public static int getGcGraceInSeconds()

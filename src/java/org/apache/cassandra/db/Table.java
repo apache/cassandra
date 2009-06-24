@@ -53,8 +53,6 @@ import org.apache.log4j.Logger;
 public class Table
 {
     public static final String SYSTEM_TABLE = "system";
-    public static final String recycleBin_ = "RecycleColumnFamily";
-    public static final String HINTS_CF = "HintsColumnFamily";
 
     private static Logger logger_ = Logger.getLogger(Table.class);
 
@@ -716,33 +714,11 @@ public class Table
                 
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-        	if (columnFamily.name().equals(Table.recycleBin_))
-        	{
-	        	Collection<IColumn> columns = columnFamily.getAllColumns();
-        		for(IColumn column : columns)
-        		{
-    	            ColumnFamilyStore cfStore = columnFamilyStores_.get(column.name());
-    	            if(column.timestamp() == 1)
-    	            {
-    	            	cfStore.forceFlushBinary();
-    	            }
-    	            else if(column.timestamp() == 2)
-    	            {
-    	            	cfStore.forceCompaction(null, null, BasicUtilities.byteArrayToLong(column.value()), null);
-    	            }
-    	            else if(column.timestamp() == 3)
-    	            {
-    	            	cfStore.forceFlush();
-    	            }
-    	            else if(column.timestamp() == 4)
-    	            {
-    	            	cfStore.forceCleanup();
-    	            }    	            
-    	            else
-    	            {
-    	            	cfStore.applyBinary(key, column.value());
-    	            }
-        		}
+            Collection<IColumn> columns = columnFamily.getAllColumns();
+            for(IColumn column : columns)
+            {
+                ColumnFamilyStore cfStore = columnFamilyStores_.get(column.name());
+                cfStore.applyBinary(key, column.value());
         	}
         }
         row.clear();

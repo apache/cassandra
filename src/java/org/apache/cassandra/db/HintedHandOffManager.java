@@ -55,6 +55,7 @@ public class HintedHandOffManager
     private static Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     final static long intervalInMins_ = 60;
     private ScheduledExecutorService executor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("HINTED-HANDOFF-POOL"));
+    public static final String HINTS_CF = "HintsColumnFamily";
 
 
     public static HintedHandOffManager instance()
@@ -101,7 +102,7 @@ public class HintedHandOffManager
     private static void deleteEndPoint(String endpointAddress, String tableName, String key, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName);
-        rm.delete(Table.HINTS_CF + ":" + key + ":" + endpointAddress, timestamp);
+        rm.delete(HINTS_CF + ":" + key + ":" + endpointAddress, timestamp);
         rm.apply();
     }
 
@@ -157,7 +158,7 @@ public class HintedHandOffManager
         // 7. I guess we r done
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(tableName, Table.HINTS_CF, new IdentityFilter()), Integer.MAX_VALUE);
+            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(tableName, HINTS_CF, new IdentityFilter()), Integer.MAX_VALUE);
             if (hintColumnFamily == null)
             {
                 continue;
@@ -198,7 +199,7 @@ public class HintedHandOffManager
         Table systemTable = Table.open(Table.SYSTEM_TABLE);
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            ColumnFamily hintedColumnFamily = systemTable.get(tableName, Table.HINTS_CF);
+            ColumnFamily hintedColumnFamily = systemTable.get(tableName, HINTS_CF);
             if (hintedColumnFamily == null)
             {
                 continue;

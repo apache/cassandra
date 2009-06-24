@@ -195,7 +195,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
-        if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(Table.HINTS_CF))
+        if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
         {
             HintedHandOffManager.instance().submit(this);
         }
