@@ -25,6 +25,8 @@
     <!-- Tables and ColumnFamilies                                            
          Think of a table as a namespace, not a relational table.
          (ColumnFamilies are closer in meaning to those.)
+
+         There is an implicit table named 'system' for Cassandra internals.
     -->
     <Tables>
         <Table Name="Table1">

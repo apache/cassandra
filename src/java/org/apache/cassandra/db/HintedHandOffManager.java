@@ -53,7 +53,6 @@ public class HintedHandOffManager
     private static HintedHandOffManager instance_;
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
-    public static final String key_ = "HintedHandOffKey";
     final static long intervalInMins_ = 60;
     private ScheduledExecutorService executor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("HINTED-HANDOFF-POOL"));
 
@@ -99,14 +98,14 @@ public class HintedHandOffManager
         return quorumResponseHandler.get();
     }
 
-    private static void deleteEndPoint(String endpointAddress, String tableName, String key, long timestamp) throws Exception
+    private static void deleteEndPoint(String endpointAddress, String tableName, String key, long timestamp) throws IOException
     {
-        RowMutation rm = new RowMutation(tableName, key_);
-        rm.delete(Table.hints_ + ":" + key + ":" + endpointAddress, timestamp);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName);
+        rm.delete(Table.HINTS_CF + ":" + key + ":" + endpointAddress, timestamp);
         rm.apply();
     }
 
-    private static void deleteHintedData(String tableName, String key) throws Exception
+    private static void deleteHintedData(String tableName, String key) throws IOException
     {
         // delete the row from Application CFs: find the largest timestamp in any of
         // the data columns, and delete the entire CF with that value for the tombstone.
@@ -116,7 +115,7 @@ public class HintedHandOffManager
         // This is sub-optimal but okay, since HH is just an effort to make a recovering
         // node more consistent than it would have been; we can rely on the other
         // consistency mechanisms to finish the job in this corner case.
-        RowMutation rm = new RowMutation(tableName, key_);
+        RowMutation rm = new RowMutation(tableName, key);
         Table table = Table.open(tableName);
         Row row = table.get(key); // not necessary to do removeDeleted here
         Collection<ColumnFamily> cfs = row.getColumnFamilies();
@@ -144,9 +143,10 @@ public class HintedHandOffManager
         rm.apply();
     }
 
-    private static void deliverAllHints(ColumnFamilyStore columnFamilyStore)
+    /** hintStore must be the hints columnfamily from the system table */
+    private static void deliverAllHints(ColumnFamilyStore hintStore) throws DigestMismatchException, IOException, InvalidRequestException, TimeoutException
     {
-        logger_.debug("Started hinted handoff of " + columnFamilyStore.columnFamily_);
+        logger_.debug("Started deliverAllHints");
 
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recepients and send
@@ -155,102 +155,74 @@ public class HintedHandOffManager
         // 5. Now force a flush
         // 6. Do major compaction to clean up all deletes etc.
         // 7. I guess we r done
-        for ( String tableName:DatabaseDescriptor.getTables() )
+        for (String tableName : DatabaseDescriptor.getTables())
         {
-            try
+            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(tableName, Table.HINTS_CF, new IdentityFilter()), Integer.MAX_VALUE);
+            if (hintColumnFamily == null)
             {
-                Table table = Table.open(tableName);
-                ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(table.get(key_, Table.hints_), Integer.MAX_VALUE);
-                if (hintColumnFamily == null)
-                {
-                    columnFamilyStore.forceFlush();
-                    return;
-                }
-                Collection<IColumn> keys = hintColumnFamily.getAllColumns();
-                if (keys == null)
-                {
-                    return;
-                }
+                continue;
+            }
+            Collection<IColumn> keys = hintColumnFamily.getAllColumns();
 
-                for (IColumn keyColumn : keys)
+            for (IColumn keyColumn : keys)
+            {
+                Collection<IColumn> endpoints = keyColumn.getSubColumns();
+                int deleted = 0;
+                for (IColumn endpoint : endpoints)
                 {
-                    Collection<IColumn> endpoints = keyColumn.getSubColumns();
-                    int deleted = 0;
-                    for (IColumn endpoint : endpoints)
+                    if (sendMessage(endpoint.name(), tableName, keyColumn.name()))
                     {
-                        if (sendMessage(endpoint.name(), tableName, keyColumn.name()))
-                        {
-                            deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
-                            deleted++;
-                        }
-                    }
-                    if (deleted == endpoints.size())
-                    {
-                        deleteHintedData(tableName, keyColumn.name());
+                        deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
+                        deleted++;
                     }
                 }
-                columnFamilyStore.forceFlush();
-                columnFamilyStore.forceCompaction(null, null, 0, null);
-            }
-            catch (Exception ex)
-            {
-                logger_.error("error delivering hints", ex);
-            }
-            finally
-            {
-                logger_.debug("Finished hinted handoff of " + columnFamilyStore.columnFamily_);
+                if (deleted == endpoints.size())
+                {
+                    deleteHintedData(tableName, keyColumn.name());
+                }
             }
         }
+        hintStore.forceFlush();
+        hintStore.forceCompaction(null, null, 0, null);
+
+        logger_.debug("Finished deliverAllHints");
     }
 
-    private static void deliverHintsToEndpoint(EndPoint endPoint)
+    private static void deliverHintsToEndpoint(EndPoint endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         logger_.debug("Started hinted handoff for endPoint " + endPoint.getHost());
 
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recepients if teh endpoint matches send
         // 3. Delete that recepient from the key if write was successful
-        for ( String tableName:DatabaseDescriptor.getTables() )
+        Table systemTable = Table.open(Table.SYSTEM_TABLE);
+        for (String tableName : DatabaseDescriptor.getTables())
         {
-            try
+            ColumnFamily hintedColumnFamily = systemTable.get(tableName, Table.HINTS_CF);
+            if (hintedColumnFamily == null)
             {
-                Table table = Table.open(tableName);
-                ColumnFamily hintedColumnFamily = table.get(key_, Table.hints_);
-                if (hintedColumnFamily == null)
-                {
-                    return;
-                }
-                Collection<IColumn> keys = hintedColumnFamily.getAllColumns();
-                if (keys == null)
-                {
-                    return;
-                }
+                continue;
+            }
+            Collection<IColumn> keys = hintedColumnFamily.getAllColumns();
 
-                for (IColumn keyColumn : keys)
+            for (IColumn keyColumn : keys)
+            {
+                Collection<IColumn> endpoints = keyColumn.getSubColumns();
+                for (IColumn endpoint : endpoints)
                 {
-                    Collection<IColumn> endpoints = keyColumn.getSubColumns();
-                    for (IColumn endpoint : endpoints)
+                    if (endpoint.name().equals(endPoint.getHost()) && sendMessage(endpoint.name(), null, keyColumn.name()))
                     {
-                        if (endpoint.name().equals(endPoint.getHost()) && sendMessage(endpoint.name(), null, keyColumn.name()))
+                        deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
+                        if (endpoints.size() == 1)
                         {
-                            deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
-                            if (endpoints.size() == 1)
-                            {
-                                deleteHintedData(tableName, keyColumn.name());
-                            }
+                            deleteHintedData(tableName, keyColumn.name());
                         }
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                logger_.error("Error delivering hints", ex);
-            }
-            finally
-            {
-                logger_.debug("Finished hinted handoff for endpoint " + endPoint.getHost());
-            }            
         }
+
+        logger_.debug("Finished hinted handoff for endpoint " + endPoint.getHost());
     }
 
     public void submit(final ColumnFamilyStore columnFamilyStore)
@@ -259,7 +231,14 @@ public class HintedHandOffManager
         {
             public void run()
             {
-                deliverAllHints(columnFamilyStore);
+                try
+                {
+                    deliverAllHints(columnFamilyStore);
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         };
     	executor_.scheduleWithFixedDelay(r, HintedHandOffManager.intervalInMins_, HintedHandOffManager.intervalInMins_, TimeUnit.MINUTES);
@@ -276,7 +255,14 @@ public class HintedHandOffManager
         {
             public void run()
             {
-                deliverHintsToEndpoint(to);
+                try
+                {
+                    deliverHintsToEndpoint(to);
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         };
     	executor_.submit(r);

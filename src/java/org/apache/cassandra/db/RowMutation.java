@@ -43,7 +43,6 @@ import org.apache.cassandra.service.batch_mutation_t;
 import org.apache.cassandra.service.column_t;
 import org.apache.cassandra.service.superColumn_t;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 
 /**
@@ -119,7 +118,7 @@ public class RowMutation implements Serializable
 
     void addHints(String hint) throws IOException
     {
-        String cfName = Table.hints_ + ":" + hint;
+        String cfName = Table.HINTS_CF + ":" + hint;
         add(cfName, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 

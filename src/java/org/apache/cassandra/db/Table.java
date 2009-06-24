@@ -52,6 +52,12 @@ import org.apache.log4j.Logger;
 
 public class Table
 {
+    public static final String SYSTEM_TABLE = "system";
+    public static final String recycleBin_ = "RecycleColumnFamily";
+    public static final String HINTS_CF = "HintsColumnFamily";
+
+    private static Logger logger_ = Logger.getLogger(Table.class);
+
     /*
      * This class represents the metadata of this Table. The metadata
      * is basically the column family name and the ID associated with
@@ -287,10 +293,6 @@ public class Table
             StreamContextManager.addStreamContext(host, streamContext, streamStatus);
         }
     }
-    
-    private static Logger logger_ = Logger.getLogger(Table.class);
-    public static final String recycleBin_ = "RecycleColumnFamily";
-    public static final String hints_ = "HintsColumnFamily";
     
     /* Used to lock the factory for creation of Table instance */
     private static Lock createLock_ = new ReentrantLock();

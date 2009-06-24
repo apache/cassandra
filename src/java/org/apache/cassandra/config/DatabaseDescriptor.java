@@ -19,7 +19,6 @@
 package org.apache.cassandra.config;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
 
 import org.apache.log4j.Logger;
@@ -114,7 +113,7 @@ public class DatabaseDescriptor
     private static String configFileName_;
     /* initial token in the ring */
     private static String initialToken_ = null;
-    
+
     static
     {
         try
@@ -310,6 +309,10 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("Table name attribute is required");
                 }
+                if (tName.equalsIgnoreCase(Table.SYSTEM_TABLE))
+                {
+                    throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
+                }
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
 
@@ -446,7 +449,7 @@ public class DatabaseDescriptor
         int cfId = 0;
         Set<String> tables = tableToCFMetaDataMap_.keySet();
 
-        for ( String table : tables )
+        for (String table : tables)
         {
             Table.TableMetadata tmetadata = Table.TableMetadata.instance(table);
             if (tmetadata.isEmpty())
@@ -460,17 +463,16 @@ public class DatabaseDescriptor
                     tmetadata.add(columnFamily, cfId++, DatabaseDescriptor.getColumnType(table, columnFamily));
                 }
             }
-
-            /*
-             * Here we add all the system related column families.
-            */
-            /* Add the LocationInfo column family to this map. */
-            tmetadata.add(SystemTable.cfName_, cfId++);
-            /* Add the recycle column family to this map. */
-            tmetadata.add(Table.recycleBin_, cfId++);
-            /* Add the Hints column family to this map. */
-            tmetadata.add(Table.hints_, cfId++, ColumnFamily.getColumnType("Super"));
         }
+
+        // Hardcoded system table
+        Table.TableMetadata tmetadata = Table.TableMetadata.instance(Table.SYSTEM_TABLE);
+        /* Add the LocationInfo column family to this map. */
+        tmetadata.add(SystemTable.cfName_, cfId++);
+        /* Add the recycle column family to this map. */
+        tmetadata.add(Table.recycleBin_, cfId++);
+        /* Add the Hints column family to this map. */
+        tmetadata.add(Table.HINTS_CF, cfId++, ColumnFamily.getColumnType("Super"));
     }
 
     public static int getGcGraceInSeconds()

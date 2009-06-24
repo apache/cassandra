@@ -70,7 +70,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             	EndPoint hint = EndPoint.fromBytes(hintedBytes);
                 logger_.debug("Adding hint for " + hint);
                 /* add necessary hints to this mutation */
-                RowMutation hintedMutation = new RowMutation(rm.table(), HintedHandOffManager.key_);
+                RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.table());
                 hintedMutation.addHints(rm.key() + ":" + hint.getHost());
                 hintedMutation.apply();
             }
