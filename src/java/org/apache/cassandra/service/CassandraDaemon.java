@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -32,6 +33,9 @@ import org.apache.thrift.transport.TTransportFactory;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.RecoveryManager;
+import org.apache.cassandra.db.CalloutManager;
 
 /**
  * This class supports two methods for creating a Cassandra node daemon, 
@@ -65,7 +69,22 @@ public class CassandraDaemon
                 }
             }
         });
-        
+
+        // initialize stuff
+        CalloutManager.instance().onStart();
+
+        Set<String> tables = DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
+        for (String table : tables)
+        {
+            Table tbl = Table.open(table);
+            tbl.onStart();
+        }
+
+        // replay the log if necessary
+        RecoveryManager recoveryMgr = RecoveryManager.instance();
+        recoveryMgr.doRecovery();
+
+        // now we start listening for clients
         CassandraServer peerStorageServer = new CassandraServer();
         peerStorageServer.start();
         Cassandra.Processor processor = new Cassandra.Processor(peerStorageServer);

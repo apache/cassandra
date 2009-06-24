@@ -107,7 +107,7 @@ public class CalloutManager
      * 
      * @throws IOException
      */
-    void onStart() throws IOException
+    public void onStart() throws IOException
     {
     	String location = DatabaseDescriptor.getCalloutLocation();
     	if ( location == null )

@@ -35,7 +35,7 @@ public class RecoveryManager
     private static RecoveryManager instance_;
     private static Logger logger_ = Logger.getLogger(RecoveryManager.class);
 
-    synchronized static RecoveryManager instance() throws IOException
+    public synchronized static RecoveryManager instance() throws IOException
     {
         if (instance_ == null)
         {

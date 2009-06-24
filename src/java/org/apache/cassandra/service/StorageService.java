@@ -174,7 +174,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     /* This abstraction maintains the token/endpoint metadata information */
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
-    private DBManager.StorageMetadata storageMetadata_;
+    private SystemTable.StorageMetadata storageMetadata_;
 
     /* Timer is used to disseminate load information */
     private Timer loadTimer_ = new Timer(false);

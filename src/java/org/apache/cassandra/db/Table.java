@@ -375,17 +375,12 @@ public class Table
         return sb.toString();
     }
 
-    void onStart() throws IOException
+    public void onStart() throws IOException
     {
-        /* Cache the callouts if any */
-        CalloutManager.instance().onStart();
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
-        for ( String columnFamily : columnFamilies )
+        for (String columnFamily : tableMetadata_.getColumnFamilies())
         {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
-            if ( cfStore != null )
-                cfStore.onStart();
-        }         
+            columnFamilyStores_.get(columnFamily).onStart();
+        }
     }
     
     /** 

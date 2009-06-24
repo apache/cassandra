@@ -66,7 +66,7 @@ public class SystemTable
      * columns namely "Token" and "Generation". This is the token that
      * gets gossiped around and the generation info is used for FD.
     */
-    public static DBManager.StorageMetadata initMetadata() throws IOException
+    public static StorageMetadata initMetadata() throws IOException
     {
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
@@ -84,7 +84,7 @@ public class SystemTable
             cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)) );
             rm.add(cf);
             rm.apply();
-            return new DBManager.StorageMetadata(token, generation);
+            return new StorageMetadata(token, generation);
         }
 
         /* we crashed and came back up need to bump generation # */
@@ -100,6 +100,33 @@ public class SystemTable
         cf.addColumn(generation2);
         rm.add(cf);
         rm.apply();
-        return new DBManager.StorageMetadata(token, gen);
+        return new StorageMetadata(token, gen);
+    }
+
+    public static class StorageMetadata
+    {
+        private Token myToken;
+        private int generation_;
+
+        StorageMetadata(Token storageId, int generation)
+        {
+            myToken = storageId;
+            generation_ = generation;
+        }
+
+        public Token getStorageId()
+        {
+            return myToken;
+        }
+
+        public void setStorageId(Token storageId)
+        {
+            myToken = storageId;
+        }
+
+        public int getGeneration()
+        {
+            return generation_;
+        }
     }
 }
