@@ -77,7 +77,6 @@
          Keep the data disks and the CommitLog disks separate for best performance
     -->
     <CommitLogDirectory>/var/cassandra/commitlog</CommitLogDirectory>
-    <MetadataDirectory>/var/cassandra/system</MetadataDirectory>
     <DataFileDirectories>
         <DataFileDirectory>/var/cassandra/data</DataFileDirectory>
     </DataFileDirectories>

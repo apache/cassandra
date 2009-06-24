@@ -19,21 +19,13 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.IFileWriter;
-import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.utils.BasicUtilities;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -42,138 +34,72 @@ import org.apache.cassandra.dht.IPartitioner;
 public class SystemTable
 {
     private static Logger logger_ = Logger.getLogger(SystemTable.class);
-    private static Map<String, SystemTable> instances_ = new HashMap<String, SystemTable>();
-
-    /* Name of the SystemTable */
-    public static final String name_ = "System";
-    /* Name of the only column family in the Table */
-    public static final String cfName_ = "LocationInfo";
-    /* Name of columns in this table */
-    static final String generation_ = "Generation";
-    static final String token_ = "Token";
-
-    /* The ID associated with this column family */
-    static final int cfId_ = -1;
-
-    /* Table name. */
-    private String table_;
-    /* after the header position */
-    private long startPosition_ = 0L;
-    /* Cache the SystemRow that we read. */
-    private Row systemRow_;
-
-    /* Use the following writer/reader to write/read to System table */
-    private IFileWriter writer_;
-    private IFileReader reader_;
-
-    public static SystemTable openSystemTable(String tableName) throws IOException
-    {
-        SystemTable table = instances_.get("System");
-        if ( table == null )
-        {
-            table = new SystemTable(tableName);
-            instances_.put(tableName, table);
-        }
-        return table;
-    }
-
-    SystemTable(String table) throws IOException
-    {
-        table_ = table;
-        String systemTable = getFileName();
-        writer_ = SequenceFile.writer(systemTable);
-        reader_ = SequenceFile.reader(systemTable);
-    }
-
-    private String getFileName()
-    {
-        return DatabaseDescriptor.getMetadataDirectory() + System.getProperty("file.separator") + table_ + ".db";
-    }
+    public static final String LOCATION_CF = "LocationInfo";
+    private static final String LOCATION_KEY = "L"; // only one row in Location CF
+    private static final String TOKEN = "Token";
+    private static final String GENERATION = "Generation";
 
     /*
-     * Selects the row associated with the given key.
+     * This method is used to update the SystemTable with the new token.
     */
-    public Row get(String key) throws IOException
-    {
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        reader_.next(bufOut);
-
-        if ( bufOut.getLength() > 0 )
-        {
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(bufOut.getData(), bufOut.getLength());
-            /*
-             * This buffer contains key and value so we need to strip
-             * certain parts
-           */
-            // read the key            
-            bufIn.readUTF();
-            // read the data length and then deserialize
-            bufIn.readInt();
-            try
-            {
-                systemRow_ = Row.serializer().deserialize(bufIn);
-            }
-            catch ( IOException e )
-            {
-                logger_.debug( LogUtil.throwableToString(e) );
-            }
-        }
-        return systemRow_;
-    }
-
-    /*
-     * This is a one time thing and hence we do not need
-     * any commit log related activity. Just write in an
-     * atomic fashion to the underlying SequenceFile.
-    */
-    void apply(Row row) throws IOException
-    {
-        systemRow_ = row;
-        String file = getFileName();
-        long currentPos = writer_.getCurrentPosition();
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        Row.serializer().serialize(row, bufOut);
-        try
-        {
-            writer_.append(row.key(), bufOut);
-        }
-        catch ( IOException e )
-        {
-            writer_.seek(currentPos);
-            throw e;
-        }
-    }
-
-    /*
-     * This method is used to update the SystemTable with the
-     * new token.
-    */
-    public void updateToken(Token token) throws IOException
+    public static void updateToken(Token token) throws IOException
     {
         IPartitioner p = StorageService.getPartitioner();
-        if ( systemRow_ != null )
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        /* Retrieve the "LocationInfo" column family */
+        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(LOCATION_KEY, LOCATION_KEY + ":" + TOKEN, new IdentityFilter());
+        long oldTokenColumnTimestamp = cf.getColumn(SystemTable.TOKEN).timestamp();
+        /* create the "Token" whose value is the new token. */
+        IColumn tokenColumn = new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
+        /* replace the old "Token" column with this new one. */
+        logger_.debug("Replacing old token " + p.getTokenFactory().fromByteArray(cf.getColumn(SystemTable.TOKEN).value()) + " with " + token);
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
+        cf.addColumn(tokenColumn);
+        rm.add(cf);
+        rm.apply();
+    }
+
+    /*
+     * This method reads the system table and retrieves the metadata
+     * associated with this storage instance. Currently we store the
+     * metadata in a Column Family called LocatioInfo which has two
+     * columns namely "Token" and "Generation". This is the token that
+     * gets gossiped around and the generation info is used for FD.
+    */
+    public static DBManager.StorageMetadata initMetadata() throws IOException
+    {
+        /* Read the system table to retrieve the storage ID and the generation */
+        Table table = Table.open(Table.SYSTEM_TABLE);
+        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(LOCATION_KEY, LOCATION_KEY + ":" + GENERATION, new IdentityFilter());
+
+        IPartitioner p = StorageService.getPartitioner();
+        if (cf == null)
         {
-            /* Retrieve the "LocationInfo" column family */
-            ColumnFamily columnFamily = systemRow_.getColumnFamily(SystemTable.cfName_);
-            long oldTokenColumnTimestamp = columnFamily.getColumn(SystemTable.token_).timestamp();
-            /* create the "Token" whose value is the new token. */
-            IColumn tokenColumn = new Column(SystemTable.token_, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
-            /* replace the old "Token" column with this new one. */
-            logger_.debug("Replacing old token " + p.getTokenFactory().fromByteArray(columnFamily.getColumn(SystemTable.token_).value()) + " with " + token);
-            columnFamily.addColumn(tokenColumn);
-            reset(systemRow_);
+            Token token = p.getDefaultToken();
+            int generation = 1;
+
+            RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
+            cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.LOCATION_CF);
+            cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token)));
+            cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)) );
+            rm.add(cf);
+            rm.apply();
+            return new DBManager.StorageMetadata(token, generation);
         }
-    }
 
-    public void reset(Row row) throws IOException
-    {
-        writer_.seek(startPosition_);
-        apply(row);
-    }
+        /* we crashed and came back up need to bump generation # */
+        IColumn tokenColumn = cf.getColumn(TOKEN);
+        Token token = p.getTokenFactory().fromByteArray(tokenColumn.value());
 
-    void delete(Row row) throws IOException
-    {
-        throw new UnsupportedOperationException("This operation is not supported for System tables");
+        IColumn generation = cf.getColumn(GENERATION);
+        int gen = BasicUtilities.byteArrayToInt(generation.value()) + 1;
+
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
+        cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.LOCATION_CF);
+        Column generation2 = new Column(GENERATION, BasicUtilities.intToByteArray(gen), generation.timestamp() + 1);
+        cf.addColumn(generation2);
+        rm.add(cf);
+        rm.apply();
+        return new DBManager.StorageMetadata(token, gen);
     }
 }

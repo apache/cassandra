@@ -38,7 +38,6 @@ public class CleanupHelper
                 DatabaseDescriptor.getBootstrapFileLocation(),
                 DatabaseDescriptor.getLogFileLocation(),
                 DatabaseDescriptor.getDataFileLocation(),
-                DatabaseDescriptor.getMetadataDirectory(),
         };
 
         for (String dirName : directoryNames)

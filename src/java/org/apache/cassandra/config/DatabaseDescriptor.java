@@ -49,7 +49,6 @@ public class DatabaseDescriptor
     private static int replicationFactor_ = 3;
     private static long rpcTimeoutInMillis_ = 2000;
     private static Set<String> seeds_ = new HashSet<String>();
-    private static String metadataDirectory_;
     private static String snapshotDirectory_;
     /* Keeps the list of Ganglia servers to contact */
     private static String[] gangliaServers_ ;
@@ -242,22 +241,10 @@ public class DatabaseDescriptor
                 columnIndexSizeInKB_ = Integer.parseInt(columnIndexSizeInKB);
             }
 
-            /* metadata directory */
-            metadataDirectory_ = xmlUtils.getNodeValue("/Storage/MetadataDirectory");
-            if (metadataDirectory_ == null)
-            {
-                throw new ConfigurationException("MetadataDirectory must be specified");
-            }
-            FileUtils.createDirectory(metadataDirectory_);
-
             /* snapshot directory */
             snapshotDirectory_ = xmlUtils.getNodeValue("/Storage/SnapshotDirectory");
             if ( snapshotDirectory_ != null )
                 FileUtils.createDirectory(snapshotDirectory_);
-            else
-            {
-                snapshotDirectory_ = metadataDirectory_ + System.getProperty("file.separator") + "snapshot";
-            }
 
             /* data file directory */
             dataFileDirectories_ = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
@@ -467,7 +454,7 @@ public class DatabaseDescriptor
 
         // Hardcoded system table
         Table.TableMetadata tmetadata = Table.TableMetadata.instance(Table.SYSTEM_TABLE);
-        tmetadata.add(SystemTable.cfName_, cfId++);
+        tmetadata.add(SystemTable.LOCATION_CF, cfId++);
         tmetadata.add(HintedHandOffManager.HINTS_CF, cfId++, ColumnFamily.getColumnType("Super"));
     }
 
@@ -681,16 +668,6 @@ public class DatabaseDescriptor
     public static int getThreadsPerPool()
     {
         return threadsPerPool_;
-    }
-
-    public static String getMetadataDirectory()
-    {
-        return metadataDirectory_;
-    }
-
-    public static void setMetadataDirectory(String metadataDirectory)
-    {
-        metadataDirectory_ = metadataDirectory;
     }
 
     public static String getSnapshotDirectory()

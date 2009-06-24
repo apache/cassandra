@@ -25,7 +25,6 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
@@ -272,7 +271,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     
     public void start() throws IOException
     {
-        storageMetadata_ = DBManager.instance().start();
+        storageMetadata_ = SystemTable.initMetadata();
         tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
         udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
         /* Listen for application messages */
@@ -507,7 +506,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public void updateToken(Token token) throws IOException
     {
         /* update the token on disk */
-        SystemTable.openSystemTable(SystemTable.name_).updateToken(token);
+        SystemTable.updateToken(token);
         /* Update the storageMetadata cache */
         storageMetadata_.setStorageId(token);
         /* Update the token maps */
