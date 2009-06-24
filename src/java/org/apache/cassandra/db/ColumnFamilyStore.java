@@ -147,7 +147,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void onStart() throws IOException
     {
-        /* Do major compaction */
+        // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
         String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocations();
         for (String directory : dataFileDirectories)
@@ -173,15 +173,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
         Collections.sort(sstableFiles, new FileUtils.FileComparator());
-        List<String> filenames = new ArrayList<String>();
-        for (File ssTable : sstableFiles)
-        {
-            filenames.add(ssTable.getAbsolutePath());
-        }
 
         /* Load the index files and the Bloom Filters associated with them. */
-        for (String filename : filenames)
+        for (File file : sstableFiles)
         {
+            String filename = file.getAbsolutePath();
             try
             {
                 SSTable sstable = SSTable.open(filename, StorageService.getPartitioner());
@@ -189,20 +185,21 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             catch (IOException ex)
             {
-                logger_.info("Deleting corrupted file " + filename);
+                logger_.error("Corrupt file " + filename, ex);
                 FileUtils.delete(filename);
-                logger_.warn(LogUtil.throwableToString(ex));
             }
         }
+
+        // submit initial check-for-compaction request
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
+
+        // schedule hinted handoff
         if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
         {
             HintedHandOffManager.instance().submit(this);
         }
-        // TODO this seems unnecessary -- each memtable flush checks to see if it needs to compact, too
-        MinorCompactionManager.instance().submitPeriodicCompaction(this);
 
-        /* submit periodic flusher if required */
+        // schedule periodic flusher if required
         int flushPeriod = DatabaseDescriptor.getFlushPeriod(table_, columnFamily_);
         if (flushPeriod > 0)
         {

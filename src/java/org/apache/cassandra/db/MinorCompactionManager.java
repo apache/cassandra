@@ -151,26 +151,6 @@ class MinorCompactionManager
     
     private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("MINOR-COMPACTION-POOL"));
 
-    public void submitPeriodicCompaction(final ColumnFamilyStore columnFamilyStore)
-    {
-        Runnable runnable = new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    columnFamilyStore.doCompaction(COMPACTION_THRESHOLD);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-    	compactor_.scheduleWithFixedDelay(runnable, MinorCompactionManager.intervalInMins_,
-    			MinorCompactionManager.intervalInMins_, TimeUnit.MINUTES);       
-    }
-
     public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
         return submit(columnFamilyStore, COMPACTION_THRESHOLD);
