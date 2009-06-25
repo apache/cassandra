@@ -539,37 +539,7 @@ public class Table
         	row.addColumnFamily(columnFamily);
         return row;
     }
-  
-    /**
-     * Selects only the specified column family for the specified key.
-    */
-    public Row getRow(String key, String cf, int start, int count) throws IOException
-    {
-        Row row = new Row(table_, key);
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-        long start1 = System.currentTimeMillis();
-        assert cfStore != null : "Column family " + cf + " has not been defined";
-        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
-        if ( columnFamily != null )
-        {
-
-            ColumnFamily filteredCf = null;
-            if ((count <=0 || count == Integer.MAX_VALUE) && start <= 0) //Don't need to filter
-            {
-                filteredCf = columnFamily;
-            }
-            else
-            {
-                filteredCf = new CountFilter(count, start).filter(cf, columnFamily);
-            }
-            row.addColumnFamily(filteredCf);
-        }
-        long timeTaken = System.currentTimeMillis() - start1;
-        dbAnalyticsSource_.updateReadStatistics(timeTaken);
-        return row;
-    }
-    
+      
     public Row getRow(String key, String cf, String startColumn, String endColumn, int count) throws IOException
     {
         Row row = new Row(table_, key);
@@ -633,9 +603,9 @@ public class Table
     public Row getSliceFrom(String key, String cf, boolean isAscending, int count) throws IOException
     {
         Row row = new Row(table_, key);
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
+        String[] values = cf.split(":", -1);
         String cfName = values[0];
-        String startWith = values.length > 1 ? values[1] : "";
+        String startWith = values[1];
         ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
         long start1 = System.currentTimeMillis();
         try

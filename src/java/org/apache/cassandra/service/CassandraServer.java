@@ -175,36 +175,12 @@ public class CassandraServer implements Cassandra.Iface
         }
         return thriftifyColumns(cfamily.getAllColumns());
     }
-    
-    public List<column_t> get_slice(String tablename, String key, String columnParent, int start, int count) throws InvalidRequestException
-    {
-        logger.debug("get_slice");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnParent, start, count));
-        if (cfamily == null)
-        {
-            return EMPTY_COLUMNS;
-        }
-        Collection<IColumn> columns = null;
-        if( values.length > 1 )
-        {
-            // this is the super column case
-            IColumn column = cfamily.getColumn(values[1]);
-            if(column != null)
-                columns = column.getSubColumns();
-        }
-        else
-        {
-            columns = cfamily.getAllColumns();
-        }
-        return thriftifyColumns(columns);
-	}
 
-    public List<column_t> get_slice_from(String tablename, String key, String columnParent, boolean isAscending, int count) throws InvalidRequestException
+    public List<column_t> get_slice(String tablename, String key, String columnParent, boolean isAscending, int count) throws InvalidRequestException
     {
         logger.debug("get_slice_from");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        if (values.length != 2 || DatabaseDescriptor.getColumnFamilyType(tablename, values[0]) != "Standard")
+        String[] values = columnParent.split(":", -1); // allow empty column specifier
+        if (values.length != 2 || !DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
             throw new InvalidRequestException("get_slice_from requires a standard CF name and a starting column name");
         if (count <= 0)
             throw new InvalidRequestException("get_slice_from requires positive count");
@@ -280,7 +256,16 @@ public class CassandraServer implements Cassandra.Iface
     {
         logger.debug("get_column_count");
         String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnParent, -1, Integer.MAX_VALUE));
+        ColumnFamily cfamily;
+
+        if (DatabaseDescriptor.isNameSortingEnabled(tablename, values[0]))
+        {
+            cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnParent + ":", true, Integer.MAX_VALUE));
+        }
+        else
+        {
+            cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnParent, Long.MIN_VALUE));
+        }
         if (cfamily == null)
         {
             return 0;
@@ -382,10 +367,15 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, int start, int count) throws InvalidRequestException
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int count) throws InvalidRequestException
     {
         logger.debug("get_slice_super");
-        ColumnFamily cfamily = readColumnFamily(new SliceReadCommand(tablename, key, columnFamily, start, count));
+        String[] values = columnFamily.split(":", -1);
+        if (values.length != 2 || !DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Super"))
+            throw new InvalidRequestException("get_slice_super requires a super CF name and a starting column name");
+        if (count <= 0)
+            throw new InvalidRequestException("get_slice_super requires positive count");
+        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnFamily, isAscending, count));
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;

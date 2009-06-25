@@ -61,7 +61,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     @Override
     public String toString()
     {
-        return "GetSliceByNamesReadMessage(" +
+        return "SliceByNamesReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", columnFamily='" + columnFamily + '\'' +

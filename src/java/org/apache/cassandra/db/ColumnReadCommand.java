@@ -56,7 +56,7 @@ public class ColumnReadCommand extends ReadCommand
     @Override
     public String toString()
     {
-        return "GetColumnReadMessage(" +
+        return "ColumnReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", columnFamilyColumn='" + columnFamilyColumn + '\'' +

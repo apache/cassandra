@@ -96,6 +96,8 @@ public class RowMutation implements Serializable
         modifications_ = modifications;
     }
 
+    /** trailing empty patch fragments ("" or "CF:") will be removed,
+     * so caller doesn't have to check for those */
     public static String[] getColumnAndColumnFamily(String cf)
     {
         return cf.split(":");

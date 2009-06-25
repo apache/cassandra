@@ -36,7 +36,7 @@ public class ColumnsSinceReadCommand extends ReadCommand
     @Override
     public String getColumnFamilyName()
     {
-        return columnFamily;
+        return RowMutation.getColumnAndColumnFamily(columnFamily)[0];
     }
 
     @Override
@@ -56,7 +56,7 @@ public class ColumnsSinceReadCommand extends ReadCommand
     @Override
     public String toString()
     {
-        return "GetColumnsSinceMessage(" +
+        return "ColumnsSinceReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", columnFamily='" + columnFamily + '\'' +

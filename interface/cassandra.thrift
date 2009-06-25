@@ -101,16 +101,13 @@ exception UnavailableException {
 
 
 service Cassandra {
-  list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnParent, 4:i32 start=-1, 5:i32 count=-1)
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
-  
   list<column_t> get_slice_by_name_range(1:string tablename, 2:string key, 3:string columnParent, 4:string start, 5:string finish, 6:i32 count=-1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
   list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnParent, 4:list<string> columnNames)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice_from(1:string tablename, 2:string key, 3:string columnParent, 4:bool isAscending, 5:i32 count)
+  list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnParent, 4:bool isAscending, 5:i32 count)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
   column_t       get_column(1:string tablename, 2:string key, 3:string columnPath)
@@ -131,7 +128,7 @@ service Cassandra {
   list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnParent, 4:i64 timeStamp)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  list<superColumn_t> get_slice_super(1:string tablename, 2:string key, 3:string columnFamily, 4:i32 start=-1, 5:i32 count=-1)
+  list<superColumn_t> get_slice_super(1:string tablename, 2:string key, 3:string columnFamily, 4:bool isAscending, 5:i32 count)
   throws (1: InvalidRequestException ire),
 
   list<superColumn_t> get_slice_super_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> superColumnNames)

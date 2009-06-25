@@ -52,7 +52,7 @@ public class RowReadCommand extends ReadCommand
     @Override
     public String toString()
     {
-        return "GetColumnReadMessage(" +
+        return "RowReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ')';

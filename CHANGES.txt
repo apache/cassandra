@@ -1,3 +1,9 @@
+0.4 dev
+ * Change signature of get_slice and get_slice_super to require a starting
+   column instead of an offset.  (This allows use of indexes.)  Added
+   "ascending" flag to allow reasonably-efficient reverse scans as well.
+
+
 0.3.0
 
  * Range queries on keys, including user-defined key collation

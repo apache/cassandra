@@ -58,7 +58,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public String toString()
     {
-        return "GetSliceReadMessage(" +
+        return "SliceFromReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", columnFamily='" + columnFamilyColumn + '\'' +
