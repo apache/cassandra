@@ -493,7 +493,6 @@ public class SequenceFile
          */
         public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException
         {
-            assert !columnFamilyName.contains(":");
             assert timeRange == null || columnNames == null; // at most one may be non-null
 
             long bytesRead = -1L;

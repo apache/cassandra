@@ -442,24 +442,22 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         }
 
         SuperColumn superColumn = defreezeSuperColumn(dis);
-        if ( !superColumn.isMarkedForDelete() )
+        int size = dis.readInt();
+        /* skip the size of the columns */
+        dis.readInt();
+        if ( size > 0 )
         {
-            int size = dis.readInt();
-            /* skip the size of the columns */
-            dis.readInt();
-            if ( size > 0 )
+            for ( int i = 0; i < size; ++i )
             {
-                for ( int i = 0; i < size; ++i )
+                IColumn subColumn = Column.serializer().deserialize(dis, names[1], filter);
+                if ( subColumn != null )
                 {
-                    IColumn subColumn = Column.serializer().deserialize(dis, names[1], filter);
-                    if ( subColumn != null )
-                    {
-                        superColumn.addColumn(subColumn);
-                        break;
-                    }
+                    superColumn.addColumn(subColumn);
+                    break;
                 }
             }
         }
+
         return superColumn;
     }
 }
