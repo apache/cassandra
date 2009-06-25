@@ -111,9 +111,7 @@ public class SSTable
         if (sstable == null)
         {
             assert partitioner != null;
-            sstable = new SSTable(dataFileName, 1, partitioner);
-            sstable.dataWriter_.close(); // todo this is dumb
-            sstable.indexRAF_.close();
+            sstable = new SSTable(dataFileName, partitioner);
 
             long start = System.currentTimeMillis();
             sstable.loadIndexFile();
@@ -130,6 +128,12 @@ public class SSTable
         SSTable sstable = openedFiles.get(dataFileName);
         assert sstable != null;
         return sstable;
+    }
+
+    private SSTable(String filename, IPartitioner partitioner)
+    {
+        dataFile_ = filename;
+        partitioner_ = partitioner;
     }
 
     private SSTable(String filename, int keyCount, IPartitioner partitioner) throws IOException
