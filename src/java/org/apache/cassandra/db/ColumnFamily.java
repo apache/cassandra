@@ -512,10 +512,7 @@ public final class ColumnFamily
             for (int i = 0; i < size; ++i)
             {
                 column = cf.getColumnSerializer().deserialize(dis);
-                if (column != null)
-                {
-                    cf.addColumn(column);
-                }
+                cf.addColumn(column);
             }
             return cf;
         }
@@ -535,7 +532,6 @@ public final class ColumnFamily
                 if(column != null)
                 {
                     cf.addColumn(column);
-                    column = null;
                     if(filter.isDone())
                     {
                         break;

@@ -362,7 +362,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     private void fillSuperColumn(IColumn superColumn, DataInputStream dis) throws IOException
     {
-        assert dis.available() != 0;
+        assert dis.available() > 0;
 
         /* read the number of columns */
         int size = dis.readInt();
@@ -377,8 +377,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 
     public IColumn deserialize(DataInputStream dis, IFilter filter) throws IOException
     {
-        if ( dis.available() == 0 )
-            return null;
+        assert dis.available() > 0;
 
         IColumn superColumn = defreezeSuperColumn(dis);
         superColumn = filter.filter(superColumn, dis);
@@ -404,8 +403,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     */
     public IColumn deserialize(DataInputStream dis, String name, IFilter filter) throws IOException
     {
-        if ( dis.available() == 0 )
-            return null;
+        assert dis.available() > 0;
 
         String[] names = RowMutation.getColumnAndColumnFamily(name);
         if ( names.length == 1 )
@@ -424,7 +422,6 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
                     if(column != null)
                     {
                         superColumn.addColumn(column);
-                        column = null;
                         if(filter.isDone())
                         {
                             break;

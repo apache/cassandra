@@ -245,8 +245,7 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
      */
     public IColumn deserialize(DataInputStream dis, IFilter filter) throws IOException
     {
-        if ( dis.available() == 0 )
-            return null;
+        assert dis.available() > 0;
 
         String name = dis.readUTF();
         IColumn column = new Column(name);
@@ -271,8 +270,7 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
      */
     public IColumn deserialize(DataInputStream dis, String columnName, IFilter filter) throws IOException
     {
-        if ( dis.available() == 0 )
-            return null;
+        assert dis.available() > 0;
         IColumn column = null;
         String name = dis.readUTF();
         if ( name.equals(columnName) )
@@ -313,6 +311,4 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
         int size = dis.readInt();
         dis.skip(size);
     }
-
 }
-
