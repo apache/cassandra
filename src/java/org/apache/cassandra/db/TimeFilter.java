@@ -84,6 +84,7 @@ class TimeFilter implements IFilter
             {
                 SuperColumn superColumn = (SuperColumn) column;
                 SuperColumn filteredSuperColumn = new SuperColumn(superColumn.name());
+                filteredSuperColumn.markForDeleteAt(column.getLocalDeletionTime(), column.getMarkedForDeleteAt());
                 filteredCf.addColumn(filteredSuperColumn);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
                 int i = 0;
