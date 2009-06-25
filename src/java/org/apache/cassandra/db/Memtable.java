@@ -31,7 +31,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.log4j.Logger;
 
@@ -251,9 +250,7 @@ public class Memtable implements Comparable<Memtable>
         logger_.info("Flushing " + this);
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
 
-        String directory = DatabaseDescriptor.getDataFileLocation();
-        String filename = cfStore.getTempFileName();
-        SSTable ssTable = new SSTable(directory, filename, columnFamilies_.size(), StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
 
         // sort keys in the order they would be in when decorated
         final IPartitioner partitioner = StorageService.getPartitioner();

@@ -132,26 +132,19 @@ public class SSTable
 
     private SSTable(String filename, IPartitioner partitioner)
     {
+        assert filename.endsWith("-Data.db");
         dataFile_ = filename;
         partitioner_ = partitioner;
     }
 
-    private SSTable(String filename, int keyCount, IPartitioner partitioner) throws IOException
+    public SSTable(String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
+        assert filename.endsWith("-Data.db");
         dataFile_ = filename;
         partitioner_ = partitioner;
         dataWriter_ = SequenceFile.bufferedWriter(dataFile_, 4 * 1024 * 1024);
         indexRAF_ = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
         bf = new BloomFilter(keyCount, 15);
-    }
-
-    /**
-     * This ctor is used for writing data into the SSTable. Use this
-     * version for non DB writes to the SSTable.
-     */
-    public SSTable(String directory, String filename, int keyCount, IPartitioner partitioner) throws IOException
-    {
-        this(directory + System.getProperty("file.separator") + filename + "-Data.db", keyCount, partitioner);
     }
 
     static String parseTableName(String filename)

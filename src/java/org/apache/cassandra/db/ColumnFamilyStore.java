@@ -358,13 +358,22 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /*
-     * Return a temporary file name.
+     * @return a temporary file name for an sstable.
+     * When the sstable object is closed, it will be renamed to a non-temporary
+     * format, so incomplete sstables can be recognized and removed on startup.
      */
-    String getTempFileName()
+    String getTempSSTablePath()
     {
-        // Psuedo increment so that we do not generate consecutive numbers
+        // increment twice so that we do not generate consecutive numbers
+        String fname = getTempSSTableFileName();
+        return new File(DatabaseDescriptor.getDataFileLocation(), fname).getAbsolutePath();
+    }
+
+    String getTempSSTableFileName()
+    {
         fileIndexGenerator_.incrementAndGet();
-        return table_ + "-" + columnFamily_ + "-" + SSTable.temporaryFile_ + "-" + fileIndexGenerator_.incrementAndGet();
+        return String.format("%s-%s-%s-%s-Data.db",
+                             table_, columnFamily_, SSTable.temporaryFile_, fileIndexGenerator_.incrementAndGet());
     }
 
     /*
@@ -388,7 +397,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         index = lowestIndex + 1;
 
-        return table_ + "-" + columnFamily_ + "-" + SSTable.temporaryFile_ + "-" + index;
+        return String.format("%s-%s-%s-%s-Data.db",
+                             table_, columnFamily_, SSTable.temporaryFile_, index);
     }
 
     void switchMemtable()
@@ -1036,7 +1046,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return result;
         }
 
-        mergedFileName = getTempFileName();
+        mergedFileName = getTempSSTableFileName();
         SSTable ssTableRange = null;
         String lastkey = null;
         List<FileStruct> lfs = new ArrayList<FileStruct>();
@@ -1115,7 +1125,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                             rangeFileLocation = rangeFileLocation + System.getProperty("file.separator") + "bootstrap";
                         }
                         FileUtils.createDirectory(rangeFileLocation);
-                        ssTableRange = new SSTable(rangeFileLocation, mergedFileName, expectedBloomFilterSize, StorageService.getPartitioner());
+                        String fname = new File(rangeFileLocation, mergedFileName).getAbsolutePath();
+                        ssTableRange = new SSTable(fname, expectedBloomFilterSize, StorageService.getPartitioner());
                     }
                     try
                     {
@@ -1304,7 +1315,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (ssTable == null)
                 {
-                    ssTable = new SSTable(compactionFileLocation, mergedFileName, expectedBloomFilterSize, StorageService.getPartitioner());
+                    String fname = new File(compactionFileLocation, mergedFileName).getAbsolutePath();
+                    ssTable = new SSTable(fname, expectedBloomFilterSize, StorageService.getPartitioner());
                 }
                 ssTable.append(lastkey, bufOut);
                 totalkeysWritten++;

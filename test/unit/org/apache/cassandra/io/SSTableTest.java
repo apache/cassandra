@@ -32,10 +32,10 @@ public class SSTableTest extends CleanupHelper
 {
     @Test
     public void testSingleWrite() throws IOException {
-        File f = File.createTempFile("sstable", "-" + SSTable.temporaryFile_);
+        File f = tempSSTableFileName();
 
         // write test data
-        SSTable ssTable = new SSTable(f.getParent(), f.getName(), 1, new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getAbsolutePath(), 1, new OrderPreservingPartitioner());
         Random random = new Random();
         byte[] bytes = new byte[1024];
         random.nextBytes(bytes);
@@ -50,6 +50,11 @@ public class SSTableTest extends CleanupHelper
         verifySingle(ssTable, bytes, key);
     }
 
+    private File tempSSTableFileName() throws IOException
+    {
+        return File.createTempFile("sstable", "-" + SSTable.temporaryFile_ + "-Data.db");
+    }
+
     private void verifySingle(SSTable sstable, byte[] bytes, String key) throws IOException
     {
         FileStruct fs = sstable.getFileStruct();
@@ -62,7 +67,7 @@ public class SSTableTest extends CleanupHelper
 
     @Test
     public void testManyWrites() throws IOException {
-        File f = File.createTempFile("sstable", "-" + SSTable.temporaryFile_);
+        File f = tempSSTableFileName();
 
         TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
         for ( int i = 100; i < 1000; ++i )
@@ -71,7 +76,7 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTable ssTable = new SSTable(f.getParent(), f.getName(), 1000, new OrderPreservingPartitioner());
+        SSTable ssTable = new SSTable(f.getAbsolutePath(), 1000, new OrderPreservingPartitioner());
         for (String key: map.navigableKeySet())
         {
             ssTable.append(key, map.get(key));

@@ -28,8 +28,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.service.StorageService;
 
@@ -137,16 +135,14 @@ public class BinaryMemtable
     {
         if ( columnFamilies_.size() == 0 )
             return;
-        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-        String directory = DatabaseDescriptor.getDataFileLocation();
-        String filename = cfStore.getTempFileName();
 
         /*
          * Use the SSTable to write the contents of the TreeMap
          * to disk.
         */
+        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
-        SSTable ssTable = new SSTable(directory, filename, keys.size(), StorageService.getPartitioner());
+        SSTable ssTable = new SSTable(cfStore.getTempSSTablePath(), keys.size(), StorageService.getPartitioner());
         Collections.sort(keys);
         /* Use this BloomFilter to decide if a key exists in a SSTable */
         for ( String key : keys )

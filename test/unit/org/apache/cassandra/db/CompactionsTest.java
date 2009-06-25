@@ -28,9 +28,10 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.CleanupHelper;
 import static junit.framework.Assert.assertEquals;
 
-public class CompactionsTest
+public class CompactionsTest extends CleanupHelper
 {
     @Test
     public void testCompactions() throws IOException, ExecutionException, InterruptedException
