@@ -91,7 +91,6 @@ class HeartBeatState
     {
         return version_;
     }
-    
 };
 
 class HeartBeatStateSerializer implements ICompactSerializer<HeartBeatState>

@@ -57,8 +57,6 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     /* The time when the module was instantiated. */
     private static long creationTime_;
     
-    private Gossiper gossiper;
-    
     public static IFailureDetector instance()
     {        
         if ( failureDetector_ == null )
@@ -68,7 +66,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             {
                 if ( failureDetector_ == null )
                 {
-                    failureDetector_ = new FailureDetector(Gossiper.instance());
+                    failureDetector_ = new FailureDetector();
                 }
             }
             finally
@@ -82,9 +80,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private Map<EndPoint, ArrivalWindow> arrivalSamples_ = new Hashtable<EndPoint, ArrivalWindow>();
     private List<IFailureDetectionEventListener> fdEvntListeners_ = new ArrayList<IFailureDetectionEventListener>();
     
-    public FailureDetector(Gossiper gossiper)
+    public FailureDetector()
     {
-        this.gossiper = gossiper;
         creationTime_ = System.currentTimeMillis();
         // Register this instance with JMX
         try
@@ -241,7 +238,7 @@ class ArrivalWindow
     private static Logger logger_ = Logger.getLogger(ArrivalWindow.class);
     private double tLast_ = 0L;
     private BoundedStatsDeque arrivalIntervals_;
-    
+
     ArrivalWindow(int size)
     {
         arrivalIntervals_ = new BoundedStatsDeque(size);
