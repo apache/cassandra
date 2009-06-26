@@ -31,6 +31,28 @@ import org.apache.cassandra.CleanupHelper;
 public class TimeSortTest extends CleanupHelper
 {
     @Test
+    public void testMixedSources() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Table1");
+        RowMutation rm;
+
+        rm = new RowMutation("Table1", "key0");
+        rm.add("StandardByTime1:C0", "a".getBytes(), 100);
+        rm.apply();
+        table.getColumnFamilyStore("StandardByTime1").forceBlockingFlush();
+
+        rm = new RowMutation("Table1", "key0");
+        rm.add("StandardByTime1:C1", "b".getBytes(), 0);
+        rm.apply();
+
+        Row row = table.getRow("key0", "StandardByTime1", 10);
+        assert !row.isEmpty();
+        ColumnFamily cf = row.getColumnFamilies().iterator().next();
+        SortedSet<IColumn> columns = cf.getAllColumns();
+        assert columns.size() == 1;
+    }
+
+    @Test
     public void testTimeSort() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
