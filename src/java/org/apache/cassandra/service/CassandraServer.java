@@ -467,23 +467,43 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public String describeTable(String tableName)
+    public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException
     {
-        String desc = "";
+        Map <String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>> ();
+
         Map<String, CFMetaData> tableMetaData = DatabaseDescriptor.getTableMetaData(tableName);
-
-        if (tableMetaData == null)
-        {
-            return "Table " + tableName +  " not found.";
+        // table doesn't exist
+        if (tableMetaData == null) {
+            throw new NotFoundException();
         }
-
+        
         Iterator iter = tableMetaData.entrySet().iterator();
         while (iter.hasNext())
         {
-            Map.Entry<String, CFMetaData> pairs = (Map.Entry<String, CFMetaData>)iter.next();
-            desc = desc + pairs.getValue().pretty() + "-----\n";
+            Map.Entry<String, CFMetaData> pairs = (Map.Entry<String, CFMetaData>) iter.next();
+            CFMetaData columnFamilyMetaData = pairs.getValue();
+
+            String desc = ""; 
+                
+
+            Map<String, String> columnMap = new HashMap<String, String>();
+            desc = columnFamilyMetaData.n_columnMap + "(" + columnFamilyMetaData.n_columnKey + ", " + columnFamilyMetaData.n_columnValue + ", " + columnFamilyMetaData.n_columnTimestamp + ")";
+            if (columnFamilyMetaData.columnType.equals("Super")) {
+                columnMap.put("type", "Super");
+                desc = columnFamilyMetaData.n_superColumnMap + "(" + columnFamilyMetaData.n_superColumnKey + ", " + desc + ")"; 
+            } else {
+                columnMap.put("type", "Standard");
+            }
+            
+            desc = columnFamilyMetaData.tableName + "." + columnFamilyMetaData.cfName + "(" + 
+                columnFamilyMetaData.n_rowKey + ", " + desc + ")";
+
+            columnMap.put("desc", desc);
+            columnMap.put("sort", columnFamilyMetaData.indexProperty_);
+            columnMap.put("flushperiod", columnFamilyMetaData.flushPeriodInMinutes + "");
+            columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }
-        return desc;
+        return columnFamiliesMap;
     }
 
     public CqlResult_t executeQuery(String query) throws TException

@@ -54,7 +54,7 @@ public class Cassandra {
 
     public List<String> getStringListProperty(String propertyName) throws TException;
 
-    public String describeTable(String tableName) throws TException;
+    public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException, TException;
 
     public CqlResult_t executeQuery(String query) throws TException;
 
@@ -718,7 +718,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "getStringListProperty failed: unknown result");
     }
 
-    public String describeTable(String tableName) throws TException
+    public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException, TException
     {
       send_describeTable(tableName);
       return recv_describeTable();
@@ -734,7 +734,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public String recv_describeTable() throws TException
+    public Map<String,Map<String,String>> recv_describeTable() throws NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -747,6 +747,9 @@ public class Cassandra {
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
         return result.success;
+      }
+      if (result.nfe != null) {
+        throw result.nfe;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describeTable failed: unknown result");
     }
@@ -1287,7 +1290,19 @@ public class Cassandra {
         args.read(iprot);
         iprot.readMessageEnd();
         describeTable_result result = new describeTable_result();
-        result.success = iface_.describeTable(args.tableName);
+        try {
+          result.success = iface_.describeTable(args.tableName);
+        } catch (NotFoundException nfe) {
+          result.nfe = nfe;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing describeTable", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describeTable");
+          oprot.writeMessageBegin(new TMessage("describeTable", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         oprot.writeMessageBegin(new TMessage("describeTable", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
@@ -12958,10 +12973,13 @@ public class Cassandra {
 
   public static class describeTable_result implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("describeTable_result");
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
+    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)1);
 
-    public String success;
+    public Map<String,Map<String,String>> success;
     public static final int SUCCESS = 0;
+    public NotFoundException nfe;
+    public static final int NFE = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
@@ -12969,7 +12987,13 @@ public class Cassandra {
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+          new MapMetaData(TType.MAP, 
+              new FieldValueMetaData(TType.STRING), 
+              new MapMetaData(TType.MAP, 
+                  new FieldValueMetaData(TType.STRING), 
+                  new FieldValueMetaData(TType.STRING)))));
+      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
     }});
 
     static {
@@ -12980,10 +13004,12 @@ public class Cassandra {
     }
 
     public describeTable_result(
-      String success)
+      Map<String,Map<String,String>> success,
+      NotFoundException nfe)
     {
       this();
       this.success = success;
+      this.nfe = nfe;
     }
 
     /**
@@ -12991,7 +13017,33 @@ public class Cassandra {
      */
     public describeTable_result(describeTable_result other) {
       if (other.isSetSuccess()) {
-        this.success = other.success;
+        Map<String,Map<String,String>> __this__success = new HashMap<String,Map<String,String>>();
+        for (Map.Entry<String, Map<String,String>> other_element : other.success.entrySet()) {
+
+          String other_element_key = other_element.getKey();
+          Map<String,String> other_element_value = other_element.getValue();
+
+          String __this__success_copy_key = other_element_key;
+
+          Map<String,String> __this__success_copy_value = new HashMap<String,String>();
+          for (Map.Entry<String, String> other_element_value_element : other_element_value.entrySet()) {
+
+            String other_element_value_element_key = other_element_value_element.getKey();
+            String other_element_value_element_value = other_element_value_element.getValue();
+
+            String __this__success_copy_value_copy_key = other_element_value_element_key;
+
+            String __this__success_copy_value_copy_value = other_element_value_element_value;
+
+            __this__success_copy_value.put(__this__success_copy_value_copy_key, __this__success_copy_value_copy_value);
+          }
+
+          __this__success.put(__this__success_copy_key, __this__success_copy_value);
+        }
+        this.success = __this__success;
+      }
+      if (other.isSetNfe()) {
+        this.nfe = new NotFoundException(other.nfe);
       }
     }
 
@@ -13000,11 +13052,22 @@ public class Cassandra {
       return new describeTable_result(this);
     }
 
-    public String getSuccess() {
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(String key, Map<String,String> val) {
+      if (this.success == null) {
+        this.success = new HashMap<String,Map<String,String>>();
+      }
+      this.success.put(key, val);
+    }
+
+    public Map<String,Map<String,String>> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(String success) {
+    public void setSuccess(Map<String,Map<String,String>> success) {
       this.success = success;
     }
 
@@ -13023,13 +13086,44 @@ public class Cassandra {
       }
     }
 
+    public NotFoundException getNfe() {
+      return this.nfe;
+    }
+
+    public void setNfe(NotFoundException nfe) {
+      this.nfe = nfe;
+    }
+
+    public void unsetNfe() {
+      this.nfe = null;
+    }
+
+    // Returns true if field nfe is set (has been asigned a value) and false otherwise
+    public boolean isSetNfe() {
+      return this.nfe != null;
+    }
+
+    public void setNfeIsSet(boolean value) {
+      if (!value) {
+        this.nfe = null;
+      }
+    }
+
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
       case SUCCESS:
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((String)value);
+          setSuccess((Map<String,Map<String,String>>)value);
+        }
+        break;
+
+      case NFE:
+        if (value == null) {
+          unsetNfe();
+        } else {
+          setNfe((NotFoundException)value);
         }
         break;
 
@@ -13043,6 +13137,9 @@ public class Cassandra {
       case SUCCESS:
         return getSuccess();
 
+      case NFE:
+        return getNfe();
+
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -13053,6 +13150,8 @@ public class Cassandra {
       switch (fieldID) {
       case SUCCESS:
         return isSetSuccess();
+      case NFE:
+        return isSetNfe();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -13080,6 +13179,15 @@ public class Cassandra {
           return false;
       }
 
+      boolean this_present_nfe = true && this.isSetNfe();
+      boolean that_present_nfe = true && that.isSetNfe();
+      if (this_present_nfe || that_present_nfe) {
+        if (!(this_present_nfe && that_present_nfe))
+          return false;
+        if (!this.nfe.equals(that.nfe))
+          return false;
+      }
+
       return true;
     }
 
@@ -13100,8 +13208,40 @@ public class Cassandra {
         switch (field.id)
         {
           case SUCCESS:
-            if (field.type == TType.STRING) {
-              this.success = iprot.readString();
+            if (field.type == TType.MAP) {
+              {
+                TMap _map75 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map75.size);
+                for (int _i76 = 0; _i76 < _map75.size; ++_i76)
+                {
+                  String _key77;
+                  Map<String,String> _val78;
+                  _key77 = iprot.readString();
+                  {
+                    TMap _map79 = iprot.readMapBegin();
+                    _val78 = new HashMap<String,String>(2*_map79.size);
+                    for (int _i80 = 0; _i80 < _map79.size; ++_i80)
+                    {
+                      String _key81;
+                      String _val82;
+                      _key81 = iprot.readString();
+                      _val82 = iprot.readString();
+                      _val78.put(_key81, _val82);
+                    }
+                    iprot.readMapEnd();
+                  }
+                  this.success.put(_key77, _val78);
+                }
+                iprot.readMapEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case NFE:
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -13124,7 +13264,25 @@ public class Cassandra {
 
       if (this.isSetSuccess()) {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        oprot.writeString(this.success);
+        {
+          oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
+          for (Map.Entry<String, Map<String,String>> _iter83 : this.success.entrySet())          {
+            oprot.writeString(_iter83.getKey());
+            {
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter83.getValue().size()));
+              for (Map.Entry<String, String> _iter84 : _iter83.getValue().entrySet())              {
+                oprot.writeString(_iter84.getKey());
+                oprot.writeString(_iter84.getValue());
+              }
+              oprot.writeMapEnd();
+            }
+          }
+          oprot.writeMapEnd();
+        }
+        oprot.writeFieldEnd();
+      } else if (this.isSetNfe()) {
+        oprot.writeFieldBegin(NFE_FIELD_DESC);
+        this.nfe.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -13141,6 +13299,14 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("nfe:");
+      if (this.nfe == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.nfe);
       }
       first = false;
       sb.append(")");

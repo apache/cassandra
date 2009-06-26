@@ -155,7 +155,8 @@ service Cassandra {
   list<string>   getStringListProperty(1:string propertyName),
 
   // describe specified table
-  string         describeTable(1:string tableName),
+  map<string, map<string, string>>  describeTable(1:string tableName)
+  throws (1: NotFoundException nfe),
 
   // execute a CQL query
   CqlResult_t    executeQuery(1:string query)
