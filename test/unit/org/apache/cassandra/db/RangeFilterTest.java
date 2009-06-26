@@ -41,7 +41,6 @@ public class RangeFilterTest
         ColumnFamily filteredCf = f.filter(cf.name(), cf);
         
         assertEquals(filteredCf.getColumnCount(),3);
-        assertFalse(f.isDone());
     }
     
     @Test
@@ -59,7 +58,6 @@ public class RangeFilterTest
         ColumnFamily filteredCf = f.filter(cf.name(), cf);
         
         assertEquals(filteredCf.getColumnCount(),2);
-        assertTrue(f.isDone());
     }
 
     @Test
@@ -100,7 +98,6 @@ public class RangeFilterTest
 
         col = filteredCf.getColumn("c");
         assertNotNull(col);
-        assertFalse(f.isDone());
     }
 
 }

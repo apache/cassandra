@@ -36,12 +36,10 @@ import org.apache.cassandra.io.SSTable;
 class TimeFilter implements IFilter
 {
     private long timeLimit_;
-    private boolean isDone_;
 
     TimeFilter(long timeLimit)
     {
         timeLimit_ = timeLimit;
-        isDone_ = false;
     }
 
     public ColumnFamily filter(String cf, ColumnFamily columnFamily)
@@ -54,22 +52,16 @@ class TimeFilter implements IFilter
         if (values.length == 1 && !columnFamily.isSuper())
         {
             Collection<IColumn> columns = columnFamily.getAllColumns();
-            int i = 0;
             for (IColumn column : columns)
             {
                 if (column.timestamp() >= timeLimit_)
                 {
                     filteredCf.addColumn(column);
-                    ++i;
                 }
                 else
                 {
                     break;
                 }
-            }
-            if (i < columns.size())
-            {
-                isDone_ = true;
             }
         }
         else if (values.length == 2 && columnFamily.isSuper())
@@ -87,22 +79,16 @@ class TimeFilter implements IFilter
                 filteredSuperColumn.markForDeleteAt(column.getLocalDeletionTime(), column.getMarkedForDeleteAt());
                 filteredCf.addColumn(filteredSuperColumn);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
-                int i = 0;
                 for (IColumn subColumn : subColumns)
                 {
                     if (subColumn.timestamp() >= timeLimit_)
                     {
                         filteredSuperColumn.addColumn(subColumn);
-                        ++i;
                     }
                     else
                     {
                         break;
                     }
-                }
-                if (i < filteredSuperColumn.getColumnCount())
-                {
-                    isDone_ = true;
                 }
             }
         }
@@ -130,17 +116,10 @@ class TimeFilter implements IFilter
             dis.reset();
             if (timeStamp < timeLimit_)
             {
-                isDone_ = true;
                 return null;
             }
         }
         return column;
-    }
-
-
-    public boolean isDone()
-    {
-        return isDone_;
     }
 
     public DataInputBuffer next(String key, String cfName, SSTable ssTable) throws IOException

@@ -276,18 +276,6 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
         if ( name.equals(columnName) )
         {
             column = defreeze(dis, name);
-            if( filter instanceof IdentityFilter )
-            {
-            	/*
-            	 * If this is being called with identity filter
-            	 * since a column name is passed in we know
-            	 * that this is a final call
-            	 * Hence if the column is found set the filter to done
-            	 * so that we do not look for the column in further files
-            	 */
-            	IdentityFilter f = (IdentityFilter)filter;
-            	f.setDone();
-            }
         }
         else
         {

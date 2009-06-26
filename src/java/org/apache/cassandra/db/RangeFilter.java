@@ -33,14 +33,12 @@ public class RangeFilter implements IFilter
 {
     private final String colMin_;
     private final String colMax_;
-    private boolean isDone_;
     int count_;
 
     RangeFilter(String colMin, String colMax)
     {
         colMin_ = colMin;
         colMax_ = colMax;
-        isDone_ = false;
         count_ = -1;
     }
     
@@ -48,7 +46,6 @@ public class RangeFilter implements IFilter
     {
         colMin_ = colMin;
         colMax_ = colMax;
-        isDone_ = false;
         count_ = count;
     }
 
@@ -57,28 +54,19 @@ public class RangeFilter implements IFilter
         if (cf == null)
             return null;
 
-        if (count_ == 0)
-        {
-            isDone_ = true;
-            return null;
-        }
-
         ColumnFamily filteredColumnFamily = cf.cloneMeShallow();
 
         Collection<IColumn> columns = cf.getAllColumns();
+        int i = 0;
         for (IColumn c : columns)
         {
+            if ((count_ >= 0) && (i >= count_))
+                break;
             if (c.name().compareTo(colMin_) >= 0
                     && c.name().compareTo(colMax_) <= 0)
             {
                 filteredColumnFamily.addColumn(c);
-                if (count_ > 0)
-                    count_--;
-                if (count_==0)
-                {
-                    isDone_ = true;
-                    break;
-                }
+                i++;
             }
         }
         return filteredColumnFamily;
@@ -87,26 +75,15 @@ public class RangeFilter implements IFilter
     public IColumn filter(IColumn column, DataInputStream dis)
             throws IOException
     {
-        if (column == null || isDone_)
+        if (column == null)
             return null;
 
         if (column.name().compareTo(colMin_) >= 0
                 && column.name().compareTo(colMax_) <= 0)
         {
-            if (count_ > 0)
-                count_--;
-            if (count_ == 0)
-                isDone_ = true;
             return column;
-        } else
-        {
-            return null;
         }
-    }
-
-    public boolean isDone()
-    {
-        return isDone_;
+        return null;
     }
 
     public DataInputBuffer next(String key, String cf, SSTable ssTable)

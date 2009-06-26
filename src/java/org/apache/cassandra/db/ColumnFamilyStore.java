@@ -522,17 +522,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
         /* Get the ColumnFamily from Memtable */
         getColumnFamilyFromCurrentMemtable(key, columnFamilyColumn, filter, columnFamilies);
-        if (columnFamilies.size() == 0 || !filter.isDone())
-        {
-            /* Check if MemtableManager has any historical information */
-            getUnflushedColumnFamily(key, columnFamily_, columnFamilyColumn, filter, columnFamilies);
-        }
-        if (columnFamilies.size() == 0 || !filter.isDone())
-        {
-            long start = System.currentTimeMillis();
-            getColumnFamilyFromDisk(key, columnFamilyColumn, columnFamilies, filter);
-            diskReadStats_.add(System.currentTimeMillis() - start);
-        }
+        /* Check if MemtableManager has any historical information */
+        getUnflushedColumnFamily(key, columnFamily_, columnFamilyColumn, filter, columnFamilies);
+        long start = System.currentTimeMillis();
+        getColumnFamilyFromDisk(key, columnFamilyColumn, columnFamilies, filter);
+        diskReadStats_.add(System.currentTimeMillis() - start);
+
         return columnFamilies;
     }
 
@@ -574,10 +569,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (columnFamily != null)
                 {
                     columnFamilies.add(columnFamily);
-                    if (filter.isDone())
-                    {
-                        break;
-                    }
                 }
             }
         }
@@ -1417,8 +1408,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if ( columnFamily != null )
             {
                 columnFamilies.add(columnFamily);
-                if( filter.isDone())
-                    break;
             }
         }
     }

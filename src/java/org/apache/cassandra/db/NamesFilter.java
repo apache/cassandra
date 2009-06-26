@@ -54,13 +54,8 @@ public class NamesFilter implements IFilter
 			{
 		        if ( names_.contains(column.name()) )
 		        {
-		            names_.remove(column.name());
 					filteredCf.addColumn(column);
 		        }
-				if( isDone() )
-				{
-					return filteredCf;
-				}
 			}
 		}
 		else if (values.length == 2 && columnFamily.isSuper())
@@ -76,13 +71,8 @@ public class NamesFilter implements IFilter
         		{
     		        if ( names_.contains(subColumn.name()) )
     		        {
-    		            names_.remove(subColumn.name());
     		            filteredSuperColumn.addColumn(subColumn);
     		        }
-    				if( isDone() )
-    				{
-    					return filteredCf;
-    				}
     			}
     		}
 		}
@@ -95,22 +85,11 @@ public class NamesFilter implements IFilter
 
     public IColumn filter(IColumn column, DataInputStream dis) throws IOException
     {
-        String columnName = column.name();
-        if ( names_.contains(columnName) )
-        {
-            names_.remove(columnName);
-        }
-        else
+        if (!names_.contains(column.name()))
         {
             column = null;
         }
-
         return column;
-    }
-
-    public boolean isDone()
-    {
-        return names_.isEmpty();
     }
 
     public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException

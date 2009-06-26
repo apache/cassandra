@@ -422,10 +422,6 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
                     if(column != null)
                     {
                         superColumn.addColumn(column);
-                        if(filter.isDone())
-                        {
-                            break;
-                        }
                     }
                 }
                 return superColumn;

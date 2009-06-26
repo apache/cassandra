@@ -532,10 +532,6 @@ public final class ColumnFamily
                 if(column != null)
                 {
                     cf.addColumn(column);
-                    if(filter.isDone())
-                    {
-                        break;
-                    }
                 }
             }
             return cf;
