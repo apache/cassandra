@@ -29,7 +29,6 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
@@ -470,7 +469,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             if ( endpoint.equals(localEndPoint_) )
                 continue;
 
-            FailureDetector.instance().intepret(endpoint);
+            FailureDetector.instance().interpret(endpoint);
             EndPointState epState = endPointStateMap_.get(endpoint);
             if ( epState != null )
             {

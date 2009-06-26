@@ -169,7 +169,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         heartbeatWindow.add(now);
     }
     
-    public void intepret(EndPoint ep)
+    public void interpret(EndPoint ep)
     {
         ArrivalWindow hbWnd = arrivalSamples_.get(ep);
         if ( hbWnd == null )
