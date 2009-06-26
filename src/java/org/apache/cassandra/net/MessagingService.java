@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.http.HttpConnectionHandler;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
@@ -232,23 +231,15 @@ public class MessagingService implements IMessagingService
         return result;
     }
     
-    public void listen(EndPoint localEp, boolean isHttp) throws IOException
+    public void listen(EndPoint localEp) throws IOException
     {        
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         ServerSocket ss = serverChannel.socket();            
         ss.bind(localEp.getInetAddress());
         serverChannel.configureBlocking(false);
         
-        SelectionKeyHandler handler = null;
-        if ( isHttp )
-        {                
-            handler = new HttpConnectionHandler();
-        }
-        else
-        {
-            handler = new TcpConnectionHandler(localEp);
-        }
-        
+        SelectionKeyHandler handler = new TcpConnectionHandler(localEp);
+
         SelectionKey key = SelectorManager.getSelectorManager().register(serverChannel, handler, SelectionKey.OP_ACCEPT);          
         endPoints_.add(localEp);            
         listenSockets_.put(localEp, key);             

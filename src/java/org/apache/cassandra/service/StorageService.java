@@ -38,7 +38,6 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.net.http.HttpConnection;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
@@ -103,11 +102,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public static EndPoint getLocalControlEndPoint()
     {
         return udpAddr_;
-    }
-
-    public static String getHostUrl()
-    {
-        return "http://" + tcpAddr_.getHost() + ":" + DatabaseDescriptor.getHttpPort();
     }
 
     public static IPartitioner getPartitioner() {
@@ -242,8 +236,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         StageManager.registerStage(StorageService.mutationStage_, new MultiThreadedStage(StorageService.mutationStage_, threadCount));
         StageManager.registerStage(StorageService.readStage_, new MultiThreadedStage(StorageService.readStage_, 2*threadCount));        
         StageManager.registerStage(StorageService.mrStage_, new MultiThreadedStage(StorageService.mrStage_, threadCount));
-        /* Stage for handling the HTTP messages. */
-        StageManager.registerStage(HttpConnection.httpStage_, new SingleThreadedStage("HTTP-REQUEST"));
 
         if ( DatabaseDescriptor.isRackAware() )
             nodePicker_ = new RackAwareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
@@ -275,11 +267,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
         udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
         /* Listen for application messages */
-        MessagingService.getMessagingInstance().listen(tcpAddr_, false);
+        MessagingService.getMessagingInstance().listen(tcpAddr_);
         /* Listen for control messages */
         MessagingService.getMessagingInstance().listenUDP(udpAddr_);
-        /* Listen for HTTP messages */
-        MessagingService.getMessagingInstance().listen( new EndPoint(DatabaseDescriptor.getHttpPort() ), true );
 
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();

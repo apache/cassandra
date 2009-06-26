@@ -42,7 +42,6 @@ public class DatabaseDescriptor
     public static final String ophf_ = "OPHF";
     private static int storagePort_ = 7000;
     private static int controlPort_ = 7001;
-    private static int httpPort_ = 7002;
     private static int thriftPort_ = 9160;
     private static String listenAddress_; // leave null so we can fall through to getLocalHost
     private static String clusterName_ = "Test";
@@ -194,11 +193,6 @@ public class DatabaseDescriptor
             port = xmlUtils.getNodeValue("/Storage/ControlPort");
             if ( port != null )
                 controlPort_ = Integer.parseInt(port);
-
-            /* HTTP port for HTTP messages */
-            port = xmlUtils.getNodeValue("/Storage/HttpPort");
-            if ( port != null )
-                httpPort_ = Integer.parseInt(port);
 
             /* get the thrift port from conf file */
             port = xmlUtils.getNodeValue("/Storage/ThriftPort");
@@ -638,11 +632,6 @@ public class DatabaseDescriptor
     public static int getControlPort()
     {
         return controlPort_;
-    }
-
-    public static int getHttpPort()
-    {
-        return httpPort_;
     }
 
     public static int getThriftPort()

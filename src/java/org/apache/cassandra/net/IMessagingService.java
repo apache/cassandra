@@ -60,7 +60,7 @@ public interface IMessagingService
      * @param ep EndPoint whose port to listen on.
      * @param isHttp specify if the port is an Http port.     
      */
-    public void listen(EndPoint ep, boolean isHttp) throws IOException;
+    public void listen(EndPoint ep) throws IOException;
     
     /**
      * Listen on the specified port.

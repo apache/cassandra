@@ -2,6 +2,8 @@
  * Change signature of get_slice and get_slice_super to require a starting
    column instead of an offset.  (This allows use of indexes.)  Added
    "ascending" flag to allow reasonably-efficient reverse scans as well.
+ * Removed the web interface. Node information can now be obtained by 
+   using the newly introduced nodeprobe utility.
 
 
 0.3.0
