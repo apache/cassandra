@@ -120,7 +120,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         public void doVerb(Message message)
         {
-            logger_.debug("Received a bootstrap initiate done message ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Received a bootstrap initiate done message ...");
             /* Let the Stream Manager do his thing. */
             StreamManager.instance(message.getFrom()).start();            
         }
@@ -348,14 +349,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges)
     {
-        logger_.debug("Constructing range to endpoint map ...");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Constructing range to endpoint map ...");
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
         for ( Range range : ranges )
         {
             EndPoint[] endpoints = getNStorageEndPoint(range.right());
             rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
         }
-        logger_.debug("Done constructing range to endpoint map ...");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Done constructing range to endpoint map ...");
         return rangeToEndPointMap;
     }
     
@@ -368,14 +371,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges, Map<Token, EndPoint> tokenToEndPointMap)
     {
-        logger_.debug("Constructing range to endpoint map ...");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Constructing range to endpoint map ...");
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
         for ( Range range : ranges )
         {
             EndPoint[] endpoints = getNStorageEndPoint(range.right(), tokenToEndPointMap);
             rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
         }
-        logger_.debug("Done constructing range to endpoint map ...");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Done constructing range to endpoint map ...");
         return rangeToEndPointMap;
     }
     
@@ -410,7 +415,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (nodeIdState != null)
         {
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
-            logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + nodeIdState.getState());
+            if (logger_.isDebugEnabled())
+              logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + nodeIdState.getState());
             Token oldToken = tokenMetadata_.getToken(ep);
 
             if ( oldToken != null )
@@ -423,7 +429,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 */
                 if ( !oldToken.equals(newToken) )
                 {
-                    logger_.debug("Relocation for endpoint " + ep);
+                    if (logger_.isDebugEnabled())
+                      logger_.debug("Relocation for endpoint " + ep);
                     tokenMetadata_.update(newToken, ep);                    
                 }
                 else
@@ -432,7 +439,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                      * This means the node crashed and is coming back up.
                      * Deliver the hints that we have for this endpoint.
                     */
-                    logger_.debug("Sending hinted data to " + ep);
+                    if (logger_.isDebugEnabled())
+                      logger_.debug("Sending hinted data to " + ep);
                     doBootstrap(endpoint, BootstrapMode.HINT);
                 }
             }
@@ -452,7 +460,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             */
             if ( epState.isAlive() && tokenMetadata_.isKnownEndPoint(endpoint) )
             {
-                logger_.debug("EndPoint " + ep + " just recovered from a partition. Sending hinted data.");
+                if (logger_.isDebugEnabled())
+                  logger_.debug("EndPoint " + ep + " just recovered from a partition. Sending hinted data.");
                 doBootstrap(ep, BootstrapMode.HINT);
             }
         }
@@ -709,7 +718,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         for ( File file : files )
         {
             streamContexts[i] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length());
-            logger_.debug("Stream context metadata " + streamContexts[i]);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Stream context metadata " + streamContexts[i]);
             ++i;
         }
         
@@ -721,9 +731,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             /* Send the bootstrap initiate message */
             BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage(streamContexts);
             Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
-            logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
             MessagingService.getMessagingInstance().sendOneWay(message, target);                
-            logger_.debug("Waiting for transfer to " + target + " to complete");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
             logger_.debug("Done with transfer to " + target);  
         }
@@ -983,7 +995,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		{
 			if ( FailureDetector.instance().isAlive(endpoints[j]) )
 			{
-				logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
+				if (logger_.isDebugEnabled())
+				  logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
 				return endpoints[j];
 			}
 		}
@@ -1017,7 +1030,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 			{
 				if ( StorageService.instance().isInSameDataCenter(endpoints[j]) && FailureDetector.instance().isAlive(endpoints[j]) )
 				{
-					logger_.debug("EndPoint " + endpoints[j] + " is in the same data center as local storage endpoint.");
+					if (logger_.isDebugEnabled())
+					  logger_.debug("EndPoint " + endpoints[j] + " is in the same data center as local storage endpoint.");
 					suitableEndPoints.put(key, endpoints[j]);
 					moveOn = true;
 					break;
@@ -1035,7 +1049,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 			{
 				if ( FailureDetector.instance().isAlive(endpoints[j]) )
 				{
-					logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
+					if (logger_.isDebugEnabled())
+					  logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
 					suitableEndPoints.put(key, endpoints[j]);
 					break;
 				}

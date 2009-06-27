@@ -62,13 +62,15 @@ public class TokenUpdateVerbHandler implements IVerbHandler
             /* Get the headers for this message */
             Map<String, byte[]> headers = message.getHeaders();
             headers.remove( StorageService.getLocalStorageEndPoint().getHost() );
-            logger_.debug("Number of nodes in the header " + headers.size());
+            if (logger_.isDebugEnabled())
+              logger_.debug("Number of nodes in the header " + headers.size());
             Set<String> nodes = headers.keySet();
             
             IPartitioner p = StorageService.getPartitioner();
             for ( String node : nodes )
             {            
-                logger_.debug("Processing node " + node);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Processing node " + node);
                 byte[] bytes = headers.remove(node);
                 /* Send a message to this node to update its token to the one retreived. */
                 EndPoint target = new EndPoint(node, DatabaseDescriptor.getStoragePort());
@@ -80,14 +82,16 @@ public class TokenUpdateVerbHandler implements IVerbHandler
                 Token.serializer().serialize(token, dos);
                 message.setMessageBody(bos.toByteArray());
                 
-                logger_.debug("Sending a token update message to " + target + " to update it to " + token);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Sending a token update message to " + target + " to update it to " + token);
                 MessagingService.getMessagingInstance().sendOneWay(message, target);
                 break;
             }                        
         }
     	catch( IOException ex )
     	{
-    		logger_.debug(LogUtil.throwableToString(ex));
+    		if (logger_.isDebugEnabled())
+    		  logger_.debug(LogUtil.throwableToString(ex));
     	}
     }
 

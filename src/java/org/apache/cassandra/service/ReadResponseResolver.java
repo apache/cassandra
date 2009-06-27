@@ -81,7 +81,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             {
                 long start = System.currentTimeMillis();
                 ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
-                logger_.debug( "Response deserialization time : " + (System.currentTimeMillis() - start) + " ms.");
+                if (logger_.isDebugEnabled())
+                  logger_.debug( "Response deserialization time : " + (System.currentTimeMillis() - start) + " ms.");
     			if(!result.isDigestQuery())
     			{
     				rowList.add(result.row());

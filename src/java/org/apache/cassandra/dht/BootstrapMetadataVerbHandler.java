@@ -46,7 +46,8 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
     
     public void doVerb(Message message)
     {
-        logger_.debug("Received a BootstrapMetadataMessage from " + message.getFrom());
+        if (logger_.isDebugEnabled())
+          logger_.debug("Received a BootstrapMetadataMessage from " + message.getFrom());
         byte[] body = message.getMessageBody();
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(body, body.length);
@@ -89,7 +90,8 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
     {
         if ( ranges.size() == 0 )
         {
-            logger_.debug("No ranges to give scram ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("No ranges to give scram ...");
             return;
         }
         
@@ -114,9 +116,11 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
         for ( String tName : tables )
         {
             Table table = Table.open(tName);
-            logger_.debug("Flushing memtables ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Flushing memtables ...");
             table.flush(false);
-            logger_.debug("Forcing compaction ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Forcing compaction ...");
             /* Get the counting bloom filter for each endpoint and the list of files that need to be streamed */
             List<String> fileList = new ArrayList<String>();
             boolean bVal = table.forceCompaction(ranges, target, fileList);                
@@ -141,7 +145,8 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
         for ( File file : files )
         {
             streamContexts[i] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length());
-            logger_.debug("Stream context metadata " + streamContexts[i]);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Stream context metadata " + streamContexts[i]);
             ++i;
         }
         
@@ -152,9 +157,11 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             /* Send the bootstrap initiate message */
             BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage(streamContexts);
             Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
-            logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
             MessagingService.getMessagingInstance().sendOneWay(message, target);                
-            logger_.debug("Waiting for transfer to " + target + " to complete");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
             logger_.debug("Done with transfer to " + target);  
         }

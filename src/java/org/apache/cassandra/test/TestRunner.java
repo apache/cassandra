@@ -248,7 +248,8 @@ class Scanner implements Runnable
             while ( scanner.hasNext() )
             {
                 Row row = scanner.next();    
-                logger_.debug(row.key());
+                if (logger_.isDebugEnabled())
+                  logger_.debug(row.key());
             }            
         }
         catch ( IOException ex )

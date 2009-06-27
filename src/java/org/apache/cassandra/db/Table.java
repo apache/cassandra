@@ -98,7 +98,8 @@ public class Table
         
         public void add(String cf, int id, String type)
         {
-            logger_.debug("adding " + cf + " as " + id);
+            if (logger_.isDebugEnabled())
+              logger_.debug("adding " + cf + " as " + id);
             assert !idCfMap_.containsKey(id);
             cfIdMap_.put(cf, id);
             idCfMap_.put(id, cf);
@@ -192,7 +193,8 @@ public class Table
             }
             
             EndPoint to = new EndPoint(host, DatabaseDescriptor.getStoragePort());
-            logger_.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + to);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + to);
             /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
             StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
             Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
@@ -234,7 +236,8 @@ public class Table
                     String newFileName = fileNames.get( peices[1] + "-" + peices[2] );
                     
                     String file = DatabaseDescriptor.getDataFileLocation() + File.separator + newFileName + "-Data.db";
-                    logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
+                    if (logger_.isDebugEnabled())
+                      logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);
                     addStreamContext(message.getFrom().getHost(), streamContext, streamStatus);                                            
                 }    
@@ -278,7 +281,8 @@ public class Table
                 Map<String, ColumnFamilyStore> columnFamilyStores = table.getColumnFamilyStores();
 
                 ColumnFamilyStore cfStore = columnFamilyStores.get(peices[1]);
-                logger_.debug("Generating file name for " + distinctEntry + " ...");
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Generating file name for " + distinctEntry + " ...");
                 fileNames.put(distinctEntry, cfStore.getNextFileName());
             }
             
@@ -287,7 +291,8 @@ public class Table
 
         private void addStreamContext(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
         {
-            logger_.debug("Adding stream context " + streamContext + " for " + host + " ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Adding stream context " + streamContext + " for " + host + " ...");
             StreamContextManager.addStreamContext(host, streamContext, streamStatus);
         }
     }

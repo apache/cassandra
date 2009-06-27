@@ -138,7 +138,8 @@ public class UdpConnection extends SelectionKeyHandler
             SocketAddress sa = socketChannel_.receive(buffer);
             if ( sa == null )
             {
-                logger_.debug("*** No datagram packet was available to be read ***");
+                if (logger_.isDebugEnabled())
+                  logger_.debug("*** No datagram packet was available to be read ***");
                 return;
             }            
             buffer.flip();

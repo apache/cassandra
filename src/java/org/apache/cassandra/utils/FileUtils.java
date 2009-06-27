@@ -144,7 +144,8 @@ public class FileUtils
             bVal = delete(file);
             if (bVal)
             {
-            	logger_.debug("Deleted file " + file);
+            	if (logger_.isDebugEnabled())
+            	  logger_.debug("Deleted file " + file);
                 files.remove(i);
             }
         }

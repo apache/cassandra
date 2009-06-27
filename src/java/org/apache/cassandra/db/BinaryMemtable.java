@@ -75,7 +75,8 @@ public class BinaryMemtable
     {
         if (currentSize_.get() >= threshold_ || columnFamilies_.size() > 50000)
         {
-            logger_.debug("CURRENT SIZE:" + currentSize_.get());
+            if (logger_.isDebugEnabled())
+              logger_.debug("CURRENT SIZE:" + currentSize_.get());
         	return true;
         }
         return false;

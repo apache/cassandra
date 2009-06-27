@@ -147,7 +147,8 @@ public class HintedHandOffManager
     /** hintStore must be the hints columnfamily from the system table */
     private static void deliverAllHints(ColumnFamilyStore hintStore) throws DigestMismatchException, IOException, InvalidRequestException, TimeoutException
     {
-        logger_.debug("Started deliverAllHints");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Started deliverAllHints");
 
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recepients and send
@@ -186,12 +187,14 @@ public class HintedHandOffManager
         hintStore.forceFlush();
         hintStore.forceCompaction(null, null, 0, null);
 
-        logger_.debug("Finished deliverAllHints");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Finished deliverAllHints");
     }
 
     private static void deliverHintsToEndpoint(EndPoint endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
-        logger_.debug("Started hinted handoff for endPoint " + endPoint.getHost());
+        if (logger_.isDebugEnabled())
+          logger_.debug("Started hinted handoff for endPoint " + endPoint.getHost());
 
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recepients if teh endpoint matches send
@@ -223,7 +226,8 @@ public class HintedHandOffManager
             }
         }
 
-        logger_.debug("Finished hinted handoff for endpoint " + endPoint.getHost());
+        if (logger_.isDebugEnabled())
+          logger_.debug("Finished hinted handoff for endpoint " + endPoint.getHost());
     }
 
     public void submit(final ColumnFamilyStore columnFamilyStore)

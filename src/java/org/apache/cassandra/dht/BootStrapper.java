@@ -76,7 +76,8 @@ public class BootStrapper implements Runnable
 
             Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
             Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
-            logger_.debug("Total number of old ranges " + oldRanges.length);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Total number of old ranges " + oldRanges.length);
             /* 
              * Find the ranges that are split. Maintain a mapping between
              * the range being split and the list of subranges.
@@ -113,7 +114,8 @@ public class BootStrapper implements Runnable
             Collections.addAll( oldTokens, tokens_ );
             Range[] newRanges = StorageService.instance().getAllRanges(oldTokens);
 
-            logger_.debug("Total number of new ranges " + newRanges.length);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Total number of new ranges " + newRanges.length);
             /* Calculate the list of nodes that handle the new ranges */
             Map<Range, List<EndPoint>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges);
             /* Calculate ranges that need to be sent and from whom to where */
@@ -123,7 +125,8 @@ public class BootStrapper implements Runnable
         }
         catch ( Throwable th )
         {
-            logger_.debug( LogUtil.throwableToString(th) );
+            if (logger_.isDebugEnabled())
+              logger_.debug( LogUtil.throwableToString(th) );
         }
     }
 

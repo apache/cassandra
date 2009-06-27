@@ -117,7 +117,8 @@ public class DatabaseDescriptor
         try
         {
             configFileName_ = System.getProperty("storage-config") + System.getProperty("file.separator") + "storage-conf.xml";
-            logger_.debug("Loading settings from " + configFileName_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Loading settings from " + configFileName_);
             XMLUtils xmlUtils = new XMLUtils(configFileName_);
 
             /* Cluster Name */

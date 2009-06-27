@@ -76,7 +76,8 @@ public class BinaryMemtableManager
             }
             catch (IOException e)
             {
-                logger_.debug( LogUtil.throwableToString(e) );
+                if (logger_.isDebugEnabled())
+                  logger_.debug( LogUtil.throwableToString(e) );
             }        	
         }
     }

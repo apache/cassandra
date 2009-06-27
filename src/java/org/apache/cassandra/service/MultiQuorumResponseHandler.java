@@ -163,7 +163,8 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
             }
             catch ( InterruptedException ex )
             {
-                logger_.debug( LogUtil.throwableToString(ex) );
+                if (logger_.isDebugEnabled())
+                  logger_.debug( LogUtil.throwableToString(ex) );
             }
             
             if ( !bVal && !done_.get() )

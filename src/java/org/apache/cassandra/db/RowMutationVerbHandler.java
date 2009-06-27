@@ -61,14 +61,16 @@ public class RowMutationVerbHandler implements IVerbHandler
         try
         {
             RowMutation rm = RowMutation.serializer().deserialize(rowMutationCtx.buffer_);
-            logger_.debug("Applying " + rm);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Applying " + rm);
 
             /* Check if there were any hints in this message */
             byte[] hintedBytes = message.getHeader(RowMutation.HINT);
             if ( hintedBytes != null && hintedBytes.length > 0 )
             {
             	EndPoint hint = EndPoint.fromBytes(hintedBytes);
-                logger_.debug("Adding hint for " + hint);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Adding hint for " + hint);
                 /* add necessary hints to this mutation */
                 RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.table());
                 hintedMutation.addHints(rm.key() + ":" + hint.getHost());
@@ -82,7 +84,8 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
-            logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
+            if (logger_.isDebugEnabled())
+              logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.getMessagingInstance().sendOneWay(responseMessage, message.getFrom());
         }
         catch (IOException e)

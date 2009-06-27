@@ -79,13 +79,15 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             int threshold = (int)(StorageLoadBalancer.ratio_ * averageSystemLoad());
             int myLoad = localLoad();            
             EndPoint predecessor = storageService_.getPredecessor(StorageService.getLocalStorageEndPoint());
-            logger_.debug("Trying to relocate the predecessor " + predecessor);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Trying to relocate the predecessor " + predecessor);
             boolean value = tryThisNode(myLoad, threshold, predecessor);
             if ( !value )
             {
                 loadInfo2_.remove(predecessor);
                 EndPoint successor = storageService_.getSuccessor(StorageService.getLocalStorageEndPoint());
-                logger_.debug("Trying to relocate the successor " + successor);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Trying to relocate the successor " + successor);
                 value = tryThisNode(myLoad, threshold, successor);
                 if ( !value )
                 {
@@ -95,7 +97,8 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                         EndPoint target = findARandomLightNode();
                         if ( target != null )
                         {
-                            logger_.debug("Trying to relocate the random node " + target);
+                            if (logger_.isDebugEnabled())
+                              logger_.debug("Trying to relocate the random node " + target);
                             value = tryThisNode(myLoad, threshold, target);
                             if ( !value )
                             {
@@ -136,16 +139,19 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             {
                 //calculate the number of keys to be transferred
                 int keyCount = ( (myLoad - pLoad) >> 1 );
-                logger_.debug("Number of keys we attempt to transfer to " + target + " " + keyCount);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Number of keys we attempt to transfer to " + target + " " + keyCount);
                 // Determine the token that the target should join at.         
                 BigInteger targetToken = BootstrapAndLbHelper.getTokenBasedOnPrimaryCount(keyCount);
                 // Send a MoveMessage and see if this node is relocateable
                 MoveMessage moveMessage = new MoveMessage(targetToken);
                 Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageLoadBalancer.lbStage_, StorageLoadBalancer.moveMessageVerbHandler_, new Object[]{moveMessage});
-                logger_.debug("Sending a move message to " + target);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Sending a move message to " + target);
                 IAsyncResult result = MessagingService.getMessagingInstance().sendRR(message, target);
                 value = (Boolean)result.get()[0];
-                logger_.debug("Response for query to relocate " + target + " is " + value);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Response for query to relocate " + target + " is " + value);
             }
             return value;
         }
@@ -224,7 +230,8 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             // Perform the analysis for load balance operations
             if ( isHeavyNode() )
             {
-                logger_.debug(StorageService.getLocalStorageEndPoint() + " is a heavy node with load " + localLoad());
+                if (logger_.isDebugEnabled())
+                  logger_.debug(StorageService.getLocalStorageEndPoint() + " is a heavy node with load " + localLoad());
                 // lb_.schedule( new LoadBalancer(), StorageLoadBalancer.delay_, TimeUnit.MINUTES );
             }
             */
@@ -286,7 +293,8 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                 systemLoad += load.count();
         }
         int averageLoad = (nodeCount > 0) ? (systemLoad / nodeCount) : 0;
-        logger_.debug("Average system load should be " + averageLoad);
+        if (logger_.isDebugEnabled())
+          logger_.debug("Average system load should be " + averageLoad);
         return averageLoad;
     }
     */

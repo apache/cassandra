@@ -57,7 +57,8 @@ class FileStreamTask implements Runnable
             File file = new File(file_);             
             connection.stream(file, startPosition_, total_);
             MessagingService.setStreamingMode(false);
-            logger_.debug("Done streaming " + file);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Done streaming " + file);
         }            
         catch ( SocketException se )
         {                        

@@ -285,15 +285,18 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 result = futurePtr.get();
             }
-            logger_.debug("Done forcing compaction ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Done forcing compaction ...");
         }
         catch (ExecutionException ex)
         {
-            logger_.debug(LogUtil.throwableToString(ex));
+            if (logger_.isDebugEnabled())
+              logger_.debug(LogUtil.throwableToString(ex));
         }
         catch (InterruptedException ex2)
         {
-            logger_.debug(LogUtil.throwableToString(ex2));
+            if (logger_.isDebugEnabled())
+              logger_.debug(LogUtil.throwableToString(ex2));
         }
         return result;
     }
@@ -744,7 +747,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
            not enough to bother with. */
         if (ssTableCount >= MinorCompactionManager.COMPACTION_THRESHOLD)
         {
-            logger_.debug("Submitting " + columnFamily_ + " for compaction");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Submitting " + columnFamily_ + " for compaction");
             MinorCompactionManager.instance().submit(this);
         }
     }
@@ -978,14 +982,16 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Map<EndPoint, List<Range>> endPointtoRangeMap = StorageService.instance().constructEndPointToRangesMap();
         myRanges = endPointtoRangeMap.get(StorageService.getLocalStorageEndPoint());
         doFileAntiCompaction(files, myRanges, null, newFiles);
-        logger_.debug("Original file : " + file + " of size " + new File(file).length());
+        if (logger_.isDebugEnabled())
+          logger_.debug("Original file : " + file + " of size " + new File(file).length());
         lock_.writeLock().lock();
         try
         {
             ssTables_.remove(file);
             for (String newfile : newFiles)
             {
-                logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
+                if (logger_.isDebugEnabled())
+                  logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
                 assert newfile != null;
                 ssTables_.put(newfile, SSTable.open(newfile, StorageService.getPartitioner()));
             }
@@ -1044,7 +1050,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         DataOutputBuffer bufOut = new DataOutputBuffer();
         int expectedBloomFilterSize = SSTable.getApproximateKeyCount(files);
         expectedBloomFilterSize = (expectedBloomFilterSize > 0) ? expectedBloomFilterSize : SSTable.indexInterval();
-        logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+        if (logger_.isDebugEnabled())
+          logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
 
         while (pq.size() > 0 || lfs.size() > 0)
@@ -1184,7 +1191,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         logger_.debug("Total time taken for range split   ..."
                       + (System.currentTimeMillis() - startTime));
-        logger_.debug("Total bytes Read for range split  ..." + totalBytesRead);
+        if (logger_.isDebugEnabled())
+          logger_.debug("Total bytes Read for range split  ..." + totalBytesRead);
         logger_.debug("Total bytes written for range split  ..."
                       + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
         return result;
@@ -1241,7 +1249,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         DataOutputBuffer bufOut = new DataOutputBuffer();
         int expectedBloomFilterSize = SSTable.getApproximateKeyCount(files);
         expectedBloomFilterSize = (expectedBloomFilterSize > 0) ? expectedBloomFilterSize : SSTable.indexInterval();
-        logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+        if (logger_.isDebugEnabled())
+          logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
 
         while (pq.size() > 0 || lfs.size() > 0)

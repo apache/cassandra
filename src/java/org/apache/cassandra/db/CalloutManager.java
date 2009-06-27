@@ -161,7 +161,8 @@ public class CalloutManager
         File file = new File(scriptFile);
         if ( file.exists() )
         {
-            logger_.debug("Deleting the old script file ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Deleting the old script file ...");
             file.delete();
         }
         FileOutputStream fos = new FileOutputStream(scriptFile);

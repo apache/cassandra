@@ -927,7 +927,8 @@ class JoinVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {
         EndPoint from = message.getFrom();
-        logger_.debug("Received a JoinMessage from " + from);
+        if (logger_.isDebugEnabled())
+          logger_.debug("Received a JoinMessage from " + from);
 
         byte[] bytes = message.getMessageBody();
         DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );

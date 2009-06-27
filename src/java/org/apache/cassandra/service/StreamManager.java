@@ -64,7 +64,8 @@ public final class StreamManager
                         break;
 
                     case STREAM:
-                        logger_.debug("Need to re-stream file " + streamStatus.getFile());
+                        if (logger_.isDebugEnabled())
+                          logger_.debug("Need to re-stream file " + streamStatus.getFile());
                         StreamManager.instance(message.getFrom()).repeat();
                         break;
 
@@ -105,7 +106,8 @@ public final class StreamManager
     {
         for ( StreamContextManager.StreamContext streamContext : streamContexts )
         {
-            logger_.debug("Adding file " + streamContext.getTargetFile() + " to be streamed.");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Adding file " + streamContext.getTargetFile() + " to be streamed.");
             filesToStream_.add( new File( streamContext.getTargetFile() ) );
             totalBytesToStream_ += streamContext.getExpectedBytes();
         }
@@ -116,7 +118,8 @@ public final class StreamManager
         if ( filesToStream_.size() > 0 )
         {
             File file = filesToStream_.get(0);
-            logger_.debug("Streaming file " + file + " ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Streaming file " + file + " ...");
             MessagingService.getMessagingInstance().stream(file.getAbsolutePath(), 0L, file.length(), StorageService.getLocalStorageEndPoint(), to_);
         }
     }
@@ -130,7 +133,8 @@ public final class StreamManager
     void finish(String file) throws IOException
     {
         File f = new File(file);
-        logger_.debug("Deleting file " + file + " after streaming " + f.length() + "/" + totalBytesToStream_ + " bytes.");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Deleting file " + file + " after streaming " + f.length() + "/" + totalBytesToStream_ + " bytes.");
         FileUtils.delete(file);
         filesToStream_.remove(0);
         if ( filesToStream_.size() > 0 )
@@ -139,7 +143,8 @@ public final class StreamManager
         {
             synchronized(this)
             {
-                logger_.debug("Signalling that streaming is done for " + to_);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Signalling that streaming is done for " + to_);
                 notifyAll();
             }
         }

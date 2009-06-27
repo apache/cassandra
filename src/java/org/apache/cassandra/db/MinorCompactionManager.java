@@ -84,7 +84,8 @@ class MinorCompactionManager
         public Boolean call()
         {
         	boolean result;
-            logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
             try
             {
                 result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
@@ -93,7 +94,8 @@ class MinorCompactionManager
             {
                 throw new RuntimeException(e);
             }
-            logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
             return result;
         }
     }
@@ -111,7 +113,8 @@ class MinorCompactionManager
 
         public void run()
         {
-            logger_.debug("Started  Major compaction for " + columnFamilyStore_.columnFamily_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Started  Major compaction for " + columnFamilyStore_.columnFamily_);
             try
             {
                 columnFamilyStore_.doMajorCompaction(skip_);
@@ -120,7 +123,8 @@ class MinorCompactionManager
             {
                 throw new RuntimeException(e);
             }
-            logger_.debug("Finished Major compaction for " + columnFamilyStore_.columnFamily_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Finished Major compaction for " + columnFamilyStore_.columnFamily_);
         }
     }
 
@@ -135,7 +139,8 @@ class MinorCompactionManager
 
         public void run()
         {
-            logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
             try
             {
                 columnFamilyStore_.doCleanupCompaction();
@@ -144,7 +149,8 @@ class MinorCompactionManager
             {
                 throw new RuntimeException(e);
             }
-            logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
         }
     }
     

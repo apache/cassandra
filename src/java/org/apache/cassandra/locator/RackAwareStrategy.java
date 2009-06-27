@@ -104,7 +104,8 @@ public class RackAwareStrategy extends AbstractStrategy
             }
             catch (UnknownHostException e)
             {
-                logger_.debug(LogUtil.throwableToString(e));
+                if (logger_.isDebugEnabled())
+                  logger_.debug(LogUtil.throwableToString(e));
             }
 
         }

@@ -57,7 +57,8 @@ class ContentStreamState extends StartState
     {
         if ( fc_ == null )
         {
-            logger_.debug("Creating file for " + streamContext_.getTargetFile());
+            if (logger_.isDebugEnabled())
+              logger_.debug("Creating file for " + streamContext_.getTargetFile());
             FileOutputStream fos = new FileOutputStream( streamContext_.getTargetFile(), true );
             fc_ = fos.getChannel();            
         }

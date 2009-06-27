@@ -70,7 +70,8 @@ public class LeaveJoinProtocolImpl implements Runnable
             
             Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
             Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
-            logger_.debug("Total number of old ranges " + oldRanges.length);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Total number of old ranges " + oldRanges.length);
             /* Calculate the list of nodes that handle the old ranges */
             Map<Range, List<EndPoint>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges);
             

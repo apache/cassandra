@@ -61,24 +61,28 @@ public class MembershipCleanerVerbHandler implements IVerbHandler
             /* Get the headers for this message */
             Map<String, byte[]> headers = message.getHeaders();
             headers.remove( StorageService.getLocalStorageEndPoint().getHost() );
-            logger_.debug("Number of nodes in the header " + headers.size());
+            if (logger_.isDebugEnabled())
+              logger_.debug("Number of nodes in the header " + headers.size());
             Set<String> nodes = headers.keySet();
             
             for ( String node : nodes )
             {            
-                logger_.debug("Processing node " + node);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Processing node " + node);
                 byte[] bytes = headers.remove(node);
                 /* Send a message to this node to alter its membership state. */
                 EndPoint targetNode = new EndPoint(node, DatabaseDescriptor.getStoragePort());                
                 
-                logger_.debug("Sending a membership clean message to " + targetNode);
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Sending a membership clean message to " + targetNode);
                 MessagingService.getMessagingInstance().sendOneWay(message, targetNode);
                 break;
             }                        
         }
         catch( IOException ex )
         {
-            logger_.debug(LogUtil.throwableToString(ex));
+            if (logger_.isDebugEnabled())
+              logger_.debug(LogUtil.throwableToString(ex));
         }
     }
 

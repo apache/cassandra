@@ -111,7 +111,8 @@ class LeaveJoinProtocolHelper
         Set<Range> oldRangeSet = oldRangeToEndPointMap.keySet();
         for(Range range : oldRangeSet)
         {
-            logger_.debug("Attempting to figure out the dudes who are bumped out for " + range + " ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Attempting to figure out the dudes who are bumped out for " + range + " ...");
             List<EndPoint> oldEndPoints = oldRangeToEndPointMap.get(range);
             List<EndPoint> newEndPoints = newRangeToEndPointMap.get(range);
             if ( newEndPoints != null )
@@ -130,7 +131,8 @@ class LeaveJoinProtocolHelper
             {
                 logger_.warn("Trespassing - scram");
             }
-            logger_.debug("Done figuring out the dudes who are bumped out for range " + range + " ...");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Done figuring out the dudes who are bumped out for range " + range + " ...");
         }
         for ( Range range : oldRangeSet )
         {                    
@@ -200,7 +202,8 @@ class LeaveJoinProtocolHelper
             /* only send the message to the nodes that are in the filter. */
             if ( filters != null && filters.size() > 0 && !filters.contains(source) )
             {
-                logger_.debug("Filtering endpoint " + source + " as source ...");
+                if (logger_.isDebugEnabled())
+                  logger_.debug("Filtering endpoint " + source + " as source ...");
                 continue;
             }
             
@@ -218,7 +221,8 @@ class LeaveJoinProtocolHelper
             BootstrapMetadataMessage bsMetadataMessage = new BootstrapMetadataMessage(bsmdList.toArray( new BootstrapMetadata[0] ) );
             /* Send this message to the source to do his shit. */
             Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(bsMetadataMessage); 
-            logger_.debug("Sending the BootstrapMetadataMessage to " + source);
+            if (logger_.isDebugEnabled())
+              logger_.debug("Sending the BootstrapMetadataMessage to " + source);
             MessagingService.getMessagingInstance().sendOneWay(message, source);
         }
     }

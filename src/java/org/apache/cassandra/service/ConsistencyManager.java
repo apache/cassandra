@@ -92,7 +92,8 @@ class ConsistencyManager implements Runnable
 			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
             ReadCommand readCommand = constructReadMessage(false);
             Message message = readCommand.makeReadMessage();
-            logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
 			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), responseHandler);
 		}
 	}
@@ -111,7 +112,8 @@ class ConsistencyManager implements Runnable
 		
 		public void response(Message message)
 		{
-			logger_.debug("Received responses in DataRepairHandler : " + message.toString());
+			if (logger_.isDebugEnabled())
+			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());
 			responses_.add(message);
 			if ( responses_.size() == majority_ )
 			{
@@ -162,7 +164,8 @@ class ConsistencyManager implements Runnable
 		try
 		{
 			Message message = readCommandDigestOnly.makeReadMessage();
-            logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+            if (logger_.isDebugEnabled())
+              logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
             MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), new DigestResponseHandler());
 		}
 		catch (IOException ex)

@@ -248,7 +248,8 @@ public class MessagingService implements IMessagingService
     public void listenUDP(EndPoint localEp)
     {
         UdpConnection connection = new UdpConnection();
-        logger_.debug("Starting to listen on " + localEp);
+        if (logger_.isDebugEnabled())
+          logger_.debug("Starting to listen on " + localEp);
         try
         {
             connection.init(localEp.getPort());
@@ -535,7 +536,8 @@ public class MessagingService implements IMessagingService
             verbHandlers_.clear();                                    
             bShutdown_ = true;
         }
-        logger_.debug("Shutdown invocation complete.");
+        if (logger_.isDebugEnabled())
+          logger_.debug("Shutdown invocation complete.");
     }
 
     public static void receive(Message message)

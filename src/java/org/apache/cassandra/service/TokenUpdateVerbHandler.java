@@ -46,7 +46,8 @@ public class TokenUpdateVerbHandler implements IVerbHandler
         }
     	catch( IOException ex )
     	{
-    		logger_.debug(LogUtil.throwableToString(ex));
+    		if (logger_.isDebugEnabled())
+    		  logger_.debug(LogUtil.throwableToString(ex));
     	}
     }
 
