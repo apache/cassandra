@@ -24,6 +24,7 @@ import java.io.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.StringUtils;
 
 
 /**
@@ -54,7 +55,11 @@ public class RecoveryManager
     public static void doRecovery() throws IOException
     {
         File[] files = getListofCommitLogs();
+        if (files.length == 0)
+            return;
+
         Arrays.sort(files, new FileUtils.FileComparator());
+        logger_.info("Replaying " + StringUtils.join(files, ", "));
         new CommitLog(true).recover(files);
         FileUtils.delete(files);
     }

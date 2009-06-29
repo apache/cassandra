@@ -256,72 +256,55 @@ public class CommitLog
         {
             // IFileReader reader = SequenceFile.bufferedReader(file.getAbsolutePath(), DatabaseDescriptor.getLogFileSizeThreshold());
             IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
-            try
+            CommitLogHeader clHeader = readCommitLogHeader(reader);
+            /* seek to the lowest position */
+            int lowPos = CommitLogHeader.getLowestPosition(clHeader);
+            /*
+             * If lowPos == 0 then we need to skip the processing of this
+             * file.
+            */
+            if (lowPos == 0)
+                break;
+            else
+                reader.seek(lowPos);
+
+            Set<Table> tablesRecovered = new HashSet<Table>();
+
+            /* read the logs populate RowMutation and apply */
+            while ( !reader.isEOF() )
             {
-                CommitLogHeader clHeader = readCommitLogHeader(reader);
-                /* seek to the lowest position */
-                int lowPos = CommitLogHeader.getLowestPosition(clHeader);
-                /*
-                 * If lowPos == 0 then we need to skip the processing of this
-                 * file.
-                */
-                if (lowPos == 0)
-                    break;
-                else
-                    reader.seek(lowPos);
+                byte[] bytes = new byte[(int)reader.readLong()];
+                reader.readDirect(bytes);
+                bufIn.reset(bytes, bytes.length);
 
-                Set<Table> tablesRecovered = new HashSet<Table>();
-
-                /* read the logs populate RowMutation and apply */
-                while ( !reader.isEOF() )
+                /* read the commit log entry */
+                Row row = Row.serializer().deserialize(bufIn);
+                Table table = Table.open(row.getTable());
+                tablesRecovered.add(table);
+                Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
+                /* remove column families that have already been flushed */
+                for (ColumnFamily columnFamily : columnFamilies)
                 {
-                    byte[] bytes = new byte[(int)reader.readLong()];
-                    reader.readDirect(bytes);
-                    bufIn.reset(bytes, bytes.length);
-
-                    /* read the commit log entry */
-                    try
-                    {                        
-                        Row row = Row.serializer().deserialize(bufIn);
-                        Table table = Table.open(row.getTable());
-                        tablesRecovered.add(table);
-                        Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
-                        /* remove column families that have already been flushed */
-                        for (ColumnFamily columnFamily : columnFamilies)
-                        {
-                        	/* TODO: Remove this to not process Hints */
-                        	if ( !DatabaseDescriptor.isApplicationColumnFamily(columnFamily.name()) )
-                        	{
-                        		row.removeColumnFamily(columnFamily);
-                        		continue;
-                        	}	
-                            int id = table.getColumnFamilyId(columnFamily.name());
-                            if ( !clHeader.isDirty(id) || reader.getCurrentPosition() < clHeader.getPosition(id) )
-                                row.removeColumnFamily(columnFamily);
-                        }
-                        if ( !row.isEmpty() )
-                        {                            
-                        	table.applyNow(row);
-                        }
-                    }
-                    catch ( IOException e )
+                    /* TODO: Remove this to not process Hints */
+                    if ( !DatabaseDescriptor.isApplicationColumnFamily(columnFamily.name()) )
                     {
-                        logger_.error("Unexpected error reading " + file.getName() + "; attempting to continue with the next entry", e);
+                        row.removeColumnFamily(columnFamily);
+                        continue;
                     }
+                    int id = table.getColumnFamilyId(columnFamily.name());
+                    if ( !clHeader.isDirty(id) || reader.getCurrentPosition() < clHeader.getPosition(id) )
+                        row.removeColumnFamily(columnFamily);
                 }
-                reader.close();
-                /* apply the rows read -- success will result in the CL file being discarded */
-                for (Table table : tablesRecovered)
+                if ( !row.isEmpty() )
                 {
-                    table.flush(true);
+                    table.applyNow(row);
                 }
             }
-            catch (Throwable th)
+            reader.close();
+            /* apply the rows read -- success will result in the CL file being discarded */
+            for (Table table : tablesRecovered)
             {
-                logger_.error("Fatal error reading " + file.getName(), th);
-                /* close the reader and delete this commit log. */
-                reader.close();
-                FileUtils.delete(new File[]{ file });
+                table.flush(true);
             }
         }
     }
