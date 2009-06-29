@@ -123,18 +123,6 @@ public class CommitLog
         return Long.parseLong(entries[entries.length - 2]);
     }
 
-    /*
-     * Write the serialized commit log header into the specified commit log.
-    */
-    private static void writeCommitLogHeader(String commitLogFileName, byte[] bytes) throws IOException
-    {     
-        IFileWriter logWriter = CommitLog.createWriter(commitLogFileName);
-        logWriter.seek(0L);
-        /* write the commit log header */
-        logWriter.writeDirect(bytes);
-        logWriter.close();
-    }
-
     private static IFileWriter createWriter(String file) throws IOException
     {        
         return SequenceFile.writer(file);
@@ -221,31 +209,40 @@ public class CommitLog
     }
 
     /*
+     * Write the serialized commit log header into the specified commit log.
+    */
+    private static void writeCommitLogHeader(String commitLogFileName, byte[] bytes) throws IOException
+    {
+        IFileWriter logWriter = CommitLog.createWriter(commitLogFileName);
+        writeCommitLogHeader(logWriter, bytes);
+    }
+
+    /*
      * This is invoked on startup via the ctor. It basically
      * writes a header with all bits set to zero.
     */
     private void writeCommitLogHeader() throws IOException
     {
         int cfSize = Table.TableMetadata.getColumnFamilyCount();
-        /* record the beginning of the commit header */
-        /* write the commit log header */
         clHeader_ = new CommitLogHeader(cfSize);
-        writeCommitLogHeader(clHeader_.toByteArray(), false);
+        writeCommitLogHeader(logWriter_, clHeader_.toByteArray());
     }
 
-    private void writeCommitLogHeader(byte[] bytes, boolean reset) throws IOException
+    /** writes header at the beginning of the file, then seeks back to current position */
+    private void seekAndWriteCommitLogHeader(byte[] bytes) throws IOException
     {
-        /* record the current position */
         long currentPos = logWriter_.getCurrentPosition();
         logWriter_.seek(0);
-        /* write the commit log header */
-        logWriter_.writeLong(bytes.length);
-        logWriter_.writeDirect(bytes);
-        if (reset)
-        {
-            /* seek back to the old position */
-            logWriter_.seek(currentPos);
-        }
+
+        writeCommitLogHeader(logWriter_, bytes);
+
+        logWriter_.seek(currentPos);
+    }
+
+    private static void writeCommitLogHeader(IFileWriter logWriter, byte[] bytes) throws IOException
+    {
+        logWriter.writeLong(bytes.length);
+        logWriter.writeDirect(bytes);
     }
 
     void recover(File[] clogs) throws IOException
@@ -254,7 +251,6 @@ public class CommitLog
 
         for (File file : clogs)
         {
-            // IFileReader reader = SequenceFile.bufferedReader(file.getAbsolutePath(), DatabaseDescriptor.getLogFileSizeThreshold());
             IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
             CommitLogHeader clHeader = readCommitLogHeader(reader);
             /* seek to the lowest position */
@@ -322,7 +318,7 @@ public class CommitLog
             if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
             {
                 clHeader_.turnOn(id, logWriter_.getCurrentPosition());
-                writeCommitLogHeader(clHeader_.toByteArray(), true);
+                seekAndWriteCommitLogHeader(clHeader_.toByteArray());
             }
         }
     }
@@ -380,18 +376,17 @@ public class CommitLog
     {
         Table table = Table.open(tableName);
         int id = table.getColumnFamilyId(cf);
-        /* trying discarding old commit log files */
-        discard(cLogCtx, id);
+        discardCompletedSegments(cLogCtx, id);
     }
 
     /*
-     * Check if old commit logs can be deleted.
+     * Delete log segments whose contents have been turned into SSTables.
      *
      * param @ cLogCtx The commitLog context .
      * param @ id id of the columnFamily being flushed to disk.
      *
     */
-    private void discard(CommitLog.CommitLogContext cLogCtx, int id) throws IOException
+    private void discardCompletedSegments(CommitLog.CommitLogContext cLogCtx, int id) throws IOException
     {
         /* retrieve the commit log header associated with the file in the context */
         CommitLogHeader commitLogHeader = clHeaders_.get(cLogCtx.file);
@@ -482,7 +477,7 @@ public class CommitLog
             // whether it's safe to remove a given log segment by and-ing its dirty
             // with the current one.
             clHeader_.zeroPositions();
-            writeCommitLogHeader(clHeader_.toByteArray(), false);
+            writeCommitLogHeader(logWriter_, clHeader_.toByteArray());
         }
     }
 }

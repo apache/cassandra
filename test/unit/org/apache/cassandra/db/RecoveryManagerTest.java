@@ -20,6 +20,9 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.junit.Test;
 
@@ -36,7 +39,7 @@ public class RecoveryManagerTest extends CleanupHelper
     }
 
     @Test
-    public void testSomething() throws IOException, ExecutionException, InterruptedException
+    public void testOne() throws IOException, ExecutionException, InterruptedException
     {
         Table table1 = Table.open("Table1");
         Table table2 = Table.open("Table2");
