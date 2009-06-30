@@ -71,10 +71,10 @@ def _verify_range():
     assert result[1].columnName == 'c2'
 
     result = client.get_slice_by_name_range('Table1','key1', 'Standard1', 'a', 'z' , -1)
-    assert len(result) == 3
+    assert len(result) == 3, result
     
     result = client.get_slice_by_name_range('Table1','key1', 'Standard1', 'a', 'z' , 2)
-    assert len(result) == 2
+    assert len(result) == 2, result
 
 	 	
 def _verify_super(supercolumn='Super1'):
@@ -130,6 +130,8 @@ class TestMutations(CassandraTester):
         _verify_batch()
 
     def test_bad_calls(self):
+        _expect_exception(lambda: client.insert('Table1', 'key1', 'Standard1:x:y', 'value', 0, True), InvalidRequestException)
+
         _expect_exception(lambda: client.get_column('Table1', 'key1', 'Standard1'), InvalidRequestException)
         _expect_exception(lambda: client.get_column('Table1', 'key1', 'Standard1:x:y'), InvalidRequestException)
         _expect_exception(lambda: client.get_column('Table1', 'key1', 'Super1'), InvalidRequestException)
@@ -312,4 +314,20 @@ class TestMutations(CassandraTester):
     def test_get_slice_by_name_range(self):
 	_insert_range()
 	_verify_range()
- 
+
+        _insert_super()
+        result = client.get_slice_by_name_range('Table1','key1', 'Super1:sc1', 'a', 'z', -1)
+        assert len(result) == 1, result
+        assert result[0].columnName == 'c4'
+        
+    def test_get_slice_by_names(self):
+        _insert_range()
+        result = client.get_slice_by_names('Table1','key1', 'Standard1', ['c1', 'c2']) 
+        assert len(result) == 2
+        assert result[0].columnName == 'c1'
+        assert result[1].columnName == 'c2'
+
+        _insert_super()
+        result = client.get_slice_by_names('Table1','key1', 'Super1:sc1', ['c4']) 
+        assert len(result) == 1
+        assert result[0].columnName == 'c4'

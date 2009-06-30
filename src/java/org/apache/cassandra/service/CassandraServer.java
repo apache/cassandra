@@ -68,35 +68,11 @@ public class CassandraServer implements Cassandra.Iface
 		// Start the storage service
 		storageService.start();
 	}
-	
-	private void validateKeyCommand(String key, String tablename, String... columnFamilyNames) throws InvalidRequestException
-	{
-        if (key.isEmpty())
-        {
-            throw new InvalidRequestException("Key may not be empty");
-        }
-        validateCommand(tablename, columnFamilyNames);
-	}
-
-    private void validateCommand(String tablename, String... columnFamilyNames) throws TableNotDefinedException, ColumnFamilyNotDefinedException
-    {
-        if (!DatabaseDescriptor.getTables().contains(tablename))
-        {
-            throw new TableNotDefinedException("Table " + tablename + " does not exist in this schema.");
-        }
-        for (String cfName : columnFamilyNames)
-        {
-            if (DatabaseDescriptor.getColumnType(tablename, cfName) == null)
-            {
-                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " is invalid.");
-            }
-        }
-    }
 
     protected ColumnFamily readColumnFamily(ReadCommand command) throws InvalidRequestException
     {
         String cfName = command.getColumnFamilyName();
-        validateKeyCommand(command.key, command.table, cfName);
+        ThriftValidation.validateKey(command.key);
 
         Row row;
         try
@@ -143,8 +119,9 @@ public class CassandraServer implements Cassandra.Iface
     public List<column_t> get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws InvalidRequestException
     {
         logger.debug("get_columns_since");
+        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
+
         ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnParent, timeStamp));
-        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
@@ -168,12 +145,26 @@ public class CassandraServer implements Cassandra.Iface
     public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException
     {
         logger.debug("get_slice_by_names");
+        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
+
         ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnParent, columnNames));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
         }
-        return thriftifyColumns(cfamily.getAllColumns());
+        if (DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
+        {
+            return thriftifyColumns(cfamily.getAllColumns());
+        }
+        else
+        {
+            IColumn superColumn = cfamily.getColumn(values[1]);
+            if (superColumn == null)
+            {
+                return EMPTY_COLUMNS;
+            }
+            return thriftifyColumns(superColumn.getSubColumns());
+        }
     }
 
     public List<column_t> get_slice(String tablename, String key, String columnParent, boolean isAscending, int count) throws InvalidRequestException
@@ -186,6 +177,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("get_slice_from requires positive count");
         if ("Name".compareTo(DatabaseDescriptor.getCFMetaData(tablename, values[0]).indexProperty_) != 0)
             throw new InvalidRequestException("get_slice_from requires CF indexed by name");
+
         ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnParent, isAscending, count));
         if (cfamily == null)
         {
@@ -198,28 +190,9 @@ public class CassandraServer implements Cassandra.Iface
     public column_t get_column(String tablename, String key, String columnPath) throws NotFoundException, InvalidRequestException
     {
         logger.debug("get_column");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnPath);
-        if (values.length < 1)
-        {
-            throw new InvalidRequestException("get_column requires non-empty columnfamily");
-        }
-        if (DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
-        {
-            if (values.length != 2)
-            {
-                throw new InvalidRequestException("get_column requires both parts of columnfamily:column for standard CF " + values[0]);
-            }
-        }
-        else
-        {
-            if (values.length != 3)
-            {
-                throw new InvalidRequestException("get_column requires all parts of columnfamily:supercolumn:subcolumn for super CF " + values[0]);
-            }
-        }
+        String[] values = ThriftValidation.validateColumnPath(tablename, columnPath);
 
-        ColumnReadCommand readCommand = new ColumnReadCommand(tablename, key, columnPath);
-        ColumnFamily cfamily = readColumnFamily(readCommand);
+        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnPath));
         if (cfamily == null)
         {
             throw new NotFoundException();
@@ -250,14 +223,13 @@ public class CassandraServer implements Cassandra.Iface
 
         return new column_t(column.name(), column.value(), column.timestamp());
     }
-    
 
     public int get_column_count(String tablename, String key, String columnParent) throws InvalidRequestException
     {
         logger.debug("get_column_count");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        ColumnFamily cfamily;
+        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
 
+        ColumnFamily cfamily;
         if (DatabaseDescriptor.isNameSortingEnabled(tablename, values[0]))
         {
             cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnParent + ":", true, Integer.MAX_VALUE));
@@ -293,11 +265,11 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("insert");
+        ThriftValidation.validateKey(key);
+        ThriftValidation.validateColumnPath(tablename, columnPath);
+
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.add(columnPath, cellData, timestamp);
-        Set<String> cfNames = rm.columnFamilyNames();
-        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
-
         doInsert(block, rm);
     }
 
@@ -306,7 +278,7 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("batch_insert");
         RowMutation rm = RowMutation.getRowMutation(batchMutation);
         Set<String> cfNames = rm.columnFamilyNames();
-        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
         doInsert(block, rm);
     }
@@ -315,17 +287,17 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("remove");
+        ThriftValidation.validateColumnPathOrParent(tablename, columnPathOrParent);
+        
         RowMutation rm = new RowMutation(tablename, key.trim());
         rm.delete(columnPathOrParent, timestamp);
-        Set<String> cfNames = rm.columnFamilyNames();
-        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+
         doInsert(block, rm);
 	}
 
-    private void doInsert(int block, RowMutation rm)
-            throws UnavailableException
+    private void doInsert(int block, RowMutation rm) throws UnavailableException
     {
-        if (block>0)
+        if (block > 0)
         {
             StorageProxy.insertBlocking(rm,block);
         }
@@ -338,6 +310,8 @@ public class CassandraServer implements Cassandra.Iface
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException
     {
         logger.debug("get_slice_super_by_names");
+        ThriftValidation.validateColumnFamily(tablename, columnFamily);
+
         ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, superColumnNames));
         if (cfamily == null)
         {
@@ -375,6 +349,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("get_slice_super requires a super CF name and a starting column name");
         if (count <= 0)
             throw new InvalidRequestException("get_slice_super requires positive count");
+
         ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnFamily, isAscending, count));
         if (cfamily == null)
         {
@@ -387,6 +362,8 @@ public class CassandraServer implements Cassandra.Iface
     public superColumn_t get_superColumn(String tablename, String key, String superColumnPath) throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_superColumn");
+        ThriftValidation.validateSuperColumnPath(tablename, superColumnPath);
+
         ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, superColumnPath));
         if (cfamily == null)
         {
@@ -413,7 +390,8 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("batch_insert_SuperColumn");
         RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
         Set<String> cfNames = rm.columnFamilyNames();
-        validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+        ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
+
         doInsert(block, rm);
     }
 
@@ -525,7 +503,7 @@ public class CassandraServer implements Cassandra.Iface
     public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException
     {
         logger.debug("get_key_range");
-        validateCommand(tablename, columnFamilies.toArray(new String[columnFamilies.size()]));
+        ThriftValidation.validateCommand(tablename, columnFamilies.toArray(new String[columnFamilies.size()]));
         if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner))
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
@@ -541,13 +519,27 @@ public class CassandraServer implements Cassandra.Iface
 	public List<column_t> get_slice_by_name_range(String tablename, String key, String columnParent, String start, String finish, int count)
     throws InvalidRequestException, NotFoundException, TException
     {
-		logger.debug("get_slice_by_range");
+		logger.debug("get_slice_by_name_range");
+        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
+
         ColumnFamily cfamily = readColumnFamily(new SliceByRangeReadCommand(tablename, key, columnParent, start, finish, count));
         if (cfamily == null)
         {
             return EMPTY_COLUMNS;
         }
-        return thriftifyColumns(cfamily.getAllColumns());
+        if (DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
+        {
+            return thriftifyColumns(cfamily.getAllColumns());
+        }
+        else
+        {
+            IColumn superColumn = cfamily.getColumn(values[1]);
+            if (superColumn == null)
+            {
+                return EMPTY_COLUMNS;
+            }
+            return thriftifyColumns(superColumn.getSubColumns());
+        }
 	}
 
     // main method moved to CassandraDaemon

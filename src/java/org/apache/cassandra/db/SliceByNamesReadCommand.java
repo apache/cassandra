@@ -41,7 +41,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     @Override
     public String getColumnFamilyName()
     {
-        return columnFamily;
+        return RowMutation.getColumnAndColumnFamily(columnFamily)[0];
     }
 
     @Override

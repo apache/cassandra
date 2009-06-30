@@ -35,8 +35,7 @@ public class ColumnReadCommand extends ReadCommand
     @Override
     public String getColumnFamilyName()
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
-        return values[0];
+        return RowMutation.getColumnAndColumnFamily(columnFamilyColumn)[0];
     }
 
     @Override
