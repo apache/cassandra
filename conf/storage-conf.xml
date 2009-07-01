@@ -20,6 +20,9 @@
     <!--======================================================================-->
     <!-- Basic Configuration                                                  -->
     <!--======================================================================-->
+
+    <!-- The name of this cluster. This is mainly used to prevent machines in 
+         one logical cluster from joining any other cluster. -->
     <ClusterName>Test Cluster</ClusterName>
 
     <!-- Tables and ColumnFamilies                                            
@@ -65,8 +68,10 @@
          clusters with a small number of nodes. -->
     <InitialToken></InitialToken>
 
-    <!-- RackAware: Setting this to true instructs Cassandra to try and place the replicas in
-         a different rack in the same datacenter and one in a different datacenter
+    <!-- RackAware: Setting this to true instructs Cassandra to try
+         and place one replica in a different datacenter, and the
+         others on different racks in the same one.  If you haven't
+         looked at the code for RackAwareStrategy, leave this off.
     -->
     <RackAware>false</RackAware>
 
@@ -85,30 +90,38 @@
     <StagingFileDirectory>/var/cassandra/staging</StagingFileDirectory>
 
 
-    <!-- Add names of hosts that are deemed contact points. Cassandra nodes use
+    <!-- Addresses of hosts that are deemed contact points. Cassandra nodes use
          this list of hosts to find each other and learn the topology of the ring.
+         You must change this if you are running multiple nodes!
     -->
     <Seeds>
         <Seed>127.0.0.1</Seed>
     </Seeds>
 
     <!-- Miscellaneous -->
+    <!-- time to wait for a reply from other nodes before failing the command -->
     <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
+    <!-- size to allow commitlog to grow to before creating a new segment -->
     <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
 
     <!-- Hosts and Ports -->
+    <!-- Address to bind to and tell other nodes to connect to.  Leave blank
+         to allow Cassandra to pick one automatically.  You _must_ change this
+         if you want multiple nodes to be able to communicate! -->
     <ListenAddress>localhost</ListenAddress>
+    <!-- TCP port, for commands and data -->
     <StoragePort>7000</StoragePort>
+    <!-- UDP port, for membership communications (gossip) -->
     <ControlPort>7001</ControlPort>
+    <!-- port clients connect to -->
     <ThriftPort>9160</ThriftPort>
-    <HttpPort>7002</HttpPort>
 
 
     <!--======================================================================-->
     <!-- Memory, Disk, and Performance                                        -->
     <!--======================================================================-->
 
-    <!-- Threshold for adding a column index in a row -->
+    <!-- Add column indexes to a row after its contents reach this size -->
     <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
 
     <!--
@@ -143,8 +156,4 @@
          Basic features in Cassandra should work fine without configuring this section.
     -->
     <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
-    <MulticastChannel>230.0.0.1</MulticastChannel>
-    <GangliaServers>
-        <GangliaServer>127.0.0.1:12000</GangliaServer>
-    </GangliaServers>
 </Storage>

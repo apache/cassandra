@@ -20,7 +20,6 @@
    <ClusterName>Test Cluster</ClusterName>
    <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
    <RackAware>false</RackAware>
-   <MulticastChannel>230.0.0.1</MulticastChannel>
    <ReplicationFactor>1</ReplicationFactor>
    <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
@@ -29,8 +28,6 @@
    <ControlPort>7001</ControlPort>
    <ThriftPort>9160</ThriftPort>
    <ColumnIndexSizeInKB>4</ColumnIndexSizeInKB>
-   <HttpPort>7002</HttpPort>
-   <MetadataDirectory>build/test/cassandra/system</MetadataDirectory>
    <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
    <DataFileDirectories>
