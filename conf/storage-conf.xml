@@ -98,16 +98,26 @@
         <Seed>127.0.0.1</Seed>
     </Seeds>
 
+
     <!-- Miscellaneous -->
+
     <!-- time to wait for a reply from other nodes before failing the command -->
     <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
     <!-- size to allow commitlog to grow to before creating a new segment -->
     <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
 
-    <!-- Hosts and Ports -->
-    <!-- Address to bind to and tell other nodes to connect to.  Leave blank
-         to allow Cassandra to pick one automatically.  You _must_ change this
-         if you want multiple nodes to be able to communicate! -->
+
+    <!-- Local hosts and ports -->
+
+    <!-- Address to bind to and tell other nodes to connect to.  
+         You _must_ change this if you want multiple nodes to be able
+         to communicate!  
+
+         Leaving it blank leaves it up to InetAddress.getLocalHost(). 
+         This will always do the Right Thing *if* the node is properly
+         configured (hostname, name resolution, etc), and the Right
+         Thing is to use the address associated with the hostname (it
+         might not be). -->
     <ListenAddress>localhost</ListenAddress>
     <!-- TCP port, for commands and data -->
     <StoragePort>7000</StoragePort>
