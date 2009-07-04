@@ -74,12 +74,14 @@ public class FBUtilities
     {
         Throwable throwable = new Throwable();
         StackTraceElement[] ste = throwable.getStackTrace();
-        StringBuffer sbuf = new StringBuffer();
+        StringBuilder sbuf = new StringBuilder();
 
         for ( int i = ste.length - 1; i > 0; --i )
         {
-            sbuf.append(ste[i].getClassName() + "." + ste[i].getMethodName());
-            sbuf.append("/");
+            sbuf.append(ste[i].getClassName())
+            	.append(".")
+            	.append(ste[i].getMethodName())
+            	.append("/");
         }
         sbuf.deleteCharAt(sbuf.length() - 1);
         return sbuf.toString();

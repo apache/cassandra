@@ -23,7 +23,7 @@ import java.util.Random;
 
 public class KeyGenerator {
     private static String randomKey(Random r) {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         for (int j = 0; j < 16; j++) {
             buffer.append((char)r.nextInt());
         }

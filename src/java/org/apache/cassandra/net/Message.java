@@ -146,16 +146,16 @@ public class Message implements java.io.Serializable
     
     public String toString()
     {
-        StringBuffer sbuf = new StringBuffer("");
+        StringBuilder sbuf = new StringBuilder("");
         String separator = System.getProperty("line.separator");
-        sbuf.append("ID:" + getMessageId());
-        sbuf.append(separator);
-        sbuf.append("FROM:" + getFrom());
-        sbuf.append(separator);
-        sbuf.append("TYPE:" + getMessageType());
-        sbuf.append(separator);
-        sbuf.append("VERB:" + getVerb());
-        sbuf.append(separator);
+        sbuf.append("ID:" + getMessageId())
+        	.append(separator)
+        	.append("FROM:" + getFrom())
+        	.append(separator)
+        	.append("TYPE:" + getMessageType())
+        	.append(separator)
+        	.append("VERB:" + getVerb())
+        	.append(separator);
         return sbuf.toString();
     }
 }

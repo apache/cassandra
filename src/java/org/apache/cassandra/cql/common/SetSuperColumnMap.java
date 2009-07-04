@@ -84,7 +84,7 @@ public class SetSuperColumnMap extends DMLPlan
 
     public String explainPlan()
     {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         
         String prefix =
             String.format("%s Column Family: Batch SET a set of Super Columns: \n" +

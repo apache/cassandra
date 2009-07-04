@@ -58,7 +58,7 @@ public class GuidGenerator {
     public static String guid() {
         byte[] array = guidAsBytes();
         
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (int j = 0; j < array.length; ++j) {
             int b = array[j] & 0xFF;
             if (b < 0x10) sb.append('0');
@@ -70,7 +70,7 @@ public class GuidGenerator {
     
     public static String guidToString(byte[] bytes)
     {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (int j = 0; j < bytes.length; ++j) {
             int b = bytes[j] & 0xFF;
             if (b < 0x10) sb.append('0');
@@ -82,15 +82,15 @@ public class GuidGenerator {
     
     public static byte[] guidAsBytes()
     {
-        StringBuffer sbValueBeforeMD5 = new StringBuffer();
+        StringBuilder sbValueBeforeMD5 = new StringBuilder();
         long time = System.currentTimeMillis();
         long rand = 0;
         rand = myRand.nextLong();
-        sbValueBeforeMD5.append(s_id);
-        sbValueBeforeMD5.append(":");
-        sbValueBeforeMD5.append(Long.toString(time));
-        sbValueBeforeMD5.append(":");
-        sbValueBeforeMD5.append(Long.toString(rand));
+        sbValueBeforeMD5.append(s_id)
+        				.append(":")
+        				.append(Long.toString(time))
+        				.append(":")
+        				.append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
         return md5.digest(valueBeforeMD5.getBytes());
@@ -103,16 +103,16 @@ public class GuidGenerator {
 
     private static String convertToStandardFormat(String valueAfterMD5) {
         String raw = valueAfterMD5.toUpperCase();
-        StringBuffer sb = new StringBuffer();
-        sb.append(raw.substring(0, 8));
-        sb.append("-");
-        sb.append(raw.substring(8, 12));
-        sb.append("-");
-        sb.append(raw.substring(12, 16));
-        sb.append("-");
-        sb.append(raw.substring(16, 20));
-        sb.append("-");
-        sb.append(raw.substring(20));
+        StringBuilder sb = new StringBuilder();
+        sb.append(raw.substring(0, 8))
+          .append("-")
+          .append(raw.substring(8, 12))
+          .append("-")
+          .append(raw.substring(12, 16))
+          .append("-")
+          .append(raw.substring(16, 20))
+          .append("-")
+          .append(raw.substring(20));
         return sb.toString();
     }
 }

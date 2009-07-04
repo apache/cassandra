@@ -18,10 +18,8 @@
 */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.RangeCommand;
 import org.apache.cassandra.db.RangeReply;
 import org.apache.cassandra.db.Table;

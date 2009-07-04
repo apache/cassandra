@@ -74,7 +74,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         // generate random token
         String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         Random r = new Random();
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         for (int j = 0; j < 16; j++) {
             buffer.append(chars.charAt(r.nextInt(chars.length())));
         }

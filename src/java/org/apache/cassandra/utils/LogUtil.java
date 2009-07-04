@@ -36,7 +36,7 @@ public class LogUtil
     {
         //BasicConfigurator.configure();
         String file = System.getProperty("storage-config");
-        file += System.getProperty("file.separator") + "log4j.properties";
+        file += File.separator + "log4j.properties";
         PropertyConfigurator.configure(file);
     }
 
@@ -62,23 +62,31 @@ public class LogUtil
     
     public static String throwableToString(Throwable e)
     {
-        StringBuffer sbuf = new StringBuffer("");
+        StringBuilder sbuf = new StringBuilder("");
         String trace = stackTrace(e);
-        sbuf.append((new StringBuilder()).append("Exception was generated at : ").append(getTimestamp()).append(" on thread ").append(Thread.currentThread().getName()).toString());
+        sbuf.append((new StringBuilder())
+        	.append("Exception was generated at : ")
+        	.append(getTimestamp())
+        	.append(" on thread ")
+        	.append(Thread.currentThread().getName())
+        	.toString());
         sbuf.append(System.getProperty("line.separator"));
         String message = e.getMessage();
         if(message != null)
             sbuf.append(message);
-        sbuf.append(System.getProperty("line.separator"));
-        sbuf.append(trace);
+        sbuf.append(System.getProperty("line.separator"))
+        	.append(trace);
         return sbuf.toString();
     }
 
     public static String getLogMessage(String message)
     {
-        StringBuffer sbuf = new StringBuffer((new StringBuilder()).append("Log started at : ").append(getTimestamp()).toString());
-        sbuf.append(System.getProperty("line.separator"));
-        sbuf.append(message);
+        StringBuilder sbuf = new StringBuilder((new StringBuilder())
+        		.append("Log started at : ")
+        		.append(getTimestamp())
+        		.toString());
+        sbuf.append(File.separator)
+        	.append(message);
         return sbuf.toString();
     }
 

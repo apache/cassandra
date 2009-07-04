@@ -262,7 +262,7 @@ public class CliClient
         int portNumber = Integer.parseInt(ast.getChild(1).getText());
         Tree idList = ast.getChild(0);
         
-        StringBuffer hostName = new StringBuffer();
+        StringBuilder hostName = new StringBuilder();
         int idCount = idList.getChildCount(); 
         for (int idx = 0; idx < idCount; idx++)
         {

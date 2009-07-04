@@ -161,7 +161,7 @@ public class CommitLog
     */
     private void setNextFileName()
     {
-        logFile_ = DatabaseDescriptor.getLogFileLocation() + System.getProperty("file.separator") +
+        logFile_ = DatabaseDescriptor.getLogFileLocation() + File.separator +
                    "CommitLog-" + System.currentTimeMillis() + ".log";
     }
 

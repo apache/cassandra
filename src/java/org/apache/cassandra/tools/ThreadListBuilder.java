@@ -83,7 +83,7 @@ public class ThreadListBuilder
         for ( int i = 0; i < size; ++i )
         {
             DataOutputBuffer buffer = buffers.get(i);
-            String file = args[1] + System.getProperty("file.separator") + "Bloom-Filter-" + i + ".dat";
+            String file = args[1] + File.separator + "Bloom-Filter-" + i + ".dat";
             RandomAccessFile raf = new RandomAccessFile(file, "rw");
             raf.write(buffer.getData(), 0, buffer.getLength());
             raf.close();

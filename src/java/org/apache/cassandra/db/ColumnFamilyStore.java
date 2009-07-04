@@ -1120,7 +1120,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         if (target != null)
                         {
-                            rangeFileLocation = rangeFileLocation + System.getProperty("file.separator") + "bootstrap";
+                            rangeFileLocation = rangeFileLocation + File.separator + "bootstrap";
                         }
                         FileUtils.createDirectory(rangeFileLocation);
                         String fname = new File(rangeFileLocation, mergedFileName).getAbsolutePath();

@@ -43,8 +43,8 @@ public class CassandraServer implements Cassandra.Iface
 {
 	private static Logger logger = Logger.getLogger(CassandraServer.class);
 
-    private final static List<column_t> EMPTY_COLUMNS = Arrays.asList();
-    private final static List<superColumn_t> EMPTY_SUPERCOLUMNS = Arrays.asList();
+    private final static List<column_t> EMPTY_COLUMNS = Collections.emptyList();
+    private final static List<superColumn_t> EMPTY_SUPERCOLUMNS = Collections.emptyList();
 
     /*
       * Handle to the storage service to interact with the other machines in the
@@ -406,7 +406,7 @@ public class CassandraServer implements Cassandra.Iface
             String filename = DatabaseDescriptor.getConfigFileName();
             try
             {
-                StringBuffer fileData = new StringBuffer(8192);
+                StringBuilder fileData = new StringBuilder(8192);
                 BufferedInputStream stream = new BufferedInputStream(new FileInputStream(filename));
                 byte[] buf = new byte[1024];
                 int numRead;

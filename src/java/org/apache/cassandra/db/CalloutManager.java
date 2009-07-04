@@ -157,7 +157,7 @@ public class CalloutManager
             logger_.warn(LogUtil.throwableToString(ex));
         }
         /* save the script to disk */
-        String scriptFile = DatabaseDescriptor.getCalloutLocation() + System.getProperty("file.separator") + callout + extn_;
+        String scriptFile = DatabaseDescriptor.getCalloutLocation() + File.separator + callout + extn_;
         File file = new File(scriptFile);
         if ( file.exists() )
         {
@@ -179,7 +179,7 @@ public class CalloutManager
     {
         /* remove the script from cache */
         calloutCache_.remove(callout);
-        String scriptFile = DatabaseDescriptor.getCalloutLocation() + System.getProperty("file.separator") + callout + ".grv";
+        String scriptFile = DatabaseDescriptor.getCalloutLocation() + File.separator + callout + ".grv";
         File file = new File(scriptFile);
         file.delete();
     }

@@ -116,7 +116,7 @@ public class DatabaseDescriptor
     {
         try
         {
-            configFileName_ = System.getProperty("storage-config") + System.getProperty("file.separator") + "storage-conf.xml";
+            configFileName_ = System.getProperty("storage-config") + File.separator + "storage-conf.xml";
             if (logger_.isDebugEnabled())
               logger_.debug("Loading settings from " + configFileName_);
             XMLUtils xmlUtils = new XMLUtils(configFileName_);
