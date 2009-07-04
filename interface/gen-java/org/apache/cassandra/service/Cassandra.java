@@ -1376,7 +1376,7 @@ public class Cassandra {
     }
 
     public get_slice_by_name_range_args() {
-      this.count = -1;
+      this.count = 100;
 
     }
 
@@ -3173,6 +3173,8 @@ public class Cassandra {
     }
 
     public get_slice_args() {
+      this.count = 100;
+
     }
 
     public get_slice_args(
@@ -8325,6 +8327,8 @@ public class Cassandra {
     }
 
     public get_slice_super_args() {
+      this.count = 100;
+
     }
 
     public get_slice_super_args(
@@ -11144,7 +11148,7 @@ public class Cassandra {
 
       this.stopAt = "";
 
-      this.maxResults = 1000;
+      this.maxResults = 100;
 
     }
 
