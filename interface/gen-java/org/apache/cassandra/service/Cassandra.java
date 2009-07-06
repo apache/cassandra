@@ -26,7 +26,7 @@ public class Cassandra {
 
     public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<column_t> get_slice(String tablename, String key, String columnParent, boolean isAscending, int count) throws InvalidRequestException, NotFoundException, TException;
+    public List<column_t> get_slice(String tablename, String key, String columnParent, boolean isAscending, int offset, int count) throws InvalidRequestException, NotFoundException, TException;
 
     public column_t get_column(String tablename, String key, String columnPath) throws InvalidRequestException, NotFoundException, TException;
 
@@ -40,7 +40,7 @@ public class Cassandra {
 
     public List<column_t> get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int count) throws InvalidRequestException, TException;
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int offset, int count) throws InvalidRequestException, TException;
 
     public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException, TException;
 
@@ -173,13 +173,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_by_names failed: unknown result");
     }
 
-    public List<column_t> get_slice(String tablename, String key, String columnParent, boolean isAscending, int count) throws InvalidRequestException, NotFoundException, TException
+    public List<column_t> get_slice(String tablename, String key, String columnParent, boolean isAscending, int offset, int count) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_slice(tablename, key, columnParent, isAscending, count);
+      send_get_slice(tablename, key, columnParent, isAscending, offset, count);
       return recv_get_slice();
     }
 
-    public void send_get_slice(String tablename, String key, String columnParent, boolean isAscending, int count) throws TException
+    public void send_get_slice(String tablename, String key, String columnParent, boolean isAscending, int offset, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice", TMessageType.CALL, seqid_));
       get_slice_args args = new get_slice_args();
@@ -187,6 +187,7 @@ public class Cassandra {
       args.key = key;
       args.columnParent = columnParent;
       args.isAscending = isAscending;
+      args.offset = offset;
       args.count = count;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -455,13 +456,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_columns_since failed: unknown result");
     }
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int count) throws InvalidRequestException, TException
+    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int offset, int count) throws InvalidRequestException, TException
     {
-      send_get_slice_super(tablename, key, columnFamily, isAscending, count);
+      send_get_slice_super(tablename, key, columnFamily, isAscending, offset, count);
       return recv_get_slice_super();
     }
 
-    public void send_get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int count) throws TException
+    public void send_get_slice_super(String tablename, String key, String columnFamily, boolean isAscending, int offset, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super", TMessageType.CALL, seqid_));
       get_slice_super_args args = new get_slice_super_args();
@@ -469,6 +470,7 @@ public class Cassandra {
       args.key = key;
       args.columnFamily = columnFamily;
       args.isAscending = isAscending;
+      args.offset = offset;
       args.count = count;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -906,7 +908,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_result result = new get_slice_result();
         try {
-          result.success = iface_.get_slice(args.tablename, args.key, args.columnParent, args.isAscending, args.count);
+          result.success = iface_.get_slice(args.tablename, args.key, args.columnParent, args.isAscending, args.offset, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -1115,7 +1117,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_super_result result = new get_slice_super_result();
         try {
-          result.success = iface_.get_slice_super(args.tablename, args.key, args.columnFamily, args.isAscending, args.count);
+          result.success = iface_.get_slice_super(args.tablename, args.key, args.columnFamily, args.isAscending, args.offset, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -3136,7 +3138,8 @@ public class Cassandra {
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("columnParent", TType.STRING, (short)3);
     private static final TField IS_ASCENDING_FIELD_DESC = new TField("isAscending", TType.BOOL, (short)4);
-    private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
+    private static final TField OFFSET_FIELD_DESC = new TField("offset", TType.I32, (short)5);
+    private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)6);
 
     public String tablename;
     public static final int TABLENAME = 1;
@@ -3146,12 +3149,15 @@ public class Cassandra {
     public static final int COLUMNPARENT = 3;
     public boolean isAscending;
     public static final int ISASCENDING = 4;
+    public int offset;
+    public static final int OFFSET = 5;
     public int count;
-    public static final int COUNT = 5;
+    public static final int COUNT = 6;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean isAscending = false;
+      public boolean offset = false;
       public boolean count = false;
     }
 
@@ -3164,6 +3170,8 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(ISASCENDING, new FieldMetaData("isAscending", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
+      put(OFFSET, new FieldMetaData("offset", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
       put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
@@ -3182,6 +3190,7 @@ public class Cassandra {
       String key,
       String columnParent,
       boolean isAscending,
+      int offset,
       int count)
     {
       this();
@@ -3190,6 +3199,8 @@ public class Cassandra {
       this.columnParent = columnParent;
       this.isAscending = isAscending;
       this.__isset.isAscending = true;
+      this.offset = offset;
+      this.__isset.offset = true;
       this.count = count;
       this.__isset.count = true;
     }
@@ -3209,6 +3220,8 @@ public class Cassandra {
       }
       __isset.isAscending = other.__isset.isAscending;
       this.isAscending = other.isAscending;
+      __isset.offset = other.__isset.offset;
+      this.offset = other.offset;
       __isset.count = other.__isset.count;
       this.count = other.count;
     }
@@ -3309,6 +3322,28 @@ public class Cassandra {
       this.__isset.isAscending = value;
     }
 
+    public int getOffset() {
+      return this.offset;
+    }
+
+    public void setOffset(int offset) {
+      this.offset = offset;
+      this.__isset.offset = true;
+    }
+
+    public void unsetOffset() {
+      this.__isset.offset = false;
+    }
+
+    // Returns true if field offset is set (has been asigned a value) and false otherwise
+    public boolean isSetOffset() {
+      return this.__isset.offset;
+    }
+
+    public void setOffsetIsSet(boolean value) {
+      this.__isset.offset = value;
+    }
+
     public int getCount() {
       return this.count;
     }
@@ -3365,6 +3400,14 @@ public class Cassandra {
         }
         break;
 
+      case OFFSET:
+        if (value == null) {
+          unsetOffset();
+        } else {
+          setOffset((Integer)value);
+        }
+        break;
+
       case COUNT:
         if (value == null) {
           unsetCount();
@@ -3392,6 +3435,9 @@ public class Cassandra {
       case ISASCENDING:
         return new Boolean(isIsAscending());
 
+      case OFFSET:
+        return new Integer(getOffset());
+
       case COUNT:
         return new Integer(getCount());
 
@@ -3411,6 +3457,8 @@ public class Cassandra {
         return isSetColumnParent();
       case ISASCENDING:
         return isSetIsAscending();
+      case OFFSET:
+        return isSetOffset();
       case COUNT:
         return isSetCount();
       default:
@@ -3464,6 +3512,15 @@ public class Cassandra {
         if (!(this_present_isAscending && that_present_isAscending))
           return false;
         if (this.isAscending != that.isAscending)
+          return false;
+      }
+
+      boolean this_present_offset = true;
+      boolean that_present_offset = true;
+      if (this_present_offset || that_present_offset) {
+        if (!(this_present_offset && that_present_offset))
+          return false;
+        if (this.offset != that.offset)
           return false;
       }
 
@@ -3524,6 +3581,14 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case OFFSET:
+            if (field.type == TType.I32) {
+              this.offset = iprot.readI32();
+              this.__isset.offset = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case COUNT:
             if (field.type == TType.I32) {
               this.count = iprot.readI32();
@@ -3567,6 +3632,9 @@ public class Cassandra {
       oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
       oprot.writeBool(this.isAscending);
       oprot.writeFieldEnd();
+      oprot.writeFieldBegin(OFFSET_FIELD_DESC);
+      oprot.writeI32(this.offset);
+      oprot.writeFieldEnd();
       oprot.writeFieldBegin(COUNT_FIELD_DESC);
       oprot.writeI32(this.count);
       oprot.writeFieldEnd();
@@ -3605,6 +3673,10 @@ public class Cassandra {
       if (!first) sb.append(", ");
       sb.append("isAscending:");
       sb.append(this.isAscending);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("offset:");
+      sb.append(this.offset);
       first = false;
       if (!first) sb.append(", ");
       sb.append("count:");
@@ -8290,7 +8362,8 @@ public class Cassandra {
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("columnFamily", TType.STRING, (short)3);
     private static final TField IS_ASCENDING_FIELD_DESC = new TField("isAscending", TType.BOOL, (short)4);
-    private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
+    private static final TField OFFSET_FIELD_DESC = new TField("offset", TType.I32, (short)5);
+    private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)6);
 
     public String tablename;
     public static final int TABLENAME = 1;
@@ -8300,12 +8373,15 @@ public class Cassandra {
     public static final int COLUMNFAMILY = 3;
     public boolean isAscending;
     public static final int ISASCENDING = 4;
+    public int offset;
+    public static final int OFFSET = 5;
     public int count;
-    public static final int COUNT = 5;
+    public static final int COUNT = 6;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean isAscending = false;
+      public boolean offset = false;
       public boolean count = false;
     }
 
@@ -8318,6 +8394,8 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(ISASCENDING, new FieldMetaData("isAscending", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
+      put(OFFSET, new FieldMetaData("offset", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
       put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
@@ -8336,6 +8414,7 @@ public class Cassandra {
       String key,
       String columnFamily,
       boolean isAscending,
+      int offset,
       int count)
     {
       this();
@@ -8344,6 +8423,8 @@ public class Cassandra {
       this.columnFamily = columnFamily;
       this.isAscending = isAscending;
       this.__isset.isAscending = true;
+      this.offset = offset;
+      this.__isset.offset = true;
       this.count = count;
       this.__isset.count = true;
     }
@@ -8363,6 +8444,8 @@ public class Cassandra {
       }
       __isset.isAscending = other.__isset.isAscending;
       this.isAscending = other.isAscending;
+      __isset.offset = other.__isset.offset;
+      this.offset = other.offset;
       __isset.count = other.__isset.count;
       this.count = other.count;
     }
@@ -8463,6 +8546,28 @@ public class Cassandra {
       this.__isset.isAscending = value;
     }
 
+    public int getOffset() {
+      return this.offset;
+    }
+
+    public void setOffset(int offset) {
+      this.offset = offset;
+      this.__isset.offset = true;
+    }
+
+    public void unsetOffset() {
+      this.__isset.offset = false;
+    }
+
+    // Returns true if field offset is set (has been asigned a value) and false otherwise
+    public boolean isSetOffset() {
+      return this.__isset.offset;
+    }
+
+    public void setOffsetIsSet(boolean value) {
+      this.__isset.offset = value;
+    }
+
     public int getCount() {
       return this.count;
     }
@@ -8519,6 +8624,14 @@ public class Cassandra {
         }
         break;
 
+      case OFFSET:
+        if (value == null) {
+          unsetOffset();
+        } else {
+          setOffset((Integer)value);
+        }
+        break;
+
       case COUNT:
         if (value == null) {
           unsetCount();
@@ -8546,6 +8659,9 @@ public class Cassandra {
       case ISASCENDING:
         return new Boolean(isIsAscending());
 
+      case OFFSET:
+        return new Integer(getOffset());
+
       case COUNT:
         return new Integer(getCount());
 
@@ -8565,6 +8681,8 @@ public class Cassandra {
         return isSetColumnFamily();
       case ISASCENDING:
         return isSetIsAscending();
+      case OFFSET:
+        return isSetOffset();
       case COUNT:
         return isSetCount();
       default:
@@ -8618,6 +8736,15 @@ public class Cassandra {
         if (!(this_present_isAscending && that_present_isAscending))
           return false;
         if (this.isAscending != that.isAscending)
+          return false;
+      }
+
+      boolean this_present_offset = true;
+      boolean that_present_offset = true;
+      if (this_present_offset || that_present_offset) {
+        if (!(this_present_offset && that_present_offset))
+          return false;
+        if (this.offset != that.offset)
           return false;
       }
 
@@ -8678,6 +8805,14 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case OFFSET:
+            if (field.type == TType.I32) {
+              this.offset = iprot.readI32();
+              this.__isset.offset = true;
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case COUNT:
             if (field.type == TType.I32) {
               this.count = iprot.readI32();
@@ -8721,6 +8856,9 @@ public class Cassandra {
       oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
       oprot.writeBool(this.isAscending);
       oprot.writeFieldEnd();
+      oprot.writeFieldBegin(OFFSET_FIELD_DESC);
+      oprot.writeI32(this.offset);
+      oprot.writeFieldEnd();
       oprot.writeFieldBegin(COUNT_FIELD_DESC);
       oprot.writeI32(this.count);
       oprot.writeFieldEnd();
@@ -8759,6 +8897,10 @@ public class Cassandra {
       if (!first) sb.append(", ");
       sb.append("isAscending:");
       sb.append(this.isAscending);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("offset:");
+      sb.append(this.offset);
       first = false;
       if (!first) sb.append(", ");
       sb.append("count:");

@@ -605,7 +605,7 @@ public class Table
     /**
      * Selects a list of columns in a column family from a given column for the specified key.
     */
-    public Row getSliceFrom(String key, String cf, boolean isAscending, int count) throws IOException
+    public Row getSliceFrom(String key, String cf, boolean isAscending, int limit, int count) throws IOException
     {
         Row row = new Row(table_, key);
         String[] values = cf.split(":", -1);
@@ -615,7 +615,7 @@ public class Table
         long start1 = System.currentTimeMillis();
         try
         {
-            ColumnFamily columnFamily = cfStore.getSliceFrom(key, cfName, startWith, isAscending, count);
+            ColumnFamily columnFamily = cfStore.getSliceFrom(key, cfName, startWith, isAscending, limit, count);
             if (columnFamily != null)
                 row.addColumnFamily(columnFamily);
             long timeTaken = System.currentTimeMillis() - start1;

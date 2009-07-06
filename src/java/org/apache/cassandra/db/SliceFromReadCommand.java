@@ -25,13 +25,15 @@ public class SliceFromReadCommand extends ReadCommand
 {
     public final String columnFamilyColumn;
     public final boolean isAscending;
+    public final int limit;
     public final int count;
 
-    public SliceFromReadCommand(String table, String key, String columnFamilyColumn, boolean isAscending, int count)
+    public SliceFromReadCommand(String table, String key, String columnFamilyColumn, boolean isAscending, int limit, int count)
     {
         super(table, key, CMD_TYPE_GET_SLICE_FROM);
         this.columnFamilyColumn = columnFamilyColumn;
         this.isAscending = isAscending;
+        this.limit = limit;
         this.count = count;
     }
 
@@ -44,7 +46,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new SliceFromReadCommand(table, key, columnFamilyColumn, isAscending, count);
+        ReadCommand readCommand = new SliceFromReadCommand(table, key, columnFamilyColumn, isAscending, limit, count);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -52,7 +54,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {
-        return table.getSliceFrom(key, columnFamilyColumn, isAscending, count);
+        return table.getSliceFrom(key, columnFamilyColumn, isAscending, limit, count);
     }
 
     @Override
@@ -63,6 +65,7 @@ public class SliceFromReadCommand extends ReadCommand
                ", key='" + key + '\'' +
                ", columnFamily='" + columnFamilyColumn + '\'' +
                ", isAscending='" + isAscending + '\'' +
+               ", limit='" + limit + '\'' +
                ", count='" + count + '\'' +
                ')';
     }
@@ -79,6 +82,7 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         dos.writeUTF(realRM.key);
         dos.writeUTF(realRM.columnFamilyColumn);
         dos.writeBoolean(realRM.isAscending);
+        dos.writeInt(realRM.limit);
         dos.writeInt(realRM.count);
     }
 
@@ -90,9 +94,10 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         String key = dis.readUTF();
         String columnFamily = dis.readUTF();
         boolean isAscending = dis.readBoolean();
+        int limit = dis.readInt();
         int count = dis.readInt();
 
-        SliceFromReadCommand rm = new SliceFromReadCommand(table, key, columnFamily, isAscending, count);
+        SliceFromReadCommand rm = new SliceFromReadCommand(table, key, columnFamily, isAscending, limit, count);
         rm.setDigestQuery(isDigest);
         return rm;
     }

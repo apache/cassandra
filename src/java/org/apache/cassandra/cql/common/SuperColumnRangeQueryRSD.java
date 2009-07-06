@@ -66,7 +66,7 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, cfMetaData_.cfName, true, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, cfMetaData_.cfName, true, offset_, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)

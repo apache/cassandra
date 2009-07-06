@@ -97,7 +97,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, columnFamily_column, true, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, columnFamily_column, true, offset_, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)

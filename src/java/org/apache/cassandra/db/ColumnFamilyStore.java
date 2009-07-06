@@ -1535,7 +1535,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * get a list of columns starting from a given column, in a specified order
      * only the latest version of a column is returned
      */
-    public ColumnFamily getSliceFrom(String key, String cfName, String startColumn, boolean isAscending, int count)
+    public ColumnFamily getSliceFrom(String key, String cfName, String startColumn, boolean isAscending, int offset, int count)
     throws IOException, ExecutionException, InterruptedException
     {
         lock_.readLock().lock();
@@ -1620,16 +1620,18 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // add unique columns to the CF container
             int liveColumns = 0;
+            int limit = offset + count;
             for (IColumn column : reduced)
             {
-                if (liveColumns >= count)
+                if (liveColumns >= limit)
                 {
                     break;
                 }
                 if (!column.isMarkedForDelete())
                     liveColumns++;
 
-                returnCF.addColumn(column);
+                if (liveColumns > offset)
+                    returnCF.addColumn(column);
             }
 
             return removeDeleted(returnCF);
