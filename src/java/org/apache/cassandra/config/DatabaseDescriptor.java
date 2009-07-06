@@ -350,9 +350,13 @@ public class DatabaseDescriptor
                     {
                         throw new ConfigurationException("invalid column sort value " + rawColumnIndexType);
                     }
-                    if ("Super".equals(columnType) && !"Name".equals(columnIndexType))
+                    if ("Super".equals(columnType))
                     {
-                        throw new ConfigurationException("Super columnfamilies may only be name-sorted");
+                        if (rawColumnIndexType != null)
+                        {
+                            throw new ConfigurationException("Super columnfamilies are always name-sorted, and their subcolumns are always time-sorted.  You may not specify the ColumnSort attribute on a SuperColumn.");
+                        }
+                        columnIndexType = "Name";
                     }
 
                     // see if flush period is set

@@ -30,6 +30,11 @@
          (ColumnFamilies are closer in meaning to those.)
 
          There is an implicit table named 'system' for Cassandra internals.
+
+         The default ColumnSort is Time for standard column families.
+         For super column families, specifying ColumnSort is not supported;
+         the supercolumns themselves are always name-sorted and their subcolumns
+         are always time-sorted.
     -->
     <Tables>
         <Table Name="Table1">
@@ -51,7 +56,7 @@
             <ColumnFamily ColumnSort="Name" Name="Standard1" FlushPeriodInMinutes="60"/>
             <ColumnFamily ColumnSort="Name" Name="Standard2"/>
             <ColumnFamily ColumnSort="Time" Name="StandardByTime1"/>
-            <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super1"/>
+            <ColumnFamily ColumnType="Super" Name="Super1"/>
         </Table>
     </Tables>
 

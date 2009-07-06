@@ -45,8 +45,8 @@
        <ColumnFamily ColumnSort="Name" Name="Standard2"/>
        <ColumnFamily ColumnSort="Time" Name="StandardByTime1"/>
        <ColumnFamily ColumnSort="Time" Name="StandardByTime2"/>
-       <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super1"/>
-       <ColumnFamily ColumnType="Super" ColumnSort="Name" Name="Super2"/>
+       <ColumnFamily ColumnType="Super" Name="Super1"/>
+       <ColumnFamily ColumnType="Super" Name="Super2"/>
      </Table>
      <Table Name = "Table2">
        <ColumnFamily ColumnSort="Name" Name="Standard1"/>
