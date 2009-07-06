@@ -33,6 +33,11 @@
     -->
     <Tables>
         <Table Name="Table1">
+            <!-- Key cache size is the fraction of keys per sstable whose locations
+                 we keep in memory in "mostly LRU" order.  (JUST the key locations,
+                 NOT any column values.)  Consider increasing this is fine if you have
+                 fewer, wider rows. -->
+            <KeyCacheSize>0.01</KeyCacheSize>
             <!-- if FlushPeriodInMinutes is configured and positive, it will be
                  flushed to disk with that period whether it is dirty or not.
                  This is intended for lightly-used columnfamilies so that they

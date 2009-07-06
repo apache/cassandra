@@ -73,6 +73,7 @@ public class DatabaseDescriptor
     private static String d_columnValue_      = "COLUMN_VALUE";
     private static String d_columnTimestamp_  = "COLUMN_TIMESTAMP";
 
+    private static Map<String, Double> tableKeyCacheSizes_;
     /*
      * A map from table names to the set of column families for the table and the
      * corresponding meta data for that column family.
@@ -272,6 +273,7 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
             tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
+            tableKeyCacheSizes_ = new HashMap<String, Double>();
 
             /* Rack Aware option */
             value = xmlUtils.getNodeValue("/Storage/RackAware");
@@ -297,6 +299,17 @@ public class DatabaseDescriptor
                 }
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
+
+                String xqlCacheSize = "/Storage/Tables/Table[@Name='" + tName + "']/KeyCacheSize";
+                value = xmlUtils.getNodeValue(xqlCacheSize);
+                if (value == null)
+                {
+                    tableKeyCacheSizes_.put(tName, 0.01);
+                }
+                else
+                {
+                    tableKeyCacheSizes_.put(tName, Double.valueOf(value));
+                }
 
                 String xqlTable = "/Storage/Tables/Table[@Name='" + tName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
@@ -778,6 +791,11 @@ public class DatabaseDescriptor
     public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()
     {
         return tableToCFMetaDataMap_;
+    }
+
+    public static double getKeyCacheSize(String tableName)
+    {
+        return tableKeyCacheSizes_.get(tableName);
     }
 
     private static class ConfigurationException extends Exception

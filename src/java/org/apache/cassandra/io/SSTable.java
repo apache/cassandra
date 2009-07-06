@@ -30,6 +30,7 @@ import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -53,6 +54,8 @@ public class SSTable
     public static final String temporaryFile_ = "tmp";
 
     private static FileSSTableMap openedFiles = new FileSSTableMap();
+
+    private ConcurrentLinkedHashMap<String, Long> keyCache = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, 1000);
 
 
     public static int indexInterval()
@@ -294,6 +297,11 @@ public class SSTable
     {
         if (!bf.isPresent(decoratedKey))
             return -1;
+        Long cachedPosition = keyCache.get(decoratedKey);
+        if (cachedPosition != null)
+        {
+            return cachedPosition;
+        }
         long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
         {
@@ -320,7 +328,10 @@ public class SSTable
                 long position = input.readLong();
                 int v = partitioner.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
                 if (v == 0)
+                {
+                    keyCache.put(decoratedKey, position);
                     return position;
+                }
                 if (v > 0)
                     return -1;
             } while  (++i < indexInterval_);
