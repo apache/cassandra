@@ -35,27 +35,27 @@ public class SSTableTest extends CleanupHelper
         File f = tempSSTableFileName();
 
         // write test data
-        SSTable ssTable = new SSTable(f.getAbsolutePath(), 1, new OrderPreservingPartitioner());
+        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), 1, new OrderPreservingPartitioner());
         Random random = new Random();
         byte[] bytes = new byte[1024];
         random.nextBytes(bytes);
 
         String key = Integer.toString(1);
-        ssTable.append(key, bytes);
-        ssTable.close();
+        writer.append(key, bytes);
+        SSTableReader ssTable = writer.closeAndOpenReader();
 
         // verify
         verifySingle(ssTable, bytes, key);
-        SSTable.reopenUnsafe(); // force reloading the index
+        SSTableReader.reopenUnsafe(); // force reloading the index
         verifySingle(ssTable, bytes, key);
     }
 
     private File tempSSTableFileName() throws IOException
     {
-        return File.createTempFile("sstable", "-" + SSTable.temporaryFile_ + "-Data.db");
+        return File.createTempFile("sstable", "-" + SSTable.TEMPFILE_MARKER + "-Data.db");
     }
 
-    private void verifySingle(SSTable sstable, byte[] bytes, String key) throws IOException
+    private void verifySingle(SSTableReader sstable, byte[] bytes, String key) throws IOException
     {
         FileStruct fs = sstable.getFileStruct();
         fs.seekTo(key);
@@ -76,22 +76,22 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTable ssTable = new SSTable(f.getAbsolutePath(), 1000, new OrderPreservingPartitioner());
+        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), 1000, new OrderPreservingPartitioner());
         for (String key: map.navigableKeySet())
         {
-            ssTable.append(key, map.get(key));
+            writer.append(key, map.get(key));
         }
-        ssTable.close();
+        SSTableReader ssTable = writer.closeAndOpenReader();
 
         // verify
         verifyMany(ssTable, map);
-        SSTable.reopenUnsafe(); // force reloading the index
+        SSTableReader.reopenUnsafe(); // force reloading the index
         verifyMany(ssTable, map);
     }
 
-    private void verifyMany(SSTable sstable, TreeMap<String, byte[]> map) throws IOException
+    private void verifyMany(SSTableReader sstable, TreeMap<String, byte[]> map) throws IOException
     {
-        List<String> keys = new ArrayList(map.keySet());
+        List<String> keys = new ArrayList<String>(map.keySet());
         Collections.shuffle(keys);
         FileStruct fs = sstable.getFileStruct();
         for (String key : keys)

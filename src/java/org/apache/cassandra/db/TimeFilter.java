@@ -21,10 +21,9 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Collection;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.IndexHelper;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 
 
 /**
@@ -122,7 +121,7 @@ class TimeFilter implements IFilter
         return column;
     }
 
-    public DataInputBuffer next(String key, String cfName, SSTable ssTable) throws IOException
+    public DataInputBuffer next(String key, String cfName, SSTableReader ssTable) throws IOException
     {
         return ssTable.next(key, cfName, null, new IndexHelper.TimeRange(timeLimit_, Long.MAX_VALUE));
     }

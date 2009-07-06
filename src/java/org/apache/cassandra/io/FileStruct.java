@@ -24,8 +24,8 @@ import java.util.Iterator;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.SSTableReader;
+
 import org.apache.log4j.Logger;
 import com.google.common.collect.AbstractIterator;
 
@@ -39,10 +39,10 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     private IFileReader reader;
     private DataInputBuffer bufIn;
     private DataOutputBuffer bufOut;
-    private SSTable sstable;
+    private SSTableReader sstable;
     private FileStructIterator iterator;
 
-    FileStruct(SSTable sstable) throws IOException
+    FileStruct(SSTableReader sstable) throws IOException
     {
         this.reader = SequenceFile.bufferedReader(sstable.getFilename(), 1024 * 1024);
         this.sstable = sstable;

@@ -27,7 +27,7 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.CleanupHelper;
 import static junit.framework.Assert.assertEquals;
 
@@ -42,7 +42,7 @@ public class CompactionsTest extends CleanupHelper
 
         final int ROWS_PER_SSTABLE = 10;
         Set<String> inserted = new HashSet<String>();
-        for (int j = 0; j < (SSTable.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
+        for (int j = 0; j < (SSTableReader.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 String key = String.valueOf(i % 2);
                 RowMutation rm = new RowMutation("Table1", key);

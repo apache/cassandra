@@ -33,8 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SequenceFile;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.FileStruct;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
@@ -186,7 +185,7 @@ public class Table
                  * list of the associated Column Family. Also merge the CBF into the
                  * sampler.
                 */                
-                SSTable sstable = SSTable.open(streamContext.getTargetFile(), StorageService.getPartitioner());
+                SSTableReader sstable = SSTableReader.open(streamContext.getTargetFile(), StorageService.getPartitioner());
                 logger_.debug("Merging the counting bloom filter in the sampler ...");                
                 String[] peices = FBUtilities.strip(fileName, "-");
                 Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(sstable);                
@@ -454,9 +453,9 @@ public class Table
     /*
      * Get the list of all SSTables on disk.  Not safe unless you aquire the CFS readlocks!
     */
-    public List<SSTable> getAllSSTablesOnDisk()
+    public List<SSTableReader> getAllSSTablesOnDisk()
     {
-        List<SSTable> list = new ArrayList<SSTable>();
+        List<SSTableReader> list = new ArrayList<SSTableReader>();
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
@@ -778,7 +777,7 @@ public class Table
             }
 
             // sstables
-            for (SSTable sstable : cfs.getSSTables())
+            for (SSTableReader sstable : cfs.getSSTables())
             {
                 FileStruct fs = sstable.getFileStruct();
                 fs.seekTo(startWith);

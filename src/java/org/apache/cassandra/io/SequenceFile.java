@@ -19,12 +19,7 @@
 package org.apache.cassandra.io;
 
 import java.io.*;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +27,6 @@ import java.util.Arrays;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.LogUtil;
 
 import org.apache.log4j.Logger;
 

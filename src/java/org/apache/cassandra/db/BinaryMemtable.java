@@ -28,6 +28,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.service.StorageService;
 
@@ -143,7 +145,7 @@ public class BinaryMemtable
         */
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
-        SSTable ssTable = new SSTable(cfStore.getTempSSTablePath(), keys.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), keys.size(), StorageService.getPartitioner());
         Collections.sort(keys);
         /* Use this BloomFilter to decide if a key exists in a SSTable */
         for ( String key : keys )
@@ -152,11 +154,10 @@ public class BinaryMemtable
             if ( bytes.length > 0 )
             {            	
                 /* Now write the key and value to disk */
-                ssTable.append(key, bytes);
+                writer.append(key, bytes);
             }
         }
-        ssTable.close();
-        cfStore.storeLocation(ssTable);
+        cfStore.storeLocation(writer.closeAndOpenReader());
         columnFamilies_.clear();       
     }
 }

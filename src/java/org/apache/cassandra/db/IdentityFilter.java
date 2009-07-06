@@ -20,10 +20,9 @@ package org.apache.cassandra.db;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.util.Collection;
 
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 
 
 public class IdentityFilter implements IFilter
@@ -38,7 +37,7 @@ public class IdentityFilter implements IFilter
 		return column;
 	}
 
-	public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException
+	public DataInputBuffer next(String key, String cf, SSTableReader ssTable) throws IOException
 	{
 		return ssTable.next(key, cf);
 	}

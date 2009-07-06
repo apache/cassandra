@@ -23,7 +23,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
 import org.apache.cassandra.service.StorageService;
 import com.google.common.collect.AbstractIterator;
@@ -58,7 +58,7 @@ class SSTableColumnIterator extends AbstractIterator<IColumn> implements ColumnI
     throws IOException
     {
         this.isAscending = isAscending;
-        SSTable ssTable = SSTable.open(filename, StorageService.getPartitioner());
+        SSTableReader ssTable = SSTableReader.open(filename, StorageService.getPartitioner());
         reader = ssTable.getColumnGroupReader(key, cfName, startColumn, isAscending);
         this.startColumn = startColumn;
         curColumnIndex = isAscending ? 0 : -1;

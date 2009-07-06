@@ -29,7 +29,8 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.log4j.Logger;
@@ -250,7 +251,7 @@ public class Memtable implements Comparable<Memtable>
         logger_.info("Flushing " + this);
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
 
-        SSTable ssTable = new SSTable(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
 
         // sort keys in the order they would be in when decorated
         final IPartitioner partitioner = StorageService.getPartitioner();
@@ -273,10 +274,10 @@ public class Memtable implements Comparable<Memtable>
                 /* serialize the cf with column indexes */
                 ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
                 /* Now write the key and value to disk */
-                ssTable.append(partitioner.decorateKey(key), buffer);
+                writer.append(partitioner.decorateKey(key), buffer);
             }
         }
-        ssTable.close();
+        SSTableReader ssTable = writer.closeAndOpenReader();
         cfStore.onMemtableFlush(cLogCtx);
         cfStore.storeLocation(ssTable);
         buffer.close();

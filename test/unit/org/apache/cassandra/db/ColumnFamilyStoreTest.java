@@ -30,9 +30,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.SSTableReader;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
 {
@@ -114,7 +112,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.apply();
         store.forceBlockingFlush();
 
-        List<SSTable> ssTables = table.getAllSSTablesOnDisk();
+        List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceBloomFilterFailures();
         ColumnFamily cf = store.getColumnFamily("key2", "Standard1:Column1", new IdentityFilter());

@@ -26,7 +26,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 
 public class TableTest extends CleanupHelper
 {
@@ -134,7 +134,7 @@ public class TableTest extends CleanupHelper
         table.getColumnFamilyStore("Standard2").forceBlockingFlush();
         validateGetSliceNoMatch(table);
 
-        Collection<SSTable> ssTables = table.getColumnFamilyStore("Standard2").getSSTables();
+        Collection<SSTableReader> ssTables = table.getColumnFamilyStore("Standard2").getSSTables();
         assertEquals(1, ssTables.size());
         ssTables.iterator().next().forceBloomFilterFailures();
         validateGetSliceNoMatch(table);

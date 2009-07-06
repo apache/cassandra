@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 
 /**
  * Filters columns to satisfy colmin <= colname <= colmax
@@ -86,7 +86,7 @@ public class RangeFilter implements IFilter
         return null;
     }
 
-    public DataInputBuffer next(String key, String cf, SSTable ssTable)
+    public DataInputBuffer next(String key, String cf, SSTableReader ssTable)
             throws IOException
     {
         return ssTable.next(key, cf);

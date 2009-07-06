@@ -23,9 +23,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 
 
 
@@ -92,7 +91,7 @@ public class NamesFilter implements IFilter
         return column;
     }
 
-    public DataInputBuffer next(String key, String cf, SSTable ssTable) throws IOException
+    public DataInputBuffer next(String key, String cf, SSTableReader ssTable) throws IOException
     {
     	return ssTable.next(key, cf, names_, null);
     }

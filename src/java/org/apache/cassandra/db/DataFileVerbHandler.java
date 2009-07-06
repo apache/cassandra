@@ -23,13 +23,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
 
@@ -46,11 +44,11 @@ public class DataFileVerbHandler implements IVerbHandler
         
         try
         {
-            List<SSTable> ssTables = Table.open(table).getAllSSTablesOnDisk();
+            List<SSTableReader> ssTables = Table.open(table).getAllSSTablesOnDisk();
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(bos);
             dos.writeInt(ssTables.size());
-            for (SSTable sstable : ssTables)
+            for (SSTableReader sstable : ssTables)
             {
                 dos.writeUTF(sstable.getFilename());
             }
