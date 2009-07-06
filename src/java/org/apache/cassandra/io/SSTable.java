@@ -292,11 +292,14 @@ public class SSTable
      */
     public long getPosition(String decoratedKey, IPartitioner partitioner) throws IOException
     {
+        if (!bf.isPresent(decoratedKey))
+            return -1;
         long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
         {
             return -1;
         }
+
         // TODO mmap the index file?
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataFile_), "r");
         input.seek(start);
@@ -486,11 +489,6 @@ public class SSTable
         {
             SSTable.open(sstable.dataFile_, sstable.partitioner_);
         }
-    }
-
-    public boolean isKeyPossible(String clientKey)
-    {
-        return bf.isPresent(partitioner_.decorateKey(clientKey));
     }
 
     IPartitioner getPartitioner()

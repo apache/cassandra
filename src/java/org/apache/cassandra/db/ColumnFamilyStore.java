@@ -551,15 +551,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             for (SSTable sstable : ssTables_.values())
             {
-                /*
-                 * Get the BloomFilter associated with this file. Check if the key
-                 * is present in the BloomFilter. If not continue to the next file.
-                */
-                boolean bVal = sstable.isKeyPossible(key);
-                if (!bVal)
-                {
-                    continue;
-                }
                 ColumnFamily columnFamily = null;
                 try
                 {
@@ -567,6 +558,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 catch (IOException e)
                 {
+                    // annotate exception w/ more information about context
                     throw new IOException("Error fetching " + key + ":" + cf + " from " + sstable, e);
                 }
                 if (columnFamily != null)
@@ -1571,9 +1563,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             List<SSTable> sstables = new ArrayList<SSTable>(ssTables_.values());
             for (SSTable sstable : sstables)
             {
-                // If the key is not present in the SSTable's BloomFilter, continue to the next file
-                if (!sstable.isKeyPossible(key))
-                    continue;
                 iter = new SSTableColumnIterator(sstable.getFilename(), key, cfName, startColumn, isAscending);
                 if (iter.hasNext())
                 {
