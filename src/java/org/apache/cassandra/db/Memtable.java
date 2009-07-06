@@ -277,7 +277,7 @@ public class Memtable implements Comparable<Memtable>
                 writer.append(partitioner.decorateKey(key), buffer);
             }
         }
-        SSTableReader ssTable = writer.closeAndOpenReader();
+        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
         cfStore.onMemtableFlush(cLogCtx);
         cfStore.storeLocation(ssTable);
         buffer.close();

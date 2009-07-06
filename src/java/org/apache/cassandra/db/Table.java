@@ -185,7 +185,7 @@ public class Table
                  * list of the associated Column Family. Also merge the CBF into the
                  * sampler.
                 */                
-                SSTableReader sstable = SSTableReader.open(streamContext.getTargetFile(), StorageService.getPartitioner());
+                SSTableReader sstable = SSTableReader.open(streamContext.getTargetFile());
                 logger_.debug("Merging the counting bloom filter in the sampler ...");                
                 String[] peices = FBUtilities.strip(fileName, "-");
                 Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(sstable);                

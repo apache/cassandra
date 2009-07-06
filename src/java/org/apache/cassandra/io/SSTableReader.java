@@ -28,6 +28,8 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
@@ -78,7 +80,12 @@ public class SSTableReader extends SSTable
         return indexedKeys;
     }
 
-    public static synchronized SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
+    public static synchronized SSTableReader open(String dataFileName) throws IOException
+    {
+        return open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
+    }
+
+    public static synchronized SSTableReader open(String dataFileName, IPartitioner partitioner, double cacheFraction) throws IOException
     {
         SSTableReader sstable = openedFiles.get(dataFileName);
         if (sstable == null)
@@ -89,6 +96,10 @@ public class SSTableReader extends SSTable
             long start = System.currentTimeMillis();
             sstable.loadIndexFile();
             sstable.loadBloomFilter();
+            if (cacheFraction > 0)
+            {
+                sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * cacheFraction));
+            }
             logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
 
             openedFiles.put(dataFileName, sstable);
@@ -103,14 +114,20 @@ public class SSTableReader extends SSTable
         return sstable;
     }
 
+    public static ConcurrentLinkedHashMap<String, Long> createKeyCache(int size)
+    {
+        return ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, size);
+    }
 
-    private ConcurrentLinkedHashMap<String, Long> keyCache = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, 1000);
 
-    SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter)
+    private ConcurrentLinkedHashMap<String, Long> keyCache;
+
+    SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter, ConcurrentLinkedHashMap<String, Long> keyCache)
     {
         super(filename, partitioner);
         this.indexPositions = indexPositions;
         this.bf = bloomFilter;
+        this.keyCache = keyCache;
         synchronized (SSTableReader.this)
         {
             openedFiles.put(filename, this);
@@ -183,10 +200,13 @@ public class SSTableReader extends SSTable
     {
         if (!bf.isPresent(decoratedKey))
             return -1;
-        Long cachedPosition = keyCache.get(decoratedKey);
-        if (cachedPosition != null)
+        if (keyCache != null)
         {
-            return cachedPosition;
+            Long cachedPosition = keyCache.get(decoratedKey);
+            if (cachedPosition != null)
+            {
+                return cachedPosition;
+            }
         }
         long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
@@ -215,7 +235,8 @@ public class SSTableReader extends SSTable
                 int v = partitioner.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
                 if (v == 0)
                 {
-                    keyCache.put(decoratedKey, position);
+                    if (keyCache != null)
+                        keyCache.put(decoratedKey, position);
                     return position;
                 }
                 if (v > 0)
@@ -350,7 +371,7 @@ public class SSTableReader extends SSTable
         openedFiles.clear();
         for (SSTableReader sstable : sstables)
         {
-            SSTableReader.open(sstable.dataFile, sstable.partitioner);
+            SSTableReader.open(sstable.dataFile, sstable.partitioner, 0.01);
         }
     }
 

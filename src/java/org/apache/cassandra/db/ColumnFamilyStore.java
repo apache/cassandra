@@ -180,7 +180,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             String filename = file.getAbsolutePath();
             try
             {
-                SSTableReader sstable = SSTableReader.open(filename, StorageService.getPartitioner());
+                SSTableReader sstable = SSTableReader.open(filename);
                 ssTables_.put(filename, sstable);
             }
             catch (IOException ex)
@@ -985,7 +985,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (logger_.isDebugEnabled())
                   logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
                 assert newfile != null;
-                ssTables_.put(newfile, SSTableReader.open(newfile, StorageService.getPartitioner()));
+                ssTables_.put(newfile, SSTableReader.open(newfile));
             }
             SSTableReader.get(file).delete();
         }
@@ -1174,7 +1174,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (rangeWriter != null)
         {
-            rangeWriter.closeAndOpenReader();
+            rangeWriter.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
             if (fileList != null)
             {
                 fileList.add(rangeWriter.getFilename());
@@ -1347,7 +1347,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (writer != null)
         {
             // TODO if all the keys were the same nothing will be done here
-            ssTable = writer.closeAndOpenReader();
+            ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
             newfile = writer.getFilename();
         }
         lock_.writeLock().lock();

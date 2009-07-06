@@ -73,7 +73,7 @@ public class DatabaseDescriptor
     private static String d_columnValue_      = "COLUMN_VALUE";
     private static String d_columnTimestamp_  = "COLUMN_TIMESTAMP";
 
-    private static Map<String, Double> tableKeyCacheSizes_;
+    private static Map<String, Double> tableKeysCachedFractions_;
     /*
      * A map from table names to the set of column families for the table and the
      * corresponding meta data for that column family.
@@ -273,7 +273,7 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
             tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
-            tableKeyCacheSizes_ = new HashMap<String, Double>();
+            tableKeysCachedFractions_ = new HashMap<String, Double>();
 
             /* Rack Aware option */
             value = xmlUtils.getNodeValue("/Storage/RackAware");
@@ -300,15 +300,15 @@ public class DatabaseDescriptor
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
 
-                String xqlCacheSize = "/Storage/Tables/Table[@Name='" + tName + "']/KeyCacheSize";
+                String xqlCacheSize = "/Storage/Tables/Table[@Name='" + tName + "']/KeysCachedFraction";
                 value = xmlUtils.getNodeValue(xqlCacheSize);
                 if (value == null)
                 {
-                    tableKeyCacheSizes_.put(tName, 0.01);
+                    tableKeysCachedFractions_.put(tName, 0.01);
                 }
                 else
                 {
-                    tableKeyCacheSizes_.put(tName, Double.valueOf(value));
+                    tableKeysCachedFractions_.put(tName, Double.valueOf(value));
                 }
 
                 String xqlTable = "/Storage/Tables/Table[@Name='" + tName + "']/";
@@ -793,9 +793,9 @@ public class DatabaseDescriptor
         return tableToCFMetaDataMap_;
     }
 
-    public static double getKeyCacheSize(String tableName)
+    public static double getKeysCachedFraction(String tableName)
     {
-        return tableKeyCacheSizes_.get(tableName);
+        return tableKeysCachedFractions_.get(tableName);
     }
 
     private static class ConfigurationException extends Exception
