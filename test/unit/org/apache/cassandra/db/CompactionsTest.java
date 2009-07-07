@@ -51,7 +51,7 @@ public class CompactionsTest extends CleanupHelper
                 inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(table.getKeyRange(Arrays.asList("Standard1"), "", "", 10000).size(), inserted.size());
+            assertEquals(table.getKeyRange("Standard1", "", "", 10000).size(), inserted.size());
         }
         while (true)
         {
@@ -63,6 +63,6 @@ public class CompactionsTest extends CleanupHelper
         {
             store.doCompaction(store.getSSTables().size());
         }
-        assertEquals(table.getKeyRange(Arrays.asList("Standard1"), "", "", 10000).size(), inserted.size());
+        assertEquals(table.getKeyRange("Standard1", "", "", 10000).size(), inserted.size());
     }
 }

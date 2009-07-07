@@ -38,15 +38,15 @@ public class RangeCommand
     private static RangeCommandSerializer serializer = new RangeCommandSerializer();
 
     public final String table;
-    public final List<String> columnFamilyNames;
+    public final String columnFamily;
     public final String startWith;
     public final String stopAt;
     public final int maxResults;
 
-    public RangeCommand(String table, List<String> columnFamilyNames, String startWith, String stopAt, int maxResults)
+    public RangeCommand(String table, String columnFamily, String startWith, String stopAt, int maxResults)
     {
         this.table = table;
-        this.columnFamilyNames = Collections.unmodifiableList(columnFamilyNames);
+        this.columnFamily = columnFamily;
         this.startWith = startWith;
         this.stopAt = stopAt;
         this.maxResults = maxResults;
@@ -74,7 +74,7 @@ public class RangeCommand
     {
         return "RangeCommand(" +
                "table='" + table + '\'' +
-               ", columnFamilyNames=[" + StringUtils.join(columnFamilyNames, ", ") + "]" +
+               ", columnFamily=" + columnFamily +
                ", startWith='" + startWith + '\'' +
                ", stopAt='" + stopAt + '\'' +
                ", maxResults=" + maxResults +
@@ -86,12 +86,8 @@ class RangeCommandSerializer implements ICompactSerializer<RangeCommand>
 {
     public void serialize(RangeCommand command, DataOutputStream dos) throws IOException
     {
-        dos.writeInt(command.columnFamilyNames.size());
-        for (String cfName : command.columnFamilyNames)
-        {
-            dos.writeUTF(cfName);
-        }
         dos.writeUTF(command.table);
+        dos.writeUTF(command.columnFamily);
         dos.writeUTF(command.startWith);
         dos.writeUTF(command.stopAt);
         dos.writeInt(command.maxResults);
@@ -99,11 +95,6 @@ class RangeCommandSerializer implements ICompactSerializer<RangeCommand>
 
     public RangeCommand deserialize(DataInputStream dis) throws IOException
     {
-        String[] cfNames = new String[dis.readInt()];
-        for (int i = 0; i < cfNames.length; i++)
-        {
-            cfNames[i] = dis.readUTF();
-        }
-        return new RangeCommand(dis.readUTF(), Arrays.asList(cfNames), dis.readUTF(), dis.readUTF(), dis.readInt());
+        return new RangeCommand(dis.readUTF(), dis.readUTF(), dis.readUTF(), dis.readUTF(), dis.readInt());
     }
 }

@@ -1,4 +1,5 @@
 0.4 dev
+ * Added columnFamily argument to get_key_range.
  * Change signature of get_slice and get_slice_super to accept
    starting and ending columns as well as an offset.  (This allows use
    of indexes.)  Added "ascending" flag to allow reasonably-efficient

@@ -138,7 +138,8 @@ service Cassandra {
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys
-  list<string>   get_key_range(1:string tablename, 2:list<string> columnFamilies=[], 3:string startWith="", 4:string stopAt="", 5:i32 maxResults=100) throws (1: InvalidRequestException ire),
+  list<string>   get_key_range(1:string tablename, 2:string columnFamily, 3:string startWith="", 4:string stopAt="", 5:i32 maxResults=100) 
+  throws (1: InvalidRequestException ire),
 
   /////////////////////////////////////////////////////////////////////////////////////
   // The following are beta APIs being introduced for CLI and/or CQL support.        //

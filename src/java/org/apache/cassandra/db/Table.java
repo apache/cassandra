@@ -695,73 +695,59 @@ public class Table
      * @param maxResults
      * @return list of keys between startWith and stopAt
      */
-    public List<String> getKeyRange(Collection<String> columnFamilyNames, final String startWith, final String stopAt, int maxResults)
+    public List<String> getKeyRange(String columnFamily, final String startWith, final String stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
-        // TODO we need a better way to keep compactions from stomping on reads than One Big Lock per CF.
-        if (columnFamilyNames.isEmpty())
-        {
-            columnFamilyNames = getApplicationColumnFamilies();
-        }
+        assert getColumnFamilyStore(columnFamily) != null : columnFamily;
 
-        for (String cfName : columnFamilyNames)
-        {
-            getColumnFamilyStore(cfName).getReadLock().lock();
-        }
+        getColumnFamilyStore(columnFamily).getReadLock().lock();
         try
         {
-            return getKeyRangeUnsafe(columnFamilyNames, startWith, stopAt, maxResults);
+            return getKeyRangeUnsafe(columnFamily, startWith, stopAt, maxResults);
         }
         finally
         {
-            for (String cfName : columnFamilyNames)
-            {
-                getColumnFamilyStore(cfName).getReadLock().unlock();
-            }
+            getColumnFamilyStore(columnFamily).getReadLock().unlock();
         }
     }
 
-    private List<String> getKeyRangeUnsafe(final Collection<String> columnFamilyNames, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    private List<String> getKeyRangeUnsafe(final String columnFamily, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
-        assert !columnFamilyNames.isEmpty(); // checked by the 'safe' method
-
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
 
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
         List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
-        for (String cfName : columnFamilyNames)
+        ColumnFamilyStore cfs = getColumnFamilyStore(columnFamily);
+
+        // we iterate through memtables with a priorityqueue to avoid more sorting than necessary.
+        // this predicate throws out the keys before the start of our range.
+        Predicate p = new Predicate()
         {
-            ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
-
-            // we iterate through memtables with a priorityqueue to avoid more sorting than necessary.
-            // this predicate throws out the keys before the start of our range.
-            Predicate p = new Predicate()
+            public boolean evaluate(Object key)
             {
-                public boolean evaluate(Object key)
-                {
-                    String st = (String)key;
-                    return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
-                }
-            };
-
-            // current memtable keys.  have to go through the CFS api for locking.
-            iterators.add(IteratorUtils.filteredIterator(cfs.memtableKeyIterator(), p));
-            // historical memtables
-            for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(cfName))
-            {
-                iterators.add(IteratorUtils.filteredIterator(Memtable.getKeyIterator(memtable.getKeys()), p));
+                String st = (String)key;
+                return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
             }
+        };
 
-            // sstables
-            for (SSTableReader sstable : cfs.getSSTables())
-            {
-                FileStruct fs = sstable.getFileStruct();
-                fs.seekTo(startWith);
-                iterators.add(fs);
-            }
+        // current memtable keys.  have to go through the CFS api for locking.
+        iterators.add(IteratorUtils.filteredIterator(cfs.memtableKeyIterator(), p));
+        // historical memtables
+        for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily))
+        {
+            iterators.add(IteratorUtils.filteredIterator(Memtable.getKeyIterator(memtable.getKeys()), p));
         }
+
+        // sstables
+        for (SSTableReader sstable : cfs.getSSTables())
+        {
+            FileStruct fs = sstable.getFileStruct();
+            fs.seekTo(startWith);
+            iterators.add(fs);
+        }
+
         Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
         Iterable<String> reduced = new ReducingIterator<String>(collated) {
             String current;
@@ -790,15 +776,9 @@ public class Table
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                for (String cfName : columnFamilyNames)
+                if (cfs.getColumnFamily(current, columnFamily, new IdentityFilter(), Integer.MAX_VALUE) != null)
                 {
-                    ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
-                    ColumnFamily cf = cfs.getColumnFamily(current, cfName, new IdentityFilter(), Integer.MAX_VALUE);
-                    if (cf != null && cf.getColumns().size() > 0)
-                    {
-                        keys.add(current);
-                        break;
-                    }
+                    keys.add(current);
                 }
                 if (keys.size() >= maxResults)
                 {

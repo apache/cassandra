@@ -500,10 +500,10 @@ public class CassandraServer implements Cassandra.Iface
         return result;
     }
 
-    public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException
+    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
     {
         logger.debug("get_key_range");
-        ThriftValidation.validateCommand(tablename, columnFamilies.toArray(new String[columnFamilies.size()]));
+        ThriftValidation.validateCommand(tablename, columnFamily);
         if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner))
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
@@ -513,7 +513,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("maxResults must be positive");
         }
 
-        return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamilies, startWith, stopAt, maxResults));
+        return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamily, startWith, stopAt, maxResults));
     }
 
     // main method moved to CassandraDaemon

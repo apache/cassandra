@@ -33,7 +33,7 @@ public class RecoveryManager2Test extends CleanupHelper
         table1.getColumnFamilyStore("Standard1").clearUnsafe();
         RecoveryManager.doRecovery();
 
-        Set<String> foundKeys = new HashSet<String>(table1.getKeyRange(Arrays.asList("Standard1"), "", "", 1000));
+        Set<String> foundKeys = new HashSet<String>(table1.getKeyRange("Standard1", "", "", 1000));
         assert keys.equals(foundKeys);
     }
 }

@@ -46,7 +46,7 @@ public class Cassandra {
 
     public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
+    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
 
     public String getStringProperty(String propertyName) throws TException;
 
@@ -572,18 +572,18 @@ public class Cassandra {
       return;
     }
 
-    public List<String> get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
+    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
     {
-      send_get_key_range(tablename, columnFamilies, startWith, stopAt, maxResults);
+      send_get_key_range(tablename, columnFamily, startWith, stopAt, maxResults);
       return recv_get_key_range();
     }
 
-    public void send_get_key_range(String tablename, List<String> columnFamilies, String startWith, String stopAt, int maxResults) throws TException
+    public void send_get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_key_range", TMessageType.CALL, seqid_));
       get_key_range_args args = new get_key_range_args();
       args.tablename = tablename;
-      args.columnFamilies = columnFamilies;
+      args.columnFamily = columnFamily;
       args.startWith = startWith;
       args.stopAt = stopAt;
       args.maxResults = maxResults;
@@ -1160,7 +1160,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_key_range_result result = new get_key_range_result();
         try {
-          result.success = iface_.get_key_range(args.tablename, args.columnFamilies, args.startWith, args.stopAt, args.maxResults);
+          result.success = iface_.get_key_range(args.tablename, args.columnFamily, args.startWith, args.stopAt, args.maxResults);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -10515,15 +10515,15 @@ public class Cassandra {
   public static class get_key_range_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_key_range_args");
     private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
-    private static final TField COLUMN_FAMILIES_FIELD_DESC = new TField("columnFamilies", TType.LIST, (short)2);
+    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("columnFamily", TType.STRING, (short)2);
     private static final TField START_WITH_FIELD_DESC = new TField("startWith", TType.STRING, (short)3);
     private static final TField STOP_AT_FIELD_DESC = new TField("stopAt", TType.STRING, (short)4);
     private static final TField MAX_RESULTS_FIELD_DESC = new TField("maxResults", TType.I32, (short)5);
 
     public String tablename;
     public static final int TABLENAME = 1;
-    public List<String> columnFamilies;
-    public static final int COLUMNFAMILIES = 2;
+    public String columnFamily;
+    public static final int COLUMNFAMILY = 2;
     public String startWith;
     public static final int STARTWITH = 3;
     public String stopAt;
@@ -10539,9 +10539,8 @@ public class Cassandra {
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNFAMILIES, new FieldMetaData("columnFamilies", TFieldRequirementType.DEFAULT, 
-          new ListMetaData(TType.LIST, 
-              new FieldValueMetaData(TType.STRING))));
+      put(COLUMNFAMILY, new FieldMetaData("columnFamily", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
       put(STARTWITH, new FieldMetaData("startWith", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(STOPAT, new FieldMetaData("stopAt", TFieldRequirementType.DEFAULT, 
@@ -10555,8 +10554,6 @@ public class Cassandra {
     }
 
     public get_key_range_args() {
-      this.columnFamilies = new ArrayList<String>();
-
       this.startWith = "";
 
       this.stopAt = "";
@@ -10567,14 +10564,14 @@ public class Cassandra {
 
     public get_key_range_args(
       String tablename,
-      List<String> columnFamilies,
+      String columnFamily,
       String startWith,
       String stopAt,
       int maxResults)
     {
       this();
       this.tablename = tablename;
-      this.columnFamilies = columnFamilies;
+      this.columnFamily = columnFamily;
       this.startWith = startWith;
       this.stopAt = stopAt;
       this.maxResults = maxResults;
@@ -10588,12 +10585,8 @@ public class Cassandra {
       if (other.isSetTablename()) {
         this.tablename = other.tablename;
       }
-      if (other.isSetColumnFamilies()) {
-        List<String> __this__columnFamilies = new ArrayList<String>();
-        for (String other_element : other.columnFamilies) {
-          __this__columnFamilies.add(other_element);
-        }
-        this.columnFamilies = __this__columnFamilies;
+      if (other.isSetColumnFamily()) {
+        this.columnFamily = other.columnFamily;
       }
       if (other.isSetStartWith()) {
         this.startWith = other.startWith;
@@ -10633,41 +10626,26 @@ public class Cassandra {
       }
     }
 
-    public int getColumnFamiliesSize() {
-      return (this.columnFamilies == null) ? 0 : this.columnFamilies.size();
+    public String getColumnFamily() {
+      return this.columnFamily;
     }
 
-    public java.util.Iterator<String> getColumnFamiliesIterator() {
-      return (this.columnFamilies == null) ? null : this.columnFamilies.iterator();
+    public void setColumnFamily(String columnFamily) {
+      this.columnFamily = columnFamily;
     }
 
-    public void addToColumnFamilies(String elem) {
-      if (this.columnFamilies == null) {
-        this.columnFamilies = new ArrayList<String>();
-      }
-      this.columnFamilies.add(elem);
+    public void unsetColumnFamily() {
+      this.columnFamily = null;
     }
 
-    public List<String> getColumnFamilies() {
-      return this.columnFamilies;
+    // Returns true if field columnFamily is set (has been asigned a value) and false otherwise
+    public boolean isSetColumnFamily() {
+      return this.columnFamily != null;
     }
 
-    public void setColumnFamilies(List<String> columnFamilies) {
-      this.columnFamilies = columnFamilies;
-    }
-
-    public void unsetColumnFamilies() {
-      this.columnFamilies = null;
-    }
-
-    // Returns true if field columnFamilies is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnFamilies() {
-      return this.columnFamilies != null;
-    }
-
-    public void setColumnFamiliesIsSet(boolean value) {
+    public void setColumnFamilyIsSet(boolean value) {
       if (!value) {
-        this.columnFamilies = null;
+        this.columnFamily = null;
       }
     }
 
@@ -10749,11 +10727,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNFAMILIES:
+      case COLUMNFAMILY:
         if (value == null) {
-          unsetColumnFamilies();
+          unsetColumnFamily();
         } else {
-          setColumnFamilies((List<String>)value);
+          setColumnFamily((String)value);
         }
         break;
 
@@ -10791,8 +10769,8 @@ public class Cassandra {
       case TABLENAME:
         return getTablename();
 
-      case COLUMNFAMILIES:
-        return getColumnFamilies();
+      case COLUMNFAMILY:
+        return getColumnFamily();
 
       case STARTWITH:
         return getStartWith();
@@ -10813,8 +10791,8 @@ public class Cassandra {
       switch (fieldID) {
       case TABLENAME:
         return isSetTablename();
-      case COLUMNFAMILIES:
-        return isSetColumnFamilies();
+      case COLUMNFAMILY:
+        return isSetColumnFamily();
       case STARTWITH:
         return isSetStartWith();
       case STOPAT:
@@ -10848,12 +10826,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnFamilies = true && this.isSetColumnFamilies();
-      boolean that_present_columnFamilies = true && that.isSetColumnFamilies();
-      if (this_present_columnFamilies || that_present_columnFamilies) {
-        if (!(this_present_columnFamilies && that_present_columnFamilies))
+      boolean this_present_columnFamily = true && this.isSetColumnFamily();
+      boolean that_present_columnFamily = true && that.isSetColumnFamily();
+      if (this_present_columnFamily || that_present_columnFamily) {
+        if (!(this_present_columnFamily && that_present_columnFamily))
           return false;
-        if (!this.columnFamilies.equals(that.columnFamilies))
+        if (!this.columnFamily.equals(that.columnFamily))
           return false;
       }
 
@@ -10910,19 +10888,9 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNFAMILIES:
-            if (field.type == TType.LIST) {
-              {
-                TList _list59 = iprot.readListBegin();
-                this.columnFamilies = new ArrayList<String>(_list59.size);
-                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
-                {
-                  String _elem61;
-                  _elem61 = iprot.readString();
-                  this.columnFamilies.add(_elem61);
-                }
-                iprot.readListEnd();
-              }
+          case COLUMNFAMILY:
+            if (field.type == TType.STRING) {
+              this.columnFamily = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10971,15 +10939,9 @@ public class Cassandra {
         oprot.writeString(this.tablename);
         oprot.writeFieldEnd();
       }
-      if (this.columnFamilies != null) {
-        oprot.writeFieldBegin(COLUMN_FAMILIES_FIELD_DESC);
-        {
-          oprot.writeListBegin(new TList(TType.STRING, this.columnFamilies.size()));
-          for (String _iter62 : this.columnFamilies)          {
-            oprot.writeString(_iter62);
-          }
-          oprot.writeListEnd();
-        }
+      if (this.columnFamily != null) {
+        oprot.writeFieldBegin(COLUMN_FAMILY_FIELD_DESC);
+        oprot.writeString(this.columnFamily);
         oprot.writeFieldEnd();
       }
       if (this.startWith != null) {
@@ -11012,11 +10974,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnFamilies:");
-      if (this.columnFamilies == null) {
+      sb.append("columnFamily:");
+      if (this.columnFamily == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnFamilies);
+        sb.append(this.columnFamily);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -11271,13 +11233,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list63 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list63.size);
-                for (int _i64 = 0; _i64 < _list63.size; ++_i64)
+                TList _list59 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list59.size);
+                for (int _i60 = 0; _i60 < _list59.size; ++_i60)
                 {
-                  String _elem65;
-                  _elem65 = iprot.readString();
-                  this.success.add(_elem65);
+                  String _elem61;
+                  _elem61 = iprot.readString();
+                  this.success.add(_elem61);
                 }
                 iprot.readListEnd();
               }
@@ -11313,8 +11275,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter66 : this.success)          {
-            oprot.writeString(_iter66);
+          for (String _iter62 : this.success)          {
+            oprot.writeString(_iter62);
           }
           oprot.writeListEnd();
         }
@@ -12121,13 +12083,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list67 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list67.size);
-                for (int _i68 = 0; _i68 < _list67.size; ++_i68)
+                TList _list63 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list63.size);
+                for (int _i64 = 0; _i64 < _list63.size; ++_i64)
                 {
-                  String _elem69;
-                  _elem69 = iprot.readString();
-                  this.success.add(_elem69);
+                  String _elem65;
+                  _elem65 = iprot.readString();
+                  this.success.add(_elem65);
                 }
                 iprot.readListEnd();
               }
@@ -12155,8 +12117,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter70 : this.success)          {
-            oprot.writeString(_iter70);
+          for (String _iter66 : this.success)          {
+            oprot.writeString(_iter66);
           }
           oprot.writeListEnd();
         }
@@ -12627,27 +12589,27 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.MAP) {
               {
-                TMap _map71 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map71.size);
-                for (int _i72 = 0; _i72 < _map71.size; ++_i72)
+                TMap _map67 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map67.size);
+                for (int _i68 = 0; _i68 < _map67.size; ++_i68)
                 {
-                  String _key73;
-                  Map<String,String> _val74;
-                  _key73 = iprot.readString();
+                  String _key69;
+                  Map<String,String> _val70;
+                  _key69 = iprot.readString();
                   {
-                    TMap _map75 = iprot.readMapBegin();
-                    _val74 = new HashMap<String,String>(2*_map75.size);
-                    for (int _i76 = 0; _i76 < _map75.size; ++_i76)
+                    TMap _map71 = iprot.readMapBegin();
+                    _val70 = new HashMap<String,String>(2*_map71.size);
+                    for (int _i72 = 0; _i72 < _map71.size; ++_i72)
                     {
-                      String _key77;
-                      String _val78;
-                      _key77 = iprot.readString();
-                      _val78 = iprot.readString();
-                      _val74.put(_key77, _val78);
+                      String _key73;
+                      String _val74;
+                      _key73 = iprot.readString();
+                      _val74 = iprot.readString();
+                      _val70.put(_key73, _val74);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key73, _val74);
+                  this.success.put(_key69, _val70);
                 }
                 iprot.readMapEnd();
               }
@@ -12683,13 +12645,13 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter79 : this.success.entrySet())          {
-            oprot.writeString(_iter79.getKey());
+          for (Map.Entry<String, Map<String,String>> _iter75 : this.success.entrySet())          {
+            oprot.writeString(_iter75.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter79.getValue().size()));
-              for (Map.Entry<String, String> _iter80 : _iter79.getValue().entrySet())              {
-                oprot.writeString(_iter80.getKey());
-                oprot.writeString(_iter80.getValue());
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter75.getValue().size()));
+              for (Map.Entry<String, String> _iter76 : _iter75.getValue().entrySet())              {
+                oprot.writeString(_iter76.getKey());
+                oprot.writeString(_iter76.getValue());
               }
               oprot.writeMapEnd();
             }
