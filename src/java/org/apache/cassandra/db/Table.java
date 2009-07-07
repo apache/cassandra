@@ -543,25 +543,6 @@ public class Table
         	row.addColumnFamily(columnFamily);
         return row;
     }
-      
-    public Row getRow(String key, String cf, String startColumn, String endColumn, int count) throws IOException
-    {
-        Row row = new Row(table_, key);
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-        long start1 = System.currentTimeMillis();
-        assert cfStore != null : "Column family " + cf + " has not been defined";
-        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
-        if ( columnFamily != null )
-        {
-            ColumnFamily filteredCf =  new RangeFilter(startColumn, endColumn, count).filter(cf, columnFamily);
-            row.addColumnFamily(filteredCf);
-        }
-        long timeTaken = System.currentTimeMillis() - start1;
-        dbAnalyticsSource_.updateReadStatistics(timeTaken);
-        return row;
-    }
-
     
     public Row getRow(String key, String cf, long sinceTimeStamp) throws IOException
     {
@@ -604,17 +585,14 @@ public class Table
     /**
      * Selects a list of columns in a column family from a given column for the specified key.
     */
-    public Row getSliceFrom(String key, String cf, boolean isAscending, int limit, int count) throws IOException
+    public Row getRow(String key, String cfName, String start, String finish, boolean isAscending, int offset, int count) throws IOException
     {
         Row row = new Row(table_, key);
-        String[] values = cf.split(":", -1);
-        String cfName = values[0];
-        String startWith = values[1];
         ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
         long start1 = System.currentTimeMillis();
         try
         {
-            ColumnFamily columnFamily = cfStore.getSliceFrom(key, cfName, startWith, isAscending, limit, count);
+            ColumnFamily columnFamily = cfStore.getSliceFrom(key, cfName, start, finish, isAscending, offset, count);
             if (columnFamily != null)
                 row.addColumnFamily(columnFamily);
             long timeTaken = System.currentTimeMillis() - start1;

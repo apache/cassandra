@@ -24,16 +24,19 @@ import java.io.IOException;
 public class SliceFromReadCommand extends ReadCommand
 {
     public final String columnFamilyColumn;
+    public final String start, finish;
     public final boolean isAscending;
-    public final int limit;
+    public final int offset;
     public final int count;
 
-    public SliceFromReadCommand(String table, String key, String columnFamilyColumn, boolean isAscending, int limit, int count)
+    public SliceFromReadCommand(String table, String key, String columnFamilyColumn, String start, String finish, boolean isAscending, int offset, int count)
     {
         super(table, key, CMD_TYPE_GET_SLICE_FROM);
         this.columnFamilyColumn = columnFamilyColumn;
+        this.start = start;
+        this.finish = finish;
         this.isAscending = isAscending;
-        this.limit = limit;
+        this.offset = offset;
         this.count = count;
     }
 
@@ -46,7 +49,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new SliceFromReadCommand(table, key, columnFamilyColumn, isAscending, limit, count);
+        ReadCommand readCommand = new SliceFromReadCommand(table, key, columnFamilyColumn, start, finish, isAscending, offset, count);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -54,7 +57,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {
-        return table.getSliceFrom(key, columnFamilyColumn, isAscending, limit, count);
+        return table.getRow(key, columnFamilyColumn, start, finish, isAscending, offset, count);
     }
 
     @Override
@@ -64,9 +67,11 @@ public class SliceFromReadCommand extends ReadCommand
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", columnFamily='" + columnFamilyColumn + '\'' +
-               ", isAscending='" + isAscending + '\'' +
-               ", limit='" + limit + '\'' +
-               ", count='" + count + '\'' +
+               ", start='" + start + '\'' +
+               ", finish='" + finish + '\'' +
+               ", isAscending=" + isAscending +
+               ", offset=" + offset +
+               ", count=" + count +
                ')';
     }
 }
@@ -81,8 +86,10 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         dos.writeUTF(realRM.table);
         dos.writeUTF(realRM.key);
         dos.writeUTF(realRM.columnFamilyColumn);
+        dos.writeUTF(realRM.start);
+        dos.writeUTF(realRM.finish);
         dos.writeBoolean(realRM.isAscending);
-        dos.writeInt(realRM.limit);
+        dos.writeInt(realRM.offset);
         dos.writeInt(realRM.count);
     }
 
@@ -90,14 +97,7 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
     public ReadCommand deserialize(DataInputStream dis) throws IOException
     {
         boolean isDigest = dis.readBoolean();
-        String table = dis.readUTF();
-        String key = dis.readUTF();
-        String columnFamily = dis.readUTF();
-        boolean isAscending = dis.readBoolean();
-        int limit = dis.readInt();
-        int count = dis.readInt();
-
-        SliceFromReadCommand rm = new SliceFromReadCommand(table, key, columnFamily, isAscending, limit, count);
+        SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(), dis.readUTF(), dis.readUTF(), dis.readUTF(), dis.readUTF(), dis.readBoolean(), dis.readInt(), dis.readInt());
         rm.setDigestQuery(isDigest);
         return rm;
     }
