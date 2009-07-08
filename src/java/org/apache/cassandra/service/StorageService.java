@@ -520,7 +520,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method removes the state associated with this endpoint
      * from the TokenMetadata instance.
      * 
-     *  param@ endpoint remove the token state associated with this 
+     *  @param endpoint remove the token state associated with this 
      *         endpoint.
      */
     public void removeTokenState(EndPoint endpoint) 
@@ -845,8 +845,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method returns the endpoint that is responsible for storing the
      * specified key.
      *
-     * param @ key - key for which we need to find the endpoint
-     * return value - the endpoint responsible for this key
+     * @param key - key for which we need to find the endpoint
+     * @return value - the endpoint responsible for this key
      */
     public EndPoint getPrimary(String key)
     {
@@ -894,7 +894,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *
-     * param @ key - key for which we need to find the endpoint return value -
+     * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
     public EndPoint[] getNStorageEndPoint(String key)
@@ -912,7 +912,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method attempts to return N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *
-     * param @ key - key for which we need to find the endpoint return value -
+     * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
     public List<EndPoint> getNLiveStorageEndPoint(String key)
@@ -933,7 +933,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *
-     * param @ key - key for which we need to find the endpoint return value -
+     * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
     public Map<EndPoint, EndPoint> getNStorageEndPointMap(String key)
@@ -945,7 +945,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method returns the N endpoints that are responsible for storing the
      * specified token i.e for replication.
      *
-     * param @ token - position on the ring
+     * @param token - position on the ring
      */
     public EndPoint[] getNStorageEndPoint(Token token)
     {
@@ -957,8 +957,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * specified token i.e for replication and are based on the token to endpoint 
      * mapping that is passed in.
      *
-     * param @ token - position on the ring
-     * param @ tokens - w/o the following tokens in the token list
+     * @param token - position on the ring
+     * @param tokens - w/o the following tokens in the token list
      */
     protected EndPoint[] getNStorageEndPoint(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
@@ -987,9 +987,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 				return endpoints[j];
 			}
 		}
-		// We have tried to be really nice but looks like theer are no servers 
+		// We have tried to be really nice but looks like there are no servers 
 		// in the local data center that are alive and can service this request so 
-		// just send it to teh first alive guy and see if we get anything.
+		// just send it to the first alive guy and see if we get anything.
 		j = 0;
 		for ( ; j < endpoints.length; ++j )
 		{
@@ -1041,7 +1041,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 			if ( moveOn )
 				continue;
 			
-			// We have tried to be really nice but looks like theer are no servers 
+			// We have tried to be really nice but looks like there are no servers 
 			// in the local data center that are alive and can service this request so 
 			// just send it to the first alive guy and see if we get anything.
 			j = 0;

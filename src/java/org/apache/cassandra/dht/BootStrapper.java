@@ -35,7 +35,7 @@ package org.apache.cassandra.dht;
 
 
 /**
- * This class handles the boostrapping responsibilities for
+ * This class handles the bootstrapping responsibilities for
  * any new endpoint.
 */
 public class BootStrapper implements Runnable
@@ -43,7 +43,7 @@ public class BootStrapper implements Runnable
     private static Logger logger_ = Logger.getLogger(BootStrapper.class);
     /* endpoints that need to be bootstrapped */
     protected EndPoint[] targets_ = new EndPoint[0];
-    /* tokens of the nodes being bootstapped. */
+    /* tokens of the nodes being bootstrapped. */
     protected final Token[] tokens_;
     protected TokenMetadata tokenMetadata_ = null;
     private List<EndPoint> filters_ = new ArrayList<EndPoint>();

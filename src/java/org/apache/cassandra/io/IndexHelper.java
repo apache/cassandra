@@ -272,8 +272,8 @@ public class IndexHelper
         int numColumns = 0;      
        
         /*
-         *  Time indicies are sorted in descending order. So
-         *  we need to apply a reverse compartor for the 
+         *  Time indices are sorted in descending order. So
+         *  we need to apply a reverse comparator for the 
          *  binary search.        
         */        
         Comparator<IndexHelper.ColumnIndexInfo> comparator = Collections.reverseOrder(); 
@@ -297,7 +297,7 @@ public class IndexHelper
          * lower timestamp in the time range.      
         */
         start = (index == 0) ? 0 : columnIndexList.get(index - 1).position();
-        /* add the number of colunms in the first chunk. */
+        /* add the number of columns in the first chunk. */
         numColumns += (index ==0) ? columnIndexList.get(0).count() : columnIndexList.get(index - 1).count(); 
         if( index < size )
         {            

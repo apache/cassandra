@@ -60,10 +60,10 @@ public class SelectorManager extends Thread
     /**
      * Registers a new channel with the selector, and attaches the given
      * SelectionKeyHandler as the handler for the newly created key. Operations
-     * which the hanlder is interested in will be called as available.
+     * which the handler is interested in will be called as available.
      * 
      * @param channel
-     *            The channel to regster with the selector
+     *            The channel to register with the selector
      * @param handler
      *            The handler to use for the callbacks
      * @param ops

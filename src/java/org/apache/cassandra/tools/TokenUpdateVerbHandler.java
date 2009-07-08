@@ -72,7 +72,7 @@ public class TokenUpdateVerbHandler implements IVerbHandler
                 if (logger_.isDebugEnabled())
                   logger_.debug("Processing node " + node);
                 byte[] bytes = headers.remove(node);
-                /* Send a message to this node to update its token to the one retreived. */
+                /* Send a message to this node to update its token to the one retrieved. */
                 EndPoint target = new EndPoint(node, DatabaseDescriptor.getStoragePort());
                 token = p.getTokenFactory().fromByteArray(bytes);
                 

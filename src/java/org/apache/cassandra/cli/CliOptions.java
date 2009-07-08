@@ -43,7 +43,7 @@ public class CliOptions {
     private static void printUsage()
     {
         System.err.println("");
-        System.err.println("Usage: cascli --host hostname [--port <portname>]");
+        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>]");
         System.err.println("");
     }
 

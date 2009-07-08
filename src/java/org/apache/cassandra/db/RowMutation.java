@@ -144,12 +144,12 @@ public class RowMutation implements Serializable
      * the column. Column name is specified as <column family>:column.
      * This will result in a ColumnFamily associated with
      * <column family> as name and a Column with <column>
-     * as name. The columan can be further broken up
+     * as name. The column can be further broken up
      * as super column name : columnname  in case of super columns
      *
      * param @ cf - column name as <column family>:<column>
      * param @ value - value associated with the column
-     * param @ timestamp - ts associated with this data.
+     * param @ timestamp - timestamp associated with this data.
     */
     public void add(String cf, byte[] value, long timestamp)
     {

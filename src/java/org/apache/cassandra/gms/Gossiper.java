@@ -205,7 +205,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             {
                 /*
                  * just to be sure - is invoked just to make sure that
-                 * it was called atleast once.
+                 * it was called at least once.
                 */
                 if ( liveEndpoints_.contains(endpoint) )
                 {
@@ -870,7 +870,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             }
             else
             {
-                /* We are here since we have no data for this endpoint locally so request everthing. */
+                /* We are here since we have no data for this endpoint locally so request everything. */
                 requestAll(gDigest, deltaGossipDigestList, remoteGeneration);
             }
         }

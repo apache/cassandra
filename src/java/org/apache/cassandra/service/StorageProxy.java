@@ -371,10 +371,10 @@ public class StorageProxy implements StorageProxyMBean
         // 1. Get the N nodes from storage service where the data needs to be
         // replicated
         // 2. Construct a message for read\write
-         * 3. Set one of teh messages to get teh data and teh rest to get teh digest
+         * 3. Set one of the messages to get the data and the rest to get the digest
         // 4. SendRR ( to all the nodes above )
-        // 5. Wait for a response from atleast X nodes where X <= N and teh data node
-         * 6. If the digest matches return teh data.
+        // 5. Wait for a response from at least X nodes where X <= N and the data node
+         * 6. If the digest matches return the data.
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */

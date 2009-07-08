@@ -41,7 +41,7 @@ public class TokenUpdater
     {
         if ( args.length != 3 )
         {
-            System.out.println("Usage : java com.facebook.infrastructure.tools.TokenUpdater <ip:port> <token> <file containing node token info>");
+            System.out.println("Usage : java org.apache.cassandra.tools.TokenUpdater <ip:port> <token> <file containing node token info>");
             System.exit(1);
         }
         

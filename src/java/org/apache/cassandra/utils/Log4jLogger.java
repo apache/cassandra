@@ -20,7 +20,7 @@ package org.apache.cassandra.utils;
 
 /**
  * Log4j configurations may change while the application is running, 
- * potentially invalidating a logger's appender(s).  This is a convinience
+ * potentially invalidating a logger's appender(s).  This is a convenience
  * class to wrap logger calls so that a logger is always explicitly 
  * invoked.
  */

@@ -39,8 +39,8 @@ import org.apache.log4j.Logger;
 
 /**
  * This class is used by all read functions and is called by the Quorum 
- * when atleast a few of the servers ( few is specified in Quorum)
- * have sent the response . The resolve fn then schedules read repair 
+ * when at least a few of the servers (few is specified in Quorum)
+ * have sent the response . The resolve function then schedules read repair 
  * and resolution of read data from the various servers.
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -129,7 +129,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		}
 
         // At  this point  we have the return row .
-		// Now we need to calculate the differnce 
+		// Now we need to calculate the difference 
 		// so that we can schedule read repairs 
 		for (int i = 0 ; i < rowList.size(); i++)
 		{

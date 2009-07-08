@@ -37,7 +37,7 @@ public interface IEndPointStateChangeSubscriber
      * Use to inform interested parties about the change in the state
      * for specified endpoint
      * 
-     * @param endpoint endpoint for which the state change occured.
+     * @param endpoint endpoint for which the state change occurred.
      * @param epState state that actually changed for the above endpoint.
      */
     public void onChange(EndPoint endpoint, EndPointState epState);

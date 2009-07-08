@@ -36,7 +36,7 @@ public class KeyChecker
     private static final int bufSize_ = 128*1024*1024;
     /*
      * This function checks if the local storage endpoint 
-     * is reponsible for storing this key .
+     * is responsible for storing this key .
      */
     private static boolean checkIfProcessKey(String key)
     {

@@ -51,7 +51,7 @@ import org.apache.cassandra.net.MessagingService;
  * This class keeps track of load information across the system.
  * It registers itself with the Gossiper for ApplicationState namely
  * load information i.e number of requests processed w.r.t distinct
- * keys at an Endpoint. Monitor load infomation for a 5 minute
+ * keys at an Endpoint. Monitor load information for a 5 minute
  * interval and then do load balancing operations if necessary.
  * 
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )

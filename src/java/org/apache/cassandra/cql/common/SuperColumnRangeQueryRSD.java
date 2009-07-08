@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 /**
- * A Row Source Defintion (RSD) for doing a super column range query on a Super Column Family.
+ * A Row Source Definition (RSD) for doing a super column range query on a Super Column Family.
  */
 public class SuperColumnRangeQueryRSD extends RowSourceDef
 {

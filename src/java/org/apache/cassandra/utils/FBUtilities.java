@@ -267,7 +267,7 @@ public class FBUtilities
         return MessageDigest.isEqual(digestA, digestB);
     }
 
-    // The given bytearray is compressed onto the specifed stream.
+    // The given byte array is compressed onto the specified stream.
     // The method does not close the stream. The caller will have to do it.
     public static void compressToStream(byte[] input, ByteArrayOutputStream bos) throws IOException
     {

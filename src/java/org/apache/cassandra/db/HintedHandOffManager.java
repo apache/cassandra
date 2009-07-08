@@ -151,12 +151,12 @@ public class HintedHandOffManager
           logger_.debug("Started deliverAllHints");
 
         // 1. Scan through all the keys that we need to handoff
-        // 2. For each key read the list of recepients and send
-        // 3. Delete that recepient from the key if write was successful
+        // 2. For each key read the list of recipients and send
+        // 3. Delete that recipient from the key if write was successful
         // 4. If all writes were success for a given key we can even delete the key .
         // 5. Now force a flush
         // 6. Do major compaction to clean up all deletes etc.
-        // 7. I guess we r done
+        // 7. I guess we are done
         for (String tableName : DatabaseDescriptor.getTables())
         {
             ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(tableName, HINTS_CF, new IdentityFilter()), Integer.MAX_VALUE);
@@ -197,8 +197,8 @@ public class HintedHandOffManager
           logger_.debug("Started hinted handoff for endPoint " + endPoint.getHost());
 
         // 1. Scan through all the keys that we need to handoff
-        // 2. For each key read the list of recepients if teh endpoint matches send
-        // 3. Delete that recepient from the key if write was successful
+        // 2. For each key read the list of recipients if the endpoint matches send
+        // 3. Delete that recipient from the key if write was successful
         Table systemTable = Table.open(Table.SYSTEM_TABLE);
         for (String tableName : DatabaseDescriptor.getTables())
         {

@@ -99,7 +99,7 @@ public class BloomCalculations {
      * but minimize the number of buckets per element and the number of hash
      * functions used.  Because bandwidth (and therefore total bitvector size)
      * is considered more expensive than computing power, preference is given
-     * to minimizing buckets per element rather than number of hash funtions.
+     * to minimizing buckets per element rather than number of hash functions.
      *
      * @param maxFalsePosProb The maximum tolerable false positive rate.
      * @return A Bloom Specification which would result in a false positive rate

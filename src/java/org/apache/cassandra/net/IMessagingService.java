@@ -94,8 +94,8 @@ public interface IMessagingService
      * @param message message to be sent.
      * @param to endpoint to which the message needs to be sent
      * @param cb callback interface which is used to pass the responses or
-     *           suggest that a timeout occured to the invoker of the send().
-     *           suggest that a timeout occured to the invoker of the send().
+     *           suggest that a timeout occurred to the invoker of the send().
+     *           suggest that a timeout occurred to the invoker of the send().
      * @return an reference to message id used to match with the result
      */
     public String sendRR(Message message, EndPoint to, IAsyncCallback cb);
@@ -163,9 +163,9 @@ public interface IMessagingService
      * Stream a file from source to destination. This is highly optimized
      * to not hold any of the contents of the file in memory.
      * @param file name of file to stream.
-     * param start position inside the file
-     * param total number of bytes to stream
-     * param to endpoint to which we need to stream the file.
+     * @param startPosition position inside the file
+     * @param total number of bytes to stream
+     * @param to endpoint to which we need to stream the file.
     */
     public void stream(String file, long startPosition, long total, EndPoint from, EndPoint to);
 

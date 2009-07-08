@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.BloomFilter;
 import org.apache.log4j.Logger;
 
 /**
- * This class writes key/value pairs seqeuntially to disk. It is
+ * This class writes key/value pairs sequentially to disk. It is
  * also used to read sequentially from disk. However one could
  * jump to random positions to read data from the file. This class
  * also has many implementations of the IFileWriter and IFileReader
@@ -544,7 +544,7 @@ public class SequenceFile
             int bytesSkipped = IndexHelper.skipBloomFilter(file_);
             /*
              * read the correct number of bytes for the column family and
-             * write data into buffer. Substract from dataSize the bloom
+             * write data into buffer. Subtract from dataSize the bloom
              * filter size.
             */
             dataSize -= bytesSkipped;

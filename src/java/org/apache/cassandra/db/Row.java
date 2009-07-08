@@ -113,7 +113,7 @@ public class Row
     /*
      * This function will repair the current row with the input row
      * what that means is that if there are any differences between the 2 rows then
-     * this fn will make the current row take the latest changes .
+     * this function will make the current row take the latest changes.
      */
     public void repair(Row rowOther)
     {

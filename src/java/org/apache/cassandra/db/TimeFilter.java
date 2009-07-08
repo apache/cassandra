@@ -27,7 +27,7 @@ import org.apache.cassandra.io.SSTableReader;
 
 
 /**
- * This class provides a filter for fitering out columns
+ * This class provides a filter for filtering out columns
  * that are older than a specific time.
  *
  * @author pmalik
@@ -67,8 +67,8 @@ class TimeFilter implements IFilter
         {
             /*
                 * TODO : For super columns we need to re-visit this issue.
-                * For now this fn will set done to true if we are done with
-                * atleast one super column
+                * For now this function will set done to true if we are done with
+                * at least one super column
                 */
             Collection<IColumn> columns = columnFamily.getAllColumns();
             for (IColumn column : columns)
@@ -104,7 +104,7 @@ class TimeFilter implements IFilter
         /*
            * If its a column instance we need the timestamp to verify if
            * it should be filtered , but at this instance the timestamp is not read
-           * so we read the timestamp and set the buffer back so that the rest of desrialization
+           * so we read the timestamp and set the buffer back so that the rest of deserialization
            * logic does not change.
            */
         if (column instanceof Column)

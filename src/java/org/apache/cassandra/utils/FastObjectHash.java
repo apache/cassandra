@@ -256,7 +256,7 @@ abstract public class FastObjectHash<T> extends FastHash
                 return (cur != FREE) ? -index - 1 : firstRemoved;
             }
             // if it's full, the key is already stored
-            // NOTE: cur cannot equal REMOVE here (would have retuned already
+            // NOTE: cur cannot equal REMOVE here (would have returned already
             // (see above)
             return (cur != FREE) ? -index - 1 : index;
         }

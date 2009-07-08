@@ -36,7 +36,7 @@ package org.apache.cassandra.dht;
 
 /**
  * This class performs the exact opposite of the
- * operations of the Bootstrapper class. Given 
+ * operations of the BootStrapper class. Given 
  * a bunch of nodes that need to move it determines 
  * who they need to hand off data in terms of ranges.
 */
@@ -209,7 +209,7 @@ public class LeaveJoinProtocolImpl implements Runnable
     /**
      * Here we are removing the nodes that need to leave the
      * ring and trying to calculate what the ranges would look
-     * like w/o them. For eg if we remove two nodes A and D from
+     * like w/o them. e.g. if we remove two nodes A and D from
      * the ring and the order of nodes on the ring is A, B, C
      * and D. When B is removed the range of C is the old range 
      * of C and the old range of B. We want a mapping from old

@@ -111,7 +111,7 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
             {
                 /* 
                  * The DigestMismatchException has the key for which the mismatch
-                 * occured bundled in it as context 
+                 * occurred bundled in it as context 
                 */
                 String key = ex.getMessage();
                 onDigestMismatch(key);
@@ -123,7 +123,7 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
          * in order to retrieve the appropriate data message that needs
          * to be sent out to the replicas. 
          * 
-         * @param key for which the mismatch occured.
+         * @param key for which the mismatch occurred.
         */
         private void onDigestMismatch(String key) throws IOException
         {
@@ -211,7 +211,7 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
      * The handler of the response message that has been
      * sent by one of the replicas for one of the keys.
      * 
-     * @param message the reponse message for one of the
+     * @param message the response message for one of the
      *        message that we sent out.
      */
     public void response(Message message)

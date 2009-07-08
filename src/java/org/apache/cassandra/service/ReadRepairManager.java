@@ -45,8 +45,8 @@ import org.apache.log4j.Logger;
  * it basically uses the cache table construct to schedule writes that have to be 
  * made for read repairs. 
  * A cachetable is created which wakes up every n  milliseconds specified by 
- * expirationTimeInMillis and calls a global hook fn on pending entries 
- * This fn basically sends the message to the appropriate servers to update them
+ * expirationTimeInMillis and calls a global hook function on pending entries 
+ * This function basically sends the message to the appropriate servers to update them
  * with the latest changes.
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -59,13 +59,13 @@ class ReadRepairManager
 
 	/*
 	 * This is the internal class which actually
-	 * implements the global hook fn called by the readrepair manager
+	 * implements the global hook function called by the read repair manager
 	 */
 	static class ReadRepairPerformer implements
 			ICacheExpungeHook<String, Message>
 	{
 		/*
-		 * The hook fn which takes the end point and the row mutation that 
+		 * The hook function which takes the end point and the row mutation that 
 		 * needs to be sent to the end point in order 
 		 * to perform read repair.
 		 */
@@ -106,7 +106,7 @@ class ReadRepairManager
 
 	/*
 	 * Schedules a read repair.
-	 * @param target endpoint on whcih the read repair should happen
+	 * @param target endpoint on which the read repair should happen
 	 * @param rowMutationMessage the row mutation message that has the repaired row.
 	 */
 	public void schedule(EndPoint target, RowMutationMessage rowMutationMessage)

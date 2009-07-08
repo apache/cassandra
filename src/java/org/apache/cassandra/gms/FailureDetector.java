@@ -49,7 +49,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private static final int sampleSize_ = 1000;
     private static final int phiSuspectThreshold_ = 5;
     private static final int phiConvictThreshold_ = 8;
-    /* The Failure Detector has to have been up for atleast 1 min. */
+    /* The Failure Detector has to have been up for at least 1 min. */
     private static final long uptimeThreshold_ = 60000;
     private static IFailureDetector failureDetector_;
     /* Used to lock the factory for creation of FailureDetector instance */

@@ -536,7 +536,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
      * Fetch from disk files and go in sorted order  to be efficient
-     * This fn exits as soon as the required data is found.
+     * This function exits as soon as the required data is found.
      *
      * @param key
      * @param cf
@@ -866,7 +866,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /*
      * Compact all the files irrespective of the size.
-     * skip : is the ammount in Gb of the files to be skipped
+     * skip : is the amount in GB of the files to be skipped
      * all files greater than skip GB are skipped for this compaction.
      * Except if skip is 0 , in that case this is ignored and all files are taken.
      */
@@ -1019,7 +1019,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         IPartitioner p = StorageService.getPartitioner();
         // Calculate the expected compacted filesize
         long expectedRangeFileSize = getExpectedCompactedFileSize(files);
-        /* in the worst case a node will be giving out alf of its data so we take a chance */
+        /* in the worst case a node will be giving out half of its data so we take a chance */
         expectedRangeFileSize = expectedRangeFileSize / 2;
         rangeFileLocation = DatabaseDescriptor.getCompactionFileLocation(expectedRangeFileSize);
         // If the compaction file path is null that means we have no space left for this compaction.

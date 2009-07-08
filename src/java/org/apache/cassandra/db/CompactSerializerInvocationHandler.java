@@ -25,7 +25,7 @@ import org.apache.cassandra.io.DataOutputBuffer;
 
 
 /*
- * This is the abstraction that pre-processes calls to implmentations
+ * This is the abstraction that pre-processes calls to implementations
  * of the ICompactSerializer2 serialize() via dynamic proxies.
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
@@ -40,11 +40,11 @@ public class CompactSerializerInvocationHandler<T> implements InvocationHandler
     }
 
     /*
-     * This dynamic runtime proxy adds the indexes before the actual coumns are serialized.
+     * This dynamic runtime proxy adds the indexes before the actual columns are serialized.
     */
     public Object invoke(Object proxy, Method m, Object[] args) throws Throwable
     {
-        /* Do the preprocessing here. */
+        /* Do the pre-processing here. */
     	ColumnFamily cf = (ColumnFamily)args[0];
     	DataOutputBuffer bufOut = (DataOutputBuffer)args[1];
     	ColumnIndexer.serialize(cf, bufOut);

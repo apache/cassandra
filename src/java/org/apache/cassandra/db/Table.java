@@ -721,7 +721,7 @@ public class Table
         List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
         ColumnFamilyStore cfs = getColumnFamilyStore(columnFamily);
 
-        // we iterate through memtables with a priorityqueue to avoid more sorting than necessary.
+        // we iterate through memtables with a priority queue to avoid more sorting than necessary.
         // this predicate throws out the keys before the start of our range.
         Predicate p = new Predicate()
         {

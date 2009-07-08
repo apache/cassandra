@@ -86,7 +86,7 @@ public class BloomFilter extends Filter
     }
 
     /*
-     param@ key -- value whose hash is used to fill
+     @param key -- value whose hash is used to fill
      the filter_.
      This is a general purpose API.
      */

@@ -527,7 +527,7 @@ public class AnalyticsContext
 		{
 			Collection<IAnalyticsSource> myUpdaters;
 
-			// we dont need to synchronize as there will not be any
+			// we don't need to synchronize as there will not be any
 			// addition or removal of listeners
 			myUpdaters = new ArrayList<IAnalyticsSource>(updaters);
 

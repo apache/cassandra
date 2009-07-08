@@ -61,7 +61,7 @@ public interface StorageServiceMBean
      * node being bootstrapped. This is used in case of normal
      * bootstrap failure. Use a tool to re-calculate the cardinality
      * at a later point at the destination.
-     * @param sources colon separated list of directories from where 
+     * @param directories colon separated list of directories from where 
      *                files need to be picked up.
      * @param target endpoint receiving data.
     */

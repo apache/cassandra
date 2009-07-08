@@ -497,7 +497,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         {
             logger_.warn("Problem reading from socket connected to : " + socketChannel_);
             logger_.warn(LogUtil.throwableToString(th));
-            // This is to fix the wierd Linux bug with NIO.
+            // This is to fix the weird Linux bug with NIO.
             errorClose();
         }
     }
