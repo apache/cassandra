@@ -84,4 +84,10 @@ public interface ColumnFamilyStoreMBean
      */
     public double getWriteLatency();
     
+    /**
+     * 
+     * @return the estimated number of tasks pending for this column family
+     */
+    public int getPendingTasks();
+    
 }

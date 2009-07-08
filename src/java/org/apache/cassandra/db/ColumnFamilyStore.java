@@ -1531,6 +1531,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         return readStats_.mean();
     }
+    
+    public int getPendingTasks()
+    {
+        return memtableLock_.getQueueLength();
+    }
 
     /**
      * @return the number of write operations on this column family in the last minute
