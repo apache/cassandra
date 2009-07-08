@@ -27,6 +27,11 @@ package org.apache.cassandra.db;
 public interface ColumnFamilyStoreMBean
 {
     /**
+     * @return the name of the column family
+     */
+    public String getColumnFamilyName();
+    
+    /**
      * Returns the total amount of data stored in the memtable, including
      * column related overhead.
      * 
@@ -68,4 +73,15 @@ public interface ColumnFamilyStoreMBean
      * @return average latency per read operation in the last minute
      */
     public double getReadLatency();
+    
+    /**
+     * @return the number of write operations on this column family in the last minute
+     */
+    public int getWriteCount();
+    
+    /**
+     * @return average latency per write operation in the last minute
+     */
+    public double getWriteLatency();
+    
 }

@@ -24,8 +24,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
@@ -33,6 +37,8 @@ import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageServiceMBean;
@@ -289,6 +295,86 @@ public class NodeProbe
         }
     }
     
+    public void printColumnFamilyStats(PrintStream outs) {
+
+        ObjectName query;
+        try {
+            Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
+            
+            // get a list of column family stores
+            query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,*");
+            Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
+            for (ObjectName objectName: result) {
+                String tableName = objectName.getKeyProperty("name");
+                ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(
+                        mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
+                
+                if (!cfstoreMap.containsKey(tableName)) {
+                    List <ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
+                    columnFamilies.add(cfsProxy);
+                    cfstoreMap.put(tableName, columnFamilies);
+                } 
+                else {
+                    cfstoreMap.get(tableName).add(cfsProxy);
+                }
+            }
+
+            // print out the table statistics
+            for (String tableName: cfstoreMap.keySet()) {
+                List <ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
+                int tableReadCount = 0;
+                int tableWriteCount = 0;
+                double tableTotalReadTime = 0.0f;
+                double tableTotalWriteTime = 0.0f;
+                
+                outs.println("Table: " + tableName);
+                for (ColumnFamilyStoreMBean cfstore: columnFamilies) {
+                    int writeCount = cfstore.getWriteCount();
+                    int readCount = cfstore.getReadCount();
+                    
+                    tableReadCount += readCount;
+                    tableTotalReadTime += cfstore.getReadLatency() * readCount;
+                    tableWriteCount += writeCount;
+                    tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
+                }
+                
+                double tableReadLatency = Double.NaN;
+                double tableWriteLatency = Double.NaN;
+                
+                if (tableReadCount > 0.0f) {
+                    tableReadLatency = tableTotalReadTime / tableReadCount;
+                }
+                if (tableWriteCount > 0.0f) {
+                    tableWriteLatency = tableTotalWriteTime / tableWriteCount;
+                }
+                
+                outs.println("\tRead Count: " + tableReadCount);
+                outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
+                outs.println("\tWrite Count: " + tableWriteCount);
+                outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
+                // print out column family statistic for this table
+                for (ColumnFamilyStoreMBean cfstore: columnFamilies) {
+                    outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
+                    outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
+                    outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
+                    outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
+                    outs.println("\t\tRead Count: " + cfstore.getReadCount());
+                    outs.println("\t\tRead Disk Count: " + cfstore.getReadDiskHits());
+                    outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getReadLatency()) + " ms.");
+                    outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
+                    outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
+                    outs.println("");
+                }
+                outs.println("----------------");
+            }
+        } catch (MalformedObjectNameException e) {
+            throw new RuntimeException("Invalid ObjectName? Please report this as a bug.", e);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not retrieve list of stat mbeans.", e);
+        }
+        
+    }
+
     /**
      * Write a list of nodes with corresponding status.
      * 
@@ -364,7 +450,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact");
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -420,6 +506,10 @@ public class NodeProbe
         else if (cmdName.equals("compact"))
         {
             probe.forceTableCompaction();
+        }
+        else if (cmdName.equals("cfstats"))
+        {
+            probe.printColumnFamilyStats(System.out);
         }
         else
         {

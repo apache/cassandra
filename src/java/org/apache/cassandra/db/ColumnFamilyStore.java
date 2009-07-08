@@ -88,6 +88,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque diskReadStats_ = new TimedStatsDeque(60000);
+    private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
 
     ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
     {
@@ -135,7 +136,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             mbs.registerMBean(cfs, new ObjectName(
-                    "org.apache.cassandra.db:type=ColumnFamilyStore-" + table + "." + columnFamily));
+                    "org.apache.cassandra.db:type=ColumnFamilyStores,name=" + table + ",columnfamily=" + columnFamily));
         }
         catch (Exception e)
         {
@@ -301,7 +302,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return result;
     }
 
-    String getColumnFamilyName()
+    /**
+     * @return the name of the column family
+     */
+    public String getColumnFamilyName()
     {
         return columnFamily_;
     }
@@ -469,6 +473,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void apply(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx)
             throws IOException
     {
+        long start = System.currentTimeMillis();
         Memtable initialMemtable = getMemtableThreadSafe();
         if (initialMemtable.isThresholdViolated())
         {
@@ -484,6 +489,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             memtableLock_.writeLock().unlock();
         }
+        writeStats_.add(System.currentTimeMillis() - start);
     }
 
     /*
@@ -494,7 +500,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void applyBinary(String key, byte[] buffer)
             throws IOException
     {
+        long start = System.currentTimeMillis();
         binaryMemtable_.get().put(key, buffer);
+        writeStats_.add(System.currentTimeMillis() - start);
     }
 
     public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter) throws IOException
@@ -1524,6 +1532,20 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return readStats_.mean();
     }
 
+    /**
+     * @return the number of write operations on this column family in the last minute
+     */
+    public int getWriteCount() {
+        return writeStats_.size();
+    }
+
+    /**
+     * @return average latency per write operation in the last minute
+     */
+    public double getWriteLatency() {
+        return writeStats_.mean();
+    }
+    
     /**
      * get a list of columns starting from a given column, in a specified order
      * only the latest version of a column is returned
