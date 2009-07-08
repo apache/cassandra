@@ -1,6 +1,8 @@
-This product includes software developed by The Apache Software
-Foundation (http://www.apache.org/).
+Apache Cassandra
+Copyright 2009 The Apache Software Foundation
 
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
 
 
 From Lucene's notice file:
