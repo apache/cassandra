@@ -68,7 +68,7 @@ launch_service()
     else
         exec java $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
                     org.apache.cassandra.service.CassandraDaemon <&- &
-        [ ! -z $pidpath ] && echo -n $! > $pidpath
+        [ ! -z $pidpath ] && printf "%d" $! > $pidpath
     fi
 
     return $?
