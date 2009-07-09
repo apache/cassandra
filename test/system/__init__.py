@@ -42,8 +42,7 @@ def get_client():
 client = get_client()
 
 
-import tempfile
-_, pid_fname = tempfile.mkstemp()
+pid_fname = "system_test.pid"
 def pid():
     return int(open(pid_fname).read())
 
@@ -55,6 +54,11 @@ class CassandraTester(object):
 
     def setUp(self):
         if self.runserver:
+            if os.path.exists(pid_fname):
+                pid_path = os.path.join(root, pid_fname)
+                print "Unclean shutdown detected, (%s found)" % pid_path
+                sys.exit()
+
             # clean out old stuff
             import shutil
             # todo get directories from conf/storage-conf.xml
@@ -95,3 +99,5 @@ class CassandraTester(object):
             # TODO kill server with SIGKILL if it's still alive
             time.sleep(0.5)
             # TODO assert server is Truly Dead
+
+# vim:ai sw=4 ts=4 tw=0 et
