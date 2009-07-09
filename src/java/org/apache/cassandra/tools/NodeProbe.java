@@ -324,6 +324,7 @@ public class NodeProbe
                 List <ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
                 int tableReadCount = 0;
                 int tableWriteCount = 0;
+                int tablePendingTasks = 0;
                 double tableTotalReadTime = 0.0f;
                 double tableTotalWriteTime = 0.0f;
                 
@@ -336,6 +337,7 @@ public class NodeProbe
                     tableTotalReadTime += cfstore.getReadLatency() * readCount;
                     tableWriteCount += writeCount;
                     tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
+                    tablePendingTasks += cfstore.getPendingTasks();
                 }
                 
                 double tableReadLatency = Double.NaN;
@@ -352,6 +354,7 @@ public class NodeProbe
                 outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
                 outs.println("\tWrite Count: " + tableWriteCount);
                 outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
+                outs.println("\tPending Tasks: " + tablePendingTasks);
                 // print out column family statistic for this table
                 for (ColumnFamilyStoreMBean cfstore: columnFamilies) {
                     outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
@@ -363,6 +366,7 @@ public class NodeProbe
                     outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getReadLatency()) + " ms.");
                     outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
                     outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
+                    outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
                     outs.println("");
                 }
                 outs.println("----------------");
