@@ -30,7 +30,7 @@ _ipath = os.path.join(root, 'interface', 'gen-py')
 sys.path.append(os.path.join(_ipath, 'cassandra'))
 import Cassandra
 
-host, port = '127.0.0.1', 9160
+host, port = '127.0.0.1', 9170
 def get_client():
     socket = TSocket.TSocket(host, port)
     transport = TTransport.TBufferedTransport(socket)
@@ -73,7 +73,7 @@ class CassandraTester(object):
 
             # connect to it, with a timeout in case something went wrong
             start = time.time()
-            while time.time() < start + 20:
+            while time.time() < start + 10:
                 try:
                     client.transport.open()
                 except:

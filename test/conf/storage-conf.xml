@@ -24,9 +24,9 @@
    <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <ListenAddress>127.0.0.1</ListenAddress>
-   <StoragePort>7000</StoragePort>
-   <ControlPort>7001</ControlPort>
-   <ThriftPort>9160</ThriftPort>
+   <StoragePort>7010</StoragePort>
+   <ControlPort>7011</ControlPort>
+   <ThriftPort>9170</ThriftPort>
    <ColumnIndexSizeInKB>4</ColumnIndexSizeInKB>
    <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>

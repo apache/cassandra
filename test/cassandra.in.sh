@@ -35,7 +35,7 @@ done
 JVM_OPTS=" \
         -ea \
         -Xdebug \
-        -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n \
+        -Xrunjdwp:transport=dt_socket,server=y,address=8898,suspend=n \
         -Xms128M \
         -Xmx1G \
         -XX:SurvivorRatio=8 \
@@ -46,6 +46,6 @@ JVM_OPTS=" \
         -XX:CMSInitiatingOccupancyFraction=1 \
         -XX:+CMSParallelRemarkEnabled \
         -XX:+HeapDumpOnOutOfMemoryError \
-        -Dcom.sun.management.jmxremote.port=8080 \
+        -Dcom.sun.management.jmxremote.port=8090 \
         -Dcom.sun.management.jmxremote.ssl=false \
         -Dcom.sun.management.jmxremote.authenticate=false"
