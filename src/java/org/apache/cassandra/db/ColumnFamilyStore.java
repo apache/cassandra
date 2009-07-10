@@ -84,7 +84,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private SortedMap<String, SSTableReader> ssTables_ = new TreeMap<String, SSTableReader>(new FileNameComparator(FileNameComparator.Descending));
 
     /* Modification lock used for protecting reads from compactions. */
-    private ReentrantReadWriteLock lock_ = new ReentrantReadWriteLock(true);
+    private ReentrantReadWriteLock sstableLock_ = new ReentrantReadWriteLock(true);
 
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque diskReadStats_ = new TimedStatsDeque(60000);
@@ -251,14 +251,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     */
     void addToList(SSTableReader file)
     {
-        lock_.writeLock().lock();
+        sstableLock_.writeLock().lock();
         try
         {
             ssTables_.put(file.getFilename(), file);
         }
         finally
         {
-            lock_.writeLock().unlock();
+            sstableLock_.writeLock().unlock();
         }
     }
 
@@ -554,7 +554,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private void getColumnFamilyFromDisk(String key, String cf, List<ColumnFamily> columnFamilies, IFilter filter) throws IOException
     {
-        lock_.readLock().lock();
+        sstableLock_.readLock().lock();
         try
         {
             for (SSTableReader sstable : ssTables_.values())
@@ -577,7 +577,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            lock_.readLock().unlock();
+            sstableLock_.readLock().unlock();
         }
     }
 
@@ -731,7 +731,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void storeLocation(SSTableReader sstable)
     {
         int ssTableCount;
-        lock_.writeLock().lock();
+        sstableLock_.writeLock().lock();
         try
         {
             ssTables_.put(sstable.getFilename(), sstable);
@@ -739,7 +739,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            lock_.writeLock().unlock();
+            sstableLock_.writeLock().unlock();
         }
 
         /* it's ok if compaction gets submitted multiple times while one is already in process.
@@ -984,7 +984,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         doFileAntiCompaction(files, myRanges, null, newFiles);
         if (logger_.isDebugEnabled())
           logger_.debug("Original file : " + file + " of size " + new File(file).length());
-        lock_.writeLock().lock();
+        sstableLock_.writeLock().lock();
         try
         {
             ssTables_.remove(file);
@@ -999,7 +999,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            lock_.writeLock().unlock();
+            sstableLock_.writeLock().unlock();
         }
     }
 
@@ -1358,7 +1358,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
             newfile = writer.getFilename();
         }
-        lock_.writeLock().lock();
+        sstableLock_.writeLock().lock();
         try
         {
             for (String file : files)
@@ -1377,7 +1377,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            lock_.writeLock().unlock();
+            sstableLock_.writeLock().unlock();
         }
 
         String format = "Compacted to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
@@ -1514,7 +1514,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ReentrantReadWriteLock.ReadLock getReadLock()
     {
-        return lock_.readLock();
+        return sstableLock_.readLock();
     }
 
     public int getReadCount()
@@ -1558,7 +1558,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ColumnFamily getSliceFrom(String key, String cfName, String startColumn, String finishColumn, boolean isAscending, int offset, int count)
     throws IOException, ExecutionException, InterruptedException
     {
-        lock_.readLock().lock();
+        sstableLock_.readLock().lock();
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         try
         {
@@ -1670,7 +1670,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
 
-            lock_.readLock().unlock();
+            sstableLock_.readLock().unlock();
         }
     }
 
@@ -1679,14 +1679,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void clearUnsafe()
     {
-        lock_.writeLock().lock();
+        sstableLock_.writeLock().lock();
         try
         {
             memtable_.clearUnsafe();
         }
         finally
         {
-            lock_.writeLock().unlock();
+            sstableLock_.writeLock().unlock();
         }
     }
 }
