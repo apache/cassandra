@@ -43,6 +43,10 @@ import org.apache.cassandra.net.io.IStreamComplete;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+
 import org.apache.log4j.Logger;
 
 /**
@@ -495,6 +499,7 @@ public class Table
     /**
      * Selects the row associated with the given key.
     */
+    @Deprecated // CF should be our atom of work, not Row
     public Row get(String key) throws IOException
     {        
         Row row = new Row(table_, key);
@@ -520,13 +525,14 @@ public class Table
     /**
      * Selects the specified column family for the specified key.
     */
-    public ColumnFamily get(String key, String cf) throws IOException
+    @Deprecated // single CFs could be larger than memory
+    public ColumnFamily get(String key, String columnFamilyColumn) throws IOException
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
         long start = System.currentTimeMillis();
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-        assert cfStore != null : "Column family " + cf + " has not been defined";
-        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new IdentityFilter());
+        assert cfStore != null : "Column family " + columnFamilyColumn + " has not been defined";
+        ColumnFamily columnFamily = cfStore.getColumnFamily(key, columnFamilyColumn, new IdentityFilter());
         long timeTaken = System.currentTimeMillis() - start;
         dbAnalyticsSource_.updateReadStatistics(timeTaken);
         return columnFamily;
@@ -567,19 +573,11 @@ public class Table
      *  param @ cf - column family we are interested in.
      *  param @ columns - columns that are part of the above column family.
     */
-    public Row getRow(String key, String cf, List<String> columns) throws IOException
+    public Row getRow(String key, String columnFamilyColumn, SortedSet<String> columns) throws IOException
     {
-    	Row row = new Row(table_, key);
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-
-        if ( cfStore != null )
-        {
-        	ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new NamesFilter(new ArrayList<String>(columns)));
-        	if ( columnFamily != null )
-        		row.addColumnFamily(columnFamily);
-        }
-    	return row;
+        // TODO for large CFs we will want a specialized iterator
+        QueryFilter filter = new NamesQueryFilter(key, columnFamilyColumn, columns);
+        return getRow(key, filter);
     }
 
     /**
@@ -587,12 +585,17 @@ public class Table
     */
     public Row getRow(String key, String cfName, String start, String finish, boolean isAscending, int offset, int count) throws IOException
     {
+        QueryFilter filter = new SliceQueryFilter(key, cfName, start, finish, isAscending, offset, count);
+        return getRow(key, filter);
+    }
+
+    private Row getRow(String key, QueryFilter filter) throws IOException
+    {
+        ColumnFamilyStore cfStore = columnFamilyStores_.get(filter.getColumnFamilyName());
         Row row = new Row(table_, key);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
         long start1 = System.currentTimeMillis();
         try
         {
-            QueryFilter filter = new SliceQueryFilter(key, cfName, start, finish, isAscending, offset, count);
             ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
             if (columnFamily != null)
                 row.addColumnFamily(columnFamily);

@@ -20,22 +20,20 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import org.apache.commons.lang.StringUtils;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
     public final String columnFamily;
-    public final List<String> columnNames;
+    public final SortedSet<String> columnNames;
 
-    public SliceByNamesReadCommand(String table, String key, String columnFamily, List<String> columnNames)
+    public SliceByNamesReadCommand(String table, String key, String columnFamily, Collection<String> columnNames)
     {
         super(table, key, CMD_TYPE_GET_SLICE_BY_NAMES);
         this.columnFamily = columnFamily;
-        this.columnNames = Collections.unmodifiableList(columnNames);
+        this.columnNames = new TreeSet<String>(columnNames);
     }
 
     @Override

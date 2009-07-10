@@ -285,12 +285,12 @@ public class SSTableReader extends SSTable
         }
     }
 
-    public DataInputBuffer next(final String clientKey, String cfName, List<String> columnNames) throws IOException
+    public DataInputBuffer next(final String clientKey, String cfName, SortedSet<String> columnNames) throws IOException
     {
         return next(clientKey, cfName, columnNames, null);
     }
 
-    public DataInputBuffer next(final String clientKey, String cfName, List<String> columnNames, IndexHelper.TimeRange timeRange) throws IOException
+    public DataInputBuffer next(final String clientKey, String cfName, SortedSet<String> columnNames, IndexHelper.TimeRange timeRange) throws IOException
     {
         IFileReader dataReader = null;
         try
@@ -327,8 +327,8 @@ public class SSTableReader extends SSTable
     {
         String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
         String columnFamilyName = values[0];
-        List<String> cnNames = (values.length == 1) ? null : Arrays.asList(values[1]);
-        return next(clientKey, columnFamilyName, cnNames);
+        SortedSet<String> columnNames = (values.length == 1) ? null : new TreeSet<String>(Arrays.asList(values[1]));
+        return next(clientKey, columnFamilyName, columnNames);
     }
 
     /**

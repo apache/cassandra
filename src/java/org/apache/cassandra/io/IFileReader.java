@@ -20,6 +20,7 @@ package org.apache.cassandra.io;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.SortedSet;
 
 /**
  * Interface to read from the SequenceFile abstraction.
@@ -78,7 +79,7 @@ public interface IFileReader
      * @return number of bytes read.
      *
     */
-    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException;
+    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException;
 
     /**
      * Close the file after reading.

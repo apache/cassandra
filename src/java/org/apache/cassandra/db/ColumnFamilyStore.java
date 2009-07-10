@@ -39,9 +39,12 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.ColumnIterator;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.collections.comparators.ReverseComparator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
@@ -663,8 +666,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // don't operate directly on the supercolumn, it could be the one in the memtable.
                 // instead, create a new SC and add in the subcolumns that qualify.
                 cf.remove(cname);
-                SuperColumn sc = new SuperColumn(cname);
-                sc.markForDeleteAt(c.getLocalDeletionTime(), c.getMarkedForDeleteAt());
+                SuperColumn sc = ((SuperColumn)c).cloneMeShallow();
                 for (IColumn subColumn : c.getSubColumns())
                 {
                     if (subColumn.timestamp() > minTimestamp)
@@ -1556,8 +1558,23 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * only the latest version of a column is returned
      */
     public ColumnFamily getColumnFamily(QueryFilter filter)
-    throws IOException, ExecutionException, InterruptedException
+    throws IOException
     {
+        String[] values = RowMutation.getColumnAndColumnFamily(filter.columnFamilyColumn);
+
+        // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
+        if (values.length > 1)
+        {
+            QueryFilter nameFilter = new NamesQueryFilter(filter.key, values[0], values[1]);
+            ColumnFamily cf = getColumnFamily(nameFilter);
+            for (IColumn column : cf.getAllColumns())
+            {
+                filter.filterSuperColumn((SuperColumn) column);
+            }
+            return removeDeleted(cf);
+        }
+
+        // we are querying top-level columns, do a merging fetch with indexes.
         sstableLock_.readLock().lock();
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         try
@@ -1606,7 +1623,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Comparator<IColumn> comparator = filter.getColumnComparator();
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
-                return ColumnFamily.create(table_, filter.getColumnFamilyName());
+                return ColumnFamily.create(table_, columnFamily_);
 
             filter.collectColumns(returnCF, collated);
 

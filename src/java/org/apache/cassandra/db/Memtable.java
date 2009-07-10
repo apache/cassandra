@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,6 +32,8 @@ import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.DestructivePQIterator;
+import org.apache.cassandra.db.filter.*;
+
 import org.apache.log4j.Logger;
 
 /**
@@ -234,8 +235,7 @@ public class Memtable implements Comparable<Memtable>
                     if (subColumn != null)
                     {
                         columnFamily = cFamily.cloneMeShallow();
-                        SuperColumn container = new SuperColumn(superColumn.name());
-                        container.markForDeleteAt(superColumn.getLocalDeletionTime(), superColumn.getMarkedForDeleteAt());
+                        SuperColumn container = superColumn.cloneMeShallow();
                         container.addColumn(subColumn);
                         columnFamily.addColumn(container);
                     }
@@ -321,42 +321,28 @@ public class Memtable implements Comparable<Memtable>
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
-    ColumnIterator getColumnIterator(final String key, final String cfName, final boolean isAscending, String startColumn)
+    public ColumnIterator getSliceIterator(SliceQueryFilter filter)
     {
-        ColumnFamily cf = columnFamilies_.get(key);
-        final ColumnFamily columnFamily;
-        if (cf != null)
-            columnFamily = cf.cloneMeShallow();
-        else
-            columnFamily = ColumnFamily.create(table_, cfName);
+        ColumnFamily cf = columnFamilies_.get(filter.key);
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
 
         final IColumn columns[] = (cf == null ? columnFamily : cf).getAllColumns().toArray(new IColumn[columnFamily.getAllColumns().size()]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
-        if (!isAscending)
+        if (!filter.isAscending)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
-        if (DatabaseDescriptor.getColumnFamilyType(table_, cfName).equals("Standard"))
-            startIColumn = new Column(startColumn);
+        if (DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard"))
+            startIColumn = new Column(filter.start);
         else
-            startIColumn = new SuperColumn(startColumn);
+            startIColumn = new SuperColumn(filter.start);
 
         // can't use a ColumnComparatorFactory comparator since those compare on both name and time (and thus will fail to match
         // our dummy column, since the time there is arbitrary).
-        Comparator<IColumn> comparator = new Comparator<IColumn>()
-        {
-            public int compare(IColumn column1, IColumn column2)
-            {
-                return column1.name().compareTo(column2.name());
-            }
-        };
-        if (!isAscending)
-        {
-            comparator = new ReverseComparator(comparator);
-        }
+        Comparator<IColumn> comparator = filter.getColumnComparator();
         int index = Arrays.binarySearch(columns, startIColumn, comparator);
         final int startIndex = index < 0 ? -(index + 1) : index;
 
-        return new ColumnIterator()
+        return new AbstractColumnIterator()
         {
             private int curIndex_ = startIndex;
 
@@ -374,12 +360,39 @@ public class Memtable implements Comparable<Memtable>
             {
                 return columns[curIndex_++];
             }
+        };
+    }
 
-            public void close() throws IOException {}
+    public ColumnIterator getNamesIterator(final NamesQueryFilter filter)
+    {
+        ColumnFamily cf = columnFamilies_.get(filter.key);
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
+        final Map<String, IColumn> columnsContainer = cf == null ? null : cf.getColumns();
 
-            public void remove()
+        return new SimpleAbstractColumnIterator()
+        {
+            private Iterator<String> iter = filter.columns.iterator();
+            private String current;
+
+            public ColumnFamily getColumnFamily()
             {
-                throw new UnsupportedOperationException();
+                return columnFamily;
+            }
+
+            protected IColumn computeNext()
+            {
+                if (columnsContainer == null)
+                {
+                    return endOfData();
+                }
+                while (iter.hasNext())
+                {
+                    current = iter.next();
+                    IColumn column = columnsContainer.get(current);
+                    if (column != null)
+                        return column;
+                }
+                return endOfData();
             }
         };
     }

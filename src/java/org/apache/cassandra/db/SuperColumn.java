@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -60,6 +61,13 @@ public final class SuperColumn implements IColumn, Serializable
     SuperColumn(String name)
     {
     	name_ = name;
+    }
+
+    public SuperColumn cloneMeShallow()
+    {
+        SuperColumn sc = new SuperColumn(name_);
+        sc.markForDeleteAt(localDeletionTime, markedForDeleteAt);
+        return sc;
     }
 
 	public boolean isMarkedForDelete()

@@ -221,7 +221,7 @@ public class IndexHelper
 	 * @param totalNumCols the total number of columns
 	 * @return a list of subranges which contain all the columns in columnNames
 	 */
-	static List<ColumnRange> getMultiColumnRangesFromNameIndex(List<String> columnNames, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
+	static List<ColumnRange> getMultiColumnRangesFromNameIndex(SortedSet<String> columnNames, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
 	{
 		List<ColumnRange> columnRanges = new ArrayList<ColumnRange>();				
 

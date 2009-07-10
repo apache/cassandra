@@ -22,6 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.nio.ByteBuffer;
 
 import org.apache.commons.lang.ArrayUtils;

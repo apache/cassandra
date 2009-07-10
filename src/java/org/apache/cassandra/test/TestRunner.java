@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.test;
 
-import java.util.Collection;
-import java.util.Random;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
@@ -84,7 +81,7 @@ public class TestRunner
         System.out.println(row);
         */
         
-        List<String> list = new ArrayList<String>();
+        TreeSet<String> list = new TreeSet<String>();
         list.add("SuperColumn-0");
         list.add("SuperColumn-189");
         list.add("SuperColumn-23");

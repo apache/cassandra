@@ -1,16 +1,12 @@
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Collection;
-
-import org.apache.commons.collections.comparators.ReverseComparator;
-import org.apache.commons.collections.IteratorUtils;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.db.*;
 
 public abstract class QueryFilter
 {
@@ -42,7 +38,13 @@ public abstract class QueryFilter
      */
     public abstract void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns);
 
-    protected Comparator<IColumn> getColumnComparator()
+    /**
+     * subcolumns of a supercolumn are unindexed, so to pick out parts of those we operate in-memory.
+     * @param superColumn
+     */
+    public abstract void filterSuperColumn(SuperColumn superColumn);
+
+    public Comparator<IColumn> getColumnComparator()
     {
         return new Comparator<IColumn>()
         {
@@ -84,6 +86,6 @@ public abstract class QueryFilter
 
     public String getColumnFamilyName()
     {
-        return RowMutation.getColumnAndColumnFamily(columnFamilyColumn)[0]);
+        return RowMutation.getColumnAndColumnFamily(columnFamilyColumn)[0];
     }
 }

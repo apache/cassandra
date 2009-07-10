@@ -1,4 +1,4 @@
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -7,6 +7,7 @@ import org.apache.commons.collections.comparators.ReverseComparator;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.db.*;
 
 public class SliceQueryFilter extends QueryFilter
 {
@@ -26,16 +27,22 @@ public class SliceQueryFilter extends QueryFilter
 
     public ColumnIterator getMemColumnIterator(Memtable memtable)
     {
-        return memtable.getColumnIterator(key, columnFamilyColumn, isAscending, start);
+        return memtable.getSliceIterator(this);
     }
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
     {
-        return new SSTableColumnIterator(sstable.getFilename(), key, columnFamilyColumn, start, isAscending);
+        return new SSTableSliceIterator(sstable.getFilename(), key, getColumnFamilyName(), start, isAscending);
+    }
+
+    public void filterSuperColumn(SuperColumn superColumn)
+    {
+        // TODO write this after CASSANDRA-240 is done
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    protected Comparator<IColumn> getColumnComparator()
+    public Comparator<IColumn> getColumnComparator()
     {
         Comparator<IColumn> comparator = super.getColumnComparator();
         return isAscending ? comparator : new ReverseComparator(comparator);

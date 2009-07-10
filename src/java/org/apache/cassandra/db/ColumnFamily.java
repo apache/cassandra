@@ -133,7 +133,7 @@ public final class ColumnFamily
         this(cfName, columnType, ColumnComparatorFactory.getComparator(indexType));
     }
 
-    ColumnFamily cloneMeShallow()
+    public ColumnFamily cloneMeShallow()
     {
         ColumnFamily cf = new ColumnFamily(name_, type_, getComparator());
         cf.markedForDeleteAt = markedForDeleteAt;
@@ -218,7 +218,7 @@ public final class ColumnFamily
 		addColumn(column);
     }
 
-    void clear()
+    public void clear()
     {
         if (logger_.isDebugEnabled())
           logger_.debug("clearing");
@@ -230,7 +230,7 @@ public final class ColumnFamily
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column .
     */
-    void addColumn(IColumn column)
+    public void addColumn(IColumn column)
     {
         String name = column.name();
         IColumn oldColumn = columns_.get(name);

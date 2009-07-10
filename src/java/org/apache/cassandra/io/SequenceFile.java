@@ -20,10 +20,7 @@ package org.apache.cassandra.io;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Arrays;
+import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.BloomFilter;
@@ -485,7 +482,7 @@ public class SequenceFile
          * @return number of bytes that were read.
          * @throws IOException
          */
-        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException
+        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException
         {
             assert timeRange == null || columnNames == null; // at most one may be non-null
 
@@ -597,7 +594,7 @@ public class SequenceFile
             bufOut.write(file_, dataSize);
         }
 
-        private void readColumns(String key, DataOutputBuffer bufOut, String columnFamilyName, List<String> cNames)
+        private void readColumns(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> cNames)
                 throws IOException
         {
             int dataSize = file_.readInt();
@@ -655,9 +652,6 @@ public class SequenceFile
                 dataSize -= 4;
 
                 // TODO: this is name sorted - but eventually this should be sorted by the same criteria as the col index
-                /* sort the required list of columns */
-                cNames = new ArrayList<String>(cNames);
-                Collections.sort(cNames);
                 /* get the various column ranges we have to read */
                 List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(cNames, columnIndexList, dataSize, totalNumCols);
 

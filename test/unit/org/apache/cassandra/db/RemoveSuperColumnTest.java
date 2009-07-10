@@ -30,6 +30,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
 
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+
 public class RemoveSuperColumnTest
 {
     @Test
@@ -125,11 +127,7 @@ public class RemoveSuperColumnTest
         List<ColumnFamily> families;
         ColumnFamily resolved;
 
-        families = store.getColumnFamilies("key1", "Super2:SC1", new NamesFilter(Arrays.asList("Column2")));
-        resolved = ColumnFamilyStore.removeDeleted(ColumnFamily.resolve(families));
-        validateNewDataFamily(resolved);
-
-        resolved = store.getColumnFamily("key1", "Super2:SC1:Column2", new IdentityFilter());
+        resolved = store.getColumnFamily(new NamesQueryFilter("key1", "Super2:SC1", "Column2"));
         validateNewDataFamily(resolved);
     }
 
