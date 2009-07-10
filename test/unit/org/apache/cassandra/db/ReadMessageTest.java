@@ -49,10 +49,6 @@ public class ReadMessageTest
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new RowReadCommand("Table1", "row1");
-        rm2 = serializeAndDeserializeReadMessage(rm);
-        assert rm2.toString().equals(rm.toString());
-
         rm = new ColumnsSinceReadCommand("Table1", "row1", "foo", 1);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
