@@ -24,12 +24,13 @@ import java.util.concurrent.Future;
 import java.util.List;
 import java.util.Collection;
 import java.util.Arrays;
+import java.util.TreeSet;
 
-import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
 
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 
 public class RemoveSuperColumnTest
@@ -65,24 +66,17 @@ public class RemoveSuperColumnTest
     private void validateRemoveTwoSources() throws IOException
     {
         ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super1");
-        List<ColumnFamily> families = store.getColumnFamilies("key1", "Super1", new IdentityFilter());
-        assert families.size() == 2 : StringUtils.join(families, ", ");
-        assert families.get(0).getAllColumns().first().getMarkedForDeleteAt() == 1; // delete marker, just added
-        assert !families.get(1).getAllColumns().first().isMarkedForDelete(); // flushed old version
-        ColumnFamily resolved = ColumnFamily.resolve(families);
+        ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", "Super1", "SC1"));
         assert resolved.getAllColumns().first().getMarkedForDeleteAt() == 1;
-        Collection<IColumn> subColumns = resolved.getAllColumns().first().getSubColumns();
-        assert subColumns.size() == 1;
-        assert subColumns.iterator().next().timestamp() == 0;
+        assert resolved.getAllColumns().first().getSubColumns().size() == 0;
         assertNull(ColumnFamilyStore.removeDeleted(resolved, Integer.MAX_VALUE));
+        assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(new IdentityQueryFilter("key1", "Super1")), Integer.MAX_VALUE));
     }
 
     private void validateRemoveCompacted() throws IOException
     {
         ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super1");
-        List<ColumnFamily> families = store.getColumnFamilies("key1", "Super1", new IdentityFilter());
-        assert families.size() == 1 : StringUtils.join(families, ", ");
-        ColumnFamily resolved = families.get(0);
+        ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", "Super1", "SC1"));
         assert resolved.getAllColumns().first().getMarkedForDeleteAt() == 1;
         Collection<IColumn> subColumns = resolved.getAllColumns().first().getSubColumns();
         assert subColumns.size() == 0;
@@ -124,10 +118,7 @@ public class RemoveSuperColumnTest
     private void validateRemoveWithNewData() throws IOException
     {
         ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super2");
-        List<ColumnFamily> families;
-        ColumnFamily resolved;
-
-        resolved = store.getColumnFamily(new NamesQueryFilter("key1", "Super2:SC1", "Column2"));
+        ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", "Super2:SC1", "Column2"));
         validateNewDataFamily(resolved);
     }
 

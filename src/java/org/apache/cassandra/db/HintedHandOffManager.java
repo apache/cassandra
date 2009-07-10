@@ -37,6 +37,7 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
 
 
 /**
@@ -159,7 +160,7 @@ public class HintedHandOffManager
         // 7. I guess we are done
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(tableName, HINTS_CF, new IdentityFilter()), Integer.MAX_VALUE);
+            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(new IdentityQueryFilter(tableName, HINTS_CF)), Integer.MAX_VALUE);
             if (hintColumnFamily == null)
             {
                 continue;

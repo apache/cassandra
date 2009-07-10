@@ -43,10 +43,7 @@ import org.apache.cassandra.net.io.IStreamComplete;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.db.filter.TimeQueryFilter;
+import org.apache.cassandra.db.filter.*;
 
 import org.apache.log4j.Logger;
 
@@ -502,23 +499,16 @@ public class Table
     */
     @Deprecated // CF should be our atom of work, not Row
     public Row get(String key) throws IOException
-    {        
+    {
         Row row = new Row(table_, key);
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
-        long start = System.currentTimeMillis();
-        for ( String columnFamily : columnFamilies )
+        for (String columnFamily : getColumnFamilies())
         {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily);
-            if ( cfStore != null )
-            {                
-                ColumnFamily cf = cfStore.getColumnFamily(key, columnFamily, new IdentityFilter());                
-                if ( cf != null )
-                    row.addColumnFamily(cf);
+            ColumnFamily cf = get(key, columnFamily);
+            if (cf != null)
+            {
+                row.addColumnFamily(cf);
             }
         }
-        
-        long timeTaken = System.currentTimeMillis() - start;
-        dbAnalyticsSource_.updateReadStatistics(timeTaken);
         return row;
     }
 
@@ -527,25 +517,22 @@ public class Table
      * Selects the specified column family for the specified key.
     */
     @Deprecated // single CFs could be larger than memory
-    public ColumnFamily get(String key, String columnFamilyColumn) throws IOException
+    public ColumnFamily get(String key, String cfName) throws IOException
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
-        long start = System.currentTimeMillis();
+        assert !cfName.contains(":") : cfName;
+        String[] values = RowMutation.getColumnAndColumnFamily(cfName);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-        assert cfStore != null : "Column family " + columnFamilyColumn + " has not been defined";
-        ColumnFamily columnFamily = cfStore.getColumnFamily(key, columnFamilyColumn, new IdentityFilter());
-        long timeTaken = System.currentTimeMillis() - start;
-        dbAnalyticsSource_.updateReadStatistics(timeTaken);
-        return columnFamily;
+        assert cfStore != null : "Column family " + cfName + " has not been defined";
+        return cfStore.getColumnFamily(new IdentityQueryFilter(key, cfName));
     }
 
     /**
      * Selects only the specified column family for the specified key.
     */
-    public Row getRow(String key, String cf) throws IOException
+    public Row getRow(String key, String cfName) throws IOException
     {
         Row row = new Row(table_, key);
-        ColumnFamily columnFamily = get(key, cf);
+        ColumnFamily columnFamily = get(key, cfName);
         if ( columnFamily != null )
         	row.addColumnFamily(columnFamily);
         return row;
@@ -581,28 +568,14 @@ public class Table
         return getRow(key, filter);
     }
 
-    private Row getRow(String key, QueryFilter filter) throws IOException
+    public Row getRow(String key, QueryFilter filter) throws IOException
     {
         ColumnFamilyStore cfStore = columnFamilyStores_.get(filter.getColumnFamilyName());
         Row row = new Row(table_, key);
-        long start1 = System.currentTimeMillis();
-        try
-        {
-            ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
-            if (columnFamily != null)
-                row.addColumnFamily(columnFamily);
-            long timeTaken = System.currentTimeMillis() - start1;
-            dbAnalyticsSource_.updateReadStatistics(timeTaken);
-            return row;
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
+        if (columnFamily != null)
+            row.addColumnFamily(columnFamily);
+        return row;
     }
 
     /**
@@ -612,8 +585,6 @@ public class Table
     */
     void apply(Row row) throws IOException
     {
-        /* Add row to the commit log. */
-        long start = System.currentTimeMillis();
         CommitLog.CommitLogContext cLogCtx = CommitLog.open().add(row);
 
         for (ColumnFamily columnFamily : row.getColumnFamilies())
@@ -621,9 +592,6 @@ public class Table
             ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
             cfStore.apply(row.key(), columnFamily, cLogCtx);
         }
-
-        long timeTaken = System.currentTimeMillis() - start;
-        dbAnalyticsSource_.updateWriteStatistics(timeTaken);
     }
 
     void applyNow(Row row) throws IOException
@@ -772,7 +740,7 @@ public class Table
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                if (cfs.getColumnFamily(current, columnFamily, new IdentityFilter(), Integer.MAX_VALUE) != null)
+                if (cfs.getColumnFamily(new SliceQueryFilter(current, columnFamily, "", "", true, 0, 1)) != null)
                 {
                     keys.add(current);
                 }

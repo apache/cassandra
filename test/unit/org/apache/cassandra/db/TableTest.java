@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.io.SSTableReader;
 
 public class TableTest extends CleanupHelper
@@ -71,10 +72,10 @@ public class TableTest extends CleanupHelper
             {
                 Row result;
 
-                result = table.getRow(TEST_KEY, "Standard1:col1");
+                result = table.getRow(TEST_KEY, new NamesQueryFilter(TEST_KEY, "Standard1", "col1"));
                 assertColumns(result.getColumnFamily("Standard1"), "col1");
 
-                result = table.getRow(TEST_KEY, "Standard1:col3");
+                result = table.getRow(TEST_KEY, new NamesQueryFilter(TEST_KEY, "Standard1", "col3"));
                 assertColumns(result.getColumnFamily("Standard1"), "col3");
             }
         };
@@ -367,8 +368,7 @@ public class TableTest extends CleanupHelper
 
     public static void assertColumns(ColumnFamily columnFamily, String... columnNames)
     {
-        assertNotNull(columnFamily);
-        SortedSet<IColumn> columns = columnFamily.getAllColumns();
+        SortedSet<IColumn> columns = columnFamily == null ? new TreeSet<IColumn>() : columnFamily.getAllColumns();
         List<String> L = new ArrayList<String>();
         for (IColumn column : columns)
         {

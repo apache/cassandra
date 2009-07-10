@@ -33,13 +33,10 @@ import org.apache.cassandra.service.StorageService;
 public abstract class ReadCommand
 {
     public static final String DO_REPAIR = "READ-REPAIR";
-    public static final byte CMD_TYPE_GET_ROW=1;
-    public static final byte CMD_TYPE_GET_COLUMN=2;
-    public static final byte CMD_TYPE_GET_SLICE_BY_NAMES=3;
-    public static final byte CMD_TYPE_GET_COLUMNS_SINCE=4;
-    public static final byte CMD_TYPE_GET_SLICE=5;
-    public static final byte CMD_TYPE_GET_SLICE_BY_RANGE = 6;
-    public static final byte CMD_TYPE_GET_SLICE_FROM=7;
+    public static final byte CMD_TYPE_GET_COLUMN=1;
+    public static final byte CMD_TYPE_GET_SLICE_BY_NAMES=2;
+    public static final byte CMD_TYPE_GET_COLUMNS_SINCE=3;
+    public static final byte CMD_TYPE_GET_SLICE =4;
 
     public static final String EMPTY_CF = "";
     
@@ -95,7 +92,7 @@ class ReadCommandSerializer implements ICompactSerializer<ReadCommand>
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_COLUMN, new ColumnReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_BY_NAMES, new SliceByNamesReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_COLUMNS_SINCE, new ColumnsSinceReadCommandSerializer());
-        CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_FROM, new SliceFromReadCommandSerializer());
+        CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE, new SliceFromReadCommandSerializer());
     }
 
 

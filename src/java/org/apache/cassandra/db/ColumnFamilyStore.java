@@ -508,116 +508,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         writeStats_.add(System.currentTimeMillis() - start);
     }
 
-    public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter) throws IOException
-    {
-        long start = System.currentTimeMillis();
-        List<ColumnFamily> columnFamilies = getColumnFamilies(key, columnFamilyColumn, filter);
-        ColumnFamily cf = resolveAndRemoveDeleted(columnFamilies);
-        readStats_.add(System.currentTimeMillis() - start);
-        return cf;
-    }
-
-    public ColumnFamily getColumnFamily(String key, String columnFamilyColumn, IFilter filter, int gcBefore) throws IOException
-    {
-        long start = System.currentTimeMillis();
-        List<ColumnFamily> columnFamilies = getColumnFamilies(key, columnFamilyColumn, filter);
-        ColumnFamily cf = removeDeleted(ColumnFamily.resolve(columnFamilies), gcBefore);
-        readStats_.add(System.currentTimeMillis() - start);
-        return cf;
-    }
-
-    /**
-     * Get the column family in the most efficient order.
-     * 1. Memtable
-     * 2. Sorted list of files
-     */
-    List<ColumnFamily> getColumnFamilies(String key, String columnFamilyColumn, IFilter filter) throws IOException
-    {
-        List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
-        /* Get the ColumnFamily from Memtable */
-        getColumnFamilyFromCurrentMemtable(key, columnFamilyColumn, filter, columnFamilies);
-        /* Check if MemtableManager has any historical information */
-        getUnflushedColumnFamily(key, columnFamily_, columnFamilyColumn, filter, columnFamilies);
-        long start = System.currentTimeMillis();
-        getColumnFamilyFromDisk(key, columnFamilyColumn, columnFamilies, filter);
-        diskReadStats_.add(System.currentTimeMillis() - start);
-
-        return columnFamilies;
-    }
-
-    /**
-     * Fetch from disk files and go in sorted order  to be efficient
-     * This function exits as soon as the required data is found.
-     *
-     * @param key
-     * @param cf
-     * @param columnFamilies
-     * @param filter
-     * @throws IOException
-     */
-    private void getColumnFamilyFromDisk(String key, String cf, List<ColumnFamily> columnFamilies, IFilter filter) throws IOException
-    {
-        sstableLock_.readLock().lock();
-        try
-        {
-            for (SSTableReader sstable : ssTables_.values())
-            {
-                ColumnFamily columnFamily = null;
-                try
-                {
-                    columnFamily = fetchColumnFamily(key, cf, filter, sstable);
-                }
-                catch (IOException e)
-                {
-                    // annotate exception w/ more information about context
-                    throw new IOException("Error fetching " + key + ":" + cf + " from " + sstable, e);
-                }
-                if (columnFamily != null)
-                {
-                    columnFamilies.add(columnFamily);
-                }
-            }
-        }
-        finally
-        {
-            sstableLock_.readLock().unlock();
-        }
-    }
-
-    private ColumnFamily fetchColumnFamily(String key, String cf, IFilter filter, SSTableReader ssTable) throws IOException
-    {
-        DataInputBuffer bufIn;
-        bufIn = filter.next(key, cf, ssTable);
-        if (bufIn.getLength() == 0)
-        {
-            return null;
-        }
-        ColumnFamily columnFamily = ColumnFamily.serializer().deserialize(bufIn, cf, filter);
-        if (columnFamily == null)
-        {
-            return null;
-        }
-        return columnFamily;
-    }
-
-    private void getColumnFamilyFromCurrentMemtable(String key, String cf, IFilter filter, List<ColumnFamily> columnFamilies)
-    {
-        ColumnFamily columnFamily;
-        memtableLock_.readLock().lock();
-        try
-        {
-            columnFamily = memtable_.getLocalCopy(key, cf, filter);
-        }
-        finally
-        {
-            memtableLock_.readLock().unlock();
-        }
-        if (columnFamily != null)
-        {
-            columnFamilies.add(columnFamily);
-        }
-    }
-
     /**
      * like resolve, but leaves the resolved CF as the only item in the list
      */
@@ -1404,26 +1294,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return memtables;
     }
 
-    /*
-     * Retrieve column family from the list of Memtables that have been
-     * submitted for flush but have not yet been flushed.
-     * It also filters out unneccesary columns based on the passed in filter.
-    */
-    void getUnflushedColumnFamily(String key, String cfName, String cf, IFilter filter, List<ColumnFamily> columnFamilies)
-    {
-        List<Memtable> memtables = getUnflushedMemtables(cfName);
-        Collections.sort(memtables);
-        int size = memtables.size();
-        for ( int i = size - 1; i >= 0; --i  )
-        {
-            ColumnFamily columnFamily = memtables.get(i).getLocalCopy(key, cf, filter);
-            if ( columnFamily != null )
-            {
-                columnFamilies.add(columnFamily);
-            }
-        }
-    }
-
     /* Submit memtables to be flushed to disk */
     public static void submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
     {
@@ -1554,11 +1424,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
     
     /**
-     * get a list of columns starting from a given column, in a specified order
-     * only the latest version of a column is returned
+     * get a list of columns starting from a given column, in a specified order.
+     * only the latest version of a column is returned.
+     * @return null if there is no data and no tombstones; otherwise a ColumnFamily
      */
-    public ColumnFamily getColumnFamily(QueryFilter filter)
-    throws IOException
+    public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
     {
         String[] values = RowMutation.getColumnAndColumnFamily(filter.columnFamilyColumn);
 
@@ -1567,9 +1437,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             QueryFilter nameFilter = new NamesQueryFilter(filter.key, values[0], values[1]);
             ColumnFamily cf = getColumnFamily(nameFilter);
-            for (IColumn column : cf.getAllColumns())
+            if (cf != null)
             {
-                filter.filterSuperColumn((SuperColumn) column);
+                for (IColumn column : cf.getAllColumns())
+                {
+                    filter.filterSuperColumn((SuperColumn) column);
+                }
             }
             return removeDeleted(cf);
         }
@@ -1609,21 +1482,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (SSTableReader sstable : sstables)
             {
                 iter = filter.getSSTableColumnIterator(sstable);
-                if (iter.hasNext())
+                if (iter.hasNext()) // initializes iter.CF
                 {
                     returnCF.delete(iter.getColumnFamily());
-                    iterators.add(iter);
                 }
-                else
-                {
-                    iter.close();
-                }
+                iterators.add(iter);
             }
 
             Comparator<IColumn> comparator = filter.getColumnComparator();
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
-                return ColumnFamily.create(table_, columnFamily_);
+                return null;
 
             filter.collectColumns(returnCF, collated);
 

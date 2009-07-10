@@ -31,7 +31,7 @@ public class SliceFromReadCommand extends ReadCommand
 
     public SliceFromReadCommand(String table, String key, String columnFamilyColumn, String start, String finish, boolean isAscending, int offset, int count)
     {
-        super(table, key, CMD_TYPE_GET_SLICE_FROM);
+        super(table, key, CMD_TYPE_GET_SLICE);
         this.columnFamilyColumn = columnFamilyColumn;
         this.start = start;
         this.finish = finish;

@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 
 public class RemoveColumnTest
 {
@@ -45,8 +47,9 @@ public class RemoveColumnTest
         rm.delete("Standard1:Column1", 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily("key1", "Standard1", new IdentityFilter());
+        ColumnFamily retrieved = store.getColumnFamily(new NamesQueryFilter("key1", "Standard1", "Column1"));
         assert retrieved.getColumn("Column1").isMarkedForDelete();
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
+        assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(new IdentityQueryFilter("key1", "Standard1")), Integer.MAX_VALUE));
     }
 }

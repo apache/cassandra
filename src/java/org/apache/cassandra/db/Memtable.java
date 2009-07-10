@@ -204,48 +204,6 @@ public class Memtable implements Comparable<Memtable>
         return builder.toString();
     }
 
-    ColumnFamily getLocalCopy(String key, String columnFamilyColumn, IFilter filter)
-    {
-    	String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
-    	ColumnFamily columnFamily = null;
-        if(values.length == 1 )
-        {
-        	columnFamily = columnFamilies_.get(key);
-        }
-        else
-        {
-        	ColumnFamily cFamily = columnFamilies_.get(key);
-        	if (cFamily == null) return null;
-
-        	if (values.length == 2) {
-                IColumn column = cFamily.getColumn(values[1]); // super or normal column
-                if (column != null )
-                {
-                    columnFamily = cFamily.cloneMeShallow();
-                    columnFamily.addColumn(column);
-                }
-        	}
-            else
-            {
-                assert values.length == 3;
-                SuperColumn superColumn = (SuperColumn)cFamily.getColumn(values[1]);
-                if (superColumn != null)
-                {
-                    IColumn subColumn = superColumn.getSubColumn(values[2]);
-                    if (subColumn != null)
-                    {
-                        columnFamily = cFamily.cloneMeShallow();
-                        SuperColumn container = superColumn.cloneMeShallow();
-                        container.addColumn(subColumn);
-                        columnFamily.addColumn(container);
-                    }
-                }
-        	}
-        }
-        /* Filter unnecessary data from the column based on the provided filter */
-        return filter.filter(columnFamilyColumn, columnFamily);
-    }
-
     void flush(CommitLog.CommitLogContext cLogCtx) throws IOException
     {
         logger_.info("Flushing " + this);

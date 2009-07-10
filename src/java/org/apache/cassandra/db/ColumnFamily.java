@@ -37,6 +37,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.ICompactSerializer;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -44,7 +45,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public final class ColumnFamily
 {
     /* The column serializer for this Column Family. Create based on config. */
-    private static ICompactSerializer2<ColumnFamily> serializer_;
+    private static ICompactSerializer<ColumnFamily> serializer_;
     public static final short utfPrefix_ = 2;   
 
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
@@ -64,7 +65,7 @@ public final class ColumnFamily
         indexTypes_.put("Time", "Time");
     }
 
-    public static ICompactSerializer2<ColumnFamily> serializer()
+    public static ICompactSerializer<ColumnFamily> serializer()
     {
         return serializer_;
     }
@@ -73,9 +74,9 @@ public final class ColumnFamily
      * This method returns the serializer whose methods are
      * preprocessed by a dynamic proxy.
     */
-    public static ICompactSerializer2<ColumnFamily> serializerWithIndexes()
+    public static ICompactSerializer<ColumnFamily> serializerWithIndexes()
     {
-        return (ICompactSerializer2<ColumnFamily>)Proxy.newProxyInstance( ColumnFamily.class.getClassLoader(), new Class[]{ICompactSerializer2.class}, new CompactSerializerInvocationHandler<ColumnFamily>(serializer_) );
+        return (ICompactSerializer<ColumnFamily>)Proxy.newProxyInstance( ColumnFamily.class.getClassLoader(), new Class[]{ICompactSerializer.class}, new CompactSerializerInvocationHandler<ColumnFamily>(serializer_) );
     }
 
     public static String getColumnType(String key)
@@ -112,7 +113,7 @@ public final class ColumnFamily
 
     private String name_;
 
-    private transient ICompactSerializer2<IColumn> columnSerializer_;
+    private transient ICompactSerializer<IColumn> columnSerializer_;
     private long markedForDeleteAt = Long.MIN_VALUE;
     private int localDeletionTime = Integer.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
@@ -165,7 +166,7 @@ public final class ColumnFamily
         }
     }
 
-    public ICompactSerializer2<IColumn> getColumnSerializer()
+    public ICompactSerializer<IColumn> getColumnSerializer()
     {
     	return columnSerializer_;
     }
@@ -449,7 +450,7 @@ public final class ColumnFamily
         return cf;
     }
 
-    public static class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
+    public static class ColumnFamilySerializer implements ICompactSerializer<ColumnFamily>
     {
         /*
          * We are going to create indexes, and write out that information as well. The format
@@ -492,22 +493,12 @@ public final class ColumnFamily
             }
         }
 
-        /*
-         * Use this method to create a bare bones Column Family. This column family
-         * does not have any of the Column information.
-        */
-        private ColumnFamily defreezeColumnFamily(DataInputStream dis) throws IOException
+        public ColumnFamily deserialize(DataInputStream dis) throws IOException
         {
             ColumnFamily cf = new ColumnFamily(dis.readUTF(),
                                                dis.readUTF(),
                                                ColumnComparatorFactory.ComparatorType.values()[dis.readInt()]);
             cf.delete(dis.readInt(), dis.readLong());
-            return cf;
-        }
-
-        public ColumnFamily deserialize(DataInputStream dis) throws IOException
-        {
-            ColumnFamily cf = defreezeColumnFamily(dis);
             int size = dis.readInt();
             IColumn column;
             for (int i = 0; i < size; ++i)
@@ -517,62 +508,6 @@ public final class ColumnFamily
             }
             return cf;
         }
-
-        /*
-         * This version of deserialize is used when we need a specific set if columns for
-         * a column family specified in the name cfName parameter.
-        */
-        public ColumnFamily deserialize(DataInputStream dis, IFilter filter) throws IOException
-        {
-            ColumnFamily cf = defreezeColumnFamily(dis);
-            int size = dis.readInt();
-            IColumn column = null;
-            for ( int i = 0; i < size; ++i )
-            {
-                column = cf.getColumnSerializer().deserialize(dis, filter);
-                if(column != null)
-                {
-                    cf.addColumn(column);
-                }
-            }
-            return cf;
-        }
-
-        /*
-         * Deserialize a particular column or super column or the entire columnfamily given a : seprated name
-         * name could be of the form cf:superColumn:column  or cf:column or cf
-         */
-        public ColumnFamily deserialize(DataInputStream dis, String name, IFilter filter) throws IOException
-        {
-            String[] names = RowMutation.getColumnAndColumnFamily(name);
-            String columnName = "";
-            if ( names.length == 1 )
-                return deserialize(dis, filter);
-            if( names.length == 2 )
-                columnName = names[1];
-            if( names.length == 3 )
-                columnName = names[1]+ ":" + names[2];
-
-            ColumnFamily cf = defreezeColumnFamily(dis);
-            /* read the number of columns */
-            int size = dis.readInt();
-            for ( int i = 0; i < size; ++i )
-            {
-                IColumn column = cf.getColumnSerializer().deserialize(dis, columnName, filter);
-                if ( column != null )
-                {
-                    cf.addColumn(column);
-                    break;
-                }
-            }
-            return cf;
-        }
-
-        public void skip(DataInputStream dis) throws IOException
-        {
-            throw new UnsupportedOperationException("This operation is not yet supported.");
-        }
     }
-
 }
 

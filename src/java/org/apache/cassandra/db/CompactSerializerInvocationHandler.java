@@ -22,19 +22,20 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 
 import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.ICompactSerializer;
 
 
 /*
  * This is the abstraction that pre-processes calls to implementations
- * of the ICompactSerializer2 serialize() via dynamic proxies.
+ * of the ICompactSerializer serialize() via dynamic proxies.
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class CompactSerializerInvocationHandler<T> implements InvocationHandler
 {
-    private ICompactSerializer2<T> serializer_;
+    private ICompactSerializer<T> serializer_;
 
-    public CompactSerializerInvocationHandler(ICompactSerializer2<T> serializer)
+    public CompactSerializerInvocationHandler(ICompactSerializer<T> serializer)
     {
         serializer_ = serializer;
     }

@@ -22,12 +22,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
 import java.nio.ByteBuffer;
 
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.ICompactSerializer;
 
 
 /**
@@ -212,7 +212,7 @@ public final class Column implements IColumn
     }
 }
 
-class ColumnSerializer implements ICompactSerializer2<IColumn>
+class ColumnSerializer implements ICompactSerializer<IColumn>
 {
     public void serialize(IColumn column, DataOutputStream dos) throws IOException
     {
@@ -223,81 +223,14 @@ class ColumnSerializer implements ICompactSerializer2<IColumn>
         dos.write(column.value());
     }
 
-    private IColumn defreeze(DataInputStream dis, String name) throws IOException
+    public IColumn deserialize(DataInputStream dis) throws IOException
     {
-        IColumn column = null;
+        String name = dis.readUTF();
         boolean delete = dis.readBoolean();
         long ts = dis.readLong();
         int size = dis.readInt();
         byte[] value = new byte[size];
         dis.readFully(value);
-        column = new Column(name, value, ts, delete);
-        return column;
-    }
-
-    public IColumn deserialize(DataInputStream dis) throws IOException
-    {
-        String name = dis.readUTF();
-        return defreeze(dis, name);
-    }
-
-    /**
-     * Here we need to get the column and apply the filter.
-     */
-    public IColumn deserialize(DataInputStream dis, IFilter filter) throws IOException
-    {
-        assert dis.available() > 0;
-
-        String name = dis.readUTF();
-        IColumn column = new Column(name);
-        column = filter.filter(column, dis);
-        if ( column != null )
-        {
-            column = defreeze(dis, name);
-        }
-        else
-        {
-        	/* Skip a boolean and the timestamp */
-        	dis.skip(DBConstants.boolSize_ + DBConstants.tsSize_);
-            int size = dis.readInt();
-            dis.skip(size);
-        }
-        return column;
-    }
-
-    /**
-     * We know the name of the column here so just return it.
-     * Filter is pretty much useless in this call and is ignored.
-     */
-    public IColumn deserialize(DataInputStream dis, String columnName, IFilter filter) throws IOException
-    {
-        assert dis.available() > 0;
-        IColumn column = null;
-        String name = dis.readUTF();
-        if ( name.equals(columnName) )
-        {
-            column = defreeze(dis, name);
-        }
-        else
-        {
-        	/* Skip a boolean and the timestamp */
-        	dis.skip(DBConstants.boolSize_ + DBConstants.tsSize_);
-            int size = dis.readInt();
-            dis.skip(size);
-        }
-        return column;
-    }
-
-    public void skip(DataInputStream dis) throws IOException
-    {
-    	/* read the column name */
-        dis.readUTF();
-        /* boolean indicating if the column is deleted */
-        dis.readBoolean();
-        /* timestamp associated with the column */
-        dis.readLong();
-        /* size of the column */
-        int size = dis.readInt();
-        dis.skip(size);
+        return new Column(name, value, ts, delete);
     }
 }

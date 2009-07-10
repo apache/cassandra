@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.TreeSet;
+import java.util.Arrays;
 
 public class ColumnReadCommand extends ReadCommand
 {
@@ -49,7 +51,14 @@ public class ColumnReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException    
     {
-        return table.getRow(key, columnFamilyColumn);
+        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
+        assert values.length > 1 && values.length <= 3;
+        if (values.length == 2)
+        {
+            return table.getRow(key, values[0], new TreeSet<String>(Arrays.asList(values[1])));
+        }
+        assert values.length == 3 : columnFamilyColumn;
+        return table.getRow(key, values[0] + ":" + values[1], new TreeSet<String>(Arrays.asList(values[2])));
     }
 
     @Override

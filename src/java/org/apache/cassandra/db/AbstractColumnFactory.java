@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.StringTokenizer;
 
+import org.apache.cassandra.io.ICompactSerializer;
 
 
 /**
@@ -51,7 +52,7 @@ abstract class AbstractColumnFactory
 	public abstract IColumn createColumn(String name, byte[] value);
     public abstract IColumn createColumn(String name, byte[] value, long timestamp);
     public abstract IColumn createColumn(String name, byte[] value, long timestamp, boolean deleted);
-    public abstract ICompactSerializer2<IColumn> createColumnSerializer();
+    public abstract ICompactSerializer<IColumn> createColumnSerializer();
 }
 
 class ColumnFactory extends AbstractColumnFactory
@@ -75,7 +76,7 @@ class ColumnFactory extends AbstractColumnFactory
         return new Column(name, value, timestamp, deleted);
     }
 
-    public ICompactSerializer2<IColumn> createColumnSerializer()
+    public ICompactSerializer<IColumn> createColumnSerializer()
     {
         return Column.serializer();
     }
@@ -130,7 +131,7 @@ class SuperColumnFactory extends AbstractColumnFactory
 		return superColumn;
 	}
 
-    public ICompactSerializer2<IColumn> createColumnSerializer()
+    public ICompactSerializer<IColumn> createColumnSerializer()
     {
         return SuperColumn.serializer();
     }

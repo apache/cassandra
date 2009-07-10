@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Set;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -32,6 +31,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.ICompactSerializer;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -319,7 +319,7 @@ public final class SuperColumn implements IColumn, Serializable
     }
 }
 
-class SuperColumnSerializer implements ICompactSerializer2<IColumn>
+class SuperColumnSerializer implements ICompactSerializer<IColumn>
 {
     public void serialize(IColumn column, DataOutputStream dos) throws IOException
     {
@@ -339,37 +339,11 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         }
     }
 
-    /*
-     * Use this method to create a bare bones Super Column. This super column
-     * does not have any of the Column information.
-    */
-    private SuperColumn defreezeSuperColumn(DataInputStream dis) throws IOException
+    public IColumn deserialize(DataInputStream dis) throws IOException
     {
         String name = dis.readUTF();
         SuperColumn superColumn = new SuperColumn(name);
         superColumn.markForDeleteAt(dis.readInt(), dis.readLong());
-        return superColumn;
-    }
-
-    public IColumn deserialize(DataInputStream dis) throws IOException
-    {
-        SuperColumn superColumn = defreezeSuperColumn(dis);
-        fillSuperColumn(superColumn, dis);
-        return superColumn;
-    }
-
-    public void skip(DataInputStream dis) throws IOException
-    {
-        defreezeSuperColumn(dis);
-        /* read the number of columns stored */
-        dis.readInt();
-        /* read the size of all columns to skip */
-        int size = dis.readInt();
-        dis.skip(size);
-    }
-
-    private void fillSuperColumn(IColumn superColumn, DataInputStream dis) throws IOException
-    {
         assert dis.available() > 0;
 
         /* read the number of columns */
@@ -381,87 +355,7 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
             IColumn subColumn = Column.serializer().deserialize(dis);
             superColumn.addColumn(subColumn);
         }
-    }
-
-    public IColumn deserialize(DataInputStream dis, IFilter filter) throws IOException
-    {
-        assert dis.available() > 0;
-
-        IColumn superColumn = defreezeSuperColumn(dis);
-        superColumn = filter.filter(superColumn, dis);
-        if(superColumn != null)
-        {
-            fillSuperColumn(superColumn, dis);
-            return superColumn;
-        }
-        else
-        {
-            /* read the number of columns stored */
-            dis.readInt();
-            /* read the size of all columns to skip */
-            int size = dis.readInt();
-            dis.skip(size);
-        	return null;
-        }
-    }
-
-    /*
-     * Deserialize a particular column since the name is in the form of
-     * superColumn:column.
-    */
-    public IColumn deserialize(DataInputStream dis, String name, IFilter filter) throws IOException
-    {
-        assert dis.available() > 0;
-
-        String[] names = RowMutation.getColumnAndColumnFamily(name);
-        if ( names.length == 1 )
-        {
-            IColumn superColumn = defreezeSuperColumn(dis);
-            if(name.equals(superColumn.name()))
-            {
-                /* read the number of columns stored */
-                int size = dis.readInt();
-                /* read the size of all columns */
-                dis.readInt();
-                IColumn column = null;
-                for ( int i = 0; i < size; ++i )
-                {
-                    column = Column.serializer().deserialize(dis, filter);
-                    if(column != null)
-                    {
-                        superColumn.addColumn(column);
-                    }
-                }
-                return superColumn;
-            }
-            else
-            {
-                /* read the number of columns stored */
-                dis.readInt();
-                /* read the size of all columns to skip */
-                int size = dis.readInt();
-                dis.skip(size);
-            	return null;
-            }
-        }
-
-        SuperColumn superColumn = defreezeSuperColumn(dis);
-        int size = dis.readInt();
-        /* skip the size of the columns */
-        dis.readInt();
-        if ( size > 0 )
-        {
-            for ( int i = 0; i < size; ++i )
-            {
-                IColumn subColumn = Column.serializer().deserialize(dis, names[1], filter);
-                if ( subColumn != null )
-                {
-                    superColumn.addColumn(subColumn);
-                    break;
-                }
-            }
-        }
-
         return superColumn;
     }
+
 }
