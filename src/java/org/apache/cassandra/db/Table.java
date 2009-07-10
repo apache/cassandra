@@ -592,7 +592,8 @@ public class Table
         long start1 = System.currentTimeMillis();
         try
         {
-            ColumnFamily columnFamily = cfStore.getSliceFrom(key, cfName, start, finish, isAscending, offset, count);
+            QueryFilter filter = new SliceQueryFilter(key, cfName, start, finish, isAscending, offset, count);
+            ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
             if (columnFamily != null)
                 row.addColumnFamily(columnFamily);
             long timeTaken = System.currentTimeMillis() - start1;

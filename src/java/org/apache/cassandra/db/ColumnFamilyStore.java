@@ -1555,7 +1555,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * get a list of columns starting from a given column, in a specified order
      * only the latest version of a column is returned
      */
-    public ColumnFamily getSliceFrom(String key, String cfName, String startColumn, String finishColumn, boolean isAscending, int offset, int count)
+    public ColumnFamily getColumnFamily(QueryFilter filter)
     throws IOException, ExecutionException, InterruptedException
     {
         sstableLock_.readLock().lock();
@@ -1569,7 +1569,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memtableLock_.readLock().lock();
             try
             {
-                iter = memtable_.getColumnIterator(key, cfName, isAscending, startColumn);
+                iter = filter.getMemColumnIterator(memtable_);
                 returnCF = iter.getColumnFamily();
             }
             finally
@@ -1579,10 +1579,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             iterators.add(iter);
 
             /* add the memtables being flushed */
-            List<Memtable> memtables = getUnflushedMemtables(cfName);
+            List<Memtable> memtables = getUnflushedMemtables(filter.getColumnFamilyName());
             for (Memtable memtable:memtables)
             {
-                iter = memtable.getColumnIterator(key, cfName, isAscending, startColumn);
+                iter = filter.getMemColumnIterator(memtable);
                 returnCF.delete(iter.getColumnFamily());
                 iterators.add(iter);
             }
@@ -1591,67 +1591,24 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_.values());
             for (SSTableReader sstable : sstables)
             {
-                iter = new SSTableColumnIterator(sstable.getFilename(), key, cfName, startColumn, isAscending);
+                iter = filter.getSSTableColumnIterator(sstable);
                 if (iter.hasNext())
                 {
                     returnCF.delete(iter.getColumnFamily());
                     iterators.add(iter);
                 }
+                else
+                {
+                    iter.close();
+                }
             }
 
-            // define a 'reduced' iterator that merges columns w/ the same name, which
-            // greatly simplifies computing liveColumns in the presence of tombstones.
-            Comparator<IColumn> comparator = new Comparator<IColumn>()
-            {
-                public int compare(IColumn c1, IColumn c2)
-                {
-                    return c1.name().compareTo(c2.name());
-                }
-            };
-            if (!isAscending)
-                comparator = new ReverseComparator(comparator);
+            Comparator<IColumn> comparator = filter.getColumnComparator();
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
-                return ColumnFamily.create(table_, cfName);
-            ReducingIterator<IColumn> reduced = new ReducingIterator<IColumn>(collated)
-            {
-                ColumnFamily curCF = returnCF.cloneMeShallow();
+                return ColumnFamily.create(table_, filter.getColumnFamilyName());
 
-                protected Object getKey(IColumn o)
-                {
-                    return o == null ? null : o.name();
-                }
-
-                public void reduce(IColumn current)
-                {
-                    curCF.addColumn(current);
-                }
-
-                protected IColumn getReduced()
-                {
-                    IColumn c = curCF.getAllColumns().first();
-                    curCF.clear();
-                    return c;
-                }
-            };
-
-            // add unique columns to the CF container
-            int liveColumns = 0;
-            int limit = offset + count;
-            for (IColumn column : reduced)
-            {
-                if (liveColumns >= limit)
-                    break;
-                if (!finishColumn.isEmpty()
-                    && ((isAscending && column.name().compareTo(finishColumn) > 0))
-                        || (!isAscending && column.name().compareTo(finishColumn) < 0))
-                    break;
-                if (!column.isMarkedForDelete())
-                    liveColumns++;
-
-                if (liveColumns > offset)
-                    returnCF.addColumn(column);
-            }
+            filter.collectColumns(returnCF, collated);
 
             return removeDeleted(returnCF);
         }
