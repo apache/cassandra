@@ -1,26 +1,25 @@
 package org.apache.cassandra.db.filter;
 
-import java.io.IOException;
-import java.util.SortedSet;
 import java.util.Iterator;
+import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.IndexHelper;
 
-public class SSTableNamesIterator extends SimpleAbstractColumnIterator
+public class SSTableTimeIterator extends SimpleAbstractColumnIterator
 {
     private ColumnFamily cf;
     private Iterator<IColumn> iter;
-    public final SortedSet<String> columns;
+    public final long since;
 
-    // TODO make this actually iterate so we don't have to read + deserialize + filter data that we don't need due to merging other sstables
-    public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<String> columns) throws IOException
+    public SSTableTimeIterator(String filename, String key, String cfName, long since) throws IOException
     {
-        this.columns = columns;
+        this.since = since;
         SSTableReader ssTable = SSTableReader.open(filename);
-        DataInputBuffer buffer = ssTable.next(key, cfName, columns);
+        DataInputBuffer buffer = ssTable.next(key, cfName, null, new IndexHelper.TimeRange(since, Long.MAX_VALUE));
         if (buffer.getLength() > 0)
         {
             cf = ColumnFamily.serializer().deserialize(buffer);
@@ -40,8 +39,9 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         while (iter.hasNext())
         {
             IColumn c = iter.next();
-            if (columns.contains(c.name()))
-                return c;
+            if (c.timestamp() < since)
+                break;
+            return c;
         }
         return endOfData();
     }

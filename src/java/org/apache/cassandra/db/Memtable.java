@@ -365,9 +365,8 @@ public class Memtable implements Comparable<Memtable>
 
     public ColumnIterator getNamesIterator(final NamesQueryFilter filter)
     {
-        ColumnFamily cf = columnFamilies_.get(filter.key);
+        final ColumnFamily cf = columnFamilies_.get(filter.key);
         final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
-        final Map<String, IColumn> columnsContainer = cf == null ? null : cf.getColumns();
 
         return new SimpleAbstractColumnIterator()
         {
@@ -381,16 +380,48 @@ public class Memtable implements Comparable<Memtable>
 
             protected IColumn computeNext()
             {
-                if (columnsContainer == null)
+                if (cf == null)
                 {
                     return endOfData();
                 }
                 while (iter.hasNext())
                 {
                     current = iter.next();
-                    IColumn column = columnsContainer.get(current);
+                    IColumn column = cf.getColumn(current);
                     if (column != null)
                         return column;
+                }
+                return endOfData();
+            }
+        };
+    }
+
+    public ColumnIterator getTimeIterator(final TimeQueryFilter filter)
+    {
+        final ColumnFamily cf = columnFamilies_.get(filter.key);
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
+
+        return new SimpleAbstractColumnIterator()
+        {
+            private Iterator<IColumn> iter = cf == null ? null : cf.getAllColumns().iterator();
+
+            public ColumnFamily getColumnFamily()
+            {
+                return columnFamily;
+            }
+
+            protected IColumn computeNext()
+            {
+                if (iter == null)
+                {
+                    return endOfData();
+                }
+                while (iter.hasNext())
+                {
+                    IColumn column = iter.next();
+                    if (column.timestamp() < filter.since)
+                        break;
+                    return column;
                 }
                 return endOfData();
             }

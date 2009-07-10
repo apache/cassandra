@@ -46,6 +46,7 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.TimeQueryFilter;
 
 import org.apache.log4j.Logger;
 
@@ -550,19 +551,10 @@ public class Table
         return row;
     }
     
-    public Row getRow(String key, String cf, long sinceTimeStamp) throws IOException
+    public Row getRow(String key, String columnFamilyColumn, long sinceTimeStamp) throws IOException
     {
-        Row row = new Row(table_, key);
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
-        long start1 = System.currentTimeMillis();
-        assert cfStore != null : "Column family " + cf + " has not been defined";
-        ColumnFamily columnFamily = cfStore.getColumnFamily(key, cf, new TimeFilter(sinceTimeStamp));
-        if ( columnFamily != null )
-            row.addColumnFamily(columnFamily);
-        long timeTaken = System.currentTimeMillis() - start1;
-        dbAnalyticsSource_.updateReadStatistics(timeTaken);
-        return row;
+        QueryFilter filter = new TimeQueryFilter(key, columnFamilyColumn, sinceTimeStamp);
+        return getRow(key, filter);
     }
 
     /**
