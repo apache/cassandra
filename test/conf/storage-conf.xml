@@ -21,7 +21,6 @@
    <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
    <RackAware>false</RackAware>
    <ReplicationFactor>1</ReplicationFactor>
-   <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <ListenAddress>127.0.0.1</ListenAddress>
    <StoragePort>7010</StoragePort>

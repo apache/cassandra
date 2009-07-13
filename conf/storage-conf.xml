@@ -172,14 +172,4 @@
          face of hardware failures.  The default value is ten days.
     -->
     <GCGraceSeconds>864000</GCGraceSeconds>
-
-
-    <!--======================================================================-->
-    <!-- OPTIONAL                                                             -->
-    <!--======================================================================-->
-    <!-- This final section contains configuration information for optional
-         and experimental features in Cassandra that are not yet fully functional.
-         Basic features in Cassandra should work fine without configuring this section.
-    -->
-    <ZookeeperAddress>127.0.0.1</ZookeeperAddress>
 </Storage>

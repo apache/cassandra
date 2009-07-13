@@ -95,16 +95,12 @@ public class DatabaseDescriptor
      * high throughput on reads but at the cost of consistency.
     */
     private static boolean doConsistencyCheck_ = true;
-    /* Address of ZooKeeper cell */
-    private static String zkAddress_;
     /* Callout directories */
     private static String calloutLocation_;
     /* Job Jar Location */
     private static String jobJarFileLocation_;
     /* Address where to run the job tracker */
     private static String jobTrackerHost_;    
-    /* Zookeeper session timeout. */
-    private static int zkSessionTimeout_ = 30000;
     /* time to wait before garbage collecting tombstones (deletion markers) */
     private static int gcGraceInSeconds_ = 10 * 24 * 3600; // 10 days
 
@@ -127,9 +123,6 @@ public class DatabaseDescriptor
 
             /* Ganglia servers contact list */
             gangliaServers_ = xmlUtils.getNodeValues("/Storage/GangliaServers/GangliaServer");
-
-            /* ZooKeeper's address */
-            zkAddress_ = xmlUtils.getNodeValue("/Storage/ZookeeperAddress");
 
             /* Hashing strategy */
             partitionerClass_ = xmlUtils.getNodeValue("/Storage/Partitioner");
@@ -160,11 +153,6 @@ public class DatabaseDescriptor
                 gcGraceInSeconds_ = Integer.parseInt(gcGrace);
 
             initialToken_ = xmlUtils.getNodeValue("/Storage/InitialToken");
-
-            /* Zookeeper's session timeout */
-            String zkSessionTimeout = xmlUtils.getNodeValue("/Storage/ZookeeperSessionTimeout");
-            if ( zkSessionTimeout != null )
-                zkSessionTimeout_ = Integer.parseInt(zkSessionTimeout);
 
             /* Data replication factor */
             String replicationFactor = xmlUtils.getNodeValue("/Storage/ReplicationFactor");
@@ -480,11 +468,6 @@ public class DatabaseDescriptor
         return partitionerClass_;
     }
     
-    public static String getZkAddress()
-    {
-        return zkAddress_;
-    }
-    
     public static String getCalloutLocation()
     {
         return calloutLocation_;
@@ -495,11 +478,6 @@ public class DatabaseDescriptor
         return jobTrackerHost_;
     }
     
-    public static int getZkSessionTimeout()
-    {
-        return zkSessionTimeout_;
-    }
-
     public static int getColumnIndexSize()
     {
     	return columnIndexSizeInKB_ * 1024;

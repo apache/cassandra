@@ -43,7 +43,6 @@ import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.zookeeper.ZooKeeper;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -184,8 +183,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private StorageLoadBalancer storageLoadBalancer_;
     /* We use this interface to determine where replicas need to be placed */
     private IReplicaPlacementStrategy nodePicker_;
-    /* Handle to a ZooKeeper instance */
-    private ZooKeeper zk_;
     
     /*
      * Registers with Management Server
@@ -242,11 +239,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             nodePicker_ = new RackAwareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
         else
             nodePicker_ = new RackUnawareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
-    }
-
-    protected ZooKeeper getZooKeeperHandle()
-    {
-        return zk_;
     }
 
     static
