@@ -114,6 +114,19 @@
       </java> 
     </target>
 
+    <target name="gen-thrift-java">
+      <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
+      <exec executable="thrift" dir="${basedir}/interface">
+        <arg line="--gen java cassandra.thrift" />
+      </exec>
+    </target>
+    <target name="gen-thrift-py">
+      <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift ....</echo>
+      <exec executable="thrift" dir="${basedir}/interface">
+        <arg line="--gen py cassandra.thrift" />
+      </exec>
+    </target>
+
     <!--
 	The build target builds all the .class files
     -->
