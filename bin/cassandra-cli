@@ -16,23 +16,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-classpath()
-{
-    cassandra_home=`dirname $0`/..
-    classp=$cassandra_home/build/classes
-
-    for j in $cassandra_home/lib/*.jar; do
-        classp=$classp:$j
+if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
+    for include in /usr/share/cassandra/cassandra.in.sh \
+                   /usr/local/share/cassandra/cassandra.in.sh \
+                   /opt/cassandra/cassandra.in.sh \
+                   `dirname $0`/cassandra.in.sh; do
+        if [ -r $include ]; then
+            . $include
+            break
+        fi
     done
-
-    printf $classp
-}
-
-if [ -z $CLASSPATH ]; then
-    jvmargs="-cp `classpath`"
+elif [ -r $CASSANDRA_INCLUDE ]; then
+    . $CASSANDRA_INCLUDE
 fi
 
-java $jvmargs org.apache.cassandra.cli.CliMain "$@"
+if [ -z $CLASSPATH ]; then
+    echo "You must set the CLASSPATH var" >&2
+    exit 1
+fi
+
+java -cp $CLASSPATH  org.apache.cassandra.cli.CliMain "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et
