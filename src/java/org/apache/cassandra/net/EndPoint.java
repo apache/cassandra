@@ -41,14 +41,16 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
     private static Logger logger_ = Logger.getLogger(EndPoint.class);
     private static final long serialVersionUID = -4962625949179835907L;
     private static Map<CharBuffer, String> hostNames_ = new HashMap<CharBuffer, String>();
-    protected static final int randomPort_ = 5555;
-    public static EndPoint randomLocalEndPoint_;
+
+    // use as a kind of magic number to send ourselves a message indicating listening state
+    protected static final int sentinelPort_ = 5555;
+    public static EndPoint sentinelLocalEndPoint_;
     
     static
     {
         try
         {
-            randomLocalEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), EndPoint.randomPort_);
+            sentinelLocalEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), EndPoint.sentinelPort_);
         }        
         catch ( IOException ex )
         {
