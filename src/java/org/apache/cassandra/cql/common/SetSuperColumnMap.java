@@ -21,6 +21,7 @@ package org.apache.cassandra.cql.common;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
@@ -62,13 +63,12 @@ public class SetSuperColumnMap extends DMLPlan
                 OperandDef    superColumnKey = superColumn.getFirst();
                 ColumnMapExpr columnMapExpr = superColumn.getSecond();
                 
-                String columnFamily_column = cfMetaData_.cfName + ":" + (String)(superColumnKey.get()) + ":";
-                
                 for (Pair<OperandDef, OperandDef> entry : columnMapExpr)
                 {
                     OperandDef columnKey = entry.getFirst();
                     OperandDef value     = entry.getSecond();
-                    rm.add(columnFamily_column + (String)(columnKey.get()), ((String)value.get()).getBytes(), time);
+                    QueryPath path = new QueryPath(cfMetaData_.cfName, (String)(superColumnKey.get()), (String)(columnKey.get()));
+                    rm.add(path, ((String)value.get()).getBytes(), time);
                 }
             }
             StorageProxy.insert(rm);

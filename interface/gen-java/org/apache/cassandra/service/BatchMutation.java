@@ -4,27 +4,6 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
@@ -39,26 +18,21 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class batch_mutation_super_t implements TBase, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("batch_mutation_super_t");
-  private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
-  private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-  private static final TField CFMAP_FIELD_DESC = new TField("cfmap", TType.MAP, (short)3);
+public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
+  private static final TStruct STRUCT_DESC = new TStruct("BatchMutation");
+  private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
+  private static final TField CFMAP_FIELD_DESC = new TField("cfmap", TType.MAP, (short)2);
 
-  public String table;
-  public static final int TABLE = 1;
   public String key;
-  public static final int KEY = 2;
-  public Map<String,List<superColumn_t>> cfmap;
-  public static final int CFMAP = 3;
+  public static final int KEY = 1;
+  public Map<String,List<Column>> cfmap;
+  public static final int CFMAP = 2;
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
-        new FieldValueMetaData(TType.STRING)));
     put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
     put(CFMAP, new FieldMetaData("cfmap", TFieldRequirementType.DEFAULT, 
@@ -66,19 +40,17 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(batch_mutation_super_t.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(BatchMutation.class, metaDataMap);
   }
 
-  public batch_mutation_super_t() {
+  public BatchMutation() {
   }
 
-  public batch_mutation_super_t(
-    String table,
+  public BatchMutation(
     String key,
-    Map<String,List<superColumn_t>> cfmap)
+    Map<String,List<Column>> cfmap)
   {
     this();
-    this.table = table;
     this.key = key;
     this.cfmap = cfmap;
   }
@@ -86,10 +58,7 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public batch_mutation_super_t(batch_mutation_super_t other) {
-    if (other.isSetTable()) {
-      this.table = other.table;
-    }
+  public BatchMutation(BatchMutation other) {
     if (other.isSetKey()) {
       this.key = other.key;
     }
@@ -99,31 +68,8 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   }
 
   @Override
-  public batch_mutation_super_t clone() {
-    return new batch_mutation_super_t(this);
-  }
-
-  public String getTable() {
-    return this.table;
-  }
-
-  public void setTable(String table) {
-    this.table = table;
-  }
-
-  public void unsetTable() {
-    this.table = null;
-  }
-
-  // Returns true if field table is set (has been asigned a value) and false otherwise
-  public boolean isSetTable() {
-    return this.table != null;
-  }
-
-  public void setTableIsSet(boolean value) {
-    if (!value) {
-      this.table = null;
-    }
+  public BatchMutation clone() {
+    return new BatchMutation(this);
   }
 
   public String getKey() {
@@ -153,18 +99,18 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
     return (this.cfmap == null) ? 0 : this.cfmap.size();
   }
 
-  public void putToCfmap(String key, List<superColumn_t> val) {
+  public void putToCfmap(String key, List<Column> val) {
     if (this.cfmap == null) {
-      this.cfmap = new HashMap<String,List<superColumn_t>>();
+      this.cfmap = new HashMap<String,List<Column>>();
     }
     this.cfmap.put(key, val);
   }
 
-  public Map<String,List<superColumn_t>> getCfmap() {
+  public Map<String,List<Column>> getCfmap() {
     return this.cfmap;
   }
 
-  public void setCfmap(Map<String,List<superColumn_t>> cfmap) {
+  public void setCfmap(Map<String,List<Column>> cfmap) {
     this.cfmap = cfmap;
   }
 
@@ -185,14 +131,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
-    case TABLE:
-      if (value == null) {
-        unsetTable();
-      } else {
-        setTable((String)value);
-      }
-      break;
-
     case KEY:
       if (value == null) {
         unsetKey();
@@ -205,7 +143,7 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
       if (value == null) {
         unsetCfmap();
       } else {
-        setCfmap((Map<String,List<superColumn_t>>)value);
+        setCfmap((Map<String,List<Column>>)value);
       }
       break;
 
@@ -216,9 +154,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   public Object getFieldValue(int fieldID) {
     switch (fieldID) {
-    case TABLE:
-      return getTable();
-
     case KEY:
       return getKey();
 
@@ -233,8 +168,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
   public boolean isSet(int fieldID) {
     switch (fieldID) {
-    case TABLE:
-      return isSetTable();
     case KEY:
       return isSetKey();
     case CFMAP:
@@ -248,23 +181,14 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof batch_mutation_super_t)
-      return this.equals((batch_mutation_super_t)that);
+    if (that instanceof BatchMutation)
+      return this.equals((BatchMutation)that);
     return false;
   }
 
-  public boolean equals(batch_mutation_super_t that) {
+  public boolean equals(BatchMutation that) {
     if (that == null)
       return false;
-
-    boolean this_present_table = true && this.isSetTable();
-    boolean that_present_table = true && that.isSetTable();
-    if (this_present_table || that_present_table) {
-      if (!(this_present_table && that_present_table))
-        return false;
-      if (!this.table.equals(that.table))
-        return false;
-    }
 
     boolean this_present_key = true && this.isSetKey();
     boolean that_present_key = true && that.isSetKey();
@@ -303,13 +227,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
       }
       switch (field.id)
       {
-        case TABLE:
-          if (field.type == TType.STRING) {
-            this.table = iprot.readString();
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
         case KEY:
           if (field.type == TType.STRING) {
             this.key = iprot.readString();
@@ -320,26 +237,26 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
         case CFMAP:
           if (field.type == TType.MAP) {
             {
-              TMap _map13 = iprot.readMapBegin();
-              this.cfmap = new HashMap<String,List<superColumn_t>>(2*_map13.size);
-              for (int _i14 = 0; _i14 < _map13.size; ++_i14)
+              TMap _map0 = iprot.readMapBegin();
+              this.cfmap = new HashMap<String,List<Column>>(2*_map0.size);
+              for (int _i1 = 0; _i1 < _map0.size; ++_i1)
               {
-                String _key15;
-                List<superColumn_t> _val16;
-                _key15 = iprot.readString();
+                String _key2;
+                List<Column> _val3;
+                _key2 = iprot.readString();
                 {
-                  TList _list17 = iprot.readListBegin();
-                  _val16 = new ArrayList<superColumn_t>(_list17.size);
-                  for (int _i18 = 0; _i18 < _list17.size; ++_i18)
+                  TList _list4 = iprot.readListBegin();
+                  _val3 = new ArrayList<Column>(_list4.size);
+                  for (int _i5 = 0; _i5 < _list4.size; ++_i5)
                   {
-                    superColumn_t _elem19;
-                    _elem19 = new superColumn_t();
-                    _elem19.read(iprot);
-                    _val16.add(_elem19);
+                    Column _elem6;
+                    _elem6 = new Column();
+                    _elem6.read(iprot);
+                    _val3.add(_elem6);
                   }
                   iprot.readListEnd();
                 }
-                this.cfmap.put(_key15, _val16);
+                this.cfmap.put(_key2, _val3);
               }
               iprot.readMapEnd();
             }
@@ -364,11 +281,6 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.table != null) {
-      oprot.writeFieldBegin(TABLE_FIELD_DESC);
-      oprot.writeString(this.table);
-      oprot.writeFieldEnd();
-    }
     if (this.key != null) {
       oprot.writeFieldBegin(KEY_FIELD_DESC);
       oprot.writeString(this.key);
@@ -378,12 +290,12 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
       oprot.writeFieldBegin(CFMAP_FIELD_DESC);
       {
         oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.cfmap.size()));
-        for (Map.Entry<String, List<superColumn_t>> _iter20 : this.cfmap.entrySet())        {
-          oprot.writeString(_iter20.getKey());
+        for (Map.Entry<String, List<Column>> _iter7 : this.cfmap.entrySet())        {
+          oprot.writeString(_iter7.getKey());
           {
-            oprot.writeListBegin(new TList(TType.STRUCT, _iter20.getValue().size()));
-            for (superColumn_t _iter21 : _iter20.getValue())            {
-              _iter21.write(oprot);
+            oprot.writeListBegin(new TList(TType.STRUCT, _iter7.getValue().size()));
+            for (Column _iter8 : _iter7.getValue())            {
+              _iter8.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -398,17 +310,9 @@ public class batch_mutation_super_t implements TBase, java.io.Serializable, Clon
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("batch_mutation_super_t(");
+    StringBuilder sb = new StringBuilder("BatchMutation(");
     boolean first = true;
 
-    sb.append("table:");
-    if (this.table == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.table);
-    }
-    first = false;
-    if (!first) sb.append(", ");
     sb.append("key:");
     if (this.key == null) {
       sb.append("null");

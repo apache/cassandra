@@ -17,15 +17,15 @@ public class NamesQueryFilter extends QueryFilter
 {
     public final SortedSet<String> columns;
 
-    public NamesQueryFilter(String key, String columnFamilyColumn, SortedSet<String> columns)
+    public NamesQueryFilter(String key, QueryPath columnParent, SortedSet<String> columns)
     {
-        super(key, columnFamilyColumn);
+        super(key, columnParent);
         this.columns = columns;
     }
 
-    public NamesQueryFilter(String key, String columnFamilyColumn, String column)
+    public NamesQueryFilter(String key, QueryPath columnParent, String column)
     {
-        this(key, columnFamilyColumn, new TreeSet<String>(Arrays.asList(column)));
+        this(key, columnParent, new TreeSet<String>(Arrays.asList(column)));
     }
 
     public ColumnIterator getMemColumnIterator(Memtable memtable)

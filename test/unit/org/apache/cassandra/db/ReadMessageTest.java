@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class ReadMessageTest
 {
@@ -41,23 +42,19 @@ public class ReadMessageTest
         
         ReadCommand rm, rm2;
         
-        rm = new SliceByNamesReadCommand("Table1", "row1", "foo", colList);
+        rm = new SliceByNamesReadCommand("Table1", "row1", new QueryPath("foo"), colList);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new ColumnReadCommand("Table1", "row1", "foo:col1");
+        rm = new ColumnsSinceReadCommand("Table1", "row1", new QueryPath("foo"), 1);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new ColumnsSinceReadCommand("Table1", "row1", "foo", 1);
-        rm2 = serializeAndDeserializeReadMessage(rm);
-        assert rm2.toString().equals(rm.toString());
-
-        rm = new SliceFromReadCommand("Table1", "row1", "foo", "", "", true, 0, 2);
+        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "", "", true, 0, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
         
-        rm = new SliceFromReadCommand("Table1", "row1", "foo", "a", "z", true, 0, 5);
+        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "a", "z", true, 0, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
     }
@@ -90,10 +87,10 @@ public class ReadMessageTest
 
         // add data
         rm = new RowMutation("Table1", "key1");
-        rm.add("Standard1:Column1", "abcd".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1"), "abcd".getBytes(), 0);
         rm.apply();
 
-        ReadCommand command = new ColumnReadCommand("Table1", "key1", "Standard1:Column1");
+        ReadCommand command = new SliceByNamesReadCommand("Table1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1"));
         Row row = command.getRow(table);
         ColumnFamily cf = row.getColumnFamily("Standard1");
         IColumn col = cf.getColumn("Column1");

@@ -28,6 +28,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class OneCompactionTest
 {
@@ -40,7 +41,7 @@ public class OneCompactionTest
         for (int j = 0; j < insertsPerTable; j++) {
             String key = "0";
             RowMutation rm = new RowMutation("Table1", key);
-            rm.add(columnFamilyName + ":0", new byte[0], j);
+            rm.add(new QueryPath(columnFamilyName, null, "0"), new byte[0], j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();

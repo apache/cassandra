@@ -26,6 +26,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class NameSortTest extends CleanupHelper
 {
@@ -65,7 +66,7 @@ public class NameSortTest extends CleanupHelper
             {
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 rm = new RowMutation("Table1", key);
-                rm.add("Standard1:" + "Column-" + j, bytes, j);
+                rm.add(new QueryPath("Standard1", null, "Column-" + j), bytes, j);
                 rm.apply();
             }
 
@@ -76,7 +77,7 @@ public class NameSortTest extends CleanupHelper
                 {
                     byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
                     rm = new RowMutation("Table1", key);
-                    rm.add("Super1:" + "SuperColumn-" + j + ":Column-" + k, bytes, k);
+                    rm.add(new QueryPath("Super1", "SuperColumn-" + j, "Column-" + k), bytes, k);
                     rm.apply();
                 }
             }

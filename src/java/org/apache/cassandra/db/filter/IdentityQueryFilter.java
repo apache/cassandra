@@ -7,9 +7,9 @@ public class IdentityQueryFilter extends SliceQueryFilter
     /**
      * Only for use in testing; will read entire CF into memory.
      */
-    public IdentityQueryFilter(String key, String columnFamilyColumn)
+    public IdentityQueryFilter(String key, QueryPath path)
     {
-        super(key, columnFamilyColumn, "", "", true, 0, Integer.MAX_VALUE);
+        super(key, path, "", "", true, 0, Integer.MAX_VALUE);
     }
 
     @Override

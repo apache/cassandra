@@ -39,9 +39,7 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.ColumnIterator;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.*;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.collections.IteratorUtils;
@@ -1422,7 +1420,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public double getWriteLatency() {
         return writeStats_.mean();
     }
-    
+
+    public ColumnFamily getColumnFamily(String key, QueryPath path, String start, String finish, boolean isAscending, int offset, int limit) throws IOException
+    {
+        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, isAscending, offset, limit));
+    }
+
+    public ColumnFamily getColumnFamily(String key, QueryPath columnParent, long since) throws IOException
+    {
+        return getColumnFamily(new TimeQueryFilter(key, columnParent, since));    
+    }
+
     /**
      * get a list of columns starting from a given column, in a specified order.
      * only the latest version of a column is returned.
@@ -1430,12 +1438,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(filter.columnFamilyColumn);
-
         // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
-        if (values.length > 1)
+        if (filter.path.superColumnName != null)
         {
-            QueryFilter nameFilter = new NamesQueryFilter(filter.key, values[0], values[1]);
+            QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(filter.path.columnFamilyName), filter.path.superColumnName);
             ColumnFamily cf = getColumnFamily(nameFilter);
             if (cf != null)
             {

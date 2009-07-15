@@ -21,28 +21,38 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+import org.apache.cassandra.service.ColumnParent;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.TimeQueryFilter;
+
 public class ColumnsSinceReadCommand extends ReadCommand
 {
-    public final String columnFamily;
+    public final QueryPath columnParent;
     public final long sinceTimestamp;
 
-    public ColumnsSinceReadCommand(String table, String key, String columnFamily, long sinceTimestamp)
+    public ColumnsSinceReadCommand(String table, String key, ColumnParent column_parent, long sinceTimestamp)
+    {
+        this(table, key, new QueryPath(column_parent), sinceTimestamp);
+    }
+
+    public ColumnsSinceReadCommand(String table, String key, QueryPath columnParent, long sinceTimestamp)
     {
         super(table, key, CMD_TYPE_GET_COLUMNS_SINCE);
-        this.columnFamily = columnFamily;
+        this.columnParent = columnParent;
         this.sinceTimestamp = sinceTimestamp;
     }
 
     @Override
     public String getColumnFamilyName()
     {
-        return RowMutation.getColumnAndColumnFamily(columnFamily)[0];
+        return columnParent.columnFamilyName;
     }
 
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand= new ColumnsSinceReadCommand(table, key, columnFamily, sinceTimestamp);
+        ReadCommand readCommand = new ColumnsSinceReadCommand(table, key, columnParent, sinceTimestamp);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -50,7 +60,7 @@ public class ColumnsSinceReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {        
-        return table.getRow(key, columnFamily, sinceTimestamp);
+        return table.getRow(new TimeQueryFilter(key, columnParent, sinceTimestamp));
     }
 
     @Override
@@ -59,11 +69,10 @@ public class ColumnsSinceReadCommand extends ReadCommand
         return "ColumnsSinceReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
-               ", columnFamily='" + columnFamily + '\'' +
+               ", columnParent='" + columnParent + '\'' +
                ", sinceTimestamp='" + sinceTimestamp + '\'' +
                ')';
     }
-
 }
 
 class ColumnsSinceReadCommandSerializer extends ReadCommandSerializer
@@ -75,7 +84,7 @@ class ColumnsSinceReadCommandSerializer extends ReadCommandSerializer
         dos.writeBoolean(realRM.isDigestQuery());
         dos.writeUTF(realRM.table);
         dos.writeUTF(realRM.key);
-        dos.writeUTF(realRM.columnFamily);
+        realRM.columnParent.serialize(dos);
         dos.writeLong(realRM.sinceTimestamp);
     }
 
@@ -85,10 +94,10 @@ class ColumnsSinceReadCommandSerializer extends ReadCommandSerializer
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
         String key = dis.readUTF();
-        String columnFamily = dis.readUTF();
+        QueryPath columnParent = QueryPath.deserialize(dis);
         long sinceTimestamp = dis.readLong();
 
-        ColumnsSinceReadCommand rm = new ColumnsSinceReadCommand(table, key, columnFamily, sinceTimestamp);
+        ColumnsSinceReadCommand rm = new ColumnsSinceReadCommand(table, key, columnParent, sinceTimestamp);
         rm.setDigestQuery(isDigest);
         return rm;
     }

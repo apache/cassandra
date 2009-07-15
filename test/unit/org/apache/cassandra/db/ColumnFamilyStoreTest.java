@@ -31,6 +31,7 @@ import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.SSTableReader;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
@@ -108,15 +109,15 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Table1", "key1");
-        rm.add("Standard1:Column1", "asdf".getBytes(), 0);
-        rm.add("Standard1:Column2", "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1"), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column2"), "asdf".getBytes(), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceBloomFilterFailures();
-        ColumnFamily cf = store.getColumnFamily(new IdentityQueryFilter("key2", "Standard1:Column1"));
+        ColumnFamily cf = store.getColumnFamily(new IdentityQueryFilter("key2", new QueryPath("Standard1", null, "Column1")));
         assertNull(cf);
     }
 }

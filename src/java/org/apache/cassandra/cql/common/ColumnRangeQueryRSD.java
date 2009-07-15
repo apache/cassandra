@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
@@ -80,24 +81,24 @@ public class ColumnRangeQueryRSD extends RowSourceDef
 
     public List<Map<String,String>> getRows()
     {
-        String columnFamily_column;
-        String superColumnKey = null;      
+        QueryPath path;
+        String superColumnKey = null;
 
         if (superColumnKey_ != null)
         {
             superColumnKey = (String)(superColumnKey_.get());
-            columnFamily_column = cfMetaData_.cfName + ":" + superColumnKey;
+            path = new QueryPath(cfMetaData_.cfName, superColumnKey);
         }
         else
         {
-            columnFamily_column = cfMetaData_.cfName;
+            path = new QueryPath(cfMetaData_.cfName);
         }
 
         Row row = null;
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, columnFamily_column, "", "", true, offset_, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, path, "", "", true, offset_, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)

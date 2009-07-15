@@ -41,95 +41,70 @@ public class ThriftValidation
         }
     }
 
-    private static String validateColumnFamily(String tablename, String[] values) throws InvalidRequestException
+    public static String validateColumnFamily(String tablename, String cfName) throws InvalidRequestException
     {
-        if (values.length < 1)
+        if (cfName.isEmpty())
         {
             throw new InvalidRequestException("non-empty columnfamily is required");
         }
-        String cfType = DatabaseDescriptor.getColumnType(tablename, values[0]);
+        String cfType = DatabaseDescriptor.getColumnType(tablename, cfName);
         if (cfType == null)
         {
-            throw new InvalidRequestException("unconfigured columnfamily " + values[0]);
+            throw new InvalidRequestException("unconfigured columnfamily " + cfName);
         }
         return cfType;
     }
 
-    static String[] validateColumnPath(String tablename, String columnPath) throws InvalidRequestException
+    static void validateColumnPath(String tablename, ColumnPath column_path) throws InvalidRequestException
     {
         validateTable(tablename);
-        String[] values = RowMutation.getColumnAndColumnFamily(columnPath);
-        String cfType = validateColumnFamily(tablename, values);
+        String cfType = validateColumnFamily(tablename, column_path.column_family);
         if (cfType.equals("Standard"))
         {
-            if (values.length != 2)
+            if (column_path.super_column != null)
             {
-                throw new InvalidRequestException("both parts of columnfamily:column are required for standard CF " + values[0]);
+                throw new InvalidRequestException("supercolumn parameter is invalid for standard CF " + column_path.column_family);
             }
         }
-        else if (values.length != 3)
-        {
-            throw new InvalidRequestException("all parts of columnfamily:supercolumn:subcolumn are required for super CF " + values[0]);
-        }
-        return values;
     }
 
-    static String[] validateColumnParent(String tablename, String columnParent) throws InvalidRequestException
+    static void validateColumnParent(String tablename, ColumnParent column_parent) throws InvalidRequestException
     {
         validateTable(tablename);
-        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        String cfType = validateColumnFamily(tablename, values);
+        String cfType = validateColumnFamily(tablename, column_parent.column_family);
         if (cfType.equals("Standard"))
         {
-            if (values.length != 1)
+            if (column_parent.super_column != null)
             {
-                throw new InvalidRequestException("columnfamily alone is required for standard CF " + values[0]);
+                throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
             }
         }
-        else if (values.length != 2)
+        else if (column_parent.super_column == null)
         {
-            throw new InvalidRequestException("columnfamily:supercolumn is required for super CF " + values[0]);
+            throw new InvalidRequestException("columnfamily and supercolumn are both required for super CF " + column_parent.column_family);
         }
-        return values;
     }
 
-    static String[] validateSuperColumnPath(String tablename, String columnPath) throws InvalidRequestException
+    static void validateSuperColumnPath(String tablename, SuperColumnPath super_column_path) throws InvalidRequestException
     {
         validateTable(tablename);
-        String[] values = RowMutation.getColumnAndColumnFamily(columnPath);
-        String cfType = validateColumnFamily(tablename, values);
+        String cfType = validateColumnFamily(tablename, super_column_path.column_family);
         if (cfType.equals("Standard"))
         {
-            throw new InvalidRequestException(values[0] + " is a standard columnfamily; only super columnfamilies are valid here");
+            throw new InvalidRequestException(super_column_path.column_family + " is a standard columnfamily; only super columnfamilies are valid here");
         }
-        else if (values.length != 1)
-        {
-            throw new InvalidRequestException("columnfamily alone is required for super CF " + values[0]);
-        }
-        return values;
     }
 
-    static String[] validateColumnPathOrParent(String tablename, String columnPath) throws InvalidRequestException
+    static void validateColumnPathOrParent(String tablename, ColumnPathOrParent column_path_or_parent) throws InvalidRequestException
     {
         validateTable(tablename);
-        String[] values = RowMutation.getColumnAndColumnFamily(columnPath);
-        String cfType = validateColumnFamily(tablename, values);
+        String cfType = validateColumnFamily(tablename, column_path_or_parent.column_family);
         if (cfType.equals("Standard"))
         {
-            if (values.length > 2)
+            if (column_path_or_parent.super_column != null)
             {
-                throw new InvalidRequestException("columnfamily:column is the most path components possible for standard CF " + values[0]);
+                throw new InvalidRequestException("supercolumn may not be specified for standard CF " + column_path_or_parent.column_family);
             }
         }
-        else if (values.length > 3)
-        {
-            throw new InvalidRequestException("columnfamily:supercolumn:column is the most path components possible for super CF " + values[0]);
-        }
-        return values;
-    }
-
-    public static String validateColumnFamily(String tablename, String columnFamily) throws InvalidRequestException
-    {
-        return validateColumnFamily(tablename, RowMutation.getColumnAndColumnFamily(columnFamily)); 
     }
 }

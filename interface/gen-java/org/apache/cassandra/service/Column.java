@@ -4,27 +4,6 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
@@ -39,14 +18,14 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class column_t implements TBase, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("column_t");
-  private static final TField COLUMN_NAME_FIELD_DESC = new TField("columnName", TType.STRING, (short)1);
+public class Column implements TBase, java.io.Serializable, Cloneable {
+  private static final TStruct STRUCT_DESC = new TStruct("Column");
+  private static final TField COLUMN_NAME_FIELD_DESC = new TField("column_name", TType.STRING, (short)1);
   private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)2);
   private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
 
-  public String columnName;
-  public static final int COLUMNNAME = 1;
+  public String column_name;
+  public static final int COLUMN_NAME = 1;
   public byte[] value;
   public static final int VALUE = 2;
   public long timestamp;
@@ -58,7 +37,7 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(COLUMNNAME, new FieldMetaData("columnName", TFieldRequirementType.DEFAULT, 
+    put(COLUMN_NAME, new FieldMetaData("column_name", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
     put(VALUE, new FieldMetaData("value", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
@@ -67,19 +46,19 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(column_t.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(Column.class, metaDataMap);
   }
 
-  public column_t() {
+  public Column() {
   }
 
-  public column_t(
-    String columnName,
+  public Column(
+    String column_name,
     byte[] value,
     long timestamp)
   {
     this();
-    this.columnName = columnName;
+    this.column_name = column_name;
     this.value = value;
     this.timestamp = timestamp;
     this.__isset.timestamp = true;
@@ -88,9 +67,9 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public column_t(column_t other) {
-    if (other.isSetColumnName()) {
-      this.columnName = other.columnName;
+  public Column(Column other) {
+    if (other.isSetColumn_name()) {
+      this.column_name = other.column_name;
     }
     if (other.isSetValue()) {
       this.value = new byte[other.value.length];
@@ -101,30 +80,30 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   }
 
   @Override
-  public column_t clone() {
-    return new column_t(this);
+  public Column clone() {
+    return new Column(this);
   }
 
-  public String getColumnName() {
-    return this.columnName;
+  public String getColumn_name() {
+    return this.column_name;
   }
 
-  public void setColumnName(String columnName) {
-    this.columnName = columnName;
+  public void setColumn_name(String column_name) {
+    this.column_name = column_name;
   }
 
-  public void unsetColumnName() {
-    this.columnName = null;
+  public void unsetColumn_name() {
+    this.column_name = null;
   }
 
-  // Returns true if field columnName is set (has been asigned a value) and false otherwise
-  public boolean isSetColumnName() {
-    return this.columnName != null;
+  // Returns true if field column_name is set (has been asigned a value) and false otherwise
+  public boolean isSetColumn_name() {
+    return this.column_name != null;
   }
 
-  public void setColumnNameIsSet(boolean value) {
+  public void setColumn_nameIsSet(boolean value) {
     if (!value) {
-      this.columnName = null;
+      this.column_name = null;
     }
   }
 
@@ -175,11 +154,11 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
-    case COLUMNNAME:
+    case COLUMN_NAME:
       if (value == null) {
-        unsetColumnName();
+        unsetColumn_name();
       } else {
-        setColumnName((String)value);
+        setColumn_name((String)value);
       }
       break;
 
@@ -206,8 +185,8 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   public Object getFieldValue(int fieldID) {
     switch (fieldID) {
-    case COLUMNNAME:
-      return getColumnName();
+    case COLUMN_NAME:
+      return getColumn_name();
 
     case VALUE:
       return getValue();
@@ -223,8 +202,8 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
   public boolean isSet(int fieldID) {
     switch (fieldID) {
-    case COLUMNNAME:
-      return isSetColumnName();
+    case COLUMN_NAME:
+      return isSetColumn_name();
     case VALUE:
       return isSetValue();
     case TIMESTAMP:
@@ -238,21 +217,21 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof column_t)
-      return this.equals((column_t)that);
+    if (that instanceof Column)
+      return this.equals((Column)that);
     return false;
   }
 
-  public boolean equals(column_t that) {
+  public boolean equals(Column that) {
     if (that == null)
       return false;
 
-    boolean this_present_columnName = true && this.isSetColumnName();
-    boolean that_present_columnName = true && that.isSetColumnName();
-    if (this_present_columnName || that_present_columnName) {
-      if (!(this_present_columnName && that_present_columnName))
+    boolean this_present_column_name = true && this.isSetColumn_name();
+    boolean that_present_column_name = true && that.isSetColumn_name();
+    if (this_present_column_name || that_present_column_name) {
+      if (!(this_present_column_name && that_present_column_name))
         return false;
-      if (!this.columnName.equals(that.columnName))
+      if (!this.column_name.equals(that.column_name))
         return false;
     }
 
@@ -293,9 +272,9 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
       }
       switch (field.id)
       {
-        case COLUMNNAME:
+        case COLUMN_NAME:
           if (field.type == TType.STRING) {
-            this.columnName = iprot.readString();
+            this.column_name = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -332,9 +311,9 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.columnName != null) {
+    if (this.column_name != null) {
       oprot.writeFieldBegin(COLUMN_NAME_FIELD_DESC);
-      oprot.writeString(this.columnName);
+      oprot.writeString(this.column_name);
       oprot.writeFieldEnd();
     }
     if (this.value != null) {
@@ -351,14 +330,14 @@ public class column_t implements TBase, java.io.Serializable, Cloneable {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("column_t(");
+    StringBuilder sb = new StringBuilder("Column(");
     boolean first = true;
 
-    sb.append("columnName:");
-    if (this.columnName == null) {
+    sb.append("column_name:");
+    if (this.column_name == null) {
       sb.append("null");
     } else {
-      sb.append(this.columnName);
+      sb.append(this.column_name);
     }
     first = false;
     if (!first) sb.append(", ");

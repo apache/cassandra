@@ -4,27 +4,6 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
@@ -39,14 +18,14 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("superColumn_t");
+public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
+  private static final TStruct STRUCT_DESC = new TStruct("SuperColumn");
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
 
   public String name;
   public static final int NAME = 1;
-  public List<column_t> columns;
+  public List<Column> columns;
   public static final int COLUMNS = 2;
 
   private final Isset __isset = new Isset();
@@ -58,19 +37,19 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
         new FieldValueMetaData(TType.STRING)));
     put(COLUMNS, new FieldMetaData("columns", TFieldRequirementType.DEFAULT, 
         new ListMetaData(TType.LIST, 
-            new StructMetaData(TType.STRUCT, column_t.class))));
+            new StructMetaData(TType.STRUCT, Column.class))));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(superColumn_t.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(SuperColumn.class, metaDataMap);
   }
 
-  public superColumn_t() {
+  public SuperColumn() {
   }
 
-  public superColumn_t(
+  public SuperColumn(
     String name,
-    List<column_t> columns)
+    List<Column> columns)
   {
     this();
     this.name = name;
@@ -80,22 +59,22 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public superColumn_t(superColumn_t other) {
+  public SuperColumn(SuperColumn other) {
     if (other.isSetName()) {
       this.name = other.name;
     }
     if (other.isSetColumns()) {
-      List<column_t> __this__columns = new ArrayList<column_t>();
-      for (column_t other_element : other.columns) {
-        __this__columns.add(new column_t(other_element));
+      List<Column> __this__columns = new ArrayList<Column>();
+      for (Column other_element : other.columns) {
+        __this__columns.add(new Column(other_element));
       }
       this.columns = __this__columns;
     }
   }
 
   @Override
-  public superColumn_t clone() {
-    return new superColumn_t(this);
+  public SuperColumn clone() {
+    return new SuperColumn(this);
   }
 
   public String getName() {
@@ -125,22 +104,22 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
     return (this.columns == null) ? 0 : this.columns.size();
   }
 
-  public java.util.Iterator<column_t> getColumnsIterator() {
+  public java.util.Iterator<Column> getColumnsIterator() {
     return (this.columns == null) ? null : this.columns.iterator();
   }
 
-  public void addToColumns(column_t elem) {
+  public void addToColumns(Column elem) {
     if (this.columns == null) {
-      this.columns = new ArrayList<column_t>();
+      this.columns = new ArrayList<Column>();
     }
     this.columns.add(elem);
   }
 
-  public List<column_t> getColumns() {
+  public List<Column> getColumns() {
     return this.columns;
   }
 
-  public void setColumns(List<column_t> columns) {
+  public void setColumns(List<Column> columns) {
     this.columns = columns;
   }
 
@@ -173,7 +152,7 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
       if (value == null) {
         unsetColumns();
       } else {
-        setColumns((List<column_t>)value);
+        setColumns((List<Column>)value);
       }
       break;
 
@@ -211,12 +190,12 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof superColumn_t)
-      return this.equals((superColumn_t)that);
+    if (that instanceof SuperColumn)
+      return this.equals((SuperColumn)that);
     return false;
   }
 
-  public boolean equals(superColumn_t that) {
+  public boolean equals(SuperColumn that) {
     if (that == null)
       return false;
 
@@ -268,11 +247,11 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
           if (field.type == TType.LIST) {
             {
               TList _list9 = iprot.readListBegin();
-              this.columns = new ArrayList<column_t>(_list9.size);
+              this.columns = new ArrayList<Column>(_list9.size);
               for (int _i10 = 0; _i10 < _list9.size; ++_i10)
               {
-                column_t _elem11;
-                _elem11 = new column_t();
+                Column _elem11;
+                _elem11 = new Column();
                 _elem11.read(iprot);
                 this.columns.add(_elem11);
               }
@@ -308,7 +287,7 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
-        for (column_t _iter12 : this.columns)        {
+        for (Column _iter12 : this.columns)        {
           _iter12.write(oprot);
         }
         oprot.writeListEnd();
@@ -321,7 +300,7 @@ public class superColumn_t implements TBase, java.io.Serializable, Cloneable {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("superColumn_t(");
+    StringBuilder sb = new StringBuilder("SuperColumn(");
     boolean first = true;
 
     sb.append("name:");

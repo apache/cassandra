@@ -26,6 +26,7 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 import org.apache.cassandra.cql.execution.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.*;
 
 /**
@@ -69,18 +70,6 @@ public class SetColumnMap extends DMLPlan
 
     public CqlResult execute()
     {
-        String columnFamily_column;
-        
-        if (superColumnKey_ != null)
-        {
-            String superColumnKey = (String)(superColumnKey_.get());
-            columnFamily_column = cfMetaData_.cfName + ":" + superColumnKey + ":";
-        }
-        else
-        {
-            columnFamily_column = cfMetaData_.cfName + ":";
-        }
-
         try
         {
             RowMutation rm = new RowMutation(cfMetaData_.tableName, (String)(rowKey_.get()));
@@ -91,7 +80,18 @@ public class SetColumnMap extends DMLPlan
                 OperandDef columnKey = entry.getFirst();
                 OperandDef value     = entry.getSecond();
 
-                rm.add(columnFamily_column + (String)(columnKey.get()), ((String)value.get()).getBytes(), time);
+                QueryPath path;
+                if (superColumnKey_ != null)
+                {
+                    String superColumnKey = (String)(superColumnKey_.get());
+                    path = new QueryPath(cfMetaData_.cfName, superColumnKey, (String)columnKey.get());
+                }
+                else
+                {
+                    path = new QueryPath(cfMetaData_.cfName, null, (String)columnKey.get());
+                }
+
+                rm.add(path, ((String)value.get()).getBytes(), time);
             }
             StorageProxy.insert(rm);
         }

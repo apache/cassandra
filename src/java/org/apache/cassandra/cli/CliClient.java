@@ -134,14 +134,14 @@ public class CliClient
         if (columnSpecCnt == 0)
         {
             // table.cf['key']
-        	List<column_t> columns = new ArrayList<column_t>();
-      		columns = thriftClient_.get_slice(tableName, key, columnFamily, "", "", true, 0, 1000000);
+        	List<Column> columns = new ArrayList<Column>();
+      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), "", "", true, 0, 1000000);
             int size = columns.size();
-            for (Iterator<column_t> colIter = columns.iterator(); colIter.hasNext(); )
+            for (Iterator<Column> colIter = columns.iterator(); colIter.hasNext(); )
             {
-                column_t col = colIter.next();
+                Column col = colIter.next();
                 css_.out.printf("  (column=%s, value=%s; timestamp=%d)\n",
-                                 col.columnName, col.value, col.timestamp);
+                                 col.column_name, col.value, col.timestamp);
             }
             css_.out.println("Returned " + size + " rows.");
         }
@@ -149,10 +149,10 @@ public class CliClient
         {
             // table.cf['key']['column']
             String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-            column_t col = new column_t();
-           	col = thriftClient_.get_column(tableName, key, columnFamily + ":" + columnName);
+            Column col = new Column();
+           	col = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName));
             css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
-                            col.columnName, col.value, col.timestamp);
+                            col.column_name, col.value, col.timestamp);
         }
         else
         {
@@ -187,7 +187,7 @@ public class CliClient
             String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
 
             // do the insert
-            thriftClient_.insert(tableName, key, columnFamily + ":" + columnName,
+            thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, null, columnName),
                                  value.getBytes(), System.currentTimeMillis(), 1);
 
             css_.out.println("Value inserted.");
@@ -285,7 +285,7 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
         
-        CqlResult_t result = thriftClient_.executeQuery(query);
+        CqlResult result = thriftClient_.executeQuery(query);
         
         if (result == null)
         {
@@ -293,13 +293,13 @@ public class CliClient
             return;
         }
 
-        if ((result.errorTxt != null) || (result.errorCode != 0))
+        if ((result.error_txt != null) || (result.error_code != 0))
         {
-            css_.out.println("Error: " + result.errorTxt);
+            css_.out.println("Error: " + result.error_txt);
         }
         else
         {
-            List<Map<String, String>> rows = result.resultSet;
+            List<Map<String, String>> rows = result.result_set;
             
             if (rows != null)
             {

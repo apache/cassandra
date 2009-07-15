@@ -28,6 +28,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -49,7 +50,7 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         /* Retrieve the "LocationInfo" column family */
-        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(new NamesQueryFilter(LOCATION_KEY, LOCATION_KEY, TOKEN));
+        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_KEY), TOKEN));
         long oldTokenColumnTimestamp = cf.getColumn(SystemTable.TOKEN).timestamp();
         /* create the "Token" whose value is the new token. */
         IColumn tokenColumn = new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
@@ -73,7 +74,7 @@ public class SystemTable
     {
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
-        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(new NamesQueryFilter(LOCATION_KEY, LOCATION_KEY, GENERATION));
+        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_KEY), GENERATION));
 
         IPartitioner p = StorageService.getPartitioner();
         if (cf == null)

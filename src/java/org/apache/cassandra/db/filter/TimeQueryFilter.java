@@ -11,9 +11,9 @@ public class TimeQueryFilter extends QueryFilter
 {
     public final long since;
 
-    public TimeQueryFilter(String key, String columnFamilyColumn, long since)
+    public TimeQueryFilter(String key, QueryPath columnParent, long since)
     {
-        super(key, columnFamilyColumn);
+        super(key, columnParent);
         this.since = since;
     }
 

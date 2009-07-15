@@ -23,6 +23,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class RowTest
 {
@@ -30,7 +31,7 @@ public class RowTest
     public void testDiffColumnFamily()
     {
         ColumnFamily cf1 = ColumnFamily.create("Table1", "Standard1");
-        cf1.addColumn("one", "onev".getBytes(), 0);
+        cf1.addColumn(QueryPath.column("one"), "onev".getBytes(), 0);
 
         ColumnFamily cf2 = ColumnFamily.create("Table1", "Standard1");
         cf2.delete(0, 0);
@@ -59,15 +60,15 @@ public class RowTest
     {
         Row row1 = new Row();
         ColumnFamily cf1 = ColumnFamily.create("Table1", "Standard1");
-        cf1.addColumn("one", "A".getBytes(), 0);
+        cf1.addColumn(QueryPath.column("one"), "A".getBytes(), 0);
         row1.addColumnFamily(cf1);
 
         Row row2 = new Row();
         ColumnFamily cf2 = ColumnFamily.create("Table1", "Standard1");
-        cf2.addColumn("one", "B".getBytes(), 1);
-        cf2.addColumn("two", "C".getBytes(), 1);
+        cf2.addColumn(QueryPath.column("one"), "B".getBytes(), 1);
+        cf2.addColumn(QueryPath.column("two"), "C".getBytes(), 1);
         ColumnFamily cf3 = ColumnFamily.create("Table2", "Standard2");
-        cf3.addColumn("three", "D".getBytes(), 1);
+        cf3.addColumn(QueryPath.column("three"), "D".getBytes(), 1);
         row2.addColumnFamily(cf2);
         row2.addColumnFamily(cf3);
 

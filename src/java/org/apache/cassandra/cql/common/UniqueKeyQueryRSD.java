@@ -18,19 +18,12 @@
 
 package org.apache.cassandra.cql.common;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnReadCommand;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
@@ -69,24 +62,24 @@ public class UniqueKeyQueryRSD extends RowSourceDef
     public List<Map<String,String>> getRows() throws RuntimeException
     {
         String columnKey = (String)(columnKey_.get());
-        String columnFamily_column;
+        QueryPath path = null;
         String superColumnKey = null;
 
         if (superColumnKey_ != null)
         {
             superColumnKey = (String)(superColumnKey_.get());
-            columnFamily_column = cfMetaData_.cfName + ":" + superColumnKey + ":" + columnKey;
+            path = new QueryPath(cfMetaData_.cfName, superColumnKey);
         }
         else
         {
-            columnFamily_column = cfMetaData_.cfName + ":" + columnKey;
+            path = new QueryPath(cfMetaData_.cfName);
         }
 
         Row row = null;
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new ColumnReadCommand(cfMetaData_.tableName, key, columnFamily_column);
+            ReadCommand readCommand = new SliceByNamesReadCommand(cfMetaData_.tableName, key, path, Arrays.asList(columnKey));
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)

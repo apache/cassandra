@@ -33,10 +33,9 @@ import org.apache.cassandra.service.StorageService;
 public abstract class ReadCommand
 {
     public static final String DO_REPAIR = "READ-REPAIR";
-    public static final byte CMD_TYPE_GET_COLUMN=1;
-    public static final byte CMD_TYPE_GET_SLICE_BY_NAMES=2;
-    public static final byte CMD_TYPE_GET_COLUMNS_SINCE=3;
-    public static final byte CMD_TYPE_GET_SLICE =4;
+    public static final byte CMD_TYPE_GET_SLICE_BY_NAMES = 1;
+    public static final byte CMD_TYPE_GET_COLUMNS_SINCE = 2;
+    public static final byte CMD_TYPE_GET_SLICE = 3;
 
     public static final String EMPTY_CF = "";
     
@@ -89,7 +88,6 @@ class ReadCommandSerializer implements ICompactSerializer<ReadCommand>
     private static final Map<Byte, ReadCommandSerializer> CMD_SERIALIZER_MAP = new HashMap<Byte, ReadCommandSerializer>(); 
     static 
     {
-        CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_COLUMN, new ColumnReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE_BY_NAMES, new SliceByNamesReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_COLUMNS_SINCE, new ColumnsSinceReadCommandSerializer());
         CMD_SERIALIZER_MAP.put(ReadCommand.CMD_TYPE_GET_SLICE, new SliceFromReadCommandSerializer());

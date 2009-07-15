@@ -21,6 +21,7 @@ package org.apache.cassandra.cql.common;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
@@ -71,22 +72,22 @@ public class SetUniqueKey extends DMLPlan
     public CqlResult execute()
     {
         String columnKey = (String)(columnKey_.get());
-        String columnFamily_column;
+        QueryPath path;
 
         if (superColumnKey_ != null)
         {
             String superColumnKey = (String)(superColumnKey_.get());
-            columnFamily_column = cfMetaData_.cfName + ":" + superColumnKey + ":" + columnKey;
+            path = new QueryPath(cfMetaData_.cfName, superColumnKey, columnKey);
         }
         else
         {
-            columnFamily_column = cfMetaData_.cfName + ":" + columnKey;
+            path = new QueryPath(cfMetaData_.cfName, null, columnKey);
         }
 
         try
         {
             RowMutation rm = new RowMutation(cfMetaData_.tableName, (String)(rowKey_.get()));
-            rm.add(columnFamily_column, ((String)value_.get()).getBytes(), System.currentTimeMillis());
+            rm.add(path, ((String)value_.get()).getBytes(), System.currentTimeMillis());
             StorageProxy.insert(rm);
         }
         catch (Exception e)

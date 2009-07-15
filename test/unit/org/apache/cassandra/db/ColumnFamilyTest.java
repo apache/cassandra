@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class ColumnFamilyTest
 {
@@ -42,7 +43,7 @@ public class ColumnFamilyTest
         ColumnFamily cf;
 
         cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn("C", bytes, 1);
+        cf.addColumn(QueryPath.column("C"), bytes, 1);
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer().serialize(cf, bufOut);
 
@@ -70,7 +71,7 @@ public class ColumnFamilyTest
         DataOutputBuffer bufOut = new DataOutputBuffer();
         for (String cName : map.navigableKeySet())
         {
-            cf.addColumn(cName, map.get(cName), 314);
+            cf.addColumn(QueryPath.column(cName), map.get(cName), 314);
         }
         ColumnFamily.serializer().serialize(cf, bufOut);
 
@@ -81,7 +82,6 @@ public class ColumnFamilyTest
         for (String cName : map.navigableKeySet())
         {
             assert Arrays.equals(cf.getColumn(cName).value(), map.get(cName));
-
         }
         assert new HashSet<String>(cf.getColumns().keySet()).equals(map.keySet());
     }
@@ -92,9 +92,9 @@ public class ColumnFamilyTest
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         byte val[] = "sample value".getBytes();
 
-        cf.addColumn("col1", val, 1);
-        cf.addColumn("col2", val, 2);
-        cf.addColumn("col1", val, 3);
+        cf.addColumn(QueryPath.column("col1"), val, 1);
+        cf.addColumn(QueryPath.column("col2"), val, 2);
+        cf.addColumn(QueryPath.column("col1"), val, 3);
 
         assert 2 == cf.getColumnCount();
         assert 2 == cf.getAllColumns().size();
@@ -108,9 +108,9 @@ public class ColumnFamilyTest
         byte val2[] = "sample 2".getBytes();
         byte val3[] = "sample 3".getBytes();
 
-        cf.addColumn("col1", val1, 2);
-        cf.addColumn("col1", val2, 2); // same timestamp, new value
-        cf.addColumn("col1", val3, 1); // older timestamp -- should be ignored
+        cf.addColumn(QueryPath.column("col1"), val1, 2);
+        cf.addColumn(QueryPath.column("col1"), val2, 2); // same timestamp, new value
+        cf.addColumn(QueryPath.column("col1"), val3, 1); // older timestamp -- should be ignored
 
         assert Arrays.equals(val2, cf.getColumn("col1").value());
     }
@@ -124,11 +124,11 @@ public class ColumnFamilyTest
         byte val[] = "sample value".getBytes();
         byte val2[] = "x value ".getBytes();
 
-        cf_new.addColumn("col1", val, 3);
-        cf_new.addColumn("col2", val, 4);
+        cf_new.addColumn(QueryPath.column("col1"), val, 3);
+        cf_new.addColumn(QueryPath.column("col2"), val, 4);
 
-        cf_old.addColumn("col2", val2, 1);
-        cf_old.addColumn("col3", val2, 2);
+        cf_old.addColumn(QueryPath.column("col2"), val2, 1);
+        cf_old.addColumn(QueryPath.column("col3"), val2, 2);
 
         cf_result.addColumns(cf_new);
         cf_result.addColumns(cf_old);

@@ -11,12 +11,12 @@ import org.apache.cassandra.db.*;
 public abstract class QueryFilter
 {
     public final String key;
-    public final String columnFamilyColumn;
+    public final QueryPath path;
 
-    protected QueryFilter(String key, String columnFamilyColumn)
+    protected QueryFilter(String key, QueryPath path)
     {
         this.key = key;
-        this.columnFamilyColumn = columnFamilyColumn;
+        this.path = path;
     }
 
     /**
@@ -86,6 +86,6 @@ public abstract class QueryFilter
 
     public String getColumnFamilyName()
     {
-        return RowMutation.getColumnAndColumnFamily(columnFamilyColumn)[0];
+        return path.columnFamilyName;
     }
 }

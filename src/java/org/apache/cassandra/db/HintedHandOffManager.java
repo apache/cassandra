@@ -38,6 +38,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 
 
 /**
@@ -103,7 +104,7 @@ public class HintedHandOffManager
     private static void deleteEndPoint(String endpointAddress, String tableName, String key, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName);
-        rm.delete(HINTS_CF + ":" + key + ":" + endpointAddress, timestamp);
+        rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), timestamp);
         rm.apply();
     }
 
@@ -140,7 +141,7 @@ public class HintedHandOffManager
                         maxTS = Math.max(maxTS, subCol.timestamp());
                 }
             }
-            rm.delete(cf.name(), maxTS);
+            rm.delete(new QueryPath(cf.name()), maxTS);
         }
         rm.apply();
     }
@@ -160,7 +161,7 @@ public class HintedHandOffManager
         // 7. I guess we are done
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(new IdentityQueryFilter(tableName, HINTS_CF)), Integer.MAX_VALUE);
+            ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(new IdentityQueryFilter(tableName, new QueryPath(HINTS_CF))), Integer.MAX_VALUE);
             if (hintColumnFamily == null)
             {
                 continue;

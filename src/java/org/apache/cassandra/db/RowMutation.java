@@ -38,11 +38,10 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.batch_mutation_super_t;
-import org.apache.cassandra.service.batch_mutation_t;
-import org.apache.cassandra.service.column_t;
-import org.apache.cassandra.service.superColumn_t;
+import org.apache.cassandra.service.BatchMutationSuper;
+import org.apache.cassandra.service.BatchMutation;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.filter.QueryPath;
 
 
 /**
@@ -120,8 +119,8 @@ public class RowMutation implements Serializable
 
     void addHints(String hint) throws IOException
     {
-        String cfName = HintedHandOffManager.HINTS_CF + ":" + hint;
-        add(cfName, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
+        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, null, hint);
+        add(path, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 
     /*
@@ -151,76 +150,50 @@ public class RowMutation implements Serializable
      * param @ value - value associated with the column
      * param @ timestamp - timestamp associated with this data.
     */
-    public void add(String cf, byte[] value, long timestamp)
+    public void add(QueryPath path, byte[] value, long timestamp)
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(cf);
-
-        if ( values.length == 0 || values.length == 1 || values.length > 3 )
-            throw new IllegalArgumentException("Column Family " + cf + " in invalid format. Must be in <column family>:<column> format.");
-
-        ColumnFamily columnFamily = modifications_.get(values[0]);
-        if( values.length == 2 )
+        ColumnFamily columnFamily = modifications_.get(path.columnFamilyName);
+        if (columnFamily == null)
         {
-            if ( columnFamily == null )
-            {
-            	columnFamily = ColumnFamily.create(table_, values[0]);
-            }
-        	columnFamily.addColumn(values[1], value, timestamp);
+            columnFamily = ColumnFamily.create(table_, path.columnFamilyName);
         }
-        if( values.length == 3 )
-        {
-            if ( columnFamily == null )
-            {
-            	columnFamily = ColumnFamily.create(table_, values[0]);
-            }
-        	columnFamily.addColumn(values[1]+ ":" + values[2], value, timestamp);
-        }
-        modifications_.put(values[0], columnFamily);
+        columnFamily.addColumn(path, value, timestamp);
+        modifications_.put(path.columnFamilyName, columnFamily);
     }
 
-    public void delete(String columnFamilyColumn, long timestamp)
+    public void delete(QueryPath path, long timestamp)
     {
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
-        String cfName = values[0];
+        assert path.columnFamilyName != null;
+        String cfName = path.columnFamilyName;
 
         if (modifications_.containsKey(cfName))
         {
             throw new IllegalArgumentException("ColumnFamily " + cfName + " is already being modified");
         }
-        if (values.length == 0 || values.length > 3)
-            throw new IllegalArgumentException("Column Family " + columnFamilyColumn + " in invalid format. Must be in <column family>:<column> format.");
 
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
         ColumnFamily columnFamily = modifications_.get(cfName);
         if (columnFamily == null)
             columnFamily = ColumnFamily.create(table_, cfName);
-        if (values.length == 2)
+
+        if (path.superColumnName == null && path.columnName == null)
         {
-            if (columnFamily.isSuper())
-            {
-                SuperColumn sc = new SuperColumn(values[1]);
-                sc.markForDeleteAt(localDeleteTime, timestamp);
-                columnFamily.addColumn(sc);
-            }
-            else
-            {
-                ByteBuffer bytes = ByteBuffer.allocate(4);
-                bytes.putInt(localDeleteTime);
-                columnFamily.addColumn(values[1], bytes.array(), timestamp, true);
-            }
+            columnFamily.delete(localDeleteTime, timestamp);
         }
-        else if (values.length == 3)
+        else if (path.columnName == null)
         {
-            ByteBuffer bytes = ByteBuffer.allocate(4);
-            bytes.putInt(localDeleteTime);
-            columnFamily.addColumn(values[1] + ":" + values[2], bytes.array(), timestamp, true);
+            SuperColumn sc = new SuperColumn(path.superColumnName);
+            sc.markForDeleteAt(localDeleteTime, timestamp);
+            columnFamily.addColumn(sc);
         }
         else
         {
-            assert values.length == 1;
-            columnFamily.delete(localDeleteTime, timestamp);
+            ByteBuffer bytes = ByteBuffer.allocate(4);
+            bytes.putInt(localDeleteTime);
+            columnFamily.addColumn(path, bytes.array(), timestamp, true);
         }
+
         modifications_.put(cfName, columnFamily);
     }
 
@@ -281,46 +254,30 @@ public class RowMutation implements Serializable
         return new Message(from, StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
     }
 
-    public static RowMutation getRowMutation(batch_mutation_t batchMutation)
+    public static RowMutation getRowMutation(String table, BatchMutation batchMutation)
     {
-        RowMutation rm = new RowMutation(batchMutation.table,
-                                         batchMutation.key.trim());
+        RowMutation rm = new RowMutation(table, batchMutation.key.trim());
         for (String cfname : batchMutation.cfmap.keySet())
         {
-            List<column_t> list = batchMutation.cfmap.get(cfname);
-            for (column_t columnData : list)
+            List<org.apache.cassandra.service.Column> list = batchMutation.cfmap.get(cfname);
+            for (org.apache.cassandra.service.Column columnData : list)
             {
-                rm.add(cfname + ":" + columnData.columnName,
-                       columnData.value, columnData.timestamp);
-
+                rm.add(new QueryPath(cfname, null, columnData.column_name), columnData.value, columnData.timestamp);
             }
         }
         return rm;
     }
 
-    public static RowMutation getRowMutation(batch_mutation_super_t batchMutationSuper)
+    public static RowMutation getRowMutation(String table, BatchMutationSuper batchMutationSuper)
     {
-        RowMutation rm = new RowMutation(batchMutationSuper.table,
-                                         batchMutationSuper.key.trim());
-        Set keys = batchMutationSuper.cfmap.keySet();
-        Iterator keyIter = keys.iterator();
-        while (keyIter.hasNext())
+        RowMutation rm = new RowMutation(table, batchMutationSuper.key.trim());
+        for (String cfName : batchMutationSuper.cfmap.keySet())
         {
-            Object key = keyIter.next(); // Get the next key.
-            List<superColumn_t> list = batchMutationSuper.cfmap.get(key);
-            for (superColumn_t superColumnData : list)
+            for (org.apache.cassandra.service.SuperColumn super_column : batchMutationSuper.cfmap.get(cfName))
             {
-                if (superColumnData.columns.size() != 0)
+                for (org.apache.cassandra.service.Column column : super_column.columns)
                 {
-                    for (column_t columnData : superColumnData.columns)
-                    {
-                        rm.add(key.toString() + ":" + superColumnData.name + ":" + columnData.columnName,
-                               columnData.value, columnData.timestamp);
-                    }
-                }
-                else
-                {
-                    rm.add(key.toString() + ":" + superColumnData.name, ArrayUtils.EMPTY_BYTE_ARRAY, 0);
+                    rm.add(new QueryPath(cfName, super_column.name, column.column_name), column.value, column.timestamp);
                 }
             }
         }

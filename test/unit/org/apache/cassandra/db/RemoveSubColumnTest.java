@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class RemoveSubColumnTest
 {
@@ -37,16 +38,16 @@ public class RemoveSubColumnTest
 
         // add data
         rm = new RowMutation("Table1", "key1");
-        rm.add("Super1:SC1:Column1", "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Super1", "SC1", "Column1"), "asdf".getBytes(), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Table1", "key1");
-        rm.delete("Super1:SC1:Column1", 1);
+        rm.delete(new QueryPath("Super1", "SC1", "Column1"), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(new IdentityQueryFilter("key1", "Super1:SC1"));
+        ColumnFamily retrieved = store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Super1", "SC1")));
         assert retrieved.getColumn("SC1").getSubColumn("Column1").isMarkedForDelete();
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
     }

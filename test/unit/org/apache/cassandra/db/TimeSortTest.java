@@ -27,6 +27,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class TimeSortTest extends CleanupHelper
 {
@@ -34,20 +35,19 @@ public class TimeSortTest extends CleanupHelper
     public void testMixedSources() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
+        ColumnFamilyStore cfStore = table.getColumnFamilyStore("StandardByTime1");
         RowMutation rm;
 
         rm = new RowMutation("Table1", "key0");
-        rm.add("StandardByTime1:C0", "a".getBytes(), 100);
+        rm.add(new QueryPath("StandardByTime1", null, "C0"), "a".getBytes(), 100);
         rm.apply();
-        table.getColumnFamilyStore("StandardByTime1").forceBlockingFlush();
+        cfStore.forceBlockingFlush();
 
         rm = new RowMutation("Table1", "key0");
-        rm.add("StandardByTime1:C1", "b".getBytes(), 0);
+        rm.add(new QueryPath("StandardByTime1", null, "C1"), "b".getBytes(), 0);
         rm.apply();
 
-        Row row = table.getRow("key0", "StandardByTime1", 10);
-        assert !row.isEmpty();
-        ColumnFamily cf = row.getColumnFamilies().iterator().next();
+        ColumnFamily cf = cfStore.getColumnFamily("key0", new QueryPath("StandardByTime1"), 10);
         SortedSet<IColumn> columns = cf.getAllColumns();
         assert columns.size() == 1;
     }
@@ -56,6 +56,7 @@ public class TimeSortTest extends CleanupHelper
     public void testTimeSort() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Table1");
+        ColumnFamilyStore cfStore = table.getColumnFamilyStore("StandardByTime1");
 
         for (int i = 900; i < 1000; ++i)
         {
@@ -64,14 +65,14 @@ public class TimeSortTest extends CleanupHelper
             for (int j = 0; j < 8; ++j)
             {
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                rm.add("StandardByTime1:" + "Column-" + j, bytes, j * 2);
+                rm.add(new QueryPath("StandardByTime1", null, "Column-" + j), bytes, j * 2);
             }
             rm.apply();
         }
 
         validateTimeSort(table);
 
-        table.getColumnFamilyStore("StandardByTime1").forceBlockingFlush();
+        cfStore.forceBlockingFlush();
         validateTimeSort(table);
 
         // interleave some new data to test memtable + sstable
@@ -79,18 +80,18 @@ public class TimeSortTest extends CleanupHelper
         RowMutation rm = new RowMutation("Table1", key);
         for (int j = 0; j < 4; ++j)
         {
-            rm.add("StandardByTime1:" + "Column+" + j, ArrayUtils.EMPTY_BYTE_ARRAY, j * 2 + 1);
+            rm.add(new QueryPath("StandardByTime1", null, "Column+" + j), ArrayUtils.EMPTY_BYTE_ARRAY, j * 2 + 1);
         }
         rm.apply();
         // and some overwrites
         rm = new RowMutation("Table1", key);
         for (int j = 4; j < 8; ++j)
         {
-            rm.add("StandardByTime1:" + "Column-" + j, ArrayUtils.EMPTY_BYTE_ARRAY, j * 3);
+            rm.add(new QueryPath("StandardByTime1", null, "Column-" + j), ArrayUtils.EMPTY_BYTE_ARRAY, j * 3);
         }
         rm.apply();
         // verify
-        ColumnFamily cf = table.getRow(key, "StandardByTime1", 0).getColumnFamilies().iterator().next();
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardByTime1"), 0);
         SortedSet<IColumn> columns = cf.getAllColumns();
         assert columns.size() == 12;
         Iterator<IColumn> iter = columns.iterator();
@@ -118,7 +119,7 @@ public class TimeSortTest extends CleanupHelper
             String key = Integer.toString(i);
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = table.getRow(key, "StandardByTime1", j * 2).getColumnFamilies().iterator().next();
+                ColumnFamily cf = table.getColumnFamilyStore("StandardByTime1").getColumnFamily(key, new QueryPath("StandardByTime1"), j * 2);
                 SortedSet<IColumn> columns = cf.getAllColumns();
                 assert columns.size() == 8 - j;
                 int k = 7;

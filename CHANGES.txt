@@ -1,10 +1,14 @@
 0.4 dev
- * Added columnFamily argument to get_key_range.
- * Change signature of get_slice and get_slice_super to accept
-   starting and ending columns as well as an offset.  (This allows use
-   of indexes.)  Added "ascending" flag to allow reasonably-efficient
-   reverse scans as well.  Removed get_slice_by_range as redundant.
- * Similarly, changed signature of get_slice_super.
+ * Thrift API has changed a _lot_:
+    - removed colon-delimited strings in thrift api in favor of explicit
+      structs such as ColumnPath, ColumnParent, etc.  Also normalized
+      thrift struct and argument naming.
+    - Added columnFamily argument to get_key_range.
+    - Change signature of get_slice and get_slice_super to accept
+      starting and ending columns as well as an offset.  (This allows use
+      of indexes.)  Added "ascending" flag to allow reasonably-efficient
+      reverse scans as well.  Removed get_slice_by_range as redundant.
+    - Similarly, changed signature of get_slice_super.
  * Removed the web interface. Node information can now be obtained by 
    using the newly introduced nodeprobe utility.
 

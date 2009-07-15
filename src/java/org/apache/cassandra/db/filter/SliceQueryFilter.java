@@ -15,9 +15,9 @@ public class SliceQueryFilter extends QueryFilter
     public final boolean isAscending;
     public final int offset, count;
 
-    public SliceQueryFilter(String key, String columnFamilyColumn, String start, String finish, boolean ascending, int offset, int count)
+    public SliceQueryFilter(String key, QueryPath columnParent, String start, String finish, boolean ascending, int offset, int count)
     {
-        super(key, columnFamilyColumn);
+        super(key, columnParent);
         this.start = start;
         this.finish = finish;
         isAscending = ascending;

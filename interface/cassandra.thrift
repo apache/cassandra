@@ -30,40 +30,38 @@ namespace php cassandra
 # structures
 #
 
-struct column_t {
-   1: string                        columnName,
+struct Column {
+   1: string                        column_name,
    2: binary                        value,
    3: i64                           timestamp,
 }
 
-typedef map< string, list<column_t>  > column_family_map
+typedef map<string, list<Column>>   column_family_map
 
-struct batch_mutation_t {
-   1: string                        table,
-   2: string                        key,
-   3: column_family_map             cfmap,
+struct BatchMutation {
+   1: string                        key,
+   2: column_family_map             cfmap,
 }
 
-struct superColumn_t {
+struct SuperColumn {
    1: string                        name,
-   2: list<column_t>                columns,
+   2: list<Column>                  columns,
 }
 
-typedef map< string, list<superColumn_t>  > superColumn_family_map
+typedef map<string, list<SuperColumn>> SuperColumnFamilyMap
 
-struct batch_mutation_super_t {
-   1: string                        table,
-   2: string                        key,
-   3: superColumn_family_map        cfmap,
+struct BatchMutationSuper {
+   1: string                        key,
+   2: SuperColumnFamilyMap          cfmap,
 }
 
 
-typedef list<map<string, string>> resultSet_t
+typedef list<map<string, string>>   ResultSet
 
-struct CqlResult_t {
-   1: i32                           errorCode, // 0 - success
-   2: string                        errorTxt,
-   3: resultSet_t                   resultSet,
+struct CqlResult {
+   1: i32                           error_code, // 0 - success
+   2: string                        error_txt,
+   3: ResultSet                     result_set,
 }
 
 
@@ -91,54 +89,68 @@ exception UnavailableException {
 # service api
 #
 
-# CF = ColumnFamily name
-# SC = SuperColumn name
-# C = Column name
-# columnParent: the parent of the columns you are specifying.  "CF" or "CF:SC".
-# columnPath: full path to a column.  "CF:C" or "CF:SC:C".
-# superColumnPath: full path to a supercolumn.  "CF:SC" only.
-# columnPathOrParent: remove will wipe out any layer.  "CF" or "CF:C" or "CF:SC" or "CF:SC:C".
+struct ColumnParent {
+    3: string          column_family,
+    4: optional string super_column,
+}
+
+struct ColumnPath {
+    3: string          column_family,
+    4: optional string super_column,
+    5: string          column,
+}
+
+struct SuperColumnPath {
+    3: string          column_family,
+    4: string          super_column,
+}
+
+struct ColumnPathOrParent {
+    3: string          column_family,
+    4: optional string super_column,
+    5: optional string column,
+}
 
 
 service Cassandra {
-  list<column_t> get_slice_by_names(1:string tablename, 2:string key, 3:string columnParent, 4:list<string> columnNames)
+  list<Column> get_slice_by_names(1:string table, 2:string key, 3:ColumnParent column_parent, 4:list<string> column_names)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<column_t> get_slice(1:string tablename, 2:string key, 3:string columnParent, 4:string start, 5:string finish, 6:bool isAscending, 7:i32 offset, 8:i32 count=100)
+  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 offset, 8:i32 count=100)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  column_t       get_column(1:string tablename, 2:string key, 3:string columnPath)
+  Column       get_column(1:string table, 2:string key, 3:ColumnPath column_path)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  i32            get_column_count(1:string tablename, 2:string key, 3:string columnParent)
+  i32            get_column_count(1:string table, 2:string key, 3:ColumnParent column_parent)
   throws (1: InvalidRequestException ire),
 
-  void     insert(1:string tablename, 2:string key, 3:string columnPath, 4:binary cellData, 5:i64 timestamp, 6:i32 block_for=0)
+  void     insert(1:string table, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void     batch_insert(1: batch_mutation_t batchMutation, 2:i32 block_for=0)
+  void     batch_insert(1:string table, 2:BatchMutation batch_mutation, 3:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void           remove(1:string tablename, 2:string key, 3:string columnPathOrParent, 4:i64 timestamp, 5:i32 block_for=0)
+  void           remove(1:string table, 2:string key, 3:ColumnPathOrParent column_path_or_parent, 4:i64 timestamp, 5:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  list<column_t> get_columns_since(1:string tablename, 2:string key, 3:string columnParent, 4:i64 timeStamp)
+  list<Column> get_columns_since(1:string table, 2:string key, 3:ColumnParent column_parent, 4:i64 timeStamp)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  list<superColumn_t> get_slice_super(1:string tablename, 2:string key, 3:string columnFamily, 4:string start, 5:string finish, 6:bool isAscending, 7:i32 offset, 8:i32 count=100)
+  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 offset, 8:i32 count=100)
   throws (1: InvalidRequestException ire),
 
-  list<superColumn_t> get_slice_super_by_names(1:string tablename, 2:string key, 3:string columnFamily, 4:list<string> superColumnNames)
+  list<SuperColumn> get_slice_super_by_names(1:string table, 2:string key, 3:string column_family, 4:list<string> super_column_names)
   throws (1: InvalidRequestException ire),
 
-  superColumn_t  get_superColumn(1:string tablename, 2:string key, 3:string superColumnPath)
+  SuperColumn  get_super_column(1:string table, 2:string key, 3:SuperColumnPath super_column_path)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  void     batch_insert_superColumn(1:batch_mutation_super_t batchMutationSuper, 2:i32 block_for=0)
+  void     batch_insert_super_column(1:string table, 2:BatchMutationSuper batch_mutation_super, 3:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys
-  list<string>   get_key_range(1:string tablename, 2:string columnFamily, 3:string startWith="", 4:string stopAt="", 5:i32 maxResults=100) 
+  list<string>   get_key_range(1:string table, 2:string column_family, 3:string startWith="", 4:string stopAt="", 5:i32 maxResults=100) 
   throws (1: InvalidRequestException ire),
 
   /////////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +169,6 @@ service Cassandra {
   throws (1: NotFoundException nfe),
 
   // execute a CQL query
-  CqlResult_t    executeQuery(1:string query)
+  CqlResult    executeQuery(1:string query)
 }
 

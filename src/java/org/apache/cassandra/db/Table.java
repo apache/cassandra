@@ -523,12 +523,13 @@ public class Table
         String[] values = RowMutation.getColumnAndColumnFamily(cfName);
         ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
-        return cfStore.getColumnFamily(new IdentityQueryFilter(key, cfName));
+        return cfStore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
     }
 
     /**
      * Selects only the specified column family for the specified key.
     */
+    @Deprecated
     public Row getRow(String key, String cfName) throws IOException
     {
         Row row = new Row(table_, key);
@@ -538,40 +539,10 @@ public class Table
         return row;
     }
     
-    public Row getRow(String key, String columnFamilyColumn, long sinceTimeStamp) throws IOException
-    {
-        QueryFilter filter = new TimeQueryFilter(key, columnFamilyColumn, sinceTimeStamp);
-        return getRow(key, filter);
-    }
-
-    /**
-     * This method returns the specified columns for the specified
-     * column family.
-     * 
-     *  param @ key - key for which data is requested.
-     *  param @ cf - column family we are interested in.
-     *  param @ columns - columns that are part of the above column family.
-    */
-    public Row getRow(String key, String columnFamilyColumn, SortedSet<String> columns) throws IOException
-    {
-        // TODO for large CFs we will want a specialized iterator
-        QueryFilter filter = new NamesQueryFilter(key, columnFamilyColumn, columns);
-        return getRow(key, filter);
-    }
-
-    /**
-     * Selects a list of columns in a column family from a given column for the specified key.
-    */
-    public Row getRow(String key, String cfName, String start, String finish, boolean isAscending, int offset, int count) throws IOException
-    {
-        QueryFilter filter = new SliceQueryFilter(key, cfName, start, finish, isAscending, offset, count);
-        return getRow(key, filter);
-    }
-
-    public Row getRow(String key, QueryFilter filter) throws IOException
+    public Row getRow(QueryFilter filter) throws IOException
     {
         ColumnFamilyStore cfStore = columnFamilyStores_.get(filter.getColumnFamilyName());
-        Row row = new Row(table_, key);
+        Row row = new Row(table_, filter.key);
         ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
         if (columnFamily != null)
             row.addColumnFamily(columnFamily);
@@ -675,7 +646,7 @@ public class Table
         }
     }
 
-    private List<String> getKeyRangeUnsafe(final String columnFamily, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    private List<String> getKeyRangeUnsafe(final String cfName, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
@@ -683,7 +654,7 @@ public class Table
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
         List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
-        ColumnFamilyStore cfs = getColumnFamilyStore(columnFamily);
+        ColumnFamilyStore cfs = getColumnFamilyStore(cfName);
 
         // we iterate through memtables with a priority queue to avoid more sorting than necessary.
         // this predicate throws out the keys before the start of our range.
@@ -699,7 +670,7 @@ public class Table
         // current memtable keys.  have to go through the CFS api for locking.
         iterators.add(IteratorUtils.filteredIterator(cfs.memtableKeyIterator(), p));
         // historical memtables
-        for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily))
+        for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(cfName))
         {
             iterators.add(IteratorUtils.filteredIterator(Memtable.getKeyIterator(memtable.getKeys()), p));
         }
@@ -740,7 +711,7 @@ public class Table
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                if (cfs.getColumnFamily(new SliceQueryFilter(current, columnFamily, "", "", true, 0, 1)) != null)
+                if (cfs.getColumnFamily(new SliceQueryFilter(current, new QueryPath(cfName), "", "", true, 0, 1)) != null)
                 {
                     keys.add(current);
                 }

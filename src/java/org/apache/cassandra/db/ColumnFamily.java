@@ -38,6 +38,7 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.db.filter.QueryPath;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -109,8 +110,6 @@ public final class ColumnFamily
         return new ColumnFamily(cfName, columnType, comparator);
     }
 
-    private transient AbstractColumnFactory columnFactory_;
-
     private String name_;
 
     private transient ICompactSerializer<IColumn> columnSerializer_;
@@ -123,8 +122,7 @@ public final class ColumnFamily
     {
         name_ = cfName;
         type_ = columnType;
-        columnFactory_ = AbstractColumnFactory.getColumnFactory(columnType);
-        columnSerializer_ = columnFactory_.createColumnSerializer();
+        columnSerializer_ = columnType.equals("Standard") ? Column.serializer() : SuperColumn.serializer();
         if(columns_ == null)
             columns_ = new EfficientBidiMap(comparator);
     }
@@ -171,11 +169,6 @@ public final class ColumnFamily
     	return columnSerializer_;
     }
 
-    public void addColumn(String name)
-    {
-    	addColumn(columnFactory_.createColumn(name));
-    }
-
     int getColumnCount()
     {
     	int count = 0;
@@ -203,19 +196,25 @@ public final class ColumnFamily
         return type_.equals("Super");
     }
 
-    public void addColumn(String name, byte[] value)
+    public void addColumn(QueryPath path, byte[] value, long timestamp)
     {
-    	addColumn(name, value, 0);
+        addColumn(path, value, timestamp, false);
     }
 
-    public void addColumn(String name, byte[] value, long timestamp)
-    {
-        addColumn(name, value, timestamp, false);
-    }
-
-    public void addColumn(String name, byte[] value, long timestamp, boolean deleted)
+    /** In most places the CF must be part of a QueryPath but here it is ignored. */
+    public void addColumn(QueryPath path, byte[] value, long timestamp, boolean deleted)
 	{
-		IColumn column = columnFactory_.createColumn(name, value, timestamp, deleted);
+        assert path.columnName != null : path;
+		IColumn column;
+        if (path.superColumnName == null)
+        {
+            column = new Column(path.columnName, value, timestamp, deleted);
+        }
+        else
+        {
+            column = new SuperColumn(path.superColumnName);
+            column.addColumn(new Column(path.columnName, value, timestamp, deleted));
+        }
 		addColumn(column);
     }
 
@@ -294,10 +293,6 @@ public final class ColumnFamily
     public boolean isMarkedForDelete()
     {
         return markedForDeleteAt > Long.MIN_VALUE;
-    }
-
-    public String getTable() {
-        return table_;
     }
 
     /*

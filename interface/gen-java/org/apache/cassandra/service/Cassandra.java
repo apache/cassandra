@@ -4,27 +4,6 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
@@ -43,31 +22,31 @@ public class Cassandra {
 
   public interface Iface {
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<column_t> get_slice(String tablename, String key, String columnParent, String start, String finish, boolean isAscending, int offset, int count) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int offset, int count) throws InvalidRequestException, NotFoundException, TException;
 
-    public column_t get_column(String tablename, String key, String columnPath) throws InvalidRequestException, NotFoundException, TException;
+    public Column get_column(String table, String key, ColumnPath column_path) throws InvalidRequestException, NotFoundException, TException;
 
-    public int get_column_count(String tablename, String key, String columnParent) throws InvalidRequestException, TException;
+    public int get_column_count(String table, String key, ColumnParent column_parent) throws InvalidRequestException, TException;
 
-    public void insert(String tablename, String key, String columnPath, byte[] cellData, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public void batch_insert(batch_mutation_t batchMutation, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert(String table, BatchMutation batch_mutation, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public void remove(String tablename, String key, String columnPathOrParent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_columns_since(String table, String key, ColumnParent column_parent, long timeStamp) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, String start, String finish, boolean isAscending, int offset, int count) throws InvalidRequestException, TException;
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int offset, int count) throws InvalidRequestException, TException;
 
-    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException, TException;
+    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names) throws InvalidRequestException, TException;
 
-    public superColumn_t get_superColumn(String tablename, String key, String superColumnPath) throws InvalidRequestException, NotFoundException, TException;
+    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path) throws InvalidRequestException, NotFoundException, TException;
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
+    public List<String> get_key_range(String table, String column_family, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
 
     public String getStringProperty(String propertyName) throws TException;
 
@@ -75,7 +54,7 @@ public class Cassandra {
 
     public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException, TException;
 
-    public CqlResult_t executeQuery(String query) throws TException;
+    public CqlResult executeQuery(String query) throws TException;
 
   }
 
@@ -106,26 +85,26 @@ public class Cassandra {
       return this.oprot_;
     }
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_slice_by_names(tablename, key, columnParent, columnNames);
+      send_get_slice_by_names(table, key, column_parent, column_names);
       return recv_get_slice_by_names();
     }
 
-    public void send_get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws TException
+    public void send_get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_by_names", TMessageType.CALL, seqid_));
       get_slice_by_names_args args = new get_slice_by_names_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnParent = columnParent;
-      args.columnNames = columnNames;
+      args.column_parent = column_parent;
+      args.column_names = column_names;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public List<column_t> recv_get_slice_by_names() throws InvalidRequestException, NotFoundException, TException
+    public List<Column> recv_get_slice_by_names() throws InvalidRequestException, NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -148,22 +127,22 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_by_names failed: unknown result");
     }
 
-    public List<column_t> get_slice(String tablename, String key, String columnParent, String start, String finish, boolean isAscending, int offset, int count) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int offset, int count) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_slice(tablename, key, columnParent, start, finish, isAscending, offset, count);
+      send_get_slice(table, key, column_parent, start, finish, is_ascending, offset, count);
       return recv_get_slice();
     }
 
-    public void send_get_slice(String tablename, String key, String columnParent, String start, String finish, boolean isAscending, int offset, int count) throws TException
+    public void send_get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int offset, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice", TMessageType.CALL, seqid_));
       get_slice_args args = new get_slice_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnParent = columnParent;
+      args.column_parent = column_parent;
       args.start = start;
       args.finish = finish;
-      args.isAscending = isAscending;
+      args.is_ascending = is_ascending;
       args.offset = offset;
       args.count = count;
       args.write(oprot_);
@@ -171,7 +150,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<column_t> recv_get_slice() throws InvalidRequestException, NotFoundException, TException
+    public List<Column> recv_get_slice() throws InvalidRequestException, NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -194,25 +173,25 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice failed: unknown result");
     }
 
-    public column_t get_column(String tablename, String key, String columnPath) throws InvalidRequestException, NotFoundException, TException
+    public Column get_column(String table, String key, ColumnPath column_path) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_column(tablename, key, columnPath);
+      send_get_column(table, key, column_path);
       return recv_get_column();
     }
 
-    public void send_get_column(String tablename, String key, String columnPath) throws TException
+    public void send_get_column(String table, String key, ColumnPath column_path) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_column", TMessageType.CALL, seqid_));
       get_column_args args = new get_column_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnPath = columnPath;
+      args.column_path = column_path;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public column_t recv_get_column() throws InvalidRequestException, NotFoundException, TException
+    public Column recv_get_column() throws InvalidRequestException, NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -235,19 +214,19 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column failed: unknown result");
     }
 
-    public int get_column_count(String tablename, String key, String columnParent) throws InvalidRequestException, TException
+    public int get_column_count(String table, String key, ColumnParent column_parent) throws InvalidRequestException, TException
     {
-      send_get_column_count(tablename, key, columnParent);
+      send_get_column_count(table, key, column_parent);
       return recv_get_column_count();
     }
 
-    public void send_get_column_count(String tablename, String key, String columnParent) throws TException
+    public void send_get_column_count(String table, String key, ColumnParent column_parent) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_column_count", TMessageType.CALL, seqid_));
       get_column_count_args args = new get_column_count_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnParent = columnParent;
+      args.column_parent = column_parent;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -273,20 +252,20 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column_count failed: unknown result");
     }
 
-    public void insert(String tablename, String key, String columnPath, byte[] cellData, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_insert(tablename, key, columnPath, cellData, timestamp, block_for);
+      send_insert(table, key, column_path, value, timestamp, block_for);
       recv_insert();
     }
 
-    public void send_insert(String tablename, String key, String columnPath, byte[] cellData, long timestamp, int block_for) throws TException
+    public void send_insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnPath = columnPath;
-      args.cellData = cellData;
+      args.column_path = column_path;
+      args.value = value;
       args.timestamp = timestamp;
       args.block_for = block_for;
       args.write(oprot_);
@@ -314,17 +293,18 @@ public class Cassandra {
       return;
     }
 
-    public void batch_insert(batch_mutation_t batchMutation, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert(String table, BatchMutation batch_mutation, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert(batchMutation, block_for);
+      send_batch_insert(table, batch_mutation, block_for);
       recv_batch_insert();
     }
 
-    public void send_batch_insert(batch_mutation_t batchMutation, int block_for) throws TException
+    public void send_batch_insert(String table, BatchMutation batch_mutation, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert", TMessageType.CALL, seqid_));
       batch_insert_args args = new batch_insert_args();
-      args.batchMutation = batchMutation;
+      args.table = table;
+      args.batch_mutation = batch_mutation;
       args.block_for = block_for;
       args.write(oprot_);
       oprot_.writeMessageEnd();
@@ -351,19 +331,19 @@ public class Cassandra {
       return;
     }
 
-    public void remove(String tablename, String key, String columnPathOrParent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_remove(tablename, key, columnPathOrParent, timestamp, block_for);
+      send_remove(table, key, column_path_or_parent, timestamp, block_for);
       recv_remove();
     }
 
-    public void send_remove(String tablename, String key, String columnPathOrParent, long timestamp, int block_for) throws TException
+    public void send_remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnPathOrParent = columnPathOrParent;
+      args.column_path_or_parent = column_path_or_parent;
       args.timestamp = timestamp;
       args.block_for = block_for;
       args.write(oprot_);
@@ -391,26 +371,26 @@ public class Cassandra {
       return;
     }
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_columns_since(String table, String key, ColumnParent column_parent, long timeStamp) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_columns_since(tablename, key, columnParent, timeStamp);
+      send_get_columns_since(table, key, column_parent, timeStamp);
       return recv_get_columns_since();
     }
 
-    public void send_get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws TException
+    public void send_get_columns_since(String table, String key, ColumnParent column_parent, long timeStamp) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_columns_since", TMessageType.CALL, seqid_));
       get_columns_since_args args = new get_columns_since_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnParent = columnParent;
+      args.column_parent = column_parent;
       args.timeStamp = timeStamp;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public List<column_t> recv_get_columns_since() throws InvalidRequestException, NotFoundException, TException
+    public List<Column> recv_get_columns_since() throws InvalidRequestException, NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -433,22 +413,22 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_columns_since failed: unknown result");
     }
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, String start, String finish, boolean isAscending, int offset, int count) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int offset, int count) throws InvalidRequestException, TException
     {
-      send_get_slice_super(tablename, key, columnFamily, start, finish, isAscending, offset, count);
+      send_get_slice_super(table, key, column_family, start, finish, is_ascending, offset, count);
       return recv_get_slice_super();
     }
 
-    public void send_get_slice_super(String tablename, String key, String columnFamily, String start, String finish, boolean isAscending, int offset, int count) throws TException
+    public void send_get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int offset, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super", TMessageType.CALL, seqid_));
       get_slice_super_args args = new get_slice_super_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnFamily = columnFamily;
+      args.column_family = column_family;
       args.start = start;
       args.finish = finish;
-      args.isAscending = isAscending;
+      args.is_ascending = is_ascending;
       args.offset = offset;
       args.count = count;
       args.write(oprot_);
@@ -456,7 +436,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<superColumn_t> recv_get_slice_super() throws InvalidRequestException, TException
+    public List<SuperColumn> recv_get_slice_super() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -476,26 +456,26 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super failed: unknown result");
     }
 
-    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names) throws InvalidRequestException, TException
     {
-      send_get_slice_super_by_names(tablename, key, columnFamily, superColumnNames);
+      send_get_slice_super_by_names(table, key, column_family, super_column_names);
       return recv_get_slice_super_by_names();
     }
 
-    public void send_get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws TException
+    public void send_get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super_by_names", TMessageType.CALL, seqid_));
       get_slice_super_by_names_args args = new get_slice_super_by_names_args();
-      args.tablename = tablename;
+      args.table = table;
       args.key = key;
-      args.columnFamily = columnFamily;
-      args.superColumnNames = superColumnNames;
+      args.column_family = column_family;
+      args.super_column_names = super_column_names;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public List<superColumn_t> recv_get_slice_super_by_names() throws InvalidRequestException, TException
+    public List<SuperColumn> recv_get_slice_super_by_names() throws InvalidRequestException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -515,25 +495,25 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super_by_names failed: unknown result");
     }
 
-    public superColumn_t get_superColumn(String tablename, String key, String superColumnPath) throws InvalidRequestException, NotFoundException, TException
+    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_superColumn(tablename, key, superColumnPath);
-      return recv_get_superColumn();
+      send_get_super_column(table, key, super_column_path);
+      return recv_get_super_column();
     }
 
-    public void send_get_superColumn(String tablename, String key, String superColumnPath) throws TException
+    public void send_get_super_column(String table, String key, SuperColumnPath super_column_path) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("get_superColumn", TMessageType.CALL, seqid_));
-      get_superColumn_args args = new get_superColumn_args();
-      args.tablename = tablename;
+      oprot_.writeMessageBegin(new TMessage("get_super_column", TMessageType.CALL, seqid_));
+      get_super_column_args args = new get_super_column_args();
+      args.table = table;
       args.key = key;
-      args.superColumnPath = superColumnPath;
+      args.super_column_path = super_column_path;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public superColumn_t recv_get_superColumn() throws InvalidRequestException, NotFoundException, TException
+    public SuperColumn recv_get_super_column() throws InvalidRequestException, NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -541,7 +521,7 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      get_superColumn_result result = new get_superColumn_result();
+      get_super_column_result result = new get_super_column_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
@@ -553,27 +533,28 @@ public class Cassandra {
       if (result.nfe != null) {
         throw result.nfe;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_superColumn failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_super_column failed: unknown result");
     }
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert_superColumn(batchMutationSuper, block_for);
-      recv_batch_insert_superColumn();
+      send_batch_insert_super_column(table, batch_mutation_super, block_for);
+      recv_batch_insert_super_column();
     }
 
-    public void send_batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block_for) throws TException
+    public void send_batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("batch_insert_superColumn", TMessageType.CALL, seqid_));
-      batch_insert_superColumn_args args = new batch_insert_superColumn_args();
-      args.batchMutationSuper = batchMutationSuper;
+      oprot_.writeMessageBegin(new TMessage("batch_insert_super_column", TMessageType.CALL, seqid_));
+      batch_insert_super_column_args args = new batch_insert_super_column_args();
+      args.table = table;
+      args.batch_mutation_super = batch_mutation_super;
       args.block_for = block_for;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public void recv_batch_insert_superColumn() throws InvalidRequestException, UnavailableException, TException
+    public void recv_batch_insert_super_column() throws InvalidRequestException, UnavailableException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -581,7 +562,7 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      batch_insert_superColumn_result result = new batch_insert_superColumn_result();
+      batch_insert_super_column_result result = new batch_insert_super_column_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.ire != null) {
@@ -593,18 +574,18 @@ public class Cassandra {
       return;
     }
 
-    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
+    public List<String> get_key_range(String table, String column_family, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
     {
-      send_get_key_range(tablename, columnFamily, startWith, stopAt, maxResults);
+      send_get_key_range(table, column_family, startWith, stopAt, maxResults);
       return recv_get_key_range();
     }
 
-    public void send_get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws TException
+    public void send_get_key_range(String table, String column_family, String startWith, String stopAt, int maxResults) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_key_range", TMessageType.CALL, seqid_));
       get_key_range_args args = new get_key_range_args();
-      args.tablename = tablename;
-      args.columnFamily = columnFamily;
+      args.table = table;
+      args.column_family = column_family;
       args.startWith = startWith;
       args.stopAt = stopAt;
       args.maxResults = maxResults;
@@ -735,7 +716,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describeTable failed: unknown result");
     }
 
-    public CqlResult_t executeQuery(String query) throws TException
+    public CqlResult executeQuery(String query) throws TException
     {
       send_executeQuery(query);
       return recv_executeQuery();
@@ -751,7 +732,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public CqlResult_t recv_executeQuery() throws TException
+    public CqlResult recv_executeQuery() throws TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -784,8 +765,8 @@ public class Cassandra {
       processMap_.put("get_columns_since", new get_columns_since());
       processMap_.put("get_slice_super", new get_slice_super());
       processMap_.put("get_slice_super_by_names", new get_slice_super_by_names());
-      processMap_.put("get_superColumn", new get_superColumn());
-      processMap_.put("batch_insert_superColumn", new batch_insert_superColumn());
+      processMap_.put("get_super_column", new get_super_column());
+      processMap_.put("batch_insert_super_column", new batch_insert_super_column());
       processMap_.put("get_key_range", new get_key_range());
       processMap_.put("getStringProperty", new getStringProperty());
       processMap_.put("getStringListProperty", new getStringListProperty());
@@ -826,7 +807,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_by_names_result result = new get_slice_by_names_result();
         try {
-          result.success = iface_.get_slice_by_names(args.tablename, args.key, args.columnParent, args.columnNames);
+          result.success = iface_.get_slice_by_names(args.table, args.key, args.column_parent, args.column_names);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -856,7 +837,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_result result = new get_slice_result();
         try {
-          result.success = iface_.get_slice(args.tablename, args.key, args.columnParent, args.start, args.finish, args.isAscending, args.offset, args.count);
+          result.success = iface_.get_slice(args.table, args.key, args.column_parent, args.start, args.finish, args.is_ascending, args.offset, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -886,7 +867,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_column_result result = new get_column_result();
         try {
-          result.success = iface_.get_column(args.tablename, args.key, args.columnPath);
+          result.success = iface_.get_column(args.table, args.key, args.column_path);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -916,7 +897,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_column_count_result result = new get_column_count_result();
         try {
-          result.success = iface_.get_column_count(args.tablename, args.key, args.columnParent);
+          result.success = iface_.get_column_count(args.table, args.key, args.column_parent);
           result.__isset.success = true;
         } catch (InvalidRequestException ire) {
           result.ire = ire;
@@ -945,7 +926,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         insert_result result = new insert_result();
         try {
-          iface_.insert(args.tablename, args.key, args.columnPath, args.cellData, args.timestamp, args.block_for);
+          iface_.insert(args.table, args.key, args.column_path, args.value, args.timestamp, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -975,7 +956,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_result result = new batch_insert_result();
         try {
-          iface_.batch_insert(args.batchMutation, args.block_for);
+          iface_.batch_insert(args.table, args.batch_mutation, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1005,7 +986,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
-          iface_.remove(args.tablename, args.key, args.columnPathOrParent, args.timestamp, args.block_for);
+          iface_.remove(args.table, args.key, args.column_path_or_parent, args.timestamp, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1035,7 +1016,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_columns_since_result result = new get_columns_since_result();
         try {
-          result.success = iface_.get_columns_since(args.tablename, args.key, args.columnParent, args.timeStamp);
+          result.success = iface_.get_columns_since(args.table, args.key, args.column_parent, args.timeStamp);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -1065,7 +1046,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_super_result result = new get_slice_super_result();
         try {
-          result.success = iface_.get_slice_super(args.tablename, args.key, args.columnFamily, args.start, args.finish, args.isAscending, args.offset, args.count);
+          result.success = iface_.get_slice_super(args.table, args.key, args.column_family, args.start, args.finish, args.is_ascending, args.offset, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1093,7 +1074,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_super_by_names_result result = new get_slice_super_by_names_result();
         try {
-          result.success = iface_.get_slice_super_by_names(args.tablename, args.key, args.columnFamily, args.superColumnNames);
+          result.success = iface_.get_slice_super_by_names(args.table, args.key, args.column_family, args.super_column_names);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1113,29 +1094,29 @@ public class Cassandra {
 
     }
 
-    private class get_superColumn implements ProcessFunction {
+    private class get_super_column implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        get_superColumn_args args = new get_superColumn_args();
+        get_super_column_args args = new get_super_column_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        get_superColumn_result result = new get_superColumn_result();
+        get_super_column_result result = new get_super_column_result();
         try {
-          result.success = iface_.get_superColumn(args.tablename, args.key, args.superColumnPath);
+          result.success = iface_.get_super_column(args.table, args.key, args.super_column_path);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
-          LOGGER.error("Internal error processing get_superColumn", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_superColumn");
-          oprot.writeMessageBegin(new TMessage("get_superColumn", TMessageType.EXCEPTION, seqid));
+          LOGGER.error("Internal error processing get_super_column", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing get_super_column");
+          oprot.writeMessageBegin(new TMessage("get_super_column", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
           oprot.writeMessageEnd();
           oprot.getTransport().flush();
           return;
         }
-        oprot.writeMessageBegin(new TMessage("get_superColumn", TMessageType.REPLY, seqid));
+        oprot.writeMessageBegin(new TMessage("get_super_column", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -1143,29 +1124,29 @@ public class Cassandra {
 
     }
 
-    private class batch_insert_superColumn implements ProcessFunction {
+    private class batch_insert_super_column implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        batch_insert_superColumn_args args = new batch_insert_superColumn_args();
+        batch_insert_super_column_args args = new batch_insert_super_column_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        batch_insert_superColumn_result result = new batch_insert_superColumn_result();
+        batch_insert_super_column_result result = new batch_insert_super_column_result();
         try {
-          iface_.batch_insert_superColumn(args.batchMutationSuper, args.block_for);
+          iface_.batch_insert_super_column(args.table, args.batch_mutation_super, args.block_for);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
           result.ue = ue;
         } catch (Throwable th) {
-          LOGGER.error("Internal error processing batch_insert_superColumn", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing batch_insert_superColumn");
-          oprot.writeMessageBegin(new TMessage("batch_insert_superColumn", TMessageType.EXCEPTION, seqid));
+          LOGGER.error("Internal error processing batch_insert_super_column", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing batch_insert_super_column");
+          oprot.writeMessageBegin(new TMessage("batch_insert_super_column", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
           oprot.writeMessageEnd();
           oprot.getTransport().flush();
           return;
         }
-        oprot.writeMessageBegin(new TMessage("batch_insert_superColumn", TMessageType.REPLY, seqid));
+        oprot.writeMessageBegin(new TMessage("batch_insert_super_column", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -1181,7 +1162,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_key_range_result result = new get_key_range_result();
         try {
-          result.success = iface_.get_key_range(args.tablename, args.columnFamily, args.startWith, args.stopAt, args.maxResults);
+          result.success = iface_.get_key_range(args.table, args.column_family, args.startWith, args.stopAt, args.maxResults);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1281,32 +1262,32 @@ public class Cassandra {
 
   public static class get_slice_by_names_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_by_names_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("columnParent", TType.STRING, (short)3);
-    private static final TField COLUMN_NAMES_FIELD_DESC = new TField("columnNames", TType.LIST, (short)4);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
+    private static final TField COLUMN_NAMES_FIELD_DESC = new TField("column_names", TType.LIST, (short)4);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnParent;
-    public static final int COLUMNPARENT = 3;
-    public List<String> columnNames;
-    public static final int COLUMNNAMES = 4;
+    public ColumnParent column_parent;
+    public static final int COLUMN_PARENT = 3;
+    public List<String> column_names;
+    public static final int COLUMN_NAMES = 4;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPARENT, new FieldMetaData("columnParent", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
-      put(COLUMNNAMES, new FieldMetaData("columnNames", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnParent.class)));
+      put(COLUMN_NAMES, new FieldMetaData("column_names", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new FieldValueMetaData(TType.STRING))));
     }});
@@ -1319,37 +1300,37 @@ public class Cassandra {
     }
 
     public get_slice_by_names_args(
-      String tablename,
+      String table,
       String key,
-      String columnParent,
-      List<String> columnNames)
+      ColumnParent column_parent,
+      List<String> column_names)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnParent = columnParent;
-      this.columnNames = columnNames;
+      this.column_parent = column_parent;
+      this.column_names = column_names;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_by_names_args(get_slice_by_names_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnParent()) {
-        this.columnParent = other.columnParent;
+      if (other.isSetColumn_parent()) {
+        this.column_parent = new ColumnParent(other.column_parent);
       }
-      if (other.isSetColumnNames()) {
-        List<String> __this__columnNames = new ArrayList<String>();
-        for (String other_element : other.columnNames) {
-          __this__columnNames.add(other_element);
+      if (other.isSetColumn_names()) {
+        List<String> __this__column_names = new ArrayList<String>();
+        for (String other_element : other.column_names) {
+          __this__column_names.add(other_element);
         }
-        this.columnNames = __this__columnNames;
+        this.column_names = __this__column_names;
       }
     }
 
@@ -1358,26 +1339,26 @@ public class Cassandra {
       return new get_slice_by_names_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -1404,74 +1385,74 @@ public class Cassandra {
       }
     }
 
-    public String getColumnParent() {
-      return this.columnParent;
+    public ColumnParent getColumn_parent() {
+      return this.column_parent;
     }
 
-    public void setColumnParent(String columnParent) {
-      this.columnParent = columnParent;
+    public void setColumn_parent(ColumnParent column_parent) {
+      this.column_parent = column_parent;
     }
 
-    public void unsetColumnParent() {
-      this.columnParent = null;
+    public void unsetColumn_parent() {
+      this.column_parent = null;
     }
 
-    // Returns true if field columnParent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnParent() {
-      return this.columnParent != null;
+    // Returns true if field column_parent is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_parent() {
+      return this.column_parent != null;
     }
 
-    public void setColumnParentIsSet(boolean value) {
+    public void setColumn_parentIsSet(boolean value) {
       if (!value) {
-        this.columnParent = null;
+        this.column_parent = null;
       }
     }
 
-    public int getColumnNamesSize() {
-      return (this.columnNames == null) ? 0 : this.columnNames.size();
+    public int getColumn_namesSize() {
+      return (this.column_names == null) ? 0 : this.column_names.size();
     }
 
-    public java.util.Iterator<String> getColumnNamesIterator() {
-      return (this.columnNames == null) ? null : this.columnNames.iterator();
+    public java.util.Iterator<String> getColumn_namesIterator() {
+      return (this.column_names == null) ? null : this.column_names.iterator();
     }
 
-    public void addToColumnNames(String elem) {
-      if (this.columnNames == null) {
-        this.columnNames = new ArrayList<String>();
+    public void addToColumn_names(String elem) {
+      if (this.column_names == null) {
+        this.column_names = new ArrayList<String>();
       }
-      this.columnNames.add(elem);
+      this.column_names.add(elem);
     }
 
-    public List<String> getColumnNames() {
-      return this.columnNames;
+    public List<String> getColumn_names() {
+      return this.column_names;
     }
 
-    public void setColumnNames(List<String> columnNames) {
-      this.columnNames = columnNames;
+    public void setColumn_names(List<String> column_names) {
+      this.column_names = column_names;
     }
 
-    public void unsetColumnNames() {
-      this.columnNames = null;
+    public void unsetColumn_names() {
+      this.column_names = null;
     }
 
-    // Returns true if field columnNames is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnNames() {
-      return this.columnNames != null;
+    // Returns true if field column_names is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_names() {
+      return this.column_names != null;
     }
 
-    public void setColumnNamesIsSet(boolean value) {
+    public void setColumn_namesIsSet(boolean value) {
       if (!value) {
-        this.columnNames = null;
+        this.column_names = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -1483,19 +1464,19 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPARENT:
+      case COLUMN_PARENT:
         if (value == null) {
-          unsetColumnParent();
+          unsetColumn_parent();
         } else {
-          setColumnParent((String)value);
+          setColumn_parent((ColumnParent)value);
         }
         break;
 
-      case COLUMNNAMES:
+      case COLUMN_NAMES:
         if (value == null) {
-          unsetColumnNames();
+          unsetColumn_names();
         } else {
-          setColumnNames((List<String>)value);
+          setColumn_names((List<String>)value);
         }
         break;
 
@@ -1506,17 +1487,17 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPARENT:
-        return getColumnParent();
+      case COLUMN_PARENT:
+        return getColumn_parent();
 
-      case COLUMNNAMES:
-        return getColumnNames();
+      case COLUMN_NAMES:
+        return getColumn_names();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -1526,14 +1507,14 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPARENT:
-        return isSetColumnParent();
-      case COLUMNNAMES:
-        return isSetColumnNames();
+      case COLUMN_PARENT:
+        return isSetColumn_parent();
+      case COLUMN_NAMES:
+        return isSetColumn_names();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -1552,12 +1533,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -1570,21 +1551,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnParent = true && this.isSetColumnParent();
-      boolean that_present_columnParent = true && that.isSetColumnParent();
-      if (this_present_columnParent || that_present_columnParent) {
-        if (!(this_present_columnParent && that_present_columnParent))
+      boolean this_present_column_parent = true && this.isSetColumn_parent();
+      boolean that_present_column_parent = true && that.isSetColumn_parent();
+      if (this_present_column_parent || that_present_column_parent) {
+        if (!(this_present_column_parent && that_present_column_parent))
           return false;
-        if (!this.columnParent.equals(that.columnParent))
+        if (!this.column_parent.equals(that.column_parent))
           return false;
       }
 
-      boolean this_present_columnNames = true && this.isSetColumnNames();
-      boolean that_present_columnNames = true && that.isSetColumnNames();
-      if (this_present_columnNames || that_present_columnNames) {
-        if (!(this_present_columnNames && that_present_columnNames))
+      boolean this_present_column_names = true && this.isSetColumn_names();
+      boolean that_present_column_names = true && that.isSetColumn_names();
+      if (this_present_column_names || that_present_column_names) {
+        if (!(this_present_column_names && that_present_column_names))
           return false;
-        if (!this.columnNames.equals(that.columnNames))
+        if (!this.column_names.equals(that.column_names))
           return false;
       }
 
@@ -1607,9 +1588,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -1621,23 +1602,24 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPARENT:
-            if (field.type == TType.STRING) {
-              this.columnParent = iprot.readString();
+          case COLUMN_PARENT:
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNNAMES:
+          case COLUMN_NAMES:
             if (field.type == TType.LIST) {
               {
                 TList _list31 = iprot.readListBegin();
-                this.columnNames = new ArrayList<String>(_list31.size);
+                this.column_names = new ArrayList<String>(_list31.size);
                 for (int _i32 = 0; _i32 < _list31.size; ++_i32)
                 {
                   String _elem33;
                   _elem33 = iprot.readString();
-                  this.columnNames.add(_elem33);
+                  this.column_names.add(_elem33);
                 }
                 iprot.readListEnd();
               }
@@ -1662,9 +1644,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -1672,16 +1654,16 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnParent != null) {
+      if (this.column_parent != null) {
         oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
-        oprot.writeString(this.columnParent);
+        this.column_parent.write(oprot);
         oprot.writeFieldEnd();
       }
-      if (this.columnNames != null) {
+      if (this.column_names != null) {
         oprot.writeFieldBegin(COLUMN_NAMES_FIELD_DESC);
         {
-          oprot.writeListBegin(new TList(TType.STRING, this.columnNames.size()));
-          for (String _iter34 : this.columnNames)          {
+          oprot.writeListBegin(new TList(TType.STRING, this.column_names.size()));
+          for (String _iter34 : this.column_names)          {
             oprot.writeString(_iter34);
           }
           oprot.writeListEnd();
@@ -1697,11 +1679,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_by_names_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -1713,19 +1695,19 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnParent:");
-      if (this.columnParent == null) {
+      sb.append("column_parent:");
+      if (this.column_parent == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnParent);
+        sb.append(this.column_parent);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnNames:");
-      if (this.columnNames == null) {
+      sb.append("column_names:");
+      if (this.column_names == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnNames);
+        sb.append(this.column_names);
       }
       first = false;
       sb.append(")");
@@ -1745,7 +1727,7 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
-    public List<column_t> success;
+    public List<Column> success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -1759,7 +1741,7 @@ public class Cassandra {
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
-              new StructMetaData(TType.STRUCT, column_t.class))));
+              new StructMetaData(TType.STRUCT, Column.class))));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
@@ -1774,7 +1756,7 @@ public class Cassandra {
     }
 
     public get_slice_by_names_result(
-      List<column_t> success,
+      List<Column> success,
       InvalidRequestException ire,
       NotFoundException nfe)
     {
@@ -1789,9 +1771,9 @@ public class Cassandra {
      */
     public get_slice_by_names_result(get_slice_by_names_result other) {
       if (other.isSetSuccess()) {
-        List<column_t> __this__success = new ArrayList<column_t>();
-        for (column_t other_element : other.success) {
-          __this__success.add(new column_t(other_element));
+        List<Column> __this__success = new ArrayList<Column>();
+        for (Column other_element : other.success) {
+          __this__success.add(new Column(other_element));
         }
         this.success = __this__success;
       }
@@ -1812,22 +1794,22 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public java.util.Iterator<column_t> getSuccessIterator() {
+    public java.util.Iterator<Column> getSuccessIterator() {
       return (this.success == null) ? null : this.success.iterator();
     }
 
-    public void addToSuccess(column_t elem) {
+    public void addToSuccess(Column elem) {
       if (this.success == null) {
-        this.success = new ArrayList<column_t>();
+        this.success = new ArrayList<Column>();
       }
       this.success.add(elem);
     }
 
-    public List<column_t> getSuccess() {
+    public List<Column> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<column_t> success) {
+    public void setSuccess(List<Column> success) {
       this.success = success;
     }
 
@@ -1898,7 +1880,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((List<column_t>)value);
+          setSuccess((List<Column>)value);
         }
         break;
 
@@ -2016,11 +1998,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list35 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list35.size);
+                this.success = new ArrayList<Column>(_list35.size);
                 for (int _i36 = 0; _i36 < _list35.size; ++_i36)
                 {
-                  column_t _elem37;
-                  _elem37 = new column_t();
+                  Column _elem37;
+                  _elem37 = new Column();
                   _elem37.read(iprot);
                   this.success.add(_elem37);
                 }
@@ -2066,7 +2048,7 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (column_t _iter38 : this.success)          {
+          for (Column _iter38 : this.success)          {
             _iter38.write(oprot);
           }
           oprot.writeListEnd();
@@ -2126,27 +2108,27 @@ public class Cassandra {
 
   public static class get_slice_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("columnParent", TType.STRING, (short)3);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)4);
     private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)5);
-    private static final TField IS_ASCENDING_FIELD_DESC = new TField("isAscending", TType.BOOL, (short)6);
+    private static final TField IS_ASCENDING_FIELD_DESC = new TField("is_ascending", TType.BOOL, (short)6);
     private static final TField OFFSET_FIELD_DESC = new TField("offset", TType.I32, (short)7);
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)8);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnParent;
-    public static final int COLUMNPARENT = 3;
+    public ColumnParent column_parent;
+    public static final int COLUMN_PARENT = 3;
     public String start;
     public static final int START = 4;
     public String finish;
     public static final int FINISH = 5;
-    public boolean isAscending;
-    public static final int ISASCENDING = 6;
+    public boolean is_ascending;
+    public static final int IS_ASCENDING = 6;
     public int offset;
     public static final int OFFSET = 7;
     public int count;
@@ -2154,23 +2136,23 @@ public class Cassandra {
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean isAscending = false;
+      public boolean is_ascending = false;
       public boolean offset = false;
       public boolean count = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPARENT, new FieldMetaData("columnParent", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnParent.class)));
       put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(ISASCENDING, new FieldMetaData("isAscending", TFieldRequirementType.DEFAULT, 
+      put(IS_ASCENDING, new FieldMetaData("is_ascending", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
       put(OFFSET, new FieldMetaData("offset", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
@@ -2188,23 +2170,23 @@ public class Cassandra {
     }
 
     public get_slice_args(
-      String tablename,
+      String table,
       String key,
-      String columnParent,
+      ColumnParent column_parent,
       String start,
       String finish,
-      boolean isAscending,
+      boolean is_ascending,
       int offset,
       int count)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnParent = columnParent;
+      this.column_parent = column_parent;
       this.start = start;
       this.finish = finish;
-      this.isAscending = isAscending;
-      this.__isset.isAscending = true;
+      this.is_ascending = is_ascending;
+      this.__isset.is_ascending = true;
       this.offset = offset;
       this.__isset.offset = true;
       this.count = count;
@@ -2215,14 +2197,14 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_args(get_slice_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnParent()) {
-        this.columnParent = other.columnParent;
+      if (other.isSetColumn_parent()) {
+        this.column_parent = new ColumnParent(other.column_parent);
       }
       if (other.isSetStart()) {
         this.start = other.start;
@@ -2230,8 +2212,8 @@ public class Cassandra {
       if (other.isSetFinish()) {
         this.finish = other.finish;
       }
-      __isset.isAscending = other.__isset.isAscending;
-      this.isAscending = other.isAscending;
+      __isset.is_ascending = other.__isset.is_ascending;
+      this.is_ascending = other.is_ascending;
       __isset.offset = other.__isset.offset;
       this.offset = other.offset;
       __isset.count = other.__isset.count;
@@ -2243,26 +2225,26 @@ public class Cassandra {
       return new get_slice_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -2289,26 +2271,26 @@ public class Cassandra {
       }
     }
 
-    public String getColumnParent() {
-      return this.columnParent;
+    public ColumnParent getColumn_parent() {
+      return this.column_parent;
     }
 
-    public void setColumnParent(String columnParent) {
-      this.columnParent = columnParent;
+    public void setColumn_parent(ColumnParent column_parent) {
+      this.column_parent = column_parent;
     }
 
-    public void unsetColumnParent() {
-      this.columnParent = null;
+    public void unsetColumn_parent() {
+      this.column_parent = null;
     }
 
-    // Returns true if field columnParent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnParent() {
-      return this.columnParent != null;
+    // Returns true if field column_parent is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_parent() {
+      return this.column_parent != null;
     }
 
-    public void setColumnParentIsSet(boolean value) {
+    public void setColumn_parentIsSet(boolean value) {
       if (!value) {
-        this.columnParent = null;
+        this.column_parent = null;
       }
     }
 
@@ -2358,26 +2340,26 @@ public class Cassandra {
       }
     }
 
-    public boolean isIsAscending() {
-      return this.isAscending;
+    public boolean isIs_ascending() {
+      return this.is_ascending;
     }
 
-    public void setIsAscending(boolean isAscending) {
-      this.isAscending = isAscending;
-      this.__isset.isAscending = true;
+    public void setIs_ascending(boolean is_ascending) {
+      this.is_ascending = is_ascending;
+      this.__isset.is_ascending = true;
     }
 
-    public void unsetIsAscending() {
-      this.__isset.isAscending = false;
+    public void unsetIs_ascending() {
+      this.__isset.is_ascending = false;
     }
 
-    // Returns true if field isAscending is set (has been asigned a value) and false otherwise
-    public boolean isSetIsAscending() {
-      return this.__isset.isAscending;
+    // Returns true if field is_ascending is set (has been asigned a value) and false otherwise
+    public boolean isSetIs_ascending() {
+      return this.__isset.is_ascending;
     }
 
-    public void setIsAscendingIsSet(boolean value) {
-      this.__isset.isAscending = value;
+    public void setIs_ascendingIsSet(boolean value) {
+      this.__isset.is_ascending = value;
     }
 
     public int getOffset() {
@@ -2426,11 +2408,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -2442,11 +2424,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPARENT:
+      case COLUMN_PARENT:
         if (value == null) {
-          unsetColumnParent();
+          unsetColumn_parent();
         } else {
-          setColumnParent((String)value);
+          setColumn_parent((ColumnParent)value);
         }
         break;
 
@@ -2466,11 +2448,11 @@ public class Cassandra {
         }
         break;
 
-      case ISASCENDING:
+      case IS_ASCENDING:
         if (value == null) {
-          unsetIsAscending();
+          unsetIs_ascending();
         } else {
-          setIsAscending((Boolean)value);
+          setIs_ascending((Boolean)value);
         }
         break;
 
@@ -2497,14 +2479,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPARENT:
-        return getColumnParent();
+      case COLUMN_PARENT:
+        return getColumn_parent();
 
       case START:
         return getStart();
@@ -2512,8 +2494,8 @@ public class Cassandra {
       case FINISH:
         return getFinish();
 
-      case ISASCENDING:
-        return new Boolean(isIsAscending());
+      case IS_ASCENDING:
+        return new Boolean(isIs_ascending());
 
       case OFFSET:
         return new Integer(getOffset());
@@ -2529,18 +2511,18 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPARENT:
-        return isSetColumnParent();
+      case COLUMN_PARENT:
+        return isSetColumn_parent();
       case START:
         return isSetStart();
       case FINISH:
         return isSetFinish();
-      case ISASCENDING:
-        return isSetIsAscending();
+      case IS_ASCENDING:
+        return isSetIs_ascending();
       case OFFSET:
         return isSetOffset();
       case COUNT:
@@ -2563,12 +2545,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -2581,12 +2563,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnParent = true && this.isSetColumnParent();
-      boolean that_present_columnParent = true && that.isSetColumnParent();
-      if (this_present_columnParent || that_present_columnParent) {
-        if (!(this_present_columnParent && that_present_columnParent))
+      boolean this_present_column_parent = true && this.isSetColumn_parent();
+      boolean that_present_column_parent = true && that.isSetColumn_parent();
+      if (this_present_column_parent || that_present_column_parent) {
+        if (!(this_present_column_parent && that_present_column_parent))
           return false;
-        if (!this.columnParent.equals(that.columnParent))
+        if (!this.column_parent.equals(that.column_parent))
           return false;
       }
 
@@ -2608,12 +2590,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_isAscending = true;
-      boolean that_present_isAscending = true;
-      if (this_present_isAscending || that_present_isAscending) {
-        if (!(this_present_isAscending && that_present_isAscending))
+      boolean this_present_is_ascending = true;
+      boolean that_present_is_ascending = true;
+      if (this_present_is_ascending || that_present_is_ascending) {
+        if (!(this_present_is_ascending && that_present_is_ascending))
           return false;
-        if (this.isAscending != that.isAscending)
+        if (this.is_ascending != that.is_ascending)
           return false;
       }
 
@@ -2654,9 +2636,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2668,9 +2650,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPARENT:
-            if (field.type == TType.STRING) {
-              this.columnParent = iprot.readString();
+          case COLUMN_PARENT:
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2689,10 +2672,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case ISASCENDING:
+          case IS_ASCENDING:
             if (field.type == TType.BOOL) {
-              this.isAscending = iprot.readBool();
-              this.__isset.isAscending = true;
+              this.is_ascending = iprot.readBool();
+              this.__isset.is_ascending = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2730,9 +2713,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -2740,9 +2723,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnParent != null) {
+      if (this.column_parent != null) {
         oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
-        oprot.writeString(this.columnParent);
+        this.column_parent.write(oprot);
         oprot.writeFieldEnd();
       }
       if (this.start != null) {
@@ -2756,7 +2739,7 @@ public class Cassandra {
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
-      oprot.writeBool(this.isAscending);
+      oprot.writeBool(this.is_ascending);
       oprot.writeFieldEnd();
       oprot.writeFieldBegin(OFFSET_FIELD_DESC);
       oprot.writeI32(this.offset);
@@ -2773,11 +2756,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -2789,11 +2772,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnParent:");
-      if (this.columnParent == null) {
+      sb.append("column_parent:");
+      if (this.column_parent == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnParent);
+        sb.append(this.column_parent);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -2813,8 +2796,8 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("isAscending:");
-      sb.append(this.isAscending);
+      sb.append("is_ascending:");
+      sb.append(this.is_ascending);
       first = false;
       if (!first) sb.append(", ");
       sb.append("offset:");
@@ -2841,7 +2824,7 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
-    public List<column_t> success;
+    public List<Column> success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -2855,7 +2838,7 @@ public class Cassandra {
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
-              new StructMetaData(TType.STRUCT, column_t.class))));
+              new StructMetaData(TType.STRUCT, Column.class))));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
@@ -2870,7 +2853,7 @@ public class Cassandra {
     }
 
     public get_slice_result(
-      List<column_t> success,
+      List<Column> success,
       InvalidRequestException ire,
       NotFoundException nfe)
     {
@@ -2885,9 +2868,9 @@ public class Cassandra {
      */
     public get_slice_result(get_slice_result other) {
       if (other.isSetSuccess()) {
-        List<column_t> __this__success = new ArrayList<column_t>();
-        for (column_t other_element : other.success) {
-          __this__success.add(new column_t(other_element));
+        List<Column> __this__success = new ArrayList<Column>();
+        for (Column other_element : other.success) {
+          __this__success.add(new Column(other_element));
         }
         this.success = __this__success;
       }
@@ -2908,22 +2891,22 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public java.util.Iterator<column_t> getSuccessIterator() {
+    public java.util.Iterator<Column> getSuccessIterator() {
       return (this.success == null) ? null : this.success.iterator();
     }
 
-    public void addToSuccess(column_t elem) {
+    public void addToSuccess(Column elem) {
       if (this.success == null) {
-        this.success = new ArrayList<column_t>();
+        this.success = new ArrayList<Column>();
       }
       this.success.add(elem);
     }
 
-    public List<column_t> getSuccess() {
+    public List<Column> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<column_t> success) {
+    public void setSuccess(List<Column> success) {
       this.success = success;
     }
 
@@ -2994,7 +2977,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((List<column_t>)value);
+          setSuccess((List<Column>)value);
         }
         break;
 
@@ -3112,11 +3095,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list39 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list39.size);
+                this.success = new ArrayList<Column>(_list39.size);
                 for (int _i40 = 0; _i40 < _list39.size; ++_i40)
                 {
-                  column_t _elem41;
-                  _elem41 = new column_t();
+                  Column _elem41;
+                  _elem41 = new Column();
                   _elem41.read(iprot);
                   this.success.add(_elem41);
                 }
@@ -3162,7 +3145,7 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (column_t _iter42 : this.success)          {
+          for (Column _iter42 : this.success)          {
             _iter42.write(oprot);
           }
           oprot.writeListEnd();
@@ -3222,28 +3205,28 @@ public class Cassandra {
 
   public static class get_column_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_column_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PATH_FIELD_DESC = new TField("columnPath", TType.STRING, (short)3);
+    private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnPath;
-    public static final int COLUMNPATH = 3;
+    public ColumnPath column_path;
+    public static final int COLUMN_PATH = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPATH, new FieldMetaData("columnPath", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnPath.class)));
     }});
 
     static {
@@ -3254,28 +3237,28 @@ public class Cassandra {
     }
 
     public get_column_args(
-      String tablename,
+      String table,
       String key,
-      String columnPath)
+      ColumnPath column_path)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnPath = columnPath;
+      this.column_path = column_path;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_column_args(get_column_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnPath()) {
-        this.columnPath = other.columnPath;
+      if (other.isSetColumn_path()) {
+        this.column_path = new ColumnPath(other.column_path);
       }
     }
 
@@ -3284,26 +3267,26 @@ public class Cassandra {
       return new get_column_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -3330,36 +3313,36 @@ public class Cassandra {
       }
     }
 
-    public String getColumnPath() {
-      return this.columnPath;
+    public ColumnPath getColumn_path() {
+      return this.column_path;
     }
 
-    public void setColumnPath(String columnPath) {
-      this.columnPath = columnPath;
+    public void setColumn_path(ColumnPath column_path) {
+      this.column_path = column_path;
     }
 
-    public void unsetColumnPath() {
-      this.columnPath = null;
+    public void unsetColumn_path() {
+      this.column_path = null;
     }
 
-    // Returns true if field columnPath is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnPath() {
-      return this.columnPath != null;
+    // Returns true if field column_path is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_path() {
+      return this.column_path != null;
     }
 
-    public void setColumnPathIsSet(boolean value) {
+    public void setColumn_pathIsSet(boolean value) {
       if (!value) {
-        this.columnPath = null;
+        this.column_path = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -3371,11 +3354,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPATH:
+      case COLUMN_PATH:
         if (value == null) {
-          unsetColumnPath();
+          unsetColumn_path();
         } else {
-          setColumnPath((String)value);
+          setColumn_path((ColumnPath)value);
         }
         break;
 
@@ -3386,14 +3369,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPATH:
-        return getColumnPath();
+      case COLUMN_PATH:
+        return getColumn_path();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -3403,12 +3386,12 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPATH:
-        return isSetColumnPath();
+      case COLUMN_PATH:
+        return isSetColumn_path();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -3427,12 +3410,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -3445,12 +3428,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnPath = true && this.isSetColumnPath();
-      boolean that_present_columnPath = true && that.isSetColumnPath();
-      if (this_present_columnPath || that_present_columnPath) {
-        if (!(this_present_columnPath && that_present_columnPath))
+      boolean this_present_column_path = true && this.isSetColumn_path();
+      boolean that_present_column_path = true && that.isSetColumn_path();
+      if (this_present_column_path || that_present_column_path) {
+        if (!(this_present_column_path && that_present_column_path))
           return false;
-        if (!this.columnPath.equals(that.columnPath))
+        if (!this.column_path.equals(that.column_path))
           return false;
       }
 
@@ -3473,9 +3456,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3487,9 +3470,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPATH:
-            if (field.type == TType.STRING) {
-              this.columnPath = iprot.readString();
+          case COLUMN_PATH:
+            if (field.type == TType.STRUCT) {
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3511,9 +3495,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -3521,9 +3505,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnPath != null) {
+      if (this.column_path != null) {
         oprot.writeFieldBegin(COLUMN_PATH_FIELD_DESC);
-        oprot.writeString(this.columnPath);
+        this.column_path.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -3535,11 +3519,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_column_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -3551,11 +3535,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnPath:");
-      if (this.columnPath == null) {
+      sb.append("column_path:");
+      if (this.column_path == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnPath);
+        sb.append(this.column_path);
       }
       first = false;
       sb.append(")");
@@ -3575,7 +3559,7 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
-    public column_t success;
+    public Column success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -3588,7 +3572,7 @@ public class Cassandra {
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, column_t.class)));
+          new StructMetaData(TType.STRUCT, Column.class)));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
@@ -3603,7 +3587,7 @@ public class Cassandra {
     }
 
     public get_column_result(
-      column_t success,
+      Column success,
       InvalidRequestException ire,
       NotFoundException nfe)
     {
@@ -3618,7 +3602,7 @@ public class Cassandra {
      */
     public get_column_result(get_column_result other) {
       if (other.isSetSuccess()) {
-        this.success = new column_t(other.success);
+        this.success = new Column(other.success);
       }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
@@ -3633,11 +3617,11 @@ public class Cassandra {
       return new get_column_result(this);
     }
 
-    public column_t getSuccess() {
+    public Column getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(column_t success) {
+    public void setSuccess(Column success) {
       this.success = success;
     }
 
@@ -3708,7 +3692,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((column_t)value);
+          setSuccess((Column)value);
         }
         break;
 
@@ -3824,7 +3808,7 @@ public class Cassandra {
         {
           case SUCCESS:
             if (field.type == TType.STRUCT) {
-              this.success = new column_t();
+              this.success = new Column();
               this.success.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
@@ -3920,28 +3904,28 @@ public class Cassandra {
 
   public static class get_column_count_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_column_count_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("columnParent", TType.STRING, (short)3);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnParent;
-    public static final int COLUMNPARENT = 3;
+    public ColumnParent column_parent;
+    public static final int COLUMN_PARENT = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPARENT, new FieldMetaData("columnParent", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnParent.class)));
     }});
 
     static {
@@ -3952,28 +3936,28 @@ public class Cassandra {
     }
 
     public get_column_count_args(
-      String tablename,
+      String table,
       String key,
-      String columnParent)
+      ColumnParent column_parent)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnParent = columnParent;
+      this.column_parent = column_parent;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_column_count_args(get_column_count_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnParent()) {
-        this.columnParent = other.columnParent;
+      if (other.isSetColumn_parent()) {
+        this.column_parent = new ColumnParent(other.column_parent);
       }
     }
 
@@ -3982,26 +3966,26 @@ public class Cassandra {
       return new get_column_count_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -4028,36 +4012,36 @@ public class Cassandra {
       }
     }
 
-    public String getColumnParent() {
-      return this.columnParent;
+    public ColumnParent getColumn_parent() {
+      return this.column_parent;
     }
 
-    public void setColumnParent(String columnParent) {
-      this.columnParent = columnParent;
+    public void setColumn_parent(ColumnParent column_parent) {
+      this.column_parent = column_parent;
     }
 
-    public void unsetColumnParent() {
-      this.columnParent = null;
+    public void unsetColumn_parent() {
+      this.column_parent = null;
     }
 
-    // Returns true if field columnParent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnParent() {
-      return this.columnParent != null;
+    // Returns true if field column_parent is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_parent() {
+      return this.column_parent != null;
     }
 
-    public void setColumnParentIsSet(boolean value) {
+    public void setColumn_parentIsSet(boolean value) {
       if (!value) {
-        this.columnParent = null;
+        this.column_parent = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -4069,11 +4053,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPARENT:
+      case COLUMN_PARENT:
         if (value == null) {
-          unsetColumnParent();
+          unsetColumn_parent();
         } else {
-          setColumnParent((String)value);
+          setColumn_parent((ColumnParent)value);
         }
         break;
 
@@ -4084,14 +4068,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPARENT:
-        return getColumnParent();
+      case COLUMN_PARENT:
+        return getColumn_parent();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -4101,12 +4085,12 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPARENT:
-        return isSetColumnParent();
+      case COLUMN_PARENT:
+        return isSetColumn_parent();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -4125,12 +4109,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -4143,12 +4127,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnParent = true && this.isSetColumnParent();
-      boolean that_present_columnParent = true && that.isSetColumnParent();
-      if (this_present_columnParent || that_present_columnParent) {
-        if (!(this_present_columnParent && that_present_columnParent))
+      boolean this_present_column_parent = true && this.isSetColumn_parent();
+      boolean that_present_column_parent = true && that.isSetColumn_parent();
+      if (this_present_column_parent || that_present_column_parent) {
+        if (!(this_present_column_parent && that_present_column_parent))
           return false;
-        if (!this.columnParent.equals(that.columnParent))
+        if (!this.column_parent.equals(that.column_parent))
           return false;
       }
 
@@ -4171,9 +4155,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4185,9 +4169,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPARENT:
-            if (field.type == TType.STRING) {
-              this.columnParent = iprot.readString();
+          case COLUMN_PARENT:
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4209,9 +4194,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -4219,9 +4204,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnParent != null) {
+      if (this.column_parent != null) {
         oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
-        oprot.writeString(this.columnParent);
+        this.column_parent.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -4233,11 +4218,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_column_count_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -4249,11 +4234,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnParent:");
-      if (this.columnParent == null) {
+      sb.append("column_parent:");
+      if (this.column_parent == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnParent);
+        sb.append(this.column_parent);
       }
       first = false;
       sb.append(")");
@@ -4539,21 +4524,21 @@ public class Cassandra {
 
   public static class insert_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("insert_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PATH_FIELD_DESC = new TField("columnPath", TType.STRING, (short)3);
-    private static final TField CELL_DATA_FIELD_DESC = new TField("cellData", TType.STRING, (short)4);
+    private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
+    private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)4);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)5);
     private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)6);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnPath;
-    public static final int COLUMNPATH = 3;
-    public byte[] cellData;
-    public static final int CELLDATA = 4;
+    public ColumnPath column_path;
+    public static final int COLUMN_PATH = 3;
+    public byte[] value;
+    public static final int VALUE = 4;
     public long timestamp;
     public static final int TIMESTAMP = 5;
     public int block_for;
@@ -4566,13 +4551,13 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPATH, new FieldMetaData("columnPath", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
-      put(CELLDATA, new FieldMetaData("cellData", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnPath.class)));
+      put(VALUE, new FieldMetaData("value", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
@@ -4590,18 +4575,18 @@ public class Cassandra {
     }
 
     public insert_args(
-      String tablename,
+      String table,
       String key,
-      String columnPath,
-      byte[] cellData,
+      ColumnPath column_path,
+      byte[] value,
       long timestamp,
       int block_for)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnPath = columnPath;
-      this.cellData = cellData;
+      this.column_path = column_path;
+      this.value = value;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
       this.block_for = block_for;
@@ -4612,18 +4597,18 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public insert_args(insert_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnPath()) {
-        this.columnPath = other.columnPath;
+      if (other.isSetColumn_path()) {
+        this.column_path = new ColumnPath(other.column_path);
       }
-      if (other.isSetCellData()) {
-        this.cellData = new byte[other.cellData.length];
-        System.arraycopy(other.cellData, 0, cellData, 0, other.cellData.length);
+      if (other.isSetValue()) {
+        this.value = new byte[other.value.length];
+        System.arraycopy(other.value, 0, value, 0, other.value.length);
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
@@ -4636,26 +4621,26 @@ public class Cassandra {
       return new insert_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -4682,49 +4667,49 @@ public class Cassandra {
       }
     }
 
-    public String getColumnPath() {
-      return this.columnPath;
+    public ColumnPath getColumn_path() {
+      return this.column_path;
     }
 
-    public void setColumnPath(String columnPath) {
-      this.columnPath = columnPath;
+    public void setColumn_path(ColumnPath column_path) {
+      this.column_path = column_path;
     }
 
-    public void unsetColumnPath() {
-      this.columnPath = null;
+    public void unsetColumn_path() {
+      this.column_path = null;
     }
 
-    // Returns true if field columnPath is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnPath() {
-      return this.columnPath != null;
+    // Returns true if field column_path is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_path() {
+      return this.column_path != null;
     }
 
-    public void setColumnPathIsSet(boolean value) {
+    public void setColumn_pathIsSet(boolean value) {
       if (!value) {
-        this.columnPath = null;
+        this.column_path = null;
       }
     }
 
-    public byte[] getCellData() {
-      return this.cellData;
+    public byte[] getValue() {
+      return this.value;
     }
 
-    public void setCellData(byte[] cellData) {
-      this.cellData = cellData;
+    public void setValue(byte[] value) {
+      this.value = value;
     }
 
-    public void unsetCellData() {
-      this.cellData = null;
+    public void unsetValue() {
+      this.value = null;
     }
 
-    // Returns true if field cellData is set (has been asigned a value) and false otherwise
-    public boolean isSetCellData() {
-      return this.cellData != null;
+    // Returns true if field value is set (has been asigned a value) and false otherwise
+    public boolean isSetValue() {
+      return this.value != null;
     }
 
-    public void setCellDataIsSet(boolean value) {
+    public void setValueIsSet(boolean value) {
       if (!value) {
-        this.cellData = null;
+        this.value = null;
       }
     }
 
@@ -4774,11 +4759,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -4790,19 +4775,19 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPATH:
+      case COLUMN_PATH:
         if (value == null) {
-          unsetColumnPath();
+          unsetColumn_path();
         } else {
-          setColumnPath((String)value);
+          setColumn_path((ColumnPath)value);
         }
         break;
 
-      case CELLDATA:
+      case VALUE:
         if (value == null) {
-          unsetCellData();
+          unsetValue();
         } else {
-          setCellData((byte[])value);
+          setValue((byte[])value);
         }
         break;
 
@@ -4829,17 +4814,17 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPATH:
-        return getColumnPath();
+      case COLUMN_PATH:
+        return getColumn_path();
 
-      case CELLDATA:
-        return getCellData();
+      case VALUE:
+        return getValue();
 
       case TIMESTAMP:
         return new Long(getTimestamp());
@@ -4855,14 +4840,14 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPATH:
-        return isSetColumnPath();
-      case CELLDATA:
-        return isSetCellData();
+      case COLUMN_PATH:
+        return isSetColumn_path();
+      case VALUE:
+        return isSetValue();
       case TIMESTAMP:
         return isSetTimestamp();
       case BLOCK_FOR:
@@ -4885,12 +4870,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -4903,21 +4888,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnPath = true && this.isSetColumnPath();
-      boolean that_present_columnPath = true && that.isSetColumnPath();
-      if (this_present_columnPath || that_present_columnPath) {
-        if (!(this_present_columnPath && that_present_columnPath))
+      boolean this_present_column_path = true && this.isSetColumn_path();
+      boolean that_present_column_path = true && that.isSetColumn_path();
+      if (this_present_column_path || that_present_column_path) {
+        if (!(this_present_column_path && that_present_column_path))
           return false;
-        if (!this.columnPath.equals(that.columnPath))
+        if (!this.column_path.equals(that.column_path))
           return false;
       }
 
-      boolean this_present_cellData = true && this.isSetCellData();
-      boolean that_present_cellData = true && that.isSetCellData();
-      if (this_present_cellData || that_present_cellData) {
-        if (!(this_present_cellData && that_present_cellData))
+      boolean this_present_value = true && this.isSetValue();
+      boolean that_present_value = true && that.isSetValue();
+      if (this_present_value || that_present_value) {
+        if (!(this_present_value && that_present_value))
           return false;
-        if (!java.util.Arrays.equals(this.cellData, that.cellData))
+        if (!java.util.Arrays.equals(this.value, that.value))
           return false;
       }
 
@@ -4958,9 +4943,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4972,16 +4957,17 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPATH:
-            if (field.type == TType.STRING) {
-              this.columnPath = iprot.readString();
+          case COLUMN_PATH:
+            if (field.type == TType.STRUCT) {
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case CELLDATA:
+          case VALUE:
             if (field.type == TType.STRING) {
-              this.cellData = iprot.readBinary();
+              this.value = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5019,9 +5005,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -5029,14 +5015,14 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnPath != null) {
+      if (this.column_path != null) {
         oprot.writeFieldBegin(COLUMN_PATH_FIELD_DESC);
-        oprot.writeString(this.columnPath);
+        this.column_path.write(oprot);
         oprot.writeFieldEnd();
       }
-      if (this.cellData != null) {
-        oprot.writeFieldBegin(CELL_DATA_FIELD_DESC);
-        oprot.writeBinary(this.cellData);
+      if (this.value != null) {
+        oprot.writeFieldBegin(VALUE_FIELD_DESC);
+        oprot.writeBinary(this.value);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
@@ -5054,11 +5040,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("insert_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -5070,24 +5056,24 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnPath:");
-      if (this.columnPath == null) {
+      sb.append("column_path:");
+      if (this.column_path == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnPath);
+        sb.append(this.column_path);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("cellData:");
-      if (this.cellData == null) {
+      sb.append("value:");
+      if (this.value == null) {
         sb.append("null");
       } else {
-          int __cellData_size = Math.min(this.cellData.length, 128);
-          for (int i = 0; i < __cellData_size; i++) {
+          int __value_size = Math.min(this.value.length, 128);
+          for (int i = 0; i < __value_size; i++) {
             if (i != 0) sb.append(" ");
-            sb.append(Integer.toHexString(this.cellData[i]).length() > 1 ? Integer.toHexString(this.cellData[i]).substring(Integer.toHexString(this.cellData[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.cellData[i]).toUpperCase());
+            sb.append(Integer.toHexString(this.value[i]).length() > 1 ? Integer.toHexString(this.value[i]).substring(Integer.toHexString(this.value[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.value[i]).toUpperCase());
           }
-          if (this.cellData.length > 128) sb.append(" ...");
+          if (this.value.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -5385,13 +5371,16 @@ public class Cassandra {
 
   public static class batch_insert_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_args");
-    private static final TField BATCH_MUTATION_FIELD_DESC = new TField("batchMutation", TType.STRUCT, (short)1);
-    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)2);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField BATCH_MUTATION_FIELD_DESC = new TField("batch_mutation", TType.STRUCT, (short)2);
+    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)3);
 
-    public batch_mutation_t batchMutation;
-    public static final int BATCHMUTATION = 1;
+    public String table;
+    public static final int TABLE = 1;
+    public BatchMutation batch_mutation;
+    public static final int BATCH_MUTATION = 2;
     public int block_for;
-    public static final int BLOCK_FOR = 2;
+    public static final int BLOCK_FOR = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
@@ -5399,8 +5388,10 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(BATCHMUTATION, new FieldMetaData("batchMutation", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, batch_mutation_t.class)));
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(BATCH_MUTATION, new FieldMetaData("batch_mutation", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, BatchMutation.class)));
       put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
@@ -5415,11 +5406,13 @@ public class Cassandra {
     }
 
     public batch_insert_args(
-      batch_mutation_t batchMutation,
+      String table,
+      BatchMutation batch_mutation,
       int block_for)
     {
       this();
-      this.batchMutation = batchMutation;
+      this.table = table;
+      this.batch_mutation = batch_mutation;
       this.block_for = block_for;
       this.__isset.block_for = true;
     }
@@ -5428,8 +5421,11 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public batch_insert_args(batch_insert_args other) {
-      if (other.isSetBatchMutation()) {
-        this.batchMutation = new batch_mutation_t(other.batchMutation);
+      if (other.isSetTable()) {
+        this.table = other.table;
+      }
+      if (other.isSetBatch_mutation()) {
+        this.batch_mutation = new BatchMutation(other.batch_mutation);
       }
       __isset.block_for = other.__isset.block_for;
       this.block_for = other.block_for;
@@ -5440,26 +5436,49 @@ public class Cassandra {
       return new batch_insert_args(this);
     }
 
-    public batch_mutation_t getBatchMutation() {
-      return this.batchMutation;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setBatchMutation(batch_mutation_t batchMutation) {
-      this.batchMutation = batchMutation;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetBatchMutation() {
-      this.batchMutation = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field batchMutation is set (has been asigned a value) and false otherwise
-    public boolean isSetBatchMutation() {
-      return this.batchMutation != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setBatchMutationIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.batchMutation = null;
+        this.table = null;
+      }
+    }
+
+    public BatchMutation getBatch_mutation() {
+      return this.batch_mutation;
+    }
+
+    public void setBatch_mutation(BatchMutation batch_mutation) {
+      this.batch_mutation = batch_mutation;
+    }
+
+    public void unsetBatch_mutation() {
+      this.batch_mutation = null;
+    }
+
+    // Returns true if field batch_mutation is set (has been asigned a value) and false otherwise
+    public boolean isSetBatch_mutation() {
+      return this.batch_mutation != null;
+    }
+
+    public void setBatch_mutationIsSet(boolean value) {
+      if (!value) {
+        this.batch_mutation = null;
       }
     }
 
@@ -5487,11 +5506,19 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case BATCHMUTATION:
+      case TABLE:
         if (value == null) {
-          unsetBatchMutation();
+          unsetTable();
         } else {
-          setBatchMutation((batch_mutation_t)value);
+          setTable((String)value);
+        }
+        break;
+
+      case BATCH_MUTATION:
+        if (value == null) {
+          unsetBatch_mutation();
+        } else {
+          setBatch_mutation((BatchMutation)value);
         }
         break;
 
@@ -5510,8 +5537,11 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case BATCHMUTATION:
-        return getBatchMutation();
+      case TABLE:
+        return getTable();
+
+      case BATCH_MUTATION:
+        return getBatch_mutation();
 
       case BLOCK_FOR:
         return new Integer(getBlock_for());
@@ -5524,8 +5554,10 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case BATCHMUTATION:
-        return isSetBatchMutation();
+      case TABLE:
+        return isSetTable();
+      case BATCH_MUTATION:
+        return isSetBatch_mutation();
       case BLOCK_FOR:
         return isSetBlock_for();
       default:
@@ -5546,12 +5578,21 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_batchMutation = true && this.isSetBatchMutation();
-      boolean that_present_batchMutation = true && that.isSetBatchMutation();
-      if (this_present_batchMutation || that_present_batchMutation) {
-        if (!(this_present_batchMutation && that_present_batchMutation))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.batchMutation.equals(that.batchMutation))
+        if (!this.table.equals(that.table))
+          return false;
+      }
+
+      boolean this_present_batch_mutation = true && this.isSetBatch_mutation();
+      boolean that_present_batch_mutation = true && that.isSetBatch_mutation();
+      if (this_present_batch_mutation || that_present_batch_mutation) {
+        if (!(this_present_batch_mutation && that_present_batch_mutation))
+          return false;
+        if (!this.batch_mutation.equals(that.batch_mutation))
           return false;
       }
 
@@ -5583,10 +5624,17 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case BATCHMUTATION:
+          case TABLE:
+            if (field.type == TType.STRING) {
+              this.table = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case BATCH_MUTATION:
             if (field.type == TType.STRUCT) {
-              this.batchMutation = new batch_mutation_t();
-              this.batchMutation.read(iprot);
+              this.batch_mutation = new BatchMutation();
+              this.batch_mutation.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5616,9 +5664,14 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.batchMutation != null) {
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
+        oprot.writeFieldEnd();
+      }
+      if (this.batch_mutation != null) {
         oprot.writeFieldBegin(BATCH_MUTATION_FIELD_DESC);
-        this.batchMutation.write(oprot);
+        this.batch_mutation.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
@@ -5633,11 +5686,19 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("batch_insert_args(");
       boolean first = true;
 
-      sb.append("batchMutation:");
-      if (this.batchMutation == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.batchMutation);
+        sb.append(this.table);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("batch_mutation:");
+      if (this.batch_mutation == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.batch_mutation);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -5931,18 +5992,18 @@ public class Cassandra {
 
   public static class remove_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("remove_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PATH_OR_PARENT_FIELD_DESC = new TField("columnPathOrParent", TType.STRING, (short)3);
+    private static final TField COLUMN_PATH_OR_PARENT_FIELD_DESC = new TField("column_path_or_parent", TType.STRUCT, (short)3);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)4);
     private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)5);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnPathOrParent;
-    public static final int COLUMNPATHORPARENT = 3;
+    public ColumnPathOrParent column_path_or_parent;
+    public static final int COLUMN_PATH_OR_PARENT = 3;
     public long timestamp;
     public static final int TIMESTAMP = 4;
     public int block_for;
@@ -5955,12 +6016,12 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPATHORPARENT, new FieldMetaData("columnPathOrParent", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+      put(COLUMN_PATH_OR_PARENT, new FieldMetaData("column_path_or_parent", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnPathOrParent.class)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
       put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
@@ -5977,16 +6038,16 @@ public class Cassandra {
     }
 
     public remove_args(
-      String tablename,
+      String table,
       String key,
-      String columnPathOrParent,
+      ColumnPathOrParent column_path_or_parent,
       long timestamp,
       int block_for)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnPathOrParent = columnPathOrParent;
+      this.column_path_or_parent = column_path_or_parent;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
       this.block_for = block_for;
@@ -5997,14 +6058,14 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public remove_args(remove_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnPathOrParent()) {
-        this.columnPathOrParent = other.columnPathOrParent;
+      if (other.isSetColumn_path_or_parent()) {
+        this.column_path_or_parent = new ColumnPathOrParent(other.column_path_or_parent);
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
@@ -6017,26 +6078,26 @@ public class Cassandra {
       return new remove_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -6063,26 +6124,26 @@ public class Cassandra {
       }
     }
 
-    public String getColumnPathOrParent() {
-      return this.columnPathOrParent;
+    public ColumnPathOrParent getColumn_path_or_parent() {
+      return this.column_path_or_parent;
     }
 
-    public void setColumnPathOrParent(String columnPathOrParent) {
-      this.columnPathOrParent = columnPathOrParent;
+    public void setColumn_path_or_parent(ColumnPathOrParent column_path_or_parent) {
+      this.column_path_or_parent = column_path_or_parent;
     }
 
-    public void unsetColumnPathOrParent() {
-      this.columnPathOrParent = null;
+    public void unsetColumn_path_or_parent() {
+      this.column_path_or_parent = null;
     }
 
-    // Returns true if field columnPathOrParent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnPathOrParent() {
-      return this.columnPathOrParent != null;
+    // Returns true if field column_path_or_parent is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_path_or_parent() {
+      return this.column_path_or_parent != null;
     }
 
-    public void setColumnPathOrParentIsSet(boolean value) {
+    public void setColumn_path_or_parentIsSet(boolean value) {
       if (!value) {
-        this.columnPathOrParent = null;
+        this.column_path_or_parent = null;
       }
     }
 
@@ -6132,11 +6193,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -6148,11 +6209,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPATHORPARENT:
+      case COLUMN_PATH_OR_PARENT:
         if (value == null) {
-          unsetColumnPathOrParent();
+          unsetColumn_path_or_parent();
         } else {
-          setColumnPathOrParent((String)value);
+          setColumn_path_or_parent((ColumnPathOrParent)value);
         }
         break;
 
@@ -6179,14 +6240,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPATHORPARENT:
-        return getColumnPathOrParent();
+      case COLUMN_PATH_OR_PARENT:
+        return getColumn_path_or_parent();
 
       case TIMESTAMP:
         return new Long(getTimestamp());
@@ -6202,12 +6263,12 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPATHORPARENT:
-        return isSetColumnPathOrParent();
+      case COLUMN_PATH_OR_PARENT:
+        return isSetColumn_path_or_parent();
       case TIMESTAMP:
         return isSetTimestamp();
       case BLOCK_FOR:
@@ -6230,12 +6291,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -6248,12 +6309,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnPathOrParent = true && this.isSetColumnPathOrParent();
-      boolean that_present_columnPathOrParent = true && that.isSetColumnPathOrParent();
-      if (this_present_columnPathOrParent || that_present_columnPathOrParent) {
-        if (!(this_present_columnPathOrParent && that_present_columnPathOrParent))
+      boolean this_present_column_path_or_parent = true && this.isSetColumn_path_or_parent();
+      boolean that_present_column_path_or_parent = true && that.isSetColumn_path_or_parent();
+      if (this_present_column_path_or_parent || that_present_column_path_or_parent) {
+        if (!(this_present_column_path_or_parent && that_present_column_path_or_parent))
           return false;
-        if (!this.columnPathOrParent.equals(that.columnPathOrParent))
+        if (!this.column_path_or_parent.equals(that.column_path_or_parent))
           return false;
       }
 
@@ -6294,9 +6355,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -6308,9 +6369,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPATHORPARENT:
-            if (field.type == TType.STRING) {
-              this.columnPathOrParent = iprot.readString();
+          case COLUMN_PATH_OR_PARENT:
+            if (field.type == TType.STRUCT) {
+              this.column_path_or_parent = new ColumnPathOrParent();
+              this.column_path_or_parent.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -6348,9 +6410,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -6358,9 +6420,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnPathOrParent != null) {
+      if (this.column_path_or_parent != null) {
         oprot.writeFieldBegin(COLUMN_PATH_OR_PARENT_FIELD_DESC);
-        oprot.writeString(this.columnPathOrParent);
+        this.column_path_or_parent.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
@@ -6378,11 +6440,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("remove_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -6394,11 +6456,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnPathOrParent:");
-      if (this.columnPathOrParent == null) {
+      sb.append("column_path_or_parent:");
+      if (this.column_path_or_parent == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnPathOrParent);
+        sb.append(this.column_path_or_parent);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -6696,17 +6758,17 @@ public class Cassandra {
 
   public static class get_columns_since_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_columns_since_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("columnParent", TType.STRING, (short)3);
+    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
     private static final TField TIME_STAMP_FIELD_DESC = new TField("timeStamp", TType.I64, (short)4);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnParent;
-    public static final int COLUMNPARENT = 3;
+    public ColumnParent column_parent;
+    public static final int COLUMN_PARENT = 3;
     public long timeStamp;
     public static final int TIMESTAMP = 4;
 
@@ -6716,12 +6778,12 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNPARENT, new FieldMetaData("columnParent", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, ColumnParent.class)));
       put(TIMESTAMP, new FieldMetaData("timeStamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
     }});
@@ -6734,15 +6796,15 @@ public class Cassandra {
     }
 
     public get_columns_since_args(
-      String tablename,
+      String table,
       String key,
-      String columnParent,
+      ColumnParent column_parent,
       long timeStamp)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnParent = columnParent;
+      this.column_parent = column_parent;
       this.timeStamp = timeStamp;
       this.__isset.timeStamp = true;
     }
@@ -6751,14 +6813,14 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_columns_since_args(get_columns_since_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnParent()) {
-        this.columnParent = other.columnParent;
+      if (other.isSetColumn_parent()) {
+        this.column_parent = new ColumnParent(other.column_parent);
       }
       __isset.timeStamp = other.__isset.timeStamp;
       this.timeStamp = other.timeStamp;
@@ -6769,26 +6831,26 @@ public class Cassandra {
       return new get_columns_since_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -6815,26 +6877,26 @@ public class Cassandra {
       }
     }
 
-    public String getColumnParent() {
-      return this.columnParent;
+    public ColumnParent getColumn_parent() {
+      return this.column_parent;
     }
 
-    public void setColumnParent(String columnParent) {
-      this.columnParent = columnParent;
+    public void setColumn_parent(ColumnParent column_parent) {
+      this.column_parent = column_parent;
     }
 
-    public void unsetColumnParent() {
-      this.columnParent = null;
+    public void unsetColumn_parent() {
+      this.column_parent = null;
     }
 
-    // Returns true if field columnParent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnParent() {
-      return this.columnParent != null;
+    // Returns true if field column_parent is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_parent() {
+      return this.column_parent != null;
     }
 
-    public void setColumnParentIsSet(boolean value) {
+    public void setColumn_parentIsSet(boolean value) {
       if (!value) {
-        this.columnParent = null;
+        this.column_parent = null;
       }
     }
 
@@ -6862,11 +6924,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -6878,11 +6940,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNPARENT:
+      case COLUMN_PARENT:
         if (value == null) {
-          unsetColumnParent();
+          unsetColumn_parent();
         } else {
-          setColumnParent((String)value);
+          setColumn_parent((ColumnParent)value);
         }
         break;
 
@@ -6901,14 +6963,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNPARENT:
-        return getColumnParent();
+      case COLUMN_PARENT:
+        return getColumn_parent();
 
       case TIMESTAMP:
         return new Long(getTimeStamp());
@@ -6921,12 +6983,12 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNPARENT:
-        return isSetColumnParent();
+      case COLUMN_PARENT:
+        return isSetColumn_parent();
       case TIMESTAMP:
         return isSetTimeStamp();
       default:
@@ -6947,12 +7009,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -6965,12 +7027,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnParent = true && this.isSetColumnParent();
-      boolean that_present_columnParent = true && that.isSetColumnParent();
-      if (this_present_columnParent || that_present_columnParent) {
-        if (!(this_present_columnParent && that_present_columnParent))
+      boolean this_present_column_parent = true && this.isSetColumn_parent();
+      boolean that_present_column_parent = true && that.isSetColumn_parent();
+      if (this_present_column_parent || that_present_column_parent) {
+        if (!(this_present_column_parent && that_present_column_parent))
           return false;
-        if (!this.columnParent.equals(that.columnParent))
+        if (!this.column_parent.equals(that.column_parent))
           return false;
       }
 
@@ -7002,9 +7064,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7016,9 +7078,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNPARENT:
-            if (field.type == TType.STRING) {
-              this.columnParent = iprot.readString();
+          case COLUMN_PARENT:
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7048,9 +7111,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -7058,9 +7121,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnParent != null) {
+      if (this.column_parent != null) {
         oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
-        oprot.writeString(this.columnParent);
+        this.column_parent.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(TIME_STAMP_FIELD_DESC);
@@ -7075,11 +7138,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_columns_since_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -7091,11 +7154,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnParent:");
-      if (this.columnParent == null) {
+      sb.append("column_parent:");
+      if (this.column_parent == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnParent);
+        sb.append(this.column_parent);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -7119,7 +7182,7 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
-    public List<column_t> success;
+    public List<Column> success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -7133,7 +7196,7 @@ public class Cassandra {
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
-              new StructMetaData(TType.STRUCT, column_t.class))));
+              new StructMetaData(TType.STRUCT, Column.class))));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
@@ -7148,7 +7211,7 @@ public class Cassandra {
     }
 
     public get_columns_since_result(
-      List<column_t> success,
+      List<Column> success,
       InvalidRequestException ire,
       NotFoundException nfe)
     {
@@ -7163,9 +7226,9 @@ public class Cassandra {
      */
     public get_columns_since_result(get_columns_since_result other) {
       if (other.isSetSuccess()) {
-        List<column_t> __this__success = new ArrayList<column_t>();
-        for (column_t other_element : other.success) {
-          __this__success.add(new column_t(other_element));
+        List<Column> __this__success = new ArrayList<Column>();
+        for (Column other_element : other.success) {
+          __this__success.add(new Column(other_element));
         }
         this.success = __this__success;
       }
@@ -7186,22 +7249,22 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public java.util.Iterator<column_t> getSuccessIterator() {
+    public java.util.Iterator<Column> getSuccessIterator() {
       return (this.success == null) ? null : this.success.iterator();
     }
 
-    public void addToSuccess(column_t elem) {
+    public void addToSuccess(Column elem) {
       if (this.success == null) {
-        this.success = new ArrayList<column_t>();
+        this.success = new ArrayList<Column>();
       }
       this.success.add(elem);
     }
 
-    public List<column_t> getSuccess() {
+    public List<Column> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<column_t> success) {
+    public void setSuccess(List<Column> success) {
       this.success = success;
     }
 
@@ -7272,7 +7335,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((List<column_t>)value);
+          setSuccess((List<Column>)value);
         }
         break;
 
@@ -7390,11 +7453,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list43 = iprot.readListBegin();
-                this.success = new ArrayList<column_t>(_list43.size);
+                this.success = new ArrayList<Column>(_list43.size);
                 for (int _i44 = 0; _i44 < _list43.size; ++_i44)
                 {
-                  column_t _elem45;
-                  _elem45 = new column_t();
+                  Column _elem45;
+                  _elem45 = new Column();
                   _elem45.read(iprot);
                   this.success.add(_elem45);
                 }
@@ -7440,7 +7503,7 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (column_t _iter46 : this.success)          {
+          for (Column _iter46 : this.success)          {
             _iter46.write(oprot);
           }
           oprot.writeListEnd();
@@ -7500,27 +7563,27 @@ public class Cassandra {
 
   public static class get_slice_super_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_super_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("columnFamily", TType.STRING, (short)3);
+    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)4);
     private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)5);
-    private static final TField IS_ASCENDING_FIELD_DESC = new TField("isAscending", TType.BOOL, (short)6);
+    private static final TField IS_ASCENDING_FIELD_DESC = new TField("is_ascending", TType.BOOL, (short)6);
     private static final TField OFFSET_FIELD_DESC = new TField("offset", TType.I32, (short)7);
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)8);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnFamily;
-    public static final int COLUMNFAMILY = 3;
+    public String column_family;
+    public static final int COLUMN_FAMILY = 3;
     public String start;
     public static final int START = 4;
     public String finish;
     public static final int FINISH = 5;
-    public boolean isAscending;
-    public static final int ISASCENDING = 6;
+    public boolean is_ascending;
+    public static final int IS_ASCENDING = 6;
     public int offset;
     public static final int OFFSET = 7;
     public int count;
@@ -7528,23 +7591,23 @@ public class Cassandra {
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean isAscending = false;
+      public boolean is_ascending = false;
       public boolean offset = false;
       public boolean count = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNFAMILY, new FieldMetaData("columnFamily", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(ISASCENDING, new FieldMetaData("isAscending", TFieldRequirementType.DEFAULT, 
+      put(IS_ASCENDING, new FieldMetaData("is_ascending", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.BOOL)));
       put(OFFSET, new FieldMetaData("offset", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
@@ -7562,23 +7625,23 @@ public class Cassandra {
     }
 
     public get_slice_super_args(
-      String tablename,
+      String table,
       String key,
-      String columnFamily,
+      String column_family,
       String start,
       String finish,
-      boolean isAscending,
+      boolean is_ascending,
       int offset,
       int count)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnFamily = columnFamily;
+      this.column_family = column_family;
       this.start = start;
       this.finish = finish;
-      this.isAscending = isAscending;
-      this.__isset.isAscending = true;
+      this.is_ascending = is_ascending;
+      this.__isset.is_ascending = true;
       this.offset = offset;
       this.__isset.offset = true;
       this.count = count;
@@ -7589,14 +7652,14 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_super_args(get_slice_super_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnFamily()) {
-        this.columnFamily = other.columnFamily;
+      if (other.isSetColumn_family()) {
+        this.column_family = other.column_family;
       }
       if (other.isSetStart()) {
         this.start = other.start;
@@ -7604,8 +7667,8 @@ public class Cassandra {
       if (other.isSetFinish()) {
         this.finish = other.finish;
       }
-      __isset.isAscending = other.__isset.isAscending;
-      this.isAscending = other.isAscending;
+      __isset.is_ascending = other.__isset.is_ascending;
+      this.is_ascending = other.is_ascending;
       __isset.offset = other.__isset.offset;
       this.offset = other.offset;
       __isset.count = other.__isset.count;
@@ -7617,26 +7680,26 @@ public class Cassandra {
       return new get_slice_super_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -7663,26 +7726,26 @@ public class Cassandra {
       }
     }
 
-    public String getColumnFamily() {
-      return this.columnFamily;
+    public String getColumn_family() {
+      return this.column_family;
     }
 
-    public void setColumnFamily(String columnFamily) {
-      this.columnFamily = columnFamily;
+    public void setColumn_family(String column_family) {
+      this.column_family = column_family;
     }
 
-    public void unsetColumnFamily() {
-      this.columnFamily = null;
+    public void unsetColumn_family() {
+      this.column_family = null;
     }
 
-    // Returns true if field columnFamily is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnFamily() {
-      return this.columnFamily != null;
+    // Returns true if field column_family is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_family() {
+      return this.column_family != null;
     }
 
-    public void setColumnFamilyIsSet(boolean value) {
+    public void setColumn_familyIsSet(boolean value) {
       if (!value) {
-        this.columnFamily = null;
+        this.column_family = null;
       }
     }
 
@@ -7732,26 +7795,26 @@ public class Cassandra {
       }
     }
 
-    public boolean isIsAscending() {
-      return this.isAscending;
+    public boolean isIs_ascending() {
+      return this.is_ascending;
     }
 
-    public void setIsAscending(boolean isAscending) {
-      this.isAscending = isAscending;
-      this.__isset.isAscending = true;
+    public void setIs_ascending(boolean is_ascending) {
+      this.is_ascending = is_ascending;
+      this.__isset.is_ascending = true;
     }
 
-    public void unsetIsAscending() {
-      this.__isset.isAscending = false;
+    public void unsetIs_ascending() {
+      this.__isset.is_ascending = false;
     }
 
-    // Returns true if field isAscending is set (has been asigned a value) and false otherwise
-    public boolean isSetIsAscending() {
-      return this.__isset.isAscending;
+    // Returns true if field is_ascending is set (has been asigned a value) and false otherwise
+    public boolean isSetIs_ascending() {
+      return this.__isset.is_ascending;
     }
 
-    public void setIsAscendingIsSet(boolean value) {
-      this.__isset.isAscending = value;
+    public void setIs_ascendingIsSet(boolean value) {
+      this.__isset.is_ascending = value;
     }
 
     public int getOffset() {
@@ -7800,11 +7863,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -7816,11 +7879,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNFAMILY:
+      case COLUMN_FAMILY:
         if (value == null) {
-          unsetColumnFamily();
+          unsetColumn_family();
         } else {
-          setColumnFamily((String)value);
+          setColumn_family((String)value);
         }
         break;
 
@@ -7840,11 +7903,11 @@ public class Cassandra {
         }
         break;
 
-      case ISASCENDING:
+      case IS_ASCENDING:
         if (value == null) {
-          unsetIsAscending();
+          unsetIs_ascending();
         } else {
-          setIsAscending((Boolean)value);
+          setIs_ascending((Boolean)value);
         }
         break;
 
@@ -7871,14 +7934,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNFAMILY:
-        return getColumnFamily();
+      case COLUMN_FAMILY:
+        return getColumn_family();
 
       case START:
         return getStart();
@@ -7886,8 +7949,8 @@ public class Cassandra {
       case FINISH:
         return getFinish();
 
-      case ISASCENDING:
-        return new Boolean(isIsAscending());
+      case IS_ASCENDING:
+        return new Boolean(isIs_ascending());
 
       case OFFSET:
         return new Integer(getOffset());
@@ -7903,18 +7966,18 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNFAMILY:
-        return isSetColumnFamily();
+      case COLUMN_FAMILY:
+        return isSetColumn_family();
       case START:
         return isSetStart();
       case FINISH:
         return isSetFinish();
-      case ISASCENDING:
-        return isSetIsAscending();
+      case IS_ASCENDING:
+        return isSetIs_ascending();
       case OFFSET:
         return isSetOffset();
       case COUNT:
@@ -7937,12 +8000,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -7955,12 +8018,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnFamily = true && this.isSetColumnFamily();
-      boolean that_present_columnFamily = true && that.isSetColumnFamily();
-      if (this_present_columnFamily || that_present_columnFamily) {
-        if (!(this_present_columnFamily && that_present_columnFamily))
+      boolean this_present_column_family = true && this.isSetColumn_family();
+      boolean that_present_column_family = true && that.isSetColumn_family();
+      if (this_present_column_family || that_present_column_family) {
+        if (!(this_present_column_family && that_present_column_family))
           return false;
-        if (!this.columnFamily.equals(that.columnFamily))
+        if (!this.column_family.equals(that.column_family))
           return false;
       }
 
@@ -7982,12 +8045,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_isAscending = true;
-      boolean that_present_isAscending = true;
-      if (this_present_isAscending || that_present_isAscending) {
-        if (!(this_present_isAscending && that_present_isAscending))
+      boolean this_present_is_ascending = true;
+      boolean that_present_is_ascending = true;
+      if (this_present_is_ascending || that_present_is_ascending) {
+        if (!(this_present_is_ascending && that_present_is_ascending))
           return false;
-        if (this.isAscending != that.isAscending)
+        if (this.is_ascending != that.is_ascending)
           return false;
       }
 
@@ -8028,9 +8091,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8042,9 +8105,9 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNFAMILY:
+          case COLUMN_FAMILY:
             if (field.type == TType.STRING) {
-              this.columnFamily = iprot.readString();
+              this.column_family = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8063,10 +8126,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case ISASCENDING:
+          case IS_ASCENDING:
             if (field.type == TType.BOOL) {
-              this.isAscending = iprot.readBool();
-              this.__isset.isAscending = true;
+              this.is_ascending = iprot.readBool();
+              this.__isset.is_ascending = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8104,9 +8167,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -8114,9 +8177,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnFamily != null) {
+      if (this.column_family != null) {
         oprot.writeFieldBegin(COLUMN_FAMILY_FIELD_DESC);
-        oprot.writeString(this.columnFamily);
+        oprot.writeString(this.column_family);
         oprot.writeFieldEnd();
       }
       if (this.start != null) {
@@ -8130,7 +8193,7 @@ public class Cassandra {
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
-      oprot.writeBool(this.isAscending);
+      oprot.writeBool(this.is_ascending);
       oprot.writeFieldEnd();
       oprot.writeFieldBegin(OFFSET_FIELD_DESC);
       oprot.writeI32(this.offset);
@@ -8147,11 +8210,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_super_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -8163,11 +8226,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnFamily:");
-      if (this.columnFamily == null) {
+      sb.append("column_family:");
+      if (this.column_family == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnFamily);
+        sb.append(this.column_family);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -8187,8 +8250,8 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("isAscending:");
-      sb.append(this.isAscending);
+      sb.append("is_ascending:");
+      sb.append(this.is_ascending);
       first = false;
       if (!first) sb.append(", ");
       sb.append("offset:");
@@ -8214,7 +8277,7 @@ public class Cassandra {
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
-    public List<superColumn_t> success;
+    public List<SuperColumn> success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -8226,7 +8289,7 @@ public class Cassandra {
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
-              new StructMetaData(TType.STRUCT, superColumn_t.class))));
+              new StructMetaData(TType.STRUCT, SuperColumn.class))));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -8239,7 +8302,7 @@ public class Cassandra {
     }
 
     public get_slice_super_result(
-      List<superColumn_t> success,
+      List<SuperColumn> success,
       InvalidRequestException ire)
     {
       this();
@@ -8252,9 +8315,9 @@ public class Cassandra {
      */
     public get_slice_super_result(get_slice_super_result other) {
       if (other.isSetSuccess()) {
-        List<superColumn_t> __this__success = new ArrayList<superColumn_t>();
-        for (superColumn_t other_element : other.success) {
-          __this__success.add(new superColumn_t(other_element));
+        List<SuperColumn> __this__success = new ArrayList<SuperColumn>();
+        for (SuperColumn other_element : other.success) {
+          __this__success.add(new SuperColumn(other_element));
         }
         this.success = __this__success;
       }
@@ -8272,22 +8335,22 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public java.util.Iterator<superColumn_t> getSuccessIterator() {
+    public java.util.Iterator<SuperColumn> getSuccessIterator() {
       return (this.success == null) ? null : this.success.iterator();
     }
 
-    public void addToSuccess(superColumn_t elem) {
+    public void addToSuccess(SuperColumn elem) {
       if (this.success == null) {
-        this.success = new ArrayList<superColumn_t>();
+        this.success = new ArrayList<SuperColumn>();
       }
       this.success.add(elem);
     }
 
-    public List<superColumn_t> getSuccess() {
+    public List<SuperColumn> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<superColumn_t> success) {
+    public void setSuccess(List<SuperColumn> success) {
       this.success = success;
     }
 
@@ -8335,7 +8398,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((List<superColumn_t>)value);
+          setSuccess((List<SuperColumn>)value);
         }
         break;
 
@@ -8431,11 +8494,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list47 = iprot.readListBegin();
-                this.success = new ArrayList<superColumn_t>(_list47.size);
+                this.success = new ArrayList<SuperColumn>(_list47.size);
                 for (int _i48 = 0; _i48 < _list47.size; ++_i48)
                 {
-                  superColumn_t _elem49;
-                  _elem49 = new superColumn_t();
+                  SuperColumn _elem49;
+                  _elem49 = new SuperColumn();
                   _elem49.read(iprot);
                   this.success.add(_elem49);
                 }
@@ -8473,7 +8536,7 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (superColumn_t _iter50 : this.success)          {
+          for (SuperColumn _iter50 : this.success)          {
             _iter50.write(oprot);
           }
           oprot.writeListEnd();
@@ -8521,32 +8584,32 @@ public class Cassandra {
 
   public static class get_slice_super_by_names_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_super_by_names_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("columnFamily", TType.STRING, (short)3);
-    private static final TField SUPER_COLUMN_NAMES_FIELD_DESC = new TField("superColumnNames", TType.LIST, (short)4);
+    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
+    private static final TField SUPER_COLUMN_NAMES_FIELD_DESC = new TField("super_column_names", TType.LIST, (short)4);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String columnFamily;
-    public static final int COLUMNFAMILY = 3;
-    public List<String> superColumnNames;
-    public static final int SUPERCOLUMNNAMES = 4;
+    public String column_family;
+    public static final int COLUMN_FAMILY = 3;
+    public List<String> super_column_names;
+    public static final int SUPER_COLUMN_NAMES = 4;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNFAMILY, new FieldMetaData("columnFamily", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(SUPERCOLUMNNAMES, new FieldMetaData("superColumnNames", TFieldRequirementType.DEFAULT, 
+      put(SUPER_COLUMN_NAMES, new FieldMetaData("super_column_names", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
               new FieldValueMetaData(TType.STRING))));
     }});
@@ -8559,37 +8622,37 @@ public class Cassandra {
     }
 
     public get_slice_super_by_names_args(
-      String tablename,
+      String table,
       String key,
-      String columnFamily,
-      List<String> superColumnNames)
+      String column_family,
+      List<String> super_column_names)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.columnFamily = columnFamily;
-      this.superColumnNames = superColumnNames;
+      this.column_family = column_family;
+      this.super_column_names = super_column_names;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_super_by_names_args(get_slice_super_by_names_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumnFamily()) {
-        this.columnFamily = other.columnFamily;
+      if (other.isSetColumn_family()) {
+        this.column_family = other.column_family;
       }
-      if (other.isSetSuperColumnNames()) {
-        List<String> __this__superColumnNames = new ArrayList<String>();
-        for (String other_element : other.superColumnNames) {
-          __this__superColumnNames.add(other_element);
+      if (other.isSetSuper_column_names()) {
+        List<String> __this__super_column_names = new ArrayList<String>();
+        for (String other_element : other.super_column_names) {
+          __this__super_column_names.add(other_element);
         }
-        this.superColumnNames = __this__superColumnNames;
+        this.super_column_names = __this__super_column_names;
       }
     }
 
@@ -8598,26 +8661,26 @@ public class Cassandra {
       return new get_slice_super_by_names_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -8644,74 +8707,74 @@ public class Cassandra {
       }
     }
 
-    public String getColumnFamily() {
-      return this.columnFamily;
+    public String getColumn_family() {
+      return this.column_family;
     }
 
-    public void setColumnFamily(String columnFamily) {
-      this.columnFamily = columnFamily;
+    public void setColumn_family(String column_family) {
+      this.column_family = column_family;
     }
 
-    public void unsetColumnFamily() {
-      this.columnFamily = null;
+    public void unsetColumn_family() {
+      this.column_family = null;
     }
 
-    // Returns true if field columnFamily is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnFamily() {
-      return this.columnFamily != null;
+    // Returns true if field column_family is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_family() {
+      return this.column_family != null;
     }
 
-    public void setColumnFamilyIsSet(boolean value) {
+    public void setColumn_familyIsSet(boolean value) {
       if (!value) {
-        this.columnFamily = null;
+        this.column_family = null;
       }
     }
 
-    public int getSuperColumnNamesSize() {
-      return (this.superColumnNames == null) ? 0 : this.superColumnNames.size();
+    public int getSuper_column_namesSize() {
+      return (this.super_column_names == null) ? 0 : this.super_column_names.size();
     }
 
-    public java.util.Iterator<String> getSuperColumnNamesIterator() {
-      return (this.superColumnNames == null) ? null : this.superColumnNames.iterator();
+    public java.util.Iterator<String> getSuper_column_namesIterator() {
+      return (this.super_column_names == null) ? null : this.super_column_names.iterator();
     }
 
-    public void addToSuperColumnNames(String elem) {
-      if (this.superColumnNames == null) {
-        this.superColumnNames = new ArrayList<String>();
+    public void addToSuper_column_names(String elem) {
+      if (this.super_column_names == null) {
+        this.super_column_names = new ArrayList<String>();
       }
-      this.superColumnNames.add(elem);
+      this.super_column_names.add(elem);
     }
 
-    public List<String> getSuperColumnNames() {
-      return this.superColumnNames;
+    public List<String> getSuper_column_names() {
+      return this.super_column_names;
     }
 
-    public void setSuperColumnNames(List<String> superColumnNames) {
-      this.superColumnNames = superColumnNames;
+    public void setSuper_column_names(List<String> super_column_names) {
+      this.super_column_names = super_column_names;
     }
 
-    public void unsetSuperColumnNames() {
-      this.superColumnNames = null;
+    public void unsetSuper_column_names() {
+      this.super_column_names = null;
     }
 
-    // Returns true if field superColumnNames is set (has been asigned a value) and false otherwise
-    public boolean isSetSuperColumnNames() {
-      return this.superColumnNames != null;
+    // Returns true if field super_column_names is set (has been asigned a value) and false otherwise
+    public boolean isSetSuper_column_names() {
+      return this.super_column_names != null;
     }
 
-    public void setSuperColumnNamesIsSet(boolean value) {
+    public void setSuper_column_namesIsSet(boolean value) {
       if (!value) {
-        this.superColumnNames = null;
+        this.super_column_names = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -8723,19 +8786,19 @@ public class Cassandra {
         }
         break;
 
-      case COLUMNFAMILY:
+      case COLUMN_FAMILY:
         if (value == null) {
-          unsetColumnFamily();
+          unsetColumn_family();
         } else {
-          setColumnFamily((String)value);
+          setColumn_family((String)value);
         }
         break;
 
-      case SUPERCOLUMNNAMES:
+      case SUPER_COLUMN_NAMES:
         if (value == null) {
-          unsetSuperColumnNames();
+          unsetSuper_column_names();
         } else {
-          setSuperColumnNames((List<String>)value);
+          setSuper_column_names((List<String>)value);
         }
         break;
 
@@ -8746,17 +8809,17 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case COLUMNFAMILY:
-        return getColumnFamily();
+      case COLUMN_FAMILY:
+        return getColumn_family();
 
-      case SUPERCOLUMNNAMES:
-        return getSuperColumnNames();
+      case SUPER_COLUMN_NAMES:
+        return getSuper_column_names();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -8766,14 +8829,14 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case COLUMNFAMILY:
-        return isSetColumnFamily();
-      case SUPERCOLUMNNAMES:
-        return isSetSuperColumnNames();
+      case COLUMN_FAMILY:
+        return isSetColumn_family();
+      case SUPER_COLUMN_NAMES:
+        return isSetSuper_column_names();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -8792,12 +8855,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -8810,21 +8873,21 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_columnFamily = true && this.isSetColumnFamily();
-      boolean that_present_columnFamily = true && that.isSetColumnFamily();
-      if (this_present_columnFamily || that_present_columnFamily) {
-        if (!(this_present_columnFamily && that_present_columnFamily))
+      boolean this_present_column_family = true && this.isSetColumn_family();
+      boolean that_present_column_family = true && that.isSetColumn_family();
+      if (this_present_column_family || that_present_column_family) {
+        if (!(this_present_column_family && that_present_column_family))
           return false;
-        if (!this.columnFamily.equals(that.columnFamily))
+        if (!this.column_family.equals(that.column_family))
           return false;
       }
 
-      boolean this_present_superColumnNames = true && this.isSetSuperColumnNames();
-      boolean that_present_superColumnNames = true && that.isSetSuperColumnNames();
-      if (this_present_superColumnNames || that_present_superColumnNames) {
-        if (!(this_present_superColumnNames && that_present_superColumnNames))
+      boolean this_present_super_column_names = true && this.isSetSuper_column_names();
+      boolean that_present_super_column_names = true && that.isSetSuper_column_names();
+      if (this_present_super_column_names || that_present_super_column_names) {
+        if (!(this_present_super_column_names && that_present_super_column_names))
           return false;
-        if (!this.superColumnNames.equals(that.superColumnNames))
+        if (!this.super_column_names.equals(that.super_column_names))
           return false;
       }
 
@@ -8847,9 +8910,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8861,23 +8924,23 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNFAMILY:
+          case COLUMN_FAMILY:
             if (field.type == TType.STRING) {
-              this.columnFamily = iprot.readString();
+              this.column_family = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case SUPERCOLUMNNAMES:
+          case SUPER_COLUMN_NAMES:
             if (field.type == TType.LIST) {
               {
                 TList _list51 = iprot.readListBegin();
-                this.superColumnNames = new ArrayList<String>(_list51.size);
+                this.super_column_names = new ArrayList<String>(_list51.size);
                 for (int _i52 = 0; _i52 < _list51.size; ++_i52)
                 {
                   String _elem53;
                   _elem53 = iprot.readString();
-                  this.superColumnNames.add(_elem53);
+                  this.super_column_names.add(_elem53);
                 }
                 iprot.readListEnd();
               }
@@ -8902,9 +8965,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -8912,16 +8975,16 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.columnFamily != null) {
+      if (this.column_family != null) {
         oprot.writeFieldBegin(COLUMN_FAMILY_FIELD_DESC);
-        oprot.writeString(this.columnFamily);
+        oprot.writeString(this.column_family);
         oprot.writeFieldEnd();
       }
-      if (this.superColumnNames != null) {
+      if (this.super_column_names != null) {
         oprot.writeFieldBegin(SUPER_COLUMN_NAMES_FIELD_DESC);
         {
-          oprot.writeListBegin(new TList(TType.STRING, this.superColumnNames.size()));
-          for (String _iter54 : this.superColumnNames)          {
+          oprot.writeListBegin(new TList(TType.STRING, this.super_column_names.size()));
+          for (String _iter54 : this.super_column_names)          {
             oprot.writeString(_iter54);
           }
           oprot.writeListEnd();
@@ -8937,11 +9000,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_super_by_names_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -8953,19 +9016,19 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnFamily:");
-      if (this.columnFamily == null) {
+      sb.append("column_family:");
+      if (this.column_family == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnFamily);
+        sb.append(this.column_family);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("superColumnNames:");
-      if (this.superColumnNames == null) {
+      sb.append("super_column_names:");
+      if (this.super_column_names == null) {
         sb.append("null");
       } else {
-        sb.append(this.superColumnNames);
+        sb.append(this.super_column_names);
       }
       first = false;
       sb.append(")");
@@ -8984,7 +9047,7 @@ public class Cassandra {
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
-    public List<superColumn_t> success;
+    public List<SuperColumn> success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -8996,7 +9059,7 @@ public class Cassandra {
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
           new ListMetaData(TType.LIST, 
-              new StructMetaData(TType.STRUCT, superColumn_t.class))));
+              new StructMetaData(TType.STRUCT, SuperColumn.class))));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
     }});
@@ -9009,7 +9072,7 @@ public class Cassandra {
     }
 
     public get_slice_super_by_names_result(
-      List<superColumn_t> success,
+      List<SuperColumn> success,
       InvalidRequestException ire)
     {
       this();
@@ -9022,9 +9085,9 @@ public class Cassandra {
      */
     public get_slice_super_by_names_result(get_slice_super_by_names_result other) {
       if (other.isSetSuccess()) {
-        List<superColumn_t> __this__success = new ArrayList<superColumn_t>();
-        for (superColumn_t other_element : other.success) {
-          __this__success.add(new superColumn_t(other_element));
+        List<SuperColumn> __this__success = new ArrayList<SuperColumn>();
+        for (SuperColumn other_element : other.success) {
+          __this__success.add(new SuperColumn(other_element));
         }
         this.success = __this__success;
       }
@@ -9042,22 +9105,22 @@ public class Cassandra {
       return (this.success == null) ? 0 : this.success.size();
     }
 
-    public java.util.Iterator<superColumn_t> getSuccessIterator() {
+    public java.util.Iterator<SuperColumn> getSuccessIterator() {
       return (this.success == null) ? null : this.success.iterator();
     }
 
-    public void addToSuccess(superColumn_t elem) {
+    public void addToSuccess(SuperColumn elem) {
       if (this.success == null) {
-        this.success = new ArrayList<superColumn_t>();
+        this.success = new ArrayList<SuperColumn>();
       }
       this.success.add(elem);
     }
 
-    public List<superColumn_t> getSuccess() {
+    public List<SuperColumn> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<superColumn_t> success) {
+    public void setSuccess(List<SuperColumn> success) {
       this.success = success;
     }
 
@@ -9105,7 +9168,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((List<superColumn_t>)value);
+          setSuccess((List<SuperColumn>)value);
         }
         break;
 
@@ -9201,11 +9264,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list55 = iprot.readListBegin();
-                this.success = new ArrayList<superColumn_t>(_list55.size);
+                this.success = new ArrayList<SuperColumn>(_list55.size);
                 for (int _i56 = 0; _i56 < _list55.size; ++_i56)
                 {
-                  superColumn_t _elem57;
-                  _elem57 = new superColumn_t();
+                  SuperColumn _elem57;
+                  _elem57 = new SuperColumn();
                   _elem57.read(iprot);
                   this.success.add(_elem57);
                 }
@@ -9243,7 +9306,7 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (superColumn_t _iter58 : this.success)          {
+          for (SuperColumn _iter58 : this.success)          {
             _iter58.write(oprot);
           }
           oprot.writeListEnd();
@@ -9289,90 +9352,90 @@ public class Cassandra {
 
   }
 
-  public static class get_superColumn_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("get_superColumn_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
+  public static class get_super_column_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_super_column_args");
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField SUPER_COLUMN_PATH_FIELD_DESC = new TField("superColumnPath", TType.STRING, (short)3);
+    private static final TField SUPER_COLUMN_PATH_FIELD_DESC = new TField("super_column_path", TType.STRUCT, (short)3);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
     public String key;
     public static final int KEY = 2;
-    public String superColumnPath;
-    public static final int SUPERCOLUMNPATH = 3;
+    public SuperColumnPath super_column_path;
+    public static final int SUPER_COLUMN_PATH = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(SUPERCOLUMNPATH, new FieldMetaData("superColumnPath", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
+      put(SUPER_COLUMN_PATH, new FieldMetaData("super_column_path", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, SuperColumnPath.class)));
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(get_superColumn_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(get_super_column_args.class, metaDataMap);
     }
 
-    public get_superColumn_args() {
+    public get_super_column_args() {
     }
 
-    public get_superColumn_args(
-      String tablename,
+    public get_super_column_args(
+      String table,
       String key,
-      String superColumnPath)
+      SuperColumnPath super_column_path)
     {
       this();
-      this.tablename = tablename;
+      this.table = table;
       this.key = key;
-      this.superColumnPath = superColumnPath;
+      this.super_column_path = super_column_path;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public get_superColumn_args(get_superColumn_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+    public get_super_column_args(get_super_column_args other) {
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetSuperColumnPath()) {
-        this.superColumnPath = other.superColumnPath;
+      if (other.isSetSuper_column_path()) {
+        this.super_column_path = new SuperColumnPath(other.super_column_path);
       }
     }
 
     @Override
-    public get_superColumn_args clone() {
-      return new get_superColumn_args(this);
+    public get_super_column_args clone() {
+      return new get_super_column_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
@@ -9399,36 +9462,36 @@ public class Cassandra {
       }
     }
 
-    public String getSuperColumnPath() {
-      return this.superColumnPath;
+    public SuperColumnPath getSuper_column_path() {
+      return this.super_column_path;
     }
 
-    public void setSuperColumnPath(String superColumnPath) {
-      this.superColumnPath = superColumnPath;
+    public void setSuper_column_path(SuperColumnPath super_column_path) {
+      this.super_column_path = super_column_path;
     }
 
-    public void unsetSuperColumnPath() {
-      this.superColumnPath = null;
+    public void unsetSuper_column_path() {
+      this.super_column_path = null;
     }
 
-    // Returns true if field superColumnPath is set (has been asigned a value) and false otherwise
-    public boolean isSetSuperColumnPath() {
-      return this.superColumnPath != null;
+    // Returns true if field super_column_path is set (has been asigned a value) and false otherwise
+    public boolean isSetSuper_column_path() {
+      return this.super_column_path != null;
     }
 
-    public void setSuperColumnPathIsSet(boolean value) {
+    public void setSuper_column_pathIsSet(boolean value) {
       if (!value) {
-        this.superColumnPath = null;
+        this.super_column_path = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -9440,11 +9503,11 @@ public class Cassandra {
         }
         break;
 
-      case SUPERCOLUMNPATH:
+      case SUPER_COLUMN_PATH:
         if (value == null) {
-          unsetSuperColumnPath();
+          unsetSuper_column_path();
         } else {
-          setSuperColumnPath((String)value);
+          setSuper_column_path((SuperColumnPath)value);
         }
         break;
 
@@ -9455,14 +9518,14 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
       case KEY:
         return getKey();
 
-      case SUPERCOLUMNPATH:
-        return getSuperColumnPath();
+      case SUPER_COLUMN_PATH:
+        return getSuper_column_path();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -9472,12 +9535,12 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
+      case TABLE:
+        return isSetTable();
       case KEY:
         return isSetKey();
-      case SUPERCOLUMNPATH:
-        return isSetSuperColumnPath();
+      case SUPER_COLUMN_PATH:
+        return isSetSuper_column_path();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -9487,21 +9550,21 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof get_superColumn_args)
-        return this.equals((get_superColumn_args)that);
+      if (that instanceof get_super_column_args)
+        return this.equals((get_super_column_args)that);
       return false;
     }
 
-    public boolean equals(get_superColumn_args that) {
+    public boolean equals(get_super_column_args that) {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -9514,12 +9577,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_superColumnPath = true && this.isSetSuperColumnPath();
-      boolean that_present_superColumnPath = true && that.isSetSuperColumnPath();
-      if (this_present_superColumnPath || that_present_superColumnPath) {
-        if (!(this_present_superColumnPath && that_present_superColumnPath))
+      boolean this_present_super_column_path = true && this.isSetSuper_column_path();
+      boolean that_present_super_column_path = true && that.isSetSuper_column_path();
+      if (this_present_super_column_path || that_present_super_column_path) {
+        if (!(this_present_super_column_path && that_present_super_column_path))
           return false;
-        if (!this.superColumnPath.equals(that.superColumnPath))
+        if (!this.super_column_path.equals(that.super_column_path))
           return false;
       }
 
@@ -9542,9 +9605,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9556,9 +9619,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case SUPERCOLUMNPATH:
-            if (field.type == TType.STRING) {
-              this.superColumnPath = iprot.readString();
+          case SUPER_COLUMN_PATH:
+            if (field.type == TType.STRUCT) {
+              this.super_column_path = new SuperColumnPath();
+              this.super_column_path.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9580,9 +9644,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -9590,9 +9654,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.superColumnPath != null) {
+      if (this.super_column_path != null) {
         oprot.writeFieldBegin(SUPER_COLUMN_PATH_FIELD_DESC);
-        oprot.writeString(this.superColumnPath);
+        this.super_column_path.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -9601,14 +9665,14 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("get_superColumn_args(");
+      StringBuilder sb = new StringBuilder("get_super_column_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -9620,11 +9684,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("superColumnPath:");
-      if (this.superColumnPath == null) {
+      sb.append("super_column_path:");
+      if (this.super_column_path == null) {
         sb.append("null");
       } else {
-        sb.append(this.superColumnPath);
+        sb.append(this.super_column_path);
       }
       first = false;
       sb.append(")");
@@ -9638,13 +9702,13 @@ public class Cassandra {
 
   }
 
-  public static class get_superColumn_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("get_superColumn_result");
+  public static class get_super_column_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_super_column_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
-    public superColumn_t success;
+    public SuperColumn success;
     public static final int SUCCESS = 0;
     public InvalidRequestException ire;
     public static final int IRE = 1;
@@ -9657,7 +9721,7 @@ public class Cassandra {
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, superColumn_t.class)));
+          new StructMetaData(TType.STRUCT, SuperColumn.class)));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
@@ -9665,14 +9729,14 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(get_superColumn_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(get_super_column_result.class, metaDataMap);
     }
 
-    public get_superColumn_result() {
+    public get_super_column_result() {
     }
 
-    public get_superColumn_result(
-      superColumn_t success,
+    public get_super_column_result(
+      SuperColumn success,
       InvalidRequestException ire,
       NotFoundException nfe)
     {
@@ -9685,9 +9749,9 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public get_superColumn_result(get_superColumn_result other) {
+    public get_super_column_result(get_super_column_result other) {
       if (other.isSetSuccess()) {
-        this.success = new superColumn_t(other.success);
+        this.success = new SuperColumn(other.success);
       }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
@@ -9698,15 +9762,15 @@ public class Cassandra {
     }
 
     @Override
-    public get_superColumn_result clone() {
-      return new get_superColumn_result(this);
+    public get_super_column_result clone() {
+      return new get_super_column_result(this);
     }
 
-    public superColumn_t getSuccess() {
+    public SuperColumn getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(superColumn_t success) {
+    public void setSuccess(SuperColumn success) {
       this.success = success;
     }
 
@@ -9777,7 +9841,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((superColumn_t)value);
+          setSuccess((SuperColumn)value);
         }
         break;
 
@@ -9836,12 +9900,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof get_superColumn_result)
-        return this.equals((get_superColumn_result)that);
+      if (that instanceof get_super_column_result)
+        return this.equals((get_super_column_result)that);
       return false;
     }
 
-    public boolean equals(get_superColumn_result that) {
+    public boolean equals(get_super_column_result that) {
       if (that == null)
         return false;
 
@@ -9893,7 +9957,7 @@ public class Cassandra {
         {
           case SUCCESS:
             if (field.type == TType.STRUCT) {
-              this.success = new superColumn_t();
+              this.success = new SuperColumn();
               this.success.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
@@ -9950,7 +10014,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("get_superColumn_result(");
+      StringBuilder sb = new StringBuilder("get_super_column_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -9987,15 +10051,18 @@ public class Cassandra {
 
   }
 
-  public static class batch_insert_superColumn_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("batch_insert_superColumn_args");
-    private static final TField BATCH_MUTATION_SUPER_FIELD_DESC = new TField("batchMutationSuper", TType.STRUCT, (short)1);
-    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)2);
+  public static class batch_insert_super_column_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("batch_insert_super_column_args");
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField BATCH_MUTATION_SUPER_FIELD_DESC = new TField("batch_mutation_super", TType.STRUCT, (short)2);
+    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)3);
 
-    public batch_mutation_super_t batchMutationSuper;
-    public static final int BATCHMUTATIONSUPER = 1;
+    public String table;
+    public static final int TABLE = 1;
+    public BatchMutationSuper batch_mutation_super;
+    public static final int BATCH_MUTATION_SUPER = 2;
     public int block_for;
-    public static final int BLOCK_FOR = 2;
+    public static final int BLOCK_FOR = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
@@ -10003,27 +10070,31 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(BATCHMUTATIONSUPER, new FieldMetaData("batchMutationSuper", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, batch_mutation_super_t.class)));
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRING)));
+      put(BATCH_MUTATION_SUPER, new FieldMetaData("batch_mutation_super", TFieldRequirementType.DEFAULT, 
+          new StructMetaData(TType.STRUCT, BatchMutationSuper.class)));
       put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(batch_insert_superColumn_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(batch_insert_super_column_args.class, metaDataMap);
     }
 
-    public batch_insert_superColumn_args() {
+    public batch_insert_super_column_args() {
       this.block_for = 0;
 
     }
 
-    public batch_insert_superColumn_args(
-      batch_mutation_super_t batchMutationSuper,
+    public batch_insert_super_column_args(
+      String table,
+      BatchMutationSuper batch_mutation_super,
       int block_for)
     {
       this();
-      this.batchMutationSuper = batchMutationSuper;
+      this.table = table;
+      this.batch_mutation_super = batch_mutation_super;
       this.block_for = block_for;
       this.__isset.block_for = true;
     }
@@ -10031,39 +10102,65 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public batch_insert_superColumn_args(batch_insert_superColumn_args other) {
-      if (other.isSetBatchMutationSuper()) {
-        this.batchMutationSuper = new batch_mutation_super_t(other.batchMutationSuper);
+    public batch_insert_super_column_args(batch_insert_super_column_args other) {
+      if (other.isSetTable()) {
+        this.table = other.table;
+      }
+      if (other.isSetBatch_mutation_super()) {
+        this.batch_mutation_super = new BatchMutationSuper(other.batch_mutation_super);
       }
       __isset.block_for = other.__isset.block_for;
       this.block_for = other.block_for;
     }
 
     @Override
-    public batch_insert_superColumn_args clone() {
-      return new batch_insert_superColumn_args(this);
+    public batch_insert_super_column_args clone() {
+      return new batch_insert_super_column_args(this);
     }
 
-    public batch_mutation_super_t getBatchMutationSuper() {
-      return this.batchMutationSuper;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setBatchMutationSuper(batch_mutation_super_t batchMutationSuper) {
-      this.batchMutationSuper = batchMutationSuper;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetBatchMutationSuper() {
-      this.batchMutationSuper = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field batchMutationSuper is set (has been asigned a value) and false otherwise
-    public boolean isSetBatchMutationSuper() {
-      return this.batchMutationSuper != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setBatchMutationSuperIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.batchMutationSuper = null;
+        this.table = null;
+      }
+    }
+
+    public BatchMutationSuper getBatch_mutation_super() {
+      return this.batch_mutation_super;
+    }
+
+    public void setBatch_mutation_super(BatchMutationSuper batch_mutation_super) {
+      this.batch_mutation_super = batch_mutation_super;
+    }
+
+    public void unsetBatch_mutation_super() {
+      this.batch_mutation_super = null;
+    }
+
+    // Returns true if field batch_mutation_super is set (has been asigned a value) and false otherwise
+    public boolean isSetBatch_mutation_super() {
+      return this.batch_mutation_super != null;
+    }
+
+    public void setBatch_mutation_superIsSet(boolean value) {
+      if (!value) {
+        this.batch_mutation_super = null;
       }
     }
 
@@ -10091,11 +10188,19 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case BATCHMUTATIONSUPER:
+      case TABLE:
         if (value == null) {
-          unsetBatchMutationSuper();
+          unsetTable();
         } else {
-          setBatchMutationSuper((batch_mutation_super_t)value);
+          setTable((String)value);
+        }
+        break;
+
+      case BATCH_MUTATION_SUPER:
+        if (value == null) {
+          unsetBatch_mutation_super();
+        } else {
+          setBatch_mutation_super((BatchMutationSuper)value);
         }
         break;
 
@@ -10114,8 +10219,11 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case BATCHMUTATIONSUPER:
-        return getBatchMutationSuper();
+      case TABLE:
+        return getTable();
+
+      case BATCH_MUTATION_SUPER:
+        return getBatch_mutation_super();
 
       case BLOCK_FOR:
         return new Integer(getBlock_for());
@@ -10128,8 +10236,10 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case BATCHMUTATIONSUPER:
-        return isSetBatchMutationSuper();
+      case TABLE:
+        return isSetTable();
+      case BATCH_MUTATION_SUPER:
+        return isSetBatch_mutation_super();
       case BLOCK_FOR:
         return isSetBlock_for();
       default:
@@ -10141,21 +10251,30 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof batch_insert_superColumn_args)
-        return this.equals((batch_insert_superColumn_args)that);
+      if (that instanceof batch_insert_super_column_args)
+        return this.equals((batch_insert_super_column_args)that);
       return false;
     }
 
-    public boolean equals(batch_insert_superColumn_args that) {
+    public boolean equals(batch_insert_super_column_args that) {
       if (that == null)
         return false;
 
-      boolean this_present_batchMutationSuper = true && this.isSetBatchMutationSuper();
-      boolean that_present_batchMutationSuper = true && that.isSetBatchMutationSuper();
-      if (this_present_batchMutationSuper || that_present_batchMutationSuper) {
-        if (!(this_present_batchMutationSuper && that_present_batchMutationSuper))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.batchMutationSuper.equals(that.batchMutationSuper))
+        if (!this.table.equals(that.table))
+          return false;
+      }
+
+      boolean this_present_batch_mutation_super = true && this.isSetBatch_mutation_super();
+      boolean that_present_batch_mutation_super = true && that.isSetBatch_mutation_super();
+      if (this_present_batch_mutation_super || that_present_batch_mutation_super) {
+        if (!(this_present_batch_mutation_super && that_present_batch_mutation_super))
+          return false;
+        if (!this.batch_mutation_super.equals(that.batch_mutation_super))
           return false;
       }
 
@@ -10187,10 +10306,17 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case BATCHMUTATIONSUPER:
+          case TABLE:
+            if (field.type == TType.STRING) {
+              this.table = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case BATCH_MUTATION_SUPER:
             if (field.type == TType.STRUCT) {
-              this.batchMutationSuper = new batch_mutation_super_t();
-              this.batchMutationSuper.read(iprot);
+              this.batch_mutation_super = new BatchMutationSuper();
+              this.batch_mutation_super.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10220,9 +10346,14 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.batchMutationSuper != null) {
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
+        oprot.writeFieldEnd();
+      }
+      if (this.batch_mutation_super != null) {
         oprot.writeFieldBegin(BATCH_MUTATION_SUPER_FIELD_DESC);
-        this.batchMutationSuper.write(oprot);
+        this.batch_mutation_super.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
@@ -10234,14 +10365,22 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("batch_insert_superColumn_args(");
+      StringBuilder sb = new StringBuilder("batch_insert_super_column_args(");
       boolean first = true;
 
-      sb.append("batchMutationSuper:");
-      if (this.batchMutationSuper == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.batchMutationSuper);
+        sb.append(this.table);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("batch_mutation_super:");
+      if (this.batch_mutation_super == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.batch_mutation_super);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -10259,8 +10398,8 @@ public class Cassandra {
 
   }
 
-  public static class batch_insert_superColumn_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("batch_insert_superColumn_result");
+  public static class batch_insert_super_column_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("batch_insert_super_column_result");
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
 
@@ -10281,13 +10420,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(batch_insert_superColumn_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(batch_insert_super_column_result.class, metaDataMap);
     }
 
-    public batch_insert_superColumn_result() {
+    public batch_insert_super_column_result() {
     }
 
-    public batch_insert_superColumn_result(
+    public batch_insert_super_column_result(
       InvalidRequestException ire,
       UnavailableException ue)
     {
@@ -10299,7 +10438,7 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public batch_insert_superColumn_result(batch_insert_superColumn_result other) {
+    public batch_insert_super_column_result(batch_insert_super_column_result other) {
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
       }
@@ -10309,8 +10448,8 @@ public class Cassandra {
     }
 
     @Override
-    public batch_insert_superColumn_result clone() {
-      return new batch_insert_superColumn_result(this);
+    public batch_insert_super_column_result clone() {
+      return new batch_insert_super_column_result(this);
     }
 
     public InvalidRequestException getIre() {
@@ -10411,12 +10550,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof batch_insert_superColumn_result)
-        return this.equals((batch_insert_superColumn_result)that);
+      if (that instanceof batch_insert_super_column_result)
+        return this.equals((batch_insert_super_column_result)that);
       return false;
     }
 
-    public boolean equals(batch_insert_superColumn_result that) {
+    public boolean equals(batch_insert_super_column_result that) {
       if (that == null)
         return false;
 
@@ -10504,7 +10643,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("batch_insert_superColumn_result(");
+      StringBuilder sb = new StringBuilder("batch_insert_super_column_result(");
       boolean first = true;
 
       sb.append("ire:");
@@ -10535,16 +10674,16 @@ public class Cassandra {
 
   public static class get_key_range_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_key_range_args");
-    private static final TField TABLENAME_FIELD_DESC = new TField("tablename", TType.STRING, (short)1);
-    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("columnFamily", TType.STRING, (short)2);
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)2);
     private static final TField START_WITH_FIELD_DESC = new TField("startWith", TType.STRING, (short)3);
     private static final TField STOP_AT_FIELD_DESC = new TField("stopAt", TType.STRING, (short)4);
     private static final TField MAX_RESULTS_FIELD_DESC = new TField("maxResults", TType.I32, (short)5);
 
-    public String tablename;
-    public static final int TABLENAME = 1;
-    public String columnFamily;
-    public static final int COLUMNFAMILY = 2;
+    public String table;
+    public static final int TABLE = 1;
+    public String column_family;
+    public static final int COLUMN_FAMILY = 2;
     public String startWith;
     public static final int STARTWITH = 3;
     public String stopAt;
@@ -10558,9 +10697,9 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tablename", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMNFAMILY, new FieldMetaData("columnFamily", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(STARTWITH, new FieldMetaData("startWith", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -10584,15 +10723,15 @@ public class Cassandra {
     }
 
     public get_key_range_args(
-      String tablename,
-      String columnFamily,
+      String table,
+      String column_family,
       String startWith,
       String stopAt,
       int maxResults)
     {
       this();
-      this.tablename = tablename;
-      this.columnFamily = columnFamily;
+      this.table = table;
+      this.column_family = column_family;
       this.startWith = startWith;
       this.stopAt = stopAt;
       this.maxResults = maxResults;
@@ -10603,11 +10742,11 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_key_range_args(get_key_range_args other) {
-      if (other.isSetTablename()) {
-        this.tablename = other.tablename;
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
-      if (other.isSetColumnFamily()) {
-        this.columnFamily = other.columnFamily;
+      if (other.isSetColumn_family()) {
+        this.column_family = other.column_family;
       }
       if (other.isSetStartWith()) {
         this.startWith = other.startWith;
@@ -10624,49 +10763,49 @@ public class Cassandra {
       return new get_key_range_args(this);
     }
 
-    public String getTablename() {
-      return this.tablename;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTablename(String tablename) {
-      this.tablename = tablename;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTablename() {
-      this.tablename = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tablename is set (has been asigned a value) and false otherwise
-    public boolean isSetTablename() {
-      return this.tablename != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTablenameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tablename = null;
+        this.table = null;
       }
     }
 
-    public String getColumnFamily() {
-      return this.columnFamily;
+    public String getColumn_family() {
+      return this.column_family;
     }
 
-    public void setColumnFamily(String columnFamily) {
-      this.columnFamily = columnFamily;
+    public void setColumn_family(String column_family) {
+      this.column_family = column_family;
     }
 
-    public void unsetColumnFamily() {
-      this.columnFamily = null;
+    public void unsetColumn_family() {
+      this.column_family = null;
     }
 
-    // Returns true if field columnFamily is set (has been asigned a value) and false otherwise
-    public boolean isSetColumnFamily() {
-      return this.columnFamily != null;
+    // Returns true if field column_family is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_family() {
+      return this.column_family != null;
     }
 
-    public void setColumnFamilyIsSet(boolean value) {
+    public void setColumn_familyIsSet(boolean value) {
       if (!value) {
-        this.columnFamily = null;
+        this.column_family = null;
       }
     }
 
@@ -10740,19 +10879,19 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTablename();
+          unsetTable();
         } else {
-          setTablename((String)value);
+          setTable((String)value);
         }
         break;
 
-      case COLUMNFAMILY:
+      case COLUMN_FAMILY:
         if (value == null) {
-          unsetColumnFamily();
+          unsetColumn_family();
         } else {
-          setColumnFamily((String)value);
+          setColumn_family((String)value);
         }
         break;
 
@@ -10787,11 +10926,11 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTablename();
+      case TABLE:
+        return getTable();
 
-      case COLUMNFAMILY:
-        return getColumnFamily();
+      case COLUMN_FAMILY:
+        return getColumn_family();
 
       case STARTWITH:
         return getStartWith();
@@ -10810,10 +10949,10 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTablename();
-      case COLUMNFAMILY:
-        return isSetColumnFamily();
+      case TABLE:
+        return isSetTable();
+      case COLUMN_FAMILY:
+        return isSetColumn_family();
       case STARTWITH:
         return isSetStartWith();
       case STOPAT:
@@ -10838,21 +10977,21 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_tablename = true && this.isSetTablename();
-      boolean that_present_tablename = true && that.isSetTablename();
-      if (this_present_tablename || that_present_tablename) {
-        if (!(this_present_tablename && that_present_tablename))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tablename.equals(that.tablename))
+        if (!this.table.equals(that.table))
           return false;
       }
 
-      boolean this_present_columnFamily = true && this.isSetColumnFamily();
-      boolean that_present_columnFamily = true && that.isSetColumnFamily();
-      if (this_present_columnFamily || that_present_columnFamily) {
-        if (!(this_present_columnFamily && that_present_columnFamily))
+      boolean this_present_column_family = true && this.isSetColumn_family();
+      boolean that_present_column_family = true && that.isSetColumn_family();
+      if (this_present_column_family || that_present_column_family) {
+        if (!(this_present_column_family && that_present_column_family))
           return false;
-        if (!this.columnFamily.equals(that.columnFamily))
+        if (!this.column_family.equals(that.column_family))
           return false;
       }
 
@@ -10902,16 +11041,16 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tablename = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMNFAMILY:
+          case COLUMN_FAMILY:
             if (field.type == TType.STRING) {
-              this.columnFamily = iprot.readString();
+              this.column_family = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10955,14 +11094,14 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tablename != null) {
-        oprot.writeFieldBegin(TABLENAME_FIELD_DESC);
-        oprot.writeString(this.tablename);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
-      if (this.columnFamily != null) {
+      if (this.column_family != null) {
         oprot.writeFieldBegin(COLUMN_FAMILY_FIELD_DESC);
-        oprot.writeString(this.columnFamily);
+        oprot.writeString(this.column_family);
         oprot.writeFieldEnd();
       }
       if (this.startWith != null) {
@@ -10987,19 +11126,19 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_key_range_args(");
       boolean first = true;
 
-      sb.append("tablename:");
-      if (this.tablename == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tablename);
+        sb.append(this.table);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("columnFamily:");
-      if (this.columnFamily == null) {
+      sb.append("column_family:");
+      if (this.column_family == null) {
         sb.append("null");
       } else {
-        sb.append(this.columnFamily);
+        sb.append(this.column_family);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -12923,7 +13062,7 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("executeQuery_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
 
-    public CqlResult_t success;
+    public CqlResult success;
     public static final int SUCCESS = 0;
 
     private final Isset __isset = new Isset();
@@ -12932,7 +13071,7 @@ public class Cassandra {
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, CqlResult_t.class)));
+          new StructMetaData(TType.STRUCT, CqlResult.class)));
     }});
 
     static {
@@ -12943,7 +13082,7 @@ public class Cassandra {
     }
 
     public executeQuery_result(
-      CqlResult_t success)
+      CqlResult success)
     {
       this();
       this.success = success;
@@ -12954,7 +13093,7 @@ public class Cassandra {
      */
     public executeQuery_result(executeQuery_result other) {
       if (other.isSetSuccess()) {
-        this.success = new CqlResult_t(other.success);
+        this.success = new CqlResult(other.success);
       }
     }
 
@@ -12963,11 +13102,11 @@ public class Cassandra {
       return new executeQuery_result(this);
     }
 
-    public CqlResult_t getSuccess() {
+    public CqlResult getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(CqlResult_t success) {
+    public void setSuccess(CqlResult success) {
       this.success = success;
     }
 
@@ -12992,7 +13131,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((CqlResult_t)value);
+          setSuccess((CqlResult)value);
         }
         break;
 
@@ -13064,7 +13203,7 @@ public class Cassandra {
         {
           case SUCCESS:
             if (field.type == TType.STRUCT) {
-              this.success = new CqlResult_t();
+              this.success = new CqlResult();
               this.success.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);

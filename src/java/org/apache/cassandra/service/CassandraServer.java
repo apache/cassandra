@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql.common.CqlResult;
 import org.apache.cassandra.cql.driver.CqlDriver;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.thrift.TException;
@@ -43,8 +44,8 @@ public class CassandraServer implements Cassandra.Iface
 {
 	private static Logger logger = Logger.getLogger(CassandraServer.class);
 
-    private final static List<column_t> EMPTY_COLUMNS = Collections.emptyList();
-    private final static List<superColumn_t> EMPTY_SUPERCOLUMNS = Collections.emptyList();
+    private final static List<Column> EMPTY_COLUMNS = Collections.emptyList();
+    private final static List<SuperColumn> EMPTY_SUPERCOLUMNS = Collections.emptyList();
 
     /*
       * Handle to the storage service to interact with the other machines in the
@@ -95,115 +96,97 @@ public class CassandraServer implements Cassandra.Iface
         return row.getColumnFamily(cfName);
 	}
 
-    public List<column_t> thriftifyColumns(Collection<IColumn> columns)
+    public List<Column> thriftifyColumns(Collection<IColumn> columns)
     {
         if (columns == null || columns.isEmpty())
         {
             return EMPTY_COLUMNS;
         }
 
-        ArrayList<column_t> thriftColumns = new ArrayList<column_t>(columns.size());
+        ArrayList<Column> thriftColumns = new ArrayList<Column>(columns.size());
         for (IColumn column : columns)
         {
             if (column.isMarkedForDelete())
             {
                 continue;
             }
-            column_t thrift_column = new column_t(column.name(), column.value(), column.timestamp());
+            Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
             thriftColumns.add(thrift_column);
         }
 
         return thriftColumns;
     }
 
-    public List<column_t> get_columns_since(String tablename, String key, String columnParent, long timeStamp) throws InvalidRequestException
+    /** for resultsets of standard columns */
+    private List<Column> getSlice(ReadCommand command) throws InvalidRequestException
+    {
+        ColumnFamily cfamily = readColumnFamily(command);
+        if (cfamily == null || cfamily.getColumns().size() == 0)
+        {
+            return EMPTY_COLUMNS;
+        }
+        if (cfamily.isSuper())
+        {
+            IColumn column = cfamily.getColumns().values().iterator().next();
+            return thriftifyColumns(column.getSubColumns());
+        }
+        return thriftifyColumns(cfamily.getAllColumns());
+    }
+
+    public List<Column> get_columns_since(String table, String key, ColumnParent column_parent, long timeStamp)
+    throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_columns_since");
-        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
+        ThriftValidation.validateColumnParent(table, column_parent);
+        return getSlice(new ColumnsSinceReadCommand(table, key, column_parent, timeStamp));
+    }
 
-        ColumnFamily cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnParent, timeStamp));
-        if (cfamily == null)
-        {
-            return EMPTY_COLUMNS;
-        }
-        Collection<IColumn> columns = null;
-        if( values.length > 1 )
-        {
-            // this is the super column case
-            IColumn column = cfamily.getColumn(values[1]);
-            if(column != null)
-                columns = column.getSubColumns();
-        }
-        else
-        {
-            columns = cfamily.getAllColumns();
-        }
-        return thriftifyColumns(columns);
-	}
-	
 
-    public List<column_t> get_slice_by_names(String tablename, String key, String columnParent, List<String> columnNames) throws InvalidRequestException
+    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names)
+    throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_slice_by_names");
-        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
-
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnParent, columnNames));
-        if (cfamily == null)
-        {
-            return EMPTY_COLUMNS;
-        }
-        if (DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
-        {
-            return thriftifyColumns(cfamily.getAllColumns());
-        }
-        else
-        {
-            IColumn superColumn = cfamily.getColumn(values[1]);
-            if (superColumn == null)
-            {
-                return EMPTY_COLUMNS;
-            }
-            return thriftifyColumns(superColumn.getSubColumns());
-        }
+        ThriftValidation.validateColumnParent(table, column_parent);
+        return getSlice(new SliceByNamesReadCommand(table, key, column_parent, column_names));
     }
 
-    public List<column_t> get_slice(String tablename, String key, String columnParent, String start, String finish, boolean isAscending, int offset, int count) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int offset, int count)
+    throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_slice_from");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnParent);
-        if (values.length != 1 || !DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Standard"))
-            throw new InvalidRequestException("get_slice_from requires a standard CF name and a starting column name");
+        ThriftValidation.validateColumnParent(table, column_parent);
+        // TODO support get_slice on super CFs
+        if (column_parent.super_column != null || !DatabaseDescriptor.getColumnFamilyType(table, column_parent.column_family).equals("Standard"))
+            throw new InvalidRequestException("get_slice does not yet support super columns (we need to fix this)");
         if (count <= 0)
-            throw new InvalidRequestException("get_slice_from requires positive count");
-        if ("Name".compareTo(DatabaseDescriptor.getCFMetaData(tablename, values[0]).indexProperty_) != 0)
-            throw new InvalidRequestException("get_slice_from requires CF indexed by name");
+            throw new InvalidRequestException("get_slice requires positive count");
+        if (!"Name".equals(DatabaseDescriptor.getCFMetaData(table, column_parent.column_family).indexProperty_))
+            throw new InvalidRequestException("get_slice requires CF indexed by name");
 
-        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnParent, start, finish, isAscending, offset, count));
-        if (cfamily == null)
-        {
-            return EMPTY_COLUMNS;
-        }
-        Collection<IColumn> columns = cfamily.getAllColumns();
-        return thriftifyColumns(columns);
+        return getSlice(new SliceFromReadCommand(table, key, column_parent, start, finish, is_ascending, offset, count));
     }
 
-    public column_t get_column(String tablename, String key, String columnPath) throws NotFoundException, InvalidRequestException
+    public Column get_column(String table, String key, ColumnPath column_path)
+    throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_column");
-        String[] values = ThriftValidation.validateColumnPath(tablename, columnPath);
+        ThriftValidation.validateColumnPath(table, column_path);
 
-        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, columnPath));
+        QueryPath path = new QueryPath(column_path.column_family, column_path.super_column);
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, path, Arrays.asList(column_path.column)));
+        // TODO can we leverage getSlice here and just check that it returns one column?
         if (cfamily == null)
         {
             throw new NotFoundException();
         }
         Collection<IColumn> columns = null;
-        if( values.length > 2 )
+        if (column_path.super_column != null)
         {
-            // this is the super column case
-            IColumn column = cfamily.getColumn(values[1]);
-            if(column != null)
+            IColumn column = cfamily.getColumn(column_path.super_column);
+            if (column != null)
+            {
                 columns = column.getSubColumns();
+            }
         }
         else
         {
@@ -221,34 +204,36 @@ public class CassandraServer implements Cassandra.Iface
             throw new NotFoundException();
         }
 
-        return new column_t(column.name(), column.value(), column.timestamp());
+        return new Column(column.name(), column.value(), column.timestamp());
     }
 
-    public int get_column_count(String tablename, String key, String columnParent) throws InvalidRequestException
+    public int get_column_count(String table, String key, ColumnParent column_parent)
+    throws InvalidRequestException
     {
         logger.debug("get_column_count");
-        String[] values = ThriftValidation.validateColumnParent(tablename, columnParent);
+        ThriftValidation.validateColumnParent(table, column_parent);
 
         ColumnFamily cfamily;
-        if (DatabaseDescriptor.isNameSortingEnabled(tablename, values[0]))
+        if (DatabaseDescriptor.isNameSortingEnabled(table, column_parent.column_family))
         {
-            cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnParent, "", "", true, 0, Integer.MAX_VALUE));
+            cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, "", "", true, 0, Integer.MAX_VALUE));
         }
         else
         {
-            cfamily = readColumnFamily(new ColumnsSinceReadCommand(tablename, key, columnParent, Long.MIN_VALUE));
+            cfamily = readColumnFamily(new ColumnsSinceReadCommand(table, key, column_parent, Long.MIN_VALUE));
         }
         if (cfamily == null)
         {
             return 0;
         }
         Collection<IColumn> columns = null;
-        if( values.length > 1 )
+        if (column_parent.super_column != null)
         {
-            // this is the super column case
-            IColumn column = cfamily.getColumn(values[1]);
-            if(column != null)
+            IColumn column = cfamily.getColumn(column_parent.super_column);
+            if (column != null)
+            {
                 columns = column.getSubColumns();
+            }
         }
         else
         {
@@ -261,38 +246,39 @@ public class CassandraServer implements Cassandra.Iface
         return columns.size();
 	}
 
-    public void insert(String tablename, String key, String columnPath, byte[] cellData, long timestamp, int block)
+    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("insert");
         ThriftValidation.validateKey(key);
-        ThriftValidation.validateColumnPath(tablename, columnPath);
+        ThriftValidation.validateColumnPath(table, column_path);
 
-        RowMutation rm = new RowMutation(tablename, key.trim());
-        rm.add(columnPath, cellData, timestamp);
-        doInsert(block, rm);
+        RowMutation rm = new RowMutation(table, key.trim());
+        rm.add(new QueryPath(column_path), value, timestamp);
+        doInsert(block_for, rm);
     }
 
-    public void batch_insert(batch_mutation_t batchMutation, int block) throws InvalidRequestException, UnavailableException
+    public void batch_insert(String table, BatchMutation batch_mutation, int block_for)
+    throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert");
-        RowMutation rm = RowMutation.getRowMutation(batchMutation);
+        RowMutation rm = RowMutation.getRowMutation(table, batch_mutation);
         Set<String> cfNames = rm.columnFamilyNames();
         ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        doInsert(block, rm);
+        doInsert(block_for, rm);
     }
 
-    public void remove(String tablename, String key, String columnPathOrParent, long timestamp, int block)
+    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("remove");
-        ThriftValidation.validateColumnPathOrParent(tablename, columnPathOrParent);
+        ThriftValidation.validateColumnPathOrParent(table, column_path_or_parent);
         
-        RowMutation rm = new RowMutation(tablename, key.trim());
-        rm.delete(columnPathOrParent, timestamp);
+        RowMutation rm = new RowMutation(table, key.trim());
+        rm.delete(new QueryPath(column_path_or_parent), timestamp);
 
-        doInsert(block, rm);
+        doInsert(block_for, rm);
 	}
 
     private void doInsert(int block, RowMutation rm) throws UnavailableException
@@ -307,12 +293,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public List<superColumn_t> get_slice_super_by_names(String tablename, String key, String columnFamily, List<String> superColumnNames) throws InvalidRequestException
+    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names)
+    throws InvalidRequestException
     {
         logger.debug("get_slice_super_by_names");
-        ThriftValidation.validateColumnFamily(tablename, columnFamily);
+        ThriftValidation.validateColumnFamily(table, column_family);
 
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(tablename, key, columnFamily, superColumnNames));
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, new QueryPath(column_family), super_column_names));
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;
@@ -320,37 +307,37 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifySuperColumns(cfamily.getAllColumns());
     }
 
-    private List<superColumn_t> thriftifySuperColumns(Collection<IColumn> columns)
+    private List<SuperColumn> thriftifySuperColumns(Collection<IColumn> columns)
     {
         if (columns == null || columns.isEmpty())
         {
             return EMPTY_SUPERCOLUMNS;
         }
 
-        ArrayList<superColumn_t> thriftSuperColumns = new ArrayList<superColumn_t>(columns.size());
+        ArrayList<SuperColumn> thriftSuperColumns = new ArrayList<SuperColumn>(columns.size());
         for (IColumn column : columns)
         {
-            List<column_t> subcolumns = thriftifyColumns(column.getSubColumns());
+            List<Column> subcolumns = thriftifyColumns(column.getSubColumns());
             if (subcolumns.isEmpty())
             {
                 continue;
             }
-            thriftSuperColumns.add(new superColumn_t(column.name(), subcolumns));
+            thriftSuperColumns.add(new SuperColumn(column.name(), subcolumns));
         }
 
         return thriftSuperColumns;
     }
 
-    public List<superColumn_t> get_slice_super(String tablename, String key, String columnFamily, String start, String finish, boolean isAscending, int offset, int count) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int offset, int count)
+    throws InvalidRequestException
     {
         logger.debug("get_slice_super");
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamily);
-        if (values.length != 1 || !DatabaseDescriptor.getColumnFamilyType(tablename, values[0]).equals("Super"))
+        if (!DatabaseDescriptor.getColumnFamilyType(table, column_family).equals("Super"))
             throw new InvalidRequestException("get_slice_super requires a super CF name");
         if (count <= 0)
             throw new InvalidRequestException("get_slice_super requires positive count");
 
-        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(tablename, key, columnFamily, start, finish, isAscending, offset, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(table, key, new QueryPath(column_family), start, finish, is_ascending, offset, count));
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;
@@ -358,13 +345,15 @@ public class CassandraServer implements Cassandra.Iface
         Collection<IColumn> columns = cfamily.getAllColumns();
         return thriftifySuperColumns(columns);
     }
-    
-    public superColumn_t get_superColumn(String tablename, String key, String superColumnPath) throws InvalidRequestException, NotFoundException
+
+
+    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path)
+    throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_superColumn");
-        ThriftValidation.validateSuperColumnPath(tablename, superColumnPath);
+        ThriftValidation.validateSuperColumnPath(table, super_column_path);
 
-        ColumnFamily cfamily = readColumnFamily(new ColumnReadCommand(tablename, key, superColumnPath));
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, new QueryPath(super_column_path.column_family), Arrays.asList(super_column_path.super_column)));
         if (cfamily == null)
         {
             throw new NotFoundException();
@@ -382,17 +371,18 @@ public class CassandraServer implements Cassandra.Iface
             throw new NotFoundException();
         }
 
-        return new superColumn_t(column.name(), thriftifyColumns(column.getSubColumns()));
+        return new SuperColumn(column.name(), thriftifyColumns(column.getSubColumns()));
     }
 
-    public void batch_insert_superColumn(batch_mutation_super_t batchMutationSuper, int block) throws InvalidRequestException, UnavailableException
+    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for)
+    throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert_SuperColumn");
-        RowMutation rm = RowMutation.getRowMutation(batchMutationSuper);
+        RowMutation rm = RowMutation.getRowMutation(table, batch_mutation_super);
         Set<String> cfNames = rm.columnFamilyNames();
         ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        doInsert(block, rm);
+        doInsert(block_for, rm);
     }
 
     public String getStringProperty(String propertyName)
@@ -484,18 +474,18 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public CqlResult_t executeQuery(String query) throws TException
+    public org.apache.cassandra.service.CqlResult executeQuery(String query) throws TException
     {
-        CqlResult_t result = new CqlResult_t();
+        org.apache.cassandra.service.CqlResult result = new org.apache.cassandra.service.CqlResult();
 
         CqlResult cqlResult = CqlDriver.executeQuery(query);
         
         // convert CQL result type to Thrift specific return type
         if (cqlResult != null)
         {
-            result.errorTxt = cqlResult.errorTxt;
-            result.resultSet = cqlResult.resultSet;
-            result.errorCode = cqlResult.errorCode;
+            result.error_txt = cqlResult.errorTxt;
+            result.result_set = cqlResult.resultSet;
+            result.error_code = cqlResult.errorCode;
         }
         return result;
     }

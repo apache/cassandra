@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.filter.QueryPath;
 
 public class CommitLogTest extends CleanupHelper
 {
@@ -43,8 +44,8 @@ public class CommitLogTest extends CleanupHelper
         for (int i = 0; i < 10; i++)
         {
             rm = new RowMutation("Table1", "key1");
-            rm.add("Standard1:Column1", value, 0);
-            rm.add("Standard2:Column1", value, 0);
+            rm.add(new QueryPath("Standard1", null, "Column1"), value, 0);
+            rm.add(new QueryPath("Standard2", null, "Column1"), value, 0);
             rm.apply();
         }
         assert CommitLog.getSegmentCount() > 1;

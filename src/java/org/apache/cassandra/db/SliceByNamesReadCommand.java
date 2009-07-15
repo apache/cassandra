@@ -24,28 +24,37 @@ import java.util.*;
 
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.service.ColumnParent;
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+
 public class SliceByNamesReadCommand extends ReadCommand
 {
-    public final String columnFamily;
+    public final QueryPath columnParent;
     public final SortedSet<String> columnNames;
 
-    public SliceByNamesReadCommand(String table, String key, String columnFamily, Collection<String> columnNames)
+    public SliceByNamesReadCommand(String table, String key, ColumnParent column_parent, Collection<String> columnNames)
+    {
+        this(table, key, new QueryPath(column_parent), columnNames);
+    }
+
+    public SliceByNamesReadCommand(String table, String key, QueryPath path, Collection<String> columnNames)
     {
         super(table, key, CMD_TYPE_GET_SLICE_BY_NAMES);
-        this.columnFamily = columnFamily;
+        this.columnParent = path;
         this.columnNames = new TreeSet<String>(columnNames);
     }
 
     @Override
     public String getColumnFamilyName()
     {
-        return RowMutation.getColumnAndColumnFamily(columnFamily)[0];
+        return columnParent.columnFamilyName;
     }
 
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand= new SliceByNamesReadCommand(table, key, columnFamily, columnNames);
+        ReadCommand readCommand= new SliceByNamesReadCommand(table, key, columnParent, columnNames);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -53,7 +62,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {        
-        return table.getRow(key, columnFamily, columnNames);
+        return table.getRow(new NamesQueryFilter(key, columnParent, columnNames));
     }
 
     @Override
@@ -62,7 +71,7 @@ public class SliceByNamesReadCommand extends ReadCommand
         return "SliceByNamesReadCommand(" +
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
-               ", columnFamily='" + columnFamily + '\'' +
+               ", columnParent='" + columnParent + '\'' +
                ", columns=[" + StringUtils.join(columnNames, ", ") + "]" +
                ')';
     }
@@ -78,7 +87,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         dos.writeBoolean(realRM.isDigestQuery());
         dos.writeUTF(realRM.table);
         dos.writeUTF(realRM.key);
-        dos.writeUTF(realRM.columnFamily);
+        realRM.columnParent.serialize(dos);
         dos.writeInt(realRM.columnNames.size());
         if (realRM.columnNames.size() > 0)
         {
@@ -96,7 +105,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         boolean isDigest = dis.readBoolean();
         String table = dis.readUTF();
         String key = dis.readUTF();
-        String columnFamily = dis.readUTF();
+        QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();
         List<String> columns = new ArrayList<String>();
@@ -106,7 +115,7 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
             dis.readFully(bytes);
             columns.add(new String(bytes));
         }
-        SliceByNamesReadCommand rm = new SliceByNamesReadCommand(table, key, columnFamily, columns);
+        SliceByNamesReadCommand rm = new SliceByNamesReadCommand(table, key, columnParent, columns);
         rm.setDigestQuery(isDigest);
         return rm;
     }
