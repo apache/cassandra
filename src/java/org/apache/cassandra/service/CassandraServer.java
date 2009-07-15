@@ -211,10 +211,18 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException
     {
         logger.debug("get_column_count");
-        ThriftValidation.validateColumnParent(table, column_parent);
+        // validateColumnParent assumes we require simple columns; g_c_c is the only
+        // one of the columnParent-taking apis that can also work at the SC level.
+        // so we roll a one-off validator here.
+        String cfType = ThriftValidation.validateColumnFamily(table, column_parent.column_family);
+        if (cfType.equals("Standard") && column_parent.super_column != null)
+        {
+            throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
+        }
 
         ColumnFamily cfamily;
-        if (DatabaseDescriptor.isNameSortingEnabled(table, column_parent.column_family))
+        if (DatabaseDescriptor.isNameSortingEnabled(table, column_parent.column_family)
+            && column_parent.super_column == null)
         {
             cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, "", "", true, 0, Integer.MAX_VALUE));
         }

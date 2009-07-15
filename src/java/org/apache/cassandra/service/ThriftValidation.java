@@ -66,6 +66,14 @@ public class ThriftValidation
                 throw new InvalidRequestException("supercolumn parameter is invalid for standard CF " + column_path.column_family);
             }
         }
+        else if (column_path.super_column == null)
+        {
+            throw new InvalidRequestException("column parameter is not optional for super CF " + column_path.column_family);
+        }
+        if (column_path.column == null)
+        {
+            throw new InvalidRequestException("column parameter is not optional");
+        }
     }
 
     static void validateColumnParent(String tablename, ColumnParent column_parent) throws InvalidRequestException
