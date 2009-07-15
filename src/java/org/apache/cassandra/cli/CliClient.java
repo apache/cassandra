@@ -139,24 +139,21 @@ public class CliClient
             int size = columns.size();
             for (Iterator<Column> colIter = columns.iterator(); colIter.hasNext(); )
             {
-                Column col = colIter.next();
+                Column column = colIter.next();
                 css_.out.printf("  (column=%s, value=%s; timestamp=%d)\n",
-                                 col.column_name, col.value, col.timestamp);
+                                 column.name, column.value, column.timestamp);
             }
             css_.out.println("Returned " + size + " rows.");
         }
-        else if (columnSpecCnt == 1)
-        {
-            // table.cf['key']['column']
-            String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-            Column col = new Column();
-           	col = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName));
-            css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
-                            col.column_name, col.value, col.timestamp);
-        }
         else
         {
-            assert(false);
+            assert columnSpecCnt == 1;
+            // table.cf['key']['column']
+            String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
+            Column column = new Column();
+           	column = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName));
+            css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
+                            column.name, column.value, column.timestamp);
         }
     }
 

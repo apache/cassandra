@@ -260,9 +260,9 @@ public class RowMutation implements Serializable
         for (String cfname : batchMutation.cfmap.keySet())
         {
             List<org.apache.cassandra.service.Column> list = batchMutation.cfmap.get(cfname);
-            for (org.apache.cassandra.service.Column columnData : list)
+            for (org.apache.cassandra.service.Column column : list)
             {
-                rm.add(new QueryPath(cfname, null, columnData.column_name), columnData.value, columnData.timestamp);
+                rm.add(new QueryPath(cfname, null, column.name), column.value, column.timestamp);
             }
         }
         return rm;
@@ -277,7 +277,7 @@ public class RowMutation implements Serializable
             {
                 for (org.apache.cassandra.service.Column column : super_column.columns)
                 {
-                    rm.add(new QueryPath(cfName, super_column.name, column.column_name), column.value, column.timestamp);
+                    rm.add(new QueryPath(cfName, super_column.name, column.name), column.value, column.timestamp);
                 }
             }
         }

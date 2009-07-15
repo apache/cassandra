@@ -64,8 +64,8 @@ def _insert_range():
 def _verify_range():
     result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c1', 'c2', True, 0, 1000)
     assert len(result) == 2
-    assert result[0].column_name == 'c1'
-    assert result[1].column_name == 'c2'
+    assert result[0].name == 'c1'
+    assert result[1].name == 'c2'
 
     result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 0, 1000)
     assert len(result) == 3, result
@@ -305,10 +305,10 @@ class TestMutations(CassandraTester):
         _insert_range()
         result = client.get_slice_by_names('Table1','key1', ColumnParent('Standard1'), ['c1', 'c2']) 
         assert len(result) == 2
-        assert result[0].column_name == 'c1'
-        assert result[1].column_name == 'c2'
+        assert result[0].name == 'c1'
+        assert result[1].name == 'c2'
 
         _insert_super()
         result = client.get_slice_by_names('Table1','key1', ColumnParent('Super1', 'sc1'), ['c4']) 
         assert len(result) == 1
-        assert result[0].column_name == 'c4'
+        assert result[0].name == 'c4'

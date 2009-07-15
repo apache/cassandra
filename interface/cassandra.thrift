@@ -31,7 +31,7 @@ namespace php cassandra
 #
 
 struct Column {
-   1: string                        column_name,
+   1: string                        name,
    2: binary                        value,
    3: i64                           timestamp,
 }

@@ -20,12 +20,12 @@ import org.apache.thrift.protocol.*;
 
 public class Column implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("Column");
-  private static final TField COLUMN_NAME_FIELD_DESC = new TField("column_name", TType.STRING, (short)1);
+  private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)2);
   private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
 
-  public String column_name;
-  public static final int COLUMN_NAME = 1;
+  public String name;
+  public static final int NAME = 1;
   public byte[] value;
   public static final int VALUE = 2;
   public long timestamp;
@@ -37,7 +37,7 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(COLUMN_NAME, new FieldMetaData("column_name", TFieldRequirementType.DEFAULT, 
+    put(NAME, new FieldMetaData("name", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
     put(VALUE, new FieldMetaData("value", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
@@ -53,12 +53,12 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
   }
 
   public Column(
-    String column_name,
+    String name,
     byte[] value,
     long timestamp)
   {
     this();
-    this.column_name = column_name;
+    this.name = name;
     this.value = value;
     this.timestamp = timestamp;
     this.__isset.timestamp = true;
@@ -68,8 +68,8 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
    * Performs a deep copy on <i>other</i>.
    */
   public Column(Column other) {
-    if (other.isSetColumn_name()) {
-      this.column_name = other.column_name;
+    if (other.isSetName()) {
+      this.name = other.name;
     }
     if (other.isSetValue()) {
       this.value = new byte[other.value.length];
@@ -84,26 +84,26 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     return new Column(this);
   }
 
-  public String getColumn_name() {
-    return this.column_name;
+  public String getName() {
+    return this.name;
   }
 
-  public void setColumn_name(String column_name) {
-    this.column_name = column_name;
+  public void setName(String name) {
+    this.name = name;
   }
 
-  public void unsetColumn_name() {
-    this.column_name = null;
+  public void unsetName() {
+    this.name = null;
   }
 
-  // Returns true if field column_name is set (has been asigned a value) and false otherwise
-  public boolean isSetColumn_name() {
-    return this.column_name != null;
+  // Returns true if field name is set (has been asigned a value) and false otherwise
+  public boolean isSetName() {
+    return this.name != null;
   }
 
-  public void setColumn_nameIsSet(boolean value) {
+  public void setNameIsSet(boolean value) {
     if (!value) {
-      this.column_name = null;
+      this.name = null;
     }
   }
 
@@ -154,11 +154,11 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
-    case COLUMN_NAME:
+    case NAME:
       if (value == null) {
-        unsetColumn_name();
+        unsetName();
       } else {
-        setColumn_name((String)value);
+        setName((String)value);
       }
       break;
 
@@ -185,8 +185,8 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
 
   public Object getFieldValue(int fieldID) {
     switch (fieldID) {
-    case COLUMN_NAME:
-      return getColumn_name();
+    case NAME:
+      return getName();
 
     case VALUE:
       return getValue();
@@ -202,8 +202,8 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
   // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
   public boolean isSet(int fieldID) {
     switch (fieldID) {
-    case COLUMN_NAME:
-      return isSetColumn_name();
+    case NAME:
+      return isSetName();
     case VALUE:
       return isSetValue();
     case TIMESTAMP:
@@ -226,12 +226,12 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     if (that == null)
       return false;
 
-    boolean this_present_column_name = true && this.isSetColumn_name();
-    boolean that_present_column_name = true && that.isSetColumn_name();
-    if (this_present_column_name || that_present_column_name) {
-      if (!(this_present_column_name && that_present_column_name))
+    boolean this_present_name = true && this.isSetName();
+    boolean that_present_name = true && that.isSetName();
+    if (this_present_name || that_present_name) {
+      if (!(this_present_name && that_present_name))
         return false;
-      if (!this.column_name.equals(that.column_name))
+      if (!this.name.equals(that.name))
         return false;
     }
 
@@ -272,9 +272,9 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
       }
       switch (field.id)
       {
-        case COLUMN_NAME:
+        case NAME:
           if (field.type == TType.STRING) {
-            this.column_name = iprot.readString();
+            this.name = iprot.readString();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -311,9 +311,9 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.column_name != null) {
-      oprot.writeFieldBegin(COLUMN_NAME_FIELD_DESC);
-      oprot.writeString(this.column_name);
+    if (this.name != null) {
+      oprot.writeFieldBegin(NAME_FIELD_DESC);
+      oprot.writeString(this.name);
       oprot.writeFieldEnd();
     }
     if (this.value != null) {
@@ -333,11 +333,11 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     StringBuilder sb = new StringBuilder("Column(");
     boolean first = true;
 
-    sb.append("column_name:");
-    if (this.column_name == null) {
+    sb.append("name:");
+    if (this.name == null) {
       sb.append("null");
     } else {
-      sb.append(this.column_name);
+      sb.append(this.name);
     }
     first = false;
     if (!first) sb.append(", ");
