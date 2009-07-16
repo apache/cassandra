@@ -694,34 +694,37 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }        
     }
     
-    public void forceHandoff(String directories, String host) throws IOException
+    public void forceHandoff(List<String> dataDirectories, String host) throws IOException
     {       
         List<File> filesList = new ArrayList<File>();
-        String[] sources = directories.split(":");
-        for (String source : sources)
+        List<StreamContextManager.StreamContext> streamContexts = new ArrayList<StreamContextManager.StreamContext>();
+        
+        for (String dataDir : dataDirectories)
         {
-            File directory = new File(source);
+            File directory = new File(dataDir);
             Collections.addAll(filesList, directory.listFiles());            
-        }
         
-        File[] files = filesList.toArray(new File[0]);
-        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[files.length];
-        int i = 0;
-        for ( File file : files )
+
+            for (File tableDir : directory.listFiles())
+            {
+                String tableName = tableDir.getName();
+
+                for (File file : tableDir.listFiles())
         {
-            streamContexts[i] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length());
+                    streamContexts.add(new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), tableName));
             if (logger_.isDebugEnabled())
-              logger_.debug("Stream context metadata " + streamContexts[i]);
-            ++i;
+                      logger_.debug("Stream context metadata " + streamContexts);
+                }
+            }
         }
         
-        if ( files.length > 0 )
+        if ( streamContexts.size() > 0 )
     {
             EndPoint target = new EndPoint(host, DatabaseDescriptor.getStoragePort());
             /* Set up the stream manager with the files that need to streamed */
-            StreamManager.instance(target).addFilesToStream(streamContexts);
+            StreamManager.instance(target).addFilesToStream((StreamContextManager.StreamContext[]) streamContexts.toArray());
             /* Send the bootstrap initiate message */
-            BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage(streamContexts);
+            BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage((StreamContextManager.StreamContext[]) streamContexts.toArray());
             Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
             if (logger_.isDebugEnabled())
               logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
@@ -729,6 +732,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             if (logger_.isDebugEnabled())
               logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
+            if (logger_.isDebugEnabled())
             logger_.debug("Done with transfer to " + target);  
         }
     }

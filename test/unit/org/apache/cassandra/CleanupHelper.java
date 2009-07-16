@@ -37,7 +37,6 @@ public class CleanupHelper
         String[] directoryNames = {
                 DatabaseDescriptor.getBootstrapFileLocation(),
                 DatabaseDescriptor.getLogFileLocation(),
-                DatabaseDescriptor.getDataFileLocation(),
         };
 
         for (String dirName : directoryNames)
@@ -49,9 +48,36 @@ public class CleanupHelper
             }
             for (File f : dir.listFiles())
             {
+                if (logger.isDebugEnabled())
                 logger.debug("deleting " + f);
-                f.delete();
+                if (!f.delete()) {
+                    logger.error("could not delete " + f);
             }
         }
+    }
+
+        // cleanup data directory which are stored as data directory/table/data files
+        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            File dir = new File(dirName);
+            if (!dir.exists())
+            {
+                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+            }
+            for (File tableFile : dir.listFiles())
+            {
+                // table directory
+                if (tableFile.isDirectory()) {
+                    for (File dataFile : tableFile.listFiles()) {
+                        if (logger.isDebugEnabled())
+                            logger.debug("deleting " + dataFile);
+                        if (!dataFile.delete()) {
+                            logger.error("could not delete " + dataFile);
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }

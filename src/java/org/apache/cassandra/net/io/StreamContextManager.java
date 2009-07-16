@@ -24,14 +24,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.LinkedBlockingQueue;
-import javax.xml.bind.annotation.XmlElement;
 
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.dht.BootstrapInitiateMessage;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.log4j.Logger;
@@ -67,11 +61,18 @@ public class StreamContextManager
                 
         private String targetFile_;        
         private long expectedBytes_;                     
+        private String table_;
         
-        public StreamContext(String targetFile, long expectedBytes)
+        public StreamContext(String targetFile, long expectedBytes, String table)
         {
             targetFile_ = targetFile;
             expectedBytes_ = expectedBytes;         
+            table_ = table;
+        }
+
+        public String getTable()
+        {
+            return table_;
         }                
                 
         public String getTargetFile()
@@ -115,13 +116,15 @@ public class StreamContextManager
         {
             dos.writeUTF(sc.targetFile_);
             dos.writeLong(sc.expectedBytes_);            
+            dos.writeUTF(sc.table_);
         }
         
         public StreamContextManager.StreamContext deserialize(DataInputStream dis) throws IOException
         {
             String targetFile = dis.readUTF();
             long expectedBytes = dis.readLong();           
-            return new StreamContext(targetFile, expectedBytes);
+            String table = dis.readUTF();
+            return new StreamContext(targetFile, expectedBytes, table);
         }
     }
     

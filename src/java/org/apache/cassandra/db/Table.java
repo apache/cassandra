@@ -188,6 +188,7 @@ public class Table
                  * sampler.
                 */                
                 SSTableReader sstable = SSTableReader.open(streamContext.getTargetFile());
+                if (logger_.isDebugEnabled())
                 logger_.debug("Merging the counting bloom filter in the sampler ...");                
                 String[] peices = FBUtilities.strip(fileName, "-");
                 Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(sstable);                
@@ -236,7 +237,7 @@ public class Table
                     String[] peices = FBUtilities.strip(sourceFile.getName(), "-");
                     String newFileName = fileNames.get( peices[1] + "-" + peices[2] );
                     
-                    String file = DatabaseDescriptor.getDataFileLocation() + File.separator + newFileName + "-Data.db";
+                    String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName + "-Data.db";
                     if (logger_.isDebugEnabled())
                       logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);
@@ -245,6 +246,7 @@ public class Table
                                              
                 StreamContextManager.registerStreamCompletionHandler(message.getFrom().getHost(), new Table.BootstrapCompletionHandler());
                 /* Send a bootstrap initiation done message to execute on default stage. */
+                if (logger_.isDebugEnabled())
                 logger_.debug("Sending a bootstrap initiate done message ...");                
                 Message doneMessage = new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
                 MessagingService.getMessagingInstance().sendOneWay(doneMessage, message.getFrom());

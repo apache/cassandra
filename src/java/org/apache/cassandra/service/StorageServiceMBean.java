@@ -65,5 +65,5 @@ public interface StorageServiceMBean
      *                files need to be picked up.
      * @param target endpoint receiving data.
     */
-    public void forceHandoff(String directories, String target) throws IOException;
+    public void forceHandoff(List<String> directories, String target) throws IOException;
 }

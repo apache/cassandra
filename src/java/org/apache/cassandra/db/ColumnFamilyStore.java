@@ -110,18 +110,18 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
          * index.
          */
         List<Integer> indices = new ArrayList<Integer>();
-        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocations();
+        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
         for (String directory : dataFileDirectories)
         {
             File fileDir = new File(directory);
             File[] files = fileDir.listFiles();
+            
             for (File file : files)
             {
                 String filename = file.getName();
-                String[] tblCfName = getTableAndColumnFamilyName(filename);
+                String cfName = getColumnFamilyFromFileName(filename);
 
-                if (tblCfName[0].equals(table)
-                    && tblCfName[1].equals(columnFamily))
+                if (cfName.equals(columnFamily))
                 {
                     int index = getIndexFromFileName(filename);
                     indices.add(index);
@@ -151,7 +151,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
-        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocations();
+        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table_);
         for (String directory : dataFileDirectories)
         {
             File fileDir = new File(directory);
@@ -165,9 +165,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     continue;
                 }
 
-                String[] tblCfName = getTableAndColumnFamilyName(filename);
-                if (tblCfName[0].equals(table_)
-                    && tblCfName[1].equals(columnFamily_)
+                String cfName = getColumnFamilyFromFileName(filename);
+                if (cfName.equals(columnFamily_)
                     && filename.contains("-Data.db"))
                 {
                     sstableFiles.add(file.getAbsoluteFile());
@@ -311,25 +310,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columnFamily_;
     }
 
-    private static String[] getTableAndColumnFamilyName(String filename)
-    {
-        StringTokenizer st = new StringTokenizer(filename, "-");
-        String[] values = new String[2];
-        int i = 0;
-        while (st.hasMoreElements())
-        {
-            if (i == 0)
+    private static String getColumnFamilyFromFileName(String filename)
             {
-                values[i] = (String) st.nextElement();
-            }
-            else if (i == 1)
-            {
-                values[i] = (String) st.nextElement();
-                break;
-            }
-            ++i;
-        }
-        return values;
+        return filename.split("-")[0];
     }
 
     protected static int getIndexFromFileName(String filename)
@@ -374,14 +357,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // increment twice so that we do not generate consecutive numbers
         String fname = getTempSSTableFileName();
-        return new File(DatabaseDescriptor.getDataFileLocation(), fname).getAbsolutePath();
+        return new File(DatabaseDescriptor.getDataFileLocationForTable(table_), fname).getAbsolutePath();
     }
 
     String getTempSSTableFileName()
     {
         fileIndexGenerator_.incrementAndGet();
-        return String.format("%s-%s-%s-%s-Data.db",
-                             table_, columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
+
+        return String.format("%s-%s-%s-Data.db",
+                             columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
     }
 
     /*
@@ -405,8 +389,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         index = lowestIndex + 1;
 
-        return String.format("%s-%s-%s-%s-Data.db",
-                             table_, columnFamily_, SSTable.TEMPFILE_MARKER, index);
+        return String.format("%s-%s-%s-Data.db",
+                             columnFamily_, SSTable.TEMPFILE_MARKER, index);
     }
 
     void switchMemtable()
@@ -924,7 +908,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long expectedRangeFileSize = getExpectedCompactedFileSize(files);
         /* in the worst case a node will be giving out half of its data so we take a chance */
         expectedRangeFileSize = expectedRangeFileSize / 2;
-        rangeFileLocation = DatabaseDescriptor.getCompactionFileLocation(expectedRangeFileSize);
+        rangeFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, expectedRangeFileSize);
         // If the compaction file path is null that means we have no space left for this compaction.
         if (rangeFileLocation == null)
         {
@@ -1084,12 +1068,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        logger_.debug("Total time taken for range split   ..."
-                      + (System.currentTimeMillis() - startTime));
         if (logger_.isDebugEnabled())
+        {
+            logger_.debug("Total time taken for range split   ..." + (System.currentTimeMillis() - startTime));
           logger_.debug("Total bytes Read for range split  ..." + totalBytesRead);
         logger_.debug("Total bytes written for range split  ..."
                       + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
+        }
         return result;
     }
 
@@ -1112,7 +1097,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private int doFileCompaction(List<String> files, int minBufferSize) throws IOException
     {
         logger_.info("Compacting [" + StringUtils.join(files, ",") + "]");
-        String compactionFileLocation = DatabaseDescriptor.getCompactionFileLocation(getExpectedCompactedFileSize(files));
+        String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, getExpectedCompactedFileSize(files));
         // If the compaction file path is null that means we have no space left for this compaction.
         // try again w/o the largest one.
         if (compactionFileLocation == null)

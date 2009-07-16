@@ -69,8 +69,7 @@ public abstract class SSTable
 
     static String parseTableName(String filename)
     {
-        String[] parts = new File(filename).getName().split("-"); // table, cf, index, [filetype]
-        return parts[0];
+        return new File(filename).getParentFile().getName();        
     }
 
     /**

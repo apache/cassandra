@@ -32,7 +32,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StreamManager;
-import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
@@ -61,6 +60,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             */
             for ( BootstrapMetadata bsmd : bsMetadata )
             {
+                if (logger_.isDebugEnabled())
                 logger_.debug(bsmd.toString());                                      
             }
             
@@ -68,6 +68,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             {
                 long startTime = System.currentTimeMillis();
                 doTransfer(bsmd.target_, bsmd.ranges_);     
+                if (logger_.isDebugEnabled())
                 logger_.debug("Time taken to boostrap " + 
                         bsmd.target_ + 
                         " is " + 
@@ -101,6 +102,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             StringBuilder sb = new StringBuilder("");                
             sb.append(range.toString());
             sb.append(" ");            
+            if (logger_.isDebugEnabled())
             logger_.debug("Beginning transfer process to " + target + " for ranges " + sb.toString());                
         }
       
@@ -124,7 +126,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             /* Get the counting bloom filter for each endpoint and the list of files that need to be streamed */
             List<String> fileList = new ArrayList<String>();
             boolean bVal = table.forceCompaction(ranges, target, fileList);                
-            doHandoff(target, fileList);
+            doHandoff(target, fileList, tName);
         }
     }
 
@@ -132,7 +134,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
      * Stream the files in the bootstrap directory over to the
      * node being bootstrapped.
     */
-    private void doHandoff(EndPoint target, List<String> fileList) throws IOException
+    private void doHandoff(EndPoint target, List<String> fileList, String table) throws IOException
     {
         List<File> filesList = new ArrayList<File>();
         for(String file : fileList)
@@ -144,7 +146,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
         int i = 0;
         for ( File file : files )
         {
-            streamContexts[i] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length());
+            streamContexts[i] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), table);
             if (logger_.isDebugEnabled())
               logger_.debug("Stream context metadata " + streamContexts[i]);
             ++i;
@@ -163,6 +165,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             if (logger_.isDebugEnabled())
               logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
+            if (logger_.isDebugEnabled())
             logger_.debug("Done with transfer to " + target);  
         }
     }

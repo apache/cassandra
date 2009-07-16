@@ -406,6 +406,10 @@ public class DatabaseDescriptor
                 }
             }
 
+
+            /* make sure we have a directory for each table */
+            createTableDirectories();
+
             /* Load the seeds for node contact points */
             String[] seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
             for( int i = 0; i < seeds.length; ++i )
@@ -425,8 +429,22 @@ public class DatabaseDescriptor
         }
     }
     
+    /**
+     * Create the table directory in each data directory
+     */
+    public static void createTableDirectories() throws IOException
+    {
+        for (String dataFile : dataFileDirectories_) 
+        {
+            FileUtils.createDirectory(dataFile + File.separator + Table.SYSTEM_TABLE);
+            for (String table : tables_)
+            {
+                FileUtils.createDirectory(dataFile + File.separator + table);
+            }
+        }
+    }
 
-    /*
+    /**
      * Create the metadata tables. This table has information about
      * the table name and the column families that make up the table.
      * Each column family also has an associated ID which is an int.
@@ -483,7 +501,6 @@ public class DatabaseDescriptor
     	return columnIndexSizeInKB_ * 1024;
     }
 
-   
     public static int getMemtableLifetime()
     {
       return memtableLifetime_;
@@ -670,16 +687,22 @@ public class DatabaseDescriptor
         return dataFileDirectories_;
     }
 
-    public static String getDataFileLocation()
+    public static String[] getAllDataFileLocationsForTable(String table)
     {
-    	String dataFileDirectory = dataFileDirectories_[currentIndex_];
-        return dataFileDirectory;
+        String[] tableLocations = new String[dataFileDirectories_.length];
+
+        for (int i = 0; i < dataFileDirectories_.length; i++)
+        {
+            tableLocations[i] = dataFileDirectories_[i] + File.separator + table;
+        }
+
+        return tableLocations;
     }
-    
-    public static String getCompactionFileLocation()
+
+    public static String getDataFileLocationForTable(String table)
     {
-    	String dataFileDirectory = dataFileDirectories_[currentIndex_];
-    	currentIndex_ = (currentIndex_ + 1 )%dataFileDirectories_.length ;
+        String dataFileDirectory = dataFileDirectories_[currentIndex_] + File.separator + table;
+        currentIndex_ = (currentIndex_ + 1) % dataFileDirectories_.length;
         return dataFileDirectory;
     }
 
@@ -728,14 +751,16 @@ public class DatabaseDescriptor
      * compacted file is greater than the max disk space available return null, we cannot
      * do compaction in this case.
      */
-    public static String getCompactionFileLocation(long expectedCompactedFileSize)
+    public static String getDataFileLocationForTable(String table, long expectedCompactedFileSize)
     {
       long maxFreeDisk = 0;
       int maxDiskIndex = 0;
       String dataFileDirectory = null;
-      for ( int i = 0 ; i < dataFileDirectories_.length ; i++ )
+      String[] dataDirectoryForTable = getAllDataFileLocationsForTable(table);
+
+      for ( int i = 0 ; i < dataDirectoryForTable.length ; i++ )
       {
-        File f = new File(dataFileDirectories_[i]);
+        File f = new File(dataDirectoryForTable[i]);
         if( maxFreeDisk < f.getUsableSpace())
         {
           maxFreeDisk = f.getUsableSpace();
@@ -746,8 +771,8 @@ public class DatabaseDescriptor
       maxFreeDisk = (long)(0.9 * maxFreeDisk);
       if( expectedCompactedFileSize < maxFreeDisk )
       {
-        dataFileDirectory = dataFileDirectories_[maxDiskIndex];
-        currentIndex_ = (maxDiskIndex + 1 )%dataFileDirectories_.length ;
+        dataFileDirectory = dataDirectoryForTable[maxDiskIndex];
+        currentIndex_ = (maxDiskIndex + 1 )%dataDirectoryForTable.length ;
       }
       else
       {
