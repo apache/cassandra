@@ -49,8 +49,6 @@ public class DatabaseDescriptor
     private static long rpcTimeoutInMillis_ = 2000;
     private static Set<String> seeds_ = new HashSet<String>();
     private static String snapshotDirectory_;
-    /* Keeps the list of Ganglia servers to contact */
-    private static String[] gangliaServers_ ;
     /* Keeps the list of data file directories */
     private static String[] dataFileDirectories_;
     /* Current index into the above list of directories */
@@ -120,9 +118,6 @@ public class DatabaseDescriptor
 
             /* Cluster Name */
             clusterName_ = xmlUtils.getNodeValue("/Storage/ClusterName");
-
-            /* Ganglia servers contact list */
-            gangliaServers_ = xmlUtils.getNodeValues("/Storage/GangliaServers/GangliaServer");
 
             /* Hashing strategy */
             partitionerClass_ = xmlUtils.getNodeValue("/Storage/Partitioner");
@@ -543,18 +538,6 @@ public class DatabaseDescriptor
     public static String getJobJarLocation()
     {
         return jobJarFileLocation_;
-    }
-
-    public static String getGangliaServers()
-    {
-    	StringBuilder sb = new StringBuilder();
-    	for ( int i = 0; i < gangliaServers_.length; ++i )
-    	{
-    		sb.append(gangliaServers_[i]);
-    		if ( i != (gangliaServers_.length - 1) )
-    			sb.append(", ");
-    	}
-    	return sb.toString();
     }
     
     public static Map<String, CFMetaData> getTableMetaData(String tableName)

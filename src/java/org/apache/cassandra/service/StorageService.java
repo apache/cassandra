@@ -30,7 +30,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.analytics.AnalyticsContext;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -267,8 +266,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
 
-        /* start the analytics context package */
-        AnalyticsContext.instance().start();
         /* starts a load timer thread */
         loadTimer_.schedule( new LoadDisseminator(), StorageService.threshold_, StorageService.threshold_);
         

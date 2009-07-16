@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.Predicate;
 
-import org.apache.cassandra.analytics.DBAnalyticsSource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.Range;
@@ -309,8 +308,6 @@ public class Table
     private Table.TableMetadata tableMetadata_;
     /* ColumnFamilyStore per column family */
     private Map<String, ColumnFamilyStore> columnFamilyStores_ = new HashMap<String, ColumnFamilyStore>();
-    /* The AnalyticsSource instance which keeps track of statistics reported to Ganglia. */
-    private DBAnalyticsSource dbAnalyticsSource_;
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies_;
 
@@ -473,7 +470,6 @@ public class Table
     private Table(String table) throws IOException
     {
         table_ = table;
-        dbAnalyticsSource_ = new DBAnalyticsSource();
         tableMetadata_ = Table.TableMetadata.instance(table);
         for (String columnFamily : tableMetadata_.getColumnFamilies())
         {
@@ -594,7 +590,6 @@ public class Table
     void load(Row row) throws IOException
     {
         String key = row.key();
-        long start = System.currentTimeMillis();
                 
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
@@ -606,8 +601,6 @@ public class Table
         	}
         }
         row.clear();
-        long timeTaken = System.currentTimeMillis() - start;
-        dbAnalyticsSource_.updateWriteStatistics(timeTaken);
     }
 
     public SortedSet<String> getApplicationColumnFamilies()
