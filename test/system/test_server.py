@@ -41,12 +41,12 @@ def _insert_batch(block):
 
 def _verify_batch():
     _verify_simple()
-    L = client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 0, 1000)
+    L = client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 1000)
     assert L == _SIMPLE_COLUMNS, L
 
 def _verify_simple():
     assert client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c1')) == Column('c1', 'value1', 0)
-    L = client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000)
+    L = client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000)
     assert L == _SIMPLE_COLUMNS, L
 
 def _insert_super():
@@ -62,21 +62,21 @@ def _insert_range():
     time.sleep(0.1)
 
 def _verify_range():
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c1', 'c2', True, 0, 1000)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c1', 'c2', True, 1000)
     assert len(result) == 2
     assert result[0].name == 'c1'
     assert result[1].name == 'c2'
 
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 0, 1000)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 1000)
     assert len(result) == 3, result
     
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 0, 2)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 2)
     assert len(result) == 2, result
 
 	 	
 def _verify_super(supercf='Super1'):
     assert client.get_column('Table1', 'key1', ColumnPath(supercf, 'sc1', 'c4')) == Column('c4', 'value4', 0)
-    slice = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000)
+    slice = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
     assert slice == _SUPER_COLUMNS, slice
 
 def _expect_exception(fn, type_):
@@ -97,10 +97,10 @@ class TestMutations(CassandraTester):
         _verify_simple()
 
     def test_empty_slice(self):
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 0, 1000) == []
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 1000) == []
 
     def test_empty_slice_super(self):
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000) == []
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == []
 
     def test_missing_super(self):
         _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc1', 'c1')))
@@ -160,22 +160,22 @@ class TestMutations(CassandraTester):
         _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c1')))
         assert client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c2')) \
             == Column('c2', 'value2', 0)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) \
             == [Column('c2', 'value2', 0)]
 
         # New insert, make sure it shows up post-remove:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c3'), 'value3', 0, True)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
             [Column('c2', 'value2', 0), Column('c3', 'value3', 0)]
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 0, True)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
             [Column('c2', 'value2', 0), Column('c3', 'value3', 0)]
         # Next, w/ a newer timestamp; it should come back:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 2, True)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
             [Column('c1', 'value1', 2), Column('c2', 'value2', 0), Column('c3', 'value3', 0)]
 
 
@@ -185,16 +185,16 @@ class TestMutations(CassandraTester):
 
         # Remove the key1:Standard1 cf:
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1'), 3, True)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) == []
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == []
         _verify_super()
 
         # Test resurrection.  First, re-insert a value w/ older timestamp, 
         # and make sure it stays removed:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 0, True)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) == []
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == []
         # Next, w/ a newer timestamp; it should come back:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 4, True)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 0, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
             [Column('c1', 'value1', 4)]
 
 
@@ -205,7 +205,7 @@ class TestMutations(CassandraTester):
         # Make sure remove clears out what it's supposed to, and _only_ that:
         client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2', 'c5'), 5, True)
         _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5')))
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000) == \
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == \
             [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]),
              SuperColumn(name='sc2', columns=[Column('c6', 'value6', 0)])]
         _verify_simple()
@@ -216,17 +216,17 @@ class TestMutations(CassandraTester):
                SuperColumn(name='sc2', 
                              columns=[Column('c6', 'value6', 0), Column('c7', 'value7', 0)])]
 
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000) == scs
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == scs
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 0, True)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == scs, actual
 
         # Next, w/ a newer timestamp; it should come back
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 6, True)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == \
             [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]), 
              SuperColumn(name='sc2', columns=[Column('c5', 'value5', 6), 
@@ -243,19 +243,19 @@ class TestMutations(CassandraTester):
         actual = client.get_columns_since('Table1', 'key1', ColumnParent('Super1', 'sc2'), -1)
         assert actual == [], actual
         scs = [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)])]
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == scs, actual
         _verify_simple()
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 0, True)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == scs, actual
 
         # Next, w/ a newer timestamp; it should come back
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 6, True)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 0, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == \
             [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]),
              SuperColumn(name='sc2', columns=[Column('c5', 'value5', 6)])], actual
@@ -272,7 +272,8 @@ class TestMutations(CassandraTester):
 
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1', column='c1'), 1, True)
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1', column='c2'), 1, True)
-        assert client.get_key_range('Table1', 'Standard1', '', '', 1000) == []
+        actual = client.get_key_range('Table1', 'Standard1', '', '', 1000)
+        assert not actual, actual
 
     def test_range_collation(self):
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:

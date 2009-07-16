@@ -13,15 +13,14 @@ public class SliceQueryFilter extends QueryFilter
 {
     public final String start, finish;
     public final boolean isAscending;
-    public final int offset, count;
+    public final int count;
 
-    public SliceQueryFilter(String key, QueryPath columnParent, String start, String finish, boolean ascending, int offset, int count)
+    public SliceQueryFilter(String key, QueryPath columnParent, String start, String finish, boolean ascending, int count)
     {
         super(key, columnParent);
         this.start = start;
         this.finish = finish;
         isAscending = ascending;
-        this.offset = offset;
         this.count = count;
     }
 
@@ -51,11 +50,10 @@ public class SliceQueryFilter extends QueryFilter
     public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns)
     {
         int liveColumns = 0;
-        int limit = offset + count;
 
         for (IColumn column : reducedColumns)
         {
-            if (liveColumns >= limit)
+            if (liveColumns >= count)
                 break;
             if (!finish.isEmpty()
                 && ((isAscending && column.name().compareTo(finish) > 0))
@@ -64,8 +62,7 @@ public class SliceQueryFilter extends QueryFilter
             if (!column.isMarkedForDelete())
                 liveColumns++;
 
-            if (liveColumns > offset)
-                returnCF.addColumn(column);
+            returnCF.addColumn(column);
         }
     }
 }

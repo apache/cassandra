@@ -135,7 +135,7 @@ public class CliClient
         {
             // table.cf['key']
         	List<Column> columns = new ArrayList<Column>();
-      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), "", "", true, 0, 1000000);
+      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), "", "", true, 1000000);
             int size = columns.size();
             for (Iterator<Column> colIter = columns.iterator(); colIter.hasNext(); )
             {

@@ -50,11 +50,11 @@ public class ReadMessageTest
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "", "", true, 0, 2);
+        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "", "", true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
         
-        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "a", "z", true, 0, 5);
+        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "a", "z", true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
     }

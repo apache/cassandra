@@ -1421,9 +1421,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.mean();
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, String start, String finish, boolean isAscending, int offset, int limit) throws IOException
+    public ColumnFamily getColumnFamily(String key, QueryPath path, String start, String finish, boolean isAscending, int limit) throws IOException
     {
-        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, isAscending, offset, limit));
+        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, isAscending, limit));
     }
 
     public ColumnFamily getColumnFamily(String key, QueryPath columnParent, long since) throws IOException

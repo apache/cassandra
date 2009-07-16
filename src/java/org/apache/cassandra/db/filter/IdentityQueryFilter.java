@@ -9,7 +9,7 @@ public class IdentityQueryFilter extends SliceQueryFilter
      */
     public IdentityQueryFilter(String key, QueryPath path)
     {
-        super(key, path, "", "", true, 0, Integer.MAX_VALUE);
+        super(key, path, "", "", true, Integer.MAX_VALUE);
     }
 
     @Override

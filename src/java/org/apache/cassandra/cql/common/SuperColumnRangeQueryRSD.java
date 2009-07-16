@@ -41,8 +41,6 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
     private final static Logger logger_ = Logger.getLogger(SuperColumnRangeQueryRSD.class);
     private CFMetaData cfMetaData_;
     private OperandDef rowKey_;
-    private OperandDef superColumnKey_;
-    private int        offset_;
     private int        limit_;
 
     /**
@@ -53,11 +51,10 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
      *       "offset" specifies the number of rows to skip.
      *        An offset of 0 implies from the first row.
      */
-    public SuperColumnRangeQueryRSD(CFMetaData cfMetaData, OperandDef rowKey, int offset, int limit)
+    public SuperColumnRangeQueryRSD(CFMetaData cfMetaData, OperandDef rowKey, int limit)
     {
         cfMetaData_     = cfMetaData;
         rowKey_         = rowKey;
-        offset_         = offset;
         limit_          = limit;
     }
 
@@ -67,7 +64,7 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, new QueryPath(cfMetaData_.cfName), "", "", true, offset_, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, new QueryPath(cfMetaData_.cfName), "", "", true, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)
@@ -110,14 +107,13 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
                 "  Table Name:       %s\n" +
                 "  Column Family:    %s\n" +
                 "  RowKey:           %s\n" +
-                "  Offset:           %d\n" +
                 "  Limit:            %d\n" +
                 "  Order By:         %s",
                 cfMetaData_.columnType,
                 cfMetaData_.tableName,
                 cfMetaData_.cfName,
                 rowKey_.explain(),
-                offset_, limit_,
+                limit_,
                 cfMetaData_.indexProperty_);
     }
 }

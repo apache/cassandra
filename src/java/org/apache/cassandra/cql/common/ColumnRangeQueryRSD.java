@@ -43,7 +43,6 @@ public class ColumnRangeQueryRSD extends RowSourceDef
     private CFMetaData cfMetaData_;
     private OperandDef rowKey_;
     private OperandDef superColumnKey_;
-    private int        offset_;
     private int        limit_;
 
     /**
@@ -53,12 +52,11 @@ public class ColumnRangeQueryRSD extends RowSourceDef
      * Note: "limit" of -1 is the equivalent of no limit.
      *       "offset" specifies the number of rows to skip. An offset of 0 implies from the first row.
      */
-    public ColumnRangeQueryRSD(CFMetaData cfMetaData, OperandDef rowKey, int offset, int limit)
+    public ColumnRangeQueryRSD(CFMetaData cfMetaData, OperandDef rowKey, int limit)
     {
         cfMetaData_     = cfMetaData;
         rowKey_         = rowKey;
         superColumnKey_ = null;
-        offset_         = offset;
         limit_          = limit;
     }
 
@@ -69,13 +67,11 @@ public class ColumnRangeQueryRSD extends RowSourceDef
      * Note: "limit" of -1 is the equivalent of no limit.
      *       "offset" specifies the number of rows to skip. An offset of 0 implies the first row.  
      */
-    public ColumnRangeQueryRSD(CFMetaData cfMetaData, ConstantOperand rowKey, ConstantOperand superColumnKey,
-                               int offset, int limit)
+    public ColumnRangeQueryRSD(CFMetaData cfMetaData, ConstantOperand rowKey, ConstantOperand superColumnKey, int limit)
     {
         cfMetaData_     = cfMetaData;
         rowKey_         = rowKey;
         superColumnKey_ = superColumnKey;
-        offset_         = offset;
         limit_          = limit;
     }
 
@@ -98,7 +94,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, path, "", "", true, offset_, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, path, "", "", true, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)
@@ -151,7 +147,6 @@ public class ColumnRangeQueryRSD extends RowSourceDef
                 "  Column Family:    %s\n" +
                 "  RowKey:           %s\n" +
                 "%s"                   +
-                "  Offset:           %d\n" +
                 "  Limit:            %d\n" +
                 "  Order By:         %s",
                 cfMetaData_.columnType,
@@ -159,7 +154,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
                 cfMetaData_.cfName,
                 rowKey_.explain(),
                 (superColumnKey_ == null) ? "" : "  SuperColumnKey:   " + superColumnKey_.explain() + "\n",
-                offset_, limit_,
+                limit_,
                 cfMetaData_.indexProperty_);
     }
 }

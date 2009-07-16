@@ -189,12 +189,12 @@ public class SemanticPhase
             {
                 // Case: table.super_cf[<rowKey>][<superColumnKey>]
                 ConstantOperand superColumnKey = new ConstantOperand(getColumn(columnFamilySpec, 0));                
-                rwsDef = new ColumnRangeQueryRSD(cfMetaData, rowKey, superColumnKey, -1, Integer.MAX_VALUE);
+                rwsDef = new ColumnRangeQueryRSD(cfMetaData, rowKey, superColumnKey, Integer.MAX_VALUE);
             }
             else
             {
                 // Case: table.super_cf[<rowKey>]             
-                rwsDef = new SuperColumnRangeQueryRSD(cfMetaData, rowKey, -1, Integer.MAX_VALUE);
+                rwsDef = new SuperColumnRangeQueryRSD(cfMetaData, rowKey, Integer.MAX_VALUE);
             }
         }
         else  // Standard Column Family
@@ -209,7 +209,7 @@ public class SemanticPhase
             {
                 // Case: table.standard_cf[<rowKey>]
                 logger_.assertLog((dimensionCnt == 0), "invalid dimensionCnt: " + dimensionCnt);
-                rwsDef = new ColumnRangeQueryRSD(cfMetaData, rowKey, -1, Integer.MAX_VALUE);
+                rwsDef = new ColumnRangeQueryRSD(cfMetaData, rowKey, Integer.MAX_VALUE);
             }
         }
         return new QueryPlan(rwsDef);

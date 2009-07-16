@@ -150,7 +150,7 @@ public class CassandraServer implements Cassandra.Iface
         return getSlice(new SliceByNamesReadCommand(table, key, column_parent, column_names));
     }
 
-    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int offset, int count)
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int count)
     throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_slice_from");
@@ -163,7 +163,7 @@ public class CassandraServer implements Cassandra.Iface
         if (!"Name".equals(DatabaseDescriptor.getCFMetaData(table, column_parent.column_family).indexProperty_))
             throw new InvalidRequestException("get_slice requires CF indexed by name");
 
-        return getSlice(new SliceFromReadCommand(table, key, column_parent, start, finish, is_ascending, offset, count));
+        return getSlice(new SliceFromReadCommand(table, key, column_parent, start, finish, is_ascending, count));
     }
 
     public Column get_column(String table, String key, ColumnPath column_path)
@@ -224,7 +224,7 @@ public class CassandraServer implements Cassandra.Iface
         if (DatabaseDescriptor.isNameSortingEnabled(table, column_parent.column_family)
             && column_parent.super_column == null)
         {
-            cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, "", "", true, 0, Integer.MAX_VALUE));
+            cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, "", "", true, Integer.MAX_VALUE));
         }
         else
         {
@@ -336,7 +336,7 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int offset, int count)
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int count)
     throws InvalidRequestException
     {
         logger.debug("get_slice_super");
@@ -345,7 +345,7 @@ public class CassandraServer implements Cassandra.Iface
         if (count <= 0)
             throw new InvalidRequestException("get_slice_super requires positive count");
 
-        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(table, key, new QueryPath(column_family), start, finish, is_ascending, offset, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(table, key, new QueryPath(column_family), start, finish, is_ascending, count));
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;

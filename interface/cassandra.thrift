@@ -116,7 +116,7 @@ service Cassandra {
   list<Column> get_slice_by_names(1:string table, 2:string key, 3:ColumnParent column_parent, 4:list<string> column_names)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 offset, 8:i32 count=100)
+  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 count=100)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
   Column       get_column(1:string table, 2:string key, 3:ColumnPath column_path)
@@ -137,7 +137,7 @@ service Cassandra {
   list<Column> get_columns_since(1:string table, 2:string key, 3:ColumnParent column_parent, 4:i64 timeStamp)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 offset, 8:i32 count=100)
+  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 count=100)
   throws (1: InvalidRequestException ire),
 
   list<SuperColumn> get_slice_super_by_names(1:string table, 2:string key, 3:string column_family, 4:list<string> super_column_names)
