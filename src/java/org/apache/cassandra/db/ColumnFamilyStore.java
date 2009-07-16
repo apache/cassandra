@@ -530,7 +530,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     static ColumnFamily removeDeleted(ColumnFamily cf)
     {
-        return removeDeleted(cf, (int) (System.currentTimeMillis() / 1000) - DatabaseDescriptor.getGcGraceInSeconds());
+        return removeDeleted(cf, getDefaultGCBefore());
+    }
+
+    public static int getDefaultGCBefore()
+    {
+        return (int)(System.currentTimeMillis() / 1000) - DatabaseDescriptor.getGcGraceInSeconds();
     }
 
     static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
@@ -1431,12 +1436,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(new TimeQueryFilter(key, columnParent, since));    
     }
 
+    public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
+    {
+        return getColumnFamily(filter, getDefaultGCBefore());
+    }
+
     /**
      * get a list of columns starting from a given column, in a specified order.
      * only the latest version of a column is returned.
      * @return null if there is no data and no tombstones; otherwise a ColumnFamily
      */
-    public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
+    public ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore) throws IOException
     {
         // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
         if (filter.path.superColumnName != null)
@@ -1450,7 +1460,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     filter.filterSuperColumn((SuperColumn) column);
                 }
             }
-            return removeDeleted(cf);
+            return removeDeleted(cf, gcBefore);
         }
 
         // we are querying top-level columns, do a merging fetch with indexes.
@@ -1500,9 +1510,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!collated.hasNext())
                 return null;
 
-            filter.collectColumns(returnCF, collated);
+            filter.collectColumns(returnCF, collated, gcBefore);
 
-            return removeDeleted(returnCF);
+            return removeDeleted(returnCF, gcBefore); // collect does a first pass but doesn't try to recognize e.g. the entire CF being tombstoned
         }
         finally
         {

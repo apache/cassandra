@@ -47,7 +47,7 @@ public class SliceQueryFilter extends QueryFilter
         return isAscending ? comparator : new ReverseComparator(comparator);
     }
 
-    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns)
+    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns, int gcBefore)
     {
         int liveColumns = 0;
 
@@ -59,10 +59,12 @@ public class SliceQueryFilter extends QueryFilter
                 && ((isAscending && column.name().compareTo(finish) > 0))
                     || (!isAscending && column.name().compareTo(finish) < 0))
                 break;
+
             if (!column.isMarkedForDelete())
                 liveColumns++;
 
-            returnCF.addColumn(column);
+            if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
+                returnCF.addColumn(column);
         }
     }
 }

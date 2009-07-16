@@ -49,11 +49,12 @@ public class NamesQueryFilter extends QueryFilter
         }
     }
 
-    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns)
+    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns, int gcBefore)
     {
         for (IColumn column : reducedColumns)
         {
-            returnCF.addColumn(column);
+            if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
+                returnCF.addColumn(column);
         }
     }
 }

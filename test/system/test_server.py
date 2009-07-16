@@ -273,7 +273,15 @@ class TestMutations(CassandraTester):
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1', column='c1'), 1, True)
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1', column='c2'), 1, True)
         actual = client.get_key_range('Table1', 'Standard1', '', '', 1000)
-        assert not actual, actual
+        assert actual == [], actual
+
+    def test_range_with_remove_cf(self):
+        _insert_simple()
+        assert client.get_key_range('Table1', 'Standard1', 'key1', '', 1000) == ['key1']
+
+        client.remove('Table1', 'key1', ColumnPathOrParent('Standard1'), 1, True)
+        actual = client.get_key_range('Table1', 'Standard1', '', '', 1000)
+        assert actual == [], actual
 
     def test_range_collation(self):
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:

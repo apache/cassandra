@@ -711,7 +711,7 @@ public class Table
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                if (ColumnFamilyStore.removeDeleted(cfs.getColumnFamily(new SliceQueryFilter(current, new QueryPath(cfName), "", "", true, 1)), Integer.MAX_VALUE) != null)
+                if (cfs.getColumnFamily(new SliceQueryFilter(current, new QueryPath(cfName), "", "", true, 1), Integer.MAX_VALUE) != null)
                 {
                     keys.add(current);
                 }

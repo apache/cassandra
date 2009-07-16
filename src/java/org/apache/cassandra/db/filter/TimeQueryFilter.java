@@ -33,11 +33,12 @@ public class TimeQueryFilter extends QueryFilter
         return ColumnComparatorFactory.timestampComparator_;
     }
 
-    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns)
+    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns, int gcBefore)
     {
         for (IColumn column : reducedColumns)
         {
-            returnCF.addColumn(column);
+            if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
+                returnCF.addColumn(column);
         }
     }
 
