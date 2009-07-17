@@ -72,7 +72,7 @@ class CassandraTester(object):
             os.chdir(root)
             os.environ['CASSANDRA_INCLUDE'] = 'test/cassandra.in.sh'
             args = ['bin/cassandra', '-p', pid_fname]
-            sp.Popen(args, stderr=sp.PIPE, stdout=sp.PIPE)
+            process = sp.Popen(args, stderr=sp.PIPE, stdout=sp.PIPE)
             time.sleep(0.1)
 
             # connect to it, with a timeout in case something went wrong
@@ -85,8 +85,16 @@ class CassandraTester(object):
                 else:
                     break
             else:
-                os.kill(pid(), signal.SIGKILL) # just in case
                 print "Couldn't connect to server; aborting regression test"
+                # see if process is still alive
+                process.poll()
+                
+                if process.returncode is None:
+                    os.kill(pid(), signal.SIGKILL) # just in case
+                else:
+                    stdout_value, stderr_value = process.communicate()
+                    print "Stdout: %s" % (stdout_value)
+                    print "Stderr: %s" % (stderr_value)
                 sys.exit()
         else:
             client.transport.open()
