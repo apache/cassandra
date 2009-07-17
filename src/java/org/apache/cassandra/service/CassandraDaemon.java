@@ -57,6 +57,14 @@ public class CassandraDaemon
     private void setup() throws IOException, TTransportException
     {
         int listenPort = DatabaseDescriptor.getThriftPort();
+        String listenAddr = DatabaseDescriptor.getThriftAddress();
+        
+        /* 
+         * If ThriftAddress was left completely unconfigured, then assume
+         * the same default as ListenAddress, (InetAddress.getLocalHost).
+         */
+        if (listenAddr == null)
+            listenAddr = FBUtilities.getHostAddress();
         
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {
@@ -90,7 +98,10 @@ public class CassandraDaemon
         Cassandra.Processor processor = new Cassandra.Processor(peerStorageServer);
 
         // Transport
-        TServerSocket tServerSocket = new TServerSocket(new InetSocketAddress(FBUtilities.getHostAddress(), listenPort));
+        TServerSocket tServerSocket = new TServerSocket(new InetSocketAddress(listenAddr, listenPort));
+        
+        if (logger.isDebugEnabled())
+            logger.debug(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
 
         // Protocol factory
         TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();

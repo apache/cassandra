@@ -44,6 +44,7 @@ public class DatabaseDescriptor
     private static int controlPort_ = 7001;
     private static int thriftPort_ = 9160;
     private static String listenAddress_; // leave null so we can fall through to getLocalHost
+    private static String thriftAddress_;
     private static String clusterName_ = "Test";
     private static int replicationFactor_ = 3;
     private static long rpcTimeoutInMillis_ = 2000;
@@ -173,6 +174,11 @@ public class DatabaseDescriptor
             String listenAddress = xmlUtils.getNodeValue("/Storage/ListenAddress");
             if ( listenAddress != null)
                 listenAddress_ = listenAddress;
+            
+            /* Local IP or hostname to bind thrift server to */
+            String thriftAddress = xmlUtils.getNodeValue("/Storage/ThriftAddress");
+            if ( thriftAddress != null )
+                thriftAddress_ = thriftAddress;
             
             /* UDP port for control messages */
             port = xmlUtils.getNodeValue("/Storage/ControlPort");
@@ -799,5 +805,10 @@ public class DatabaseDescriptor
     public static String getListenAddress()
     {
         return listenAddress_;
+    }
+    
+    public static String getThriftAddress()
+    {
+        return thriftAddress_;
     }
 }

@@ -139,7 +139,16 @@
     <StoragePort>7000</StoragePort>
     <!-- UDP port, for membership communications (gossip) -->
     <ControlPort>7001</ControlPort>
-    <!-- port clients connect to -->
+
+    <!-- The address to bind the Thrift RPC service to. Unlike 
+         ListenAddress above, you *can* specify 0.0.0.0 here if you want
+         Thrift to listen on all interfaces.
+         
+         Leaving this blank has the same effect it does for ListenAddress,
+         (i.e. it will be based on the configured hostname of the node).
+    -->
+    <ThriftAddress>localhost</ThriftAddress>
+    <!-- Thrift RPC port (the port clients connect to). -->
     <ThriftPort>9160</ThriftPort>
 
 
