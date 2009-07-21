@@ -62,12 +62,12 @@ public final class Column implements IColumn
         this(name, value, 0);
     }
 
-    Column(String name, byte[] value, long timestamp)
+    public Column(String name, byte[] value, long timestamp)
     {
         this(name, value, timestamp, false);
     }
 
-    Column(String name, byte[] value, long timestamp, boolean isDeleted)
+    public Column(String name, byte[] value, long timestamp, boolean isDeleted)
     {
         assert name != null;
         assert value != null;

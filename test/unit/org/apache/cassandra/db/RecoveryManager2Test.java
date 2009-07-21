@@ -9,6 +9,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import static org.apache.cassandra.Util.column;
 
 public class RecoveryManager2Test extends CleanupHelper
 {
@@ -23,7 +24,7 @@ public class RecoveryManager2Test extends CleanupHelper
             String key = "key" + i;
             RowMutation rm = new RowMutation("Table1", key);
             ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-            cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
+            cf.addColumn(column("col1", "val1", 1L));
             rm.add(cf);
             rm.apply();
             keys.add(key);

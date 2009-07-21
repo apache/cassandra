@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
+import static org.apache.cassandra.Util.column;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.SSTableReader;
@@ -94,9 +95,9 @@ public class TableTest extends CleanupHelper
     	RowMutation rm = new RowMutation("Table1", key);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         // First write "a", "b", "c"
-        cf.addColumn(new Column("a", "val1".getBytes(), 1L));
-        cf.addColumn(new Column("b", "val2".getBytes(), 1L));
-        cf.addColumn(new Column("c", "val3".getBytes(), 1L));
+        cf.addColumn(column("a", "val1", 1L));
+        cf.addColumn(column("b", "val2", 1L));
+        cf.addColumn(column("c", "val3", 1L));
         rm.add(cf);
         rm.apply();
         
@@ -117,9 +118,9 @@ public class TableTest extends CleanupHelper
     {
         RowMutation rm = new RowMutation("Table1",TEST_KEY);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn(new Column("col1","val1".getBytes(), 1L));
-        cf.addColumn(new Column("col2","val2".getBytes(), 1L));
-        cf.addColumn(new Column("col3","val3".getBytes(), 1L));
+        cf.addColumn(column("col1","val1", 1L));
+        cf.addColumn(column("col2","val2", 1L));
+        cf.addColumn(column("col3","val3", 1L));
         rm.add(cf);
         return rm;
     }
@@ -130,7 +131,7 @@ public class TableTest extends CleanupHelper
         Table table = Table.open("Table1");
         RowMutation rm = new RowMutation("Table1", "row1000");
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard2");
-        cf.addColumn(new Column("col1", "val1".getBytes(), 1));
+        cf.addColumn(column("col1", "val1", 1));
         rm.add(cf);
         rm.apply();
 
@@ -171,12 +172,12 @@ public class TableTest extends CleanupHelper
             {
                 RowMutation rm = new RowMutation("Table1", ROW);
                 ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-                cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
-                cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
-                cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
-                cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
-                cf.addColumn(new Column("col7", "val7".getBytes(), 1L));
-                cf.addColumn(new Column("col9", "val9".getBytes(), 1L));
+                cf.addColumn(column("col1", "val1", 1L));
+                cf.addColumn(column("col3", "val3", 1L));
+                cf.addColumn(column("col4", "val4", 1L));
+                cf.addColumn(column("col5", "val5", 1L));
+                cf.addColumn(column("col7", "val7", 1L));
+                cf.addColumn(column("col9", "val9", 1L));
                 rm.add(cf);
                 rm.apply();
 
@@ -230,21 +231,21 @@ public class TableTest extends CleanupHelper
             {
                 RowMutation rm = new RowMutation("Table1", ROW);
                 ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-                cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
-                cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
-                cf.addColumn(new Column("col3", "val3".getBytes(), 1L));
-                cf.addColumn(new Column("col4", "val4".getBytes(), 1L));
-                cf.addColumn(new Column("col5", "val5".getBytes(), 1L));
-                cf.addColumn(new Column("col6", "val6".getBytes(), 1L));
+                cf.addColumn(column("col1", "val1", 1L));
+                cf.addColumn(column("col2", "val2", 1L));
+                cf.addColumn(column("col3", "val3", 1L));
+                cf.addColumn(column("col4", "val4", 1L));
+                cf.addColumn(column("col5", "val5", 1L));
+                cf.addColumn(column("col6", "val6", 1L));
                 rm.add(cf);
                 rm.apply();
                 cfStore.forceBlockingFlush();
 
                 rm = new RowMutation("Table1", ROW);
                 cf = ColumnFamily.create("Table1", "Standard1");
-                cf.addColumn(new Column("col1", "valx".getBytes(), 2L));
-                cf.addColumn(new Column("col2", "valx".getBytes(), 2L));
-                cf.addColumn(new Column("col3", "valx".getBytes(), 2L));
+                cf.addColumn(column("col1", "valx", 2L));
+                cf.addColumn(column("col2", "valx", 2L));
+                cf.addColumn(column("col3", "valx", 2L));
                 rm.add(cf);
                 rm.apply();
             }
@@ -277,7 +278,7 @@ public class TableTest extends CleanupHelper
         RowMutation rm = new RowMutation("Table1", ROW);
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
         for (int i = 1000; i < 2000; i++)
-            cf.addColumn(new Column("col" + i, ("vvvvvvvvvvvvvvvv" + i).getBytes(), 1L));
+            cf.addColumn(column("col" + i, ("vvvvvvvvvvvvvvvv" + i), 1L));
         rm.add(cf);
         rm.apply();
         cfStore.forceBlockingFlush();
@@ -321,7 +322,7 @@ public class TableTest extends CleanupHelper
                 RowMutation rm = new RowMutation("Table1", ROW);
                 ColumnFamily cf = ColumnFamily.create("Table1", "Super1");
                 SuperColumn sc = new SuperColumn("sc1");
-                sc.addColumn(new Column("col1", "val1".getBytes(), 1L));
+                sc.addColumn(column("col1", "val1", 1L));
                 cf.addColumn(sc);
                 rm.add(cf);
                 rm.apply();

@@ -31,8 +31,8 @@ public class CassandraServerTest extends CleanupHelper
         server.start();
 
         try {
-            Column c1 = new Column("c1", "0", 0L);
-            Column c2 = new Column("c2", "0", 0L);
+            Column c1 = column("c1", "0", 0L);
+            Column c2 = column("c2", "0", 0L);
             List<Column> columns = new ArrayList<Column>();
             columns.add(c1);
             columns.add(c2);

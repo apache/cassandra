@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
+import static org.apache.cassandra.Util.column;
 
 public class ColumnFamilyTest
 {
@@ -90,11 +91,10 @@ public class ColumnFamilyTest
     public void testGetColumnCount()
     {
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-        byte val[] = "sample value".getBytes();
 
-        cf.addColumn(QueryPath.column("col1"), val, 1);
-        cf.addColumn(QueryPath.column("col2"), val, 2);
-        cf.addColumn(QueryPath.column("col1"), val, 3);
+        cf.addColumn(column("col1", "", 1));
+        cf.addColumn(column("col2", "", 2));
+        cf.addColumn(column("col1", "", 3));
 
         assert 2 == cf.getColumnCount();
         assert 2 == cf.getAllColumns().size();
@@ -104,15 +104,12 @@ public class ColumnFamilyTest
     public void testTimestamp()
     {
         ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
-        byte val1[] = "sample 1".getBytes();
-        byte val2[] = "sample 2".getBytes();
-        byte val3[] = "sample 3".getBytes();
 
-        cf.addColumn(QueryPath.column("col1"), val1, 2);
-        cf.addColumn(QueryPath.column("col1"), val2, 2); // same timestamp, new value
-        cf.addColumn(QueryPath.column("col1"), val3, 1); // older timestamp -- should be ignored
+        cf.addColumn(column("col1", "val1", 2));
+        cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
+        cf.addColumn(column("col1", "val3", 1)); // older timestamp -- should be ignored
 
-        assert Arrays.equals(val2, cf.getColumn("col1").value());
+        assert Arrays.equals("val2".getBytes(), cf.getColumn("col1").value());
     }
 
     @Test
@@ -124,6 +121,7 @@ public class ColumnFamilyTest
         byte val[] = "sample value".getBytes();
         byte val2[] = "x value ".getBytes();
 
+        // exercise addColumn(QueryPath, ...)
         cf_new.addColumn(QueryPath.column("col1"), val, 3);
         cf_new.addColumn(QueryPath.column("col2"), val, 4);
 

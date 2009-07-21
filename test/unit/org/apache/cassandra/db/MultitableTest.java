@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import static org.apache.cassandra.db.TableTest.assertColumns;
 import org.apache.cassandra.CleanupHelper;
+import static org.apache.cassandra.Util.column;
 
 public class MultitableTest extends CleanupHelper
 {
@@ -21,13 +22,13 @@ public class MultitableTest extends CleanupHelper
 
         rm = new RowMutation("Table1", "keymulti");
         cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn(new Column("col1", "val1".getBytes(), 1L));
+        cf.addColumn(column("col1", "val1", 1L));
         rm.add(cf);
         rm.apply();
 
         rm = new RowMutation("Table2", "keymulti");
         cf = ColumnFamily.create("Table2", "Standard1");
-        cf.addColumn(new Column("col2", "val2".getBytes(), 1L));
+        cf.addColumn(column("col2", "val2", 1L));
         rm.add(cf);
         rm.apply();
 
