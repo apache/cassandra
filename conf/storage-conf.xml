@@ -53,7 +53,7 @@
                  The CompareWith attribute tells Cassandra how to sort the columns
                  for slicing operations.  For backwards compatibility, the default 
                  is to use AsciiType, which is probably NOT what you want.
-                 Other options are UTF8Type, UUIDType, and LongType.
+                 Other options are BytesType, UTF8Type, UUIDType, and LongType.
                  You can also specify the fully-qualified class name to a class
                  of your choice implementing org.apache.cassandra.db.marshal.IType.
 
