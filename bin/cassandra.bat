@@ -45,7 +45,7 @@ set JAVA_OPTS=^
 REM ***** CLASSPATH library setting *****
 
 REM Shorten lib path for old platforms
-subst P: %CASSANDRA_HOME%\lib
+subst P: "%CASSANDRA_HOME%\lib"
 P:
 set CLASSPATH=P:\
 
@@ -58,7 +58,7 @@ goto :eof
 
 :okClasspath
 set CASSANDRA_CLASSPATH=%CASSANDRA_HOME%;%CASSANDRA_CONF%;%CLASSPATH%;%CASSANDRA_HOME%\build\classes
-set CASSANDRA_PARAMS=-Dcassandra -Dstorage-config=%CASSANDRA_CONF%
+set CASSANDRA_PARAMS=-Dcassandra -Dstorage-config="%CASSANDRA_CONF%"
 goto runDaemon
 
 :runDaemon

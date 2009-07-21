@@ -43,7 +43,8 @@ public class XMLUtils
     {        
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         DocumentBuilder db = dbf.newDocumentBuilder();
-        document_ = db.parse(xmlSrc);
+        File xmlFile = new File(xmlSrc);
+        document_ = db.parse(xmlFile);
         
         XPathFactory xpathFactory = XPathFactory.newInstance();
         xpath_ = xpathFactory.newXPath();
