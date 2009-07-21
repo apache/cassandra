@@ -383,7 +383,6 @@ public class FBUtilities
     public static byte[] readByteArray(DataInput in) throws IOException
     {
         int length = in.readInt();
-        logger_.debug(length);
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return bytes;
