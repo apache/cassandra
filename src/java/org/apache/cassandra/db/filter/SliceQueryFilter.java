@@ -2,6 +2,7 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.Arrays;
 
 import org.apache.commons.collections.comparators.ReverseComparator;
 
@@ -35,10 +36,24 @@ public class SliceQueryFilter extends QueryFilter
         return new SSTableSliceIterator(sstable.getFilename(), key, getColumnFamilyName(), comparator, start, isAscending);
     }
 
-    public void filterSuperColumn(SuperColumn superColumn)
+    public void filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
-        // TODO write this after CASSANDRA-240 is done
-        throw new UnsupportedOperationException();
+        int liveColumns = 0;
+
+        for (IColumn column : superColumn.getSubColumns())
+        {
+            if ((start.length > 0 && superColumn.getComparator().compare(column.name(), start) < 0)
+                || (finish.length > 0 && superColumn.getComparator().compare(column.name(), finish) > 0)
+                || (column.isMarkedForDelete() && column.getLocalDeletionTime() <= gcBefore)
+                || liveColumns > count)
+            {
+                superColumn.remove(column.name());
+            }
+            else if (!column.isMarkedForDelete())
+            {
+                liveColumns++;
+            }
+        }
     }
 
     @Override

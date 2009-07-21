@@ -53,7 +53,7 @@ public class NamesQueryFilter extends QueryFilter
         return new SSTableNamesIterator(sstable.getFilename(), key, getColumnFamilyName(), columns);
     }
 
-    public void filterSuperColumn(SuperColumn superColumn)
+    public void filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
         for (IColumn column : superColumn.getSubColumns())
         {

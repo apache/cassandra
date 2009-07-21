@@ -1441,7 +1441,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 for (IColumn column : cf.getSortedColumns())
                 {
-                    filter.filterSuperColumn((SuperColumn) column);
+                    filter.filterSuperColumn((SuperColumn)column, gcBefore);
                 }
             }
             return removeDeleted(cf, gcBefore);

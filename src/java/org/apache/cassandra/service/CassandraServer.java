@@ -150,8 +150,6 @@ public class CassandraServer implements Cassandra.Iface
         logger.debug("get_slice_from");
         ThriftValidation.validateColumnParent(table, column_parent);
         // TODO support get_slice on super CFs
-        if (column_parent.super_column != null || !DatabaseDescriptor.getColumnFamilyType(table, column_parent.column_family).equals("Standard"))
-            throw new InvalidRequestException("get_slice does not yet support super columns (we need to fix this)");
         if (count <= 0)
             throw new InvalidRequestException("get_slice requires positive count");
 

@@ -231,9 +231,9 @@ public class IndexHelper
         else
         {
             Map<Long, Boolean> offset = new HashMap<Long, Boolean>();
-            for (byte[] column : columnNames)
+            for (byte[] name : columnNames)
             {
-                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column, 0, 0, (AbstractType)columnNames.comparator());
+                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(name, 0, 0, (AbstractType)columnNames.comparator());
                 ColumnRange columnRange = getColumnRangeFromNameIndex(cIndexInfo, columnIndexList, dataSize, totalNumCols);
                 if (offset.get(columnRange.coordinate().start_) == null)
                 {
@@ -295,6 +295,7 @@ public class IndexHelper
         public ColumnIndexInfo(byte[] name, long position, int columnCount, AbstractType comparator)
         {
             this(comparator);
+            assert name.length == 0 || !"".equals(comparator.getString(name)); // Todo r/m length == 0 hack
             name_ = name;
             position_ = position;
             columnCount_ = columnCount;

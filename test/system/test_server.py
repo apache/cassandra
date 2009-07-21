@@ -114,6 +114,7 @@ class TestMutations(CassandraTester):
         _insert_super()
         assert client.get_column_count('Table1', 'key1', ColumnParent('Standard2')) == 0
         assert client.get_column_count('Table1', 'key1', ColumnParent('Standard1')) == 2
+        assert client.get_column_count('Table1', 'key1', ColumnParent('Super1', 'sc2')) == 2
         assert client.get_column_count('Table1', 'key1', ColumnParent('Super1')) == 2
 
     def test_insert_blocking(self):
@@ -237,6 +238,34 @@ class TestMutations(CassandraTester):
              SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6), 
                                               Column(_i64(6), 'value6', 0), 
                                               Column(_i64(7), 'value7', 0)])], actual
+
+    def test_super_cf_remove_supercolumn(self):
+        _insert_simple()
+        _insert_super()
+
+        # Make sure remove clears out what it's supposed to, and _only_ that:
+        client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2'), 5, True)
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5))))
+        actual = client.get_slice('Table1', 'key1', ColumnParent('Super1', 'sc2'), '', '', True, 1000)
+        assert actual == [], actual
+        scs = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)])]
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        assert actual == scs, actual
+        _verify_simple()
+
+        # Test resurrection.  First, re-insert the value w/ older timestamp, 
+        # and make sure it stays removed:
+        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, True)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        assert actual == scs, actual
+
+        # Next, w/ a newer timestamp; it should come back
+        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 6, True)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        assert actual == \
+            [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
+             SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6)])], actual
+
 
     def test_empty_range(self):
         assert client.get_key_range('Table1', 'Standard1', '', '', 1000) == []

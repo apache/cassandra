@@ -44,7 +44,7 @@ public abstract class QueryFilter
      * subcolumns of a supercolumn are unindexed, so to pick out parts of those we operate in-memory.
      * @param superColumn
      */
-    public abstract void filterSuperColumn(SuperColumn superColumn);
+    public abstract void filterSuperColumn(SuperColumn superColumn, int gcBefore);
 
     public Comparator<IColumn> getColumnComparator(final AbstractType comparator)
     {

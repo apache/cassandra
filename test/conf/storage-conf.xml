@@ -42,8 +42,8 @@
      <Table Name = "Table1">
        <ColumnFamily Name="Standard1"/>
        <ColumnFamily Name="Standard2"/>
-       <ColumnFamily CompareWith="LongType" Name="StandardByTime1"/>
-       <ColumnFamily CompareWith="LongType" Name="StandardByTime2"/>
+       <ColumnFamily CompareWith="LongType" Name="StandardLong1"/>
+       <ColumnFamily CompareWith="LongType" Name="StandardLong2"/>
        <ColumnFamily ColumnType="Super" Name="Super1"/>
        <ColumnFamily ColumnType="Super" Name="Super2"/>
      </Table>

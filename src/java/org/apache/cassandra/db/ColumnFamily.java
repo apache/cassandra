@@ -207,8 +207,6 @@ public final class ColumnFamily
 
     public void clear()
     {
-        if (logger_.isDebugEnabled())
-          logger_.debug("clearing");
     	columns_.clear();
     	size_.set(0);
     }
