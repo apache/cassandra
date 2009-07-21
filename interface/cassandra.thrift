@@ -134,9 +134,6 @@ service Cassandra {
   void           remove(1:string table, 2:string key, 3:ColumnPathOrParent column_path_or_parent, 4:i64 timestamp, 5:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  list<Column> get_columns_since(1:string table, 2:string key, 3:ColumnParent column_parent, 4:i64 timeStamp)
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
-
   list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 count=100)
   throws (1: InvalidRequestException ire),
 

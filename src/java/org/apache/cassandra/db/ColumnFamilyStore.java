@@ -1416,11 +1416,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(new SliceQueryFilter(key, path, start, finish, isAscending, limit));
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath columnParent, long since) throws IOException
-    {
-        return getColumnFamily(new TimeQueryFilter(key, columnParent, since));    
-    }
-
     public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
     {
         return getColumnFamily(filter, getDefaultGCBefore());

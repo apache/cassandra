@@ -353,39 +353,7 @@ public class Memtable implements Comparable<Memtable>
             }
         };
     }
-
-    public ColumnIterator getTimeIterator(final TimeQueryFilter filter)
-    {
-        final ColumnFamily cf = columnFamilies_.get(filter.key);
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
-
-        return new SimpleAbstractColumnIterator()
-        {
-            private Iterator<IColumn> iter = cf == null ? null : cf.getAllColumns().iterator();
-
-            public ColumnFamily getColumnFamily()
-            {
-                return columnFamily;
-            }
-
-            protected IColumn computeNext()
-            {
-                if (iter == null)
-                {
-                    return endOfData();
-                }
-                while (iter.hasNext())
-                {
-                    IColumn column = iter.next();
-                    if (column.timestamp() < filter.since)
-                        break;
-                    return column;
-                }
-                return endOfData();
-            }
-        };
-    }
-
+    
     void clearUnsafe()
     {
         columnFamilies_.clear();

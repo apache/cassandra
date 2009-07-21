@@ -31,18 +31,14 @@ public class ColumnComparatorFactory
     public static enum ComparatorType
     {
         NAME,
-        TIMESTAMP
     }
 
     public static final Comparator<IColumn> nameComparator_ = new ColumnNameComparator();
-    public static final Comparator<IColumn> timestampComparator_ = new ColumnTimestampComparator();
 
     public static Comparator<IColumn> getComparator(ComparatorType comparatorType)
     {
-        if (comparatorType == ComparatorType.NAME)
-            return nameComparator_;
-        assert comparatorType == ComparatorType.TIMESTAMP;
-        return timestampComparator_;
+        assert comparatorType == ComparatorType.NAME;
+        return nameComparator_;
     }
 
     public static Comparator<IColumn> getComparator(int comparatorTypeInt)
@@ -64,36 +60,6 @@ abstract class AbstractColumnComparator implements Comparator<IColumn>, Serializ
     ColumnComparatorFactory.ComparatorType getComparatorType()
     {
         return comparatorType_;
-    }
-}
-
-class ColumnTimestampComparator extends AbstractColumnComparator
-{
-    ColumnTimestampComparator()
-    {
-        super(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
-    }
-
-    /* if the time-stamps are the same then sort by names */
-    public int compare(IColumn column1, IColumn column2)
-    {
-        assert column1.getClass() == column2.getClass();
-        /* inverse sort by time to get hte latest first */
-        long result = column2.timestamp() - column1.timestamp();
-        int finalResult = 0;
-        if (result == 0)
-        {
-            result = column1.name().compareTo(column2.name());
-        }
-        if (result > 0)
-        {
-            finalResult = 1;
-        }
-        if (result < 0)
-        {
-            finalResult = -1;
-        }
-        return finalResult;
     }
 }
 

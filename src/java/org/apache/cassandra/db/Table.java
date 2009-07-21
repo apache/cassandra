@@ -517,9 +517,7 @@ public class Table
     @Deprecated // single CFs could be larger than memory
     public ColumnFamily get(String key, String cfName) throws IOException
     {
-        assert !cfName.contains(":") : cfName;
-        String[] values = RowMutation.getColumnAndColumnFamily(cfName);
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(values[0]);
+        ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
         return cfStore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
     }

@@ -72,14 +72,8 @@ public interface IFileReader
      * @param columnFamilyName The name of the column family only without the ":"
      * @param columnNames - The list of columns in the cfName column family
      * 					     that we want to return
-     * OR
-     * @param timeRange - time range we are interested in
-     * @param position
-     * @throws IOException
-     * @return number of bytes read.
-     *
     */
-    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException;
+    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, long position) throws IOException;
 
     /**
      * Close the file after reading.

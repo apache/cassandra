@@ -133,15 +133,6 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyColumns(cfamily.getAllColumns());
     }
 
-    public List<Column> get_columns_since(String table, String key, ColumnParent column_parent, long timeStamp)
-    throws InvalidRequestException, NotFoundException
-    {
-        logger.debug("get_columns_since");
-        ThriftValidation.validateColumnParent(table, column_parent);
-        return getSlice(new ColumnsSinceReadCommand(table, key, column_parent, timeStamp));
-    }
-
-
     public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names)
     throws InvalidRequestException, NotFoundException
     {
@@ -221,15 +212,7 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         ColumnFamily cfamily;
-        if (DatabaseDescriptor.isNameSortingEnabled(table, column_parent.column_family)
-            && column_parent.super_column == null)
-        {
-            cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, "", "", true, Integer.MAX_VALUE));
-        }
-        else
-        {
-            cfamily = readColumnFamily(new ColumnsSinceReadCommand(table, key, column_parent, Long.MIN_VALUE));
-        }
+        cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, "", "", true, Integer.MAX_VALUE));
         if (cfamily == null)
         {
             return 0;

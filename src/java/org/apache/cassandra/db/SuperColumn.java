@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -41,7 +43,6 @@ public final class SuperColumn implements IColumn, Serializable
 {
 	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
 	private static SuperColumnSerializer serializer_ = new SuperColumnSerializer();
-	private final static String seperator_ = ":";
 
     static SuperColumnSerializer serializer()
     {
@@ -49,7 +50,7 @@ public final class SuperColumn implements IColumn, Serializable
     }
 
 	private String name_;
-    private EfficientBidiMap columns_ = new EfficientBidiMap(ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.TIMESTAMP));
+    private ConcurrentSkipListMap<String, IColumn> columns_ = new ConcurrentSkipListMap<String, IColumn>();
     private int localDeletionTime = Integer.MIN_VALUE;
 	private long markedForDeleteAt = Long.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
@@ -82,7 +83,7 @@ public final class SuperColumn implements IColumn, Serializable
 
     public Collection<IColumn> getSubColumns()
     {
-    	return columns_.getSortedColumns();
+    	return columns_.values();
     }
 
     public IColumn getSubColumn(String columnName)
@@ -277,12 +278,11 @@ public final class SuperColumn implements IColumn, Serializable
 
     public byte[] digest()
     {
-    	Set<IColumn> columns = columns_.getSortedColumns();
     	byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
     	if(name_ == null)
     		return xorHash;
     	xorHash = name_.getBytes();
-    	for(IColumn column : columns)
+    	for(IColumn column : columns_.values())
     	{
 			xorHash = FBUtilities.xor(xorHash, column.digest());
     	}

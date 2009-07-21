@@ -96,17 +96,8 @@ public final class ColumnFamily
 
     public static ColumnFamily create(String tableName, String cfName)
     {
-        Comparator<IColumn> comparator;
         String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
-        if (DatabaseDescriptor.isNameSortingEnabled(tableName, cfName))
-        {
-            comparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
-        }
-        /* if this columnfamily has simple columns, and no index on name sort by timestamp */
-        else
-        {
-            comparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
-        }
+        Comparator<IColumn> comparator = ColumnComparatorFactory.getComparator(ColumnComparatorFactory.ComparatorType.NAME);
         return new ColumnFamily(cfName, columnType, comparator);
     }
 
@@ -343,9 +334,7 @@ public final class ColumnFamily
 
     public ColumnComparatorFactory.ComparatorType getComparatorType()
     {
-        return getComparator() == ColumnComparatorFactory.nameComparator_
-               ? ColumnComparatorFactory.ComparatorType.NAME
-               : ColumnComparatorFactory.ComparatorType.TIMESTAMP;
+        return ColumnComparatorFactory.ComparatorType.NAME;
     }
 
     int size()

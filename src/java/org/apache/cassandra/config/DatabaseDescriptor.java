@@ -587,17 +587,6 @@ public class DatabaseDescriptor
         return cfMetaData.flushPeriodInMinutes;
     }
 
-    public static boolean isNameSortingEnabled(String tableName, String cfName)
-    {
-        assert tableName != null;
-        CFMetaData cfMetaData = getCFMetaData(tableName, cfName);
-
-        if (cfMetaData == null)
-            return false;
-
-    	return "Name".equals(cfMetaData.indexProperty_);
-    }
-    
     public static boolean isTimeSortingEnabled(String tableName, String cfName)
     {
         assert tableName != null;
@@ -773,15 +762,7 @@ public class DatabaseDescriptor
     public static ColumnComparatorFactory.ComparatorType getTypeInfo(String tableName, String cfName)
     {
         assert tableName != null;
-        CFMetaData cfMetadata = DatabaseDescriptor.getCFMetaData(tableName, cfName);
-        if ( cfMetadata.indexProperty_.equals("Name") )
-        {
-            return ColumnComparatorFactory.ComparatorType.NAME;
-        }
-        else
-        {
-            return ColumnComparatorFactory.ComparatorType.TIMESTAMP;
-        }
+        return ColumnComparatorFactory.ComparatorType.NAME;
     }
 
     public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()

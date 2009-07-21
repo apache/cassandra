@@ -426,15 +426,8 @@ public class SequenceFile
             if (hasColumnIndexes)
             {
                 String tableName = getTableName();
-                if (DatabaseDescriptor.isNameSortingEnabled(tableName, cfName))
-                {
-                    /* read the index */
-                    totalBytesRead += IndexHelper.deserializeIndex(tableName, cfName, file_, columnIndexList);
-                }
-                else
-                {
-                    totalBytesRead += IndexHelper.skipIndex(file_);
-                }
+                /* read the index */
+                totalBytesRead += IndexHelper.deserializeIndex(tableName, cfName, file_, columnIndexList);
             }
             return totalBytesRead;
         }
@@ -476,15 +469,10 @@ public class SequenceFile
          * @param bufOut    DataOutputStream that needs to be filled.
          * @param columnFamilyName name of the columnFamily
          * @param columnNames columnNames we are interested in
-         * OR
-         * @param timeRange time range we are interested in
-         * @param position
-         * @return number of bytes that were read.
-         * @throws IOException
          */
-        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, IndexHelper.TimeRange timeRange, long position) throws IOException
+        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, long position) throws IOException
         {
-            assert timeRange == null || columnNames == null; // at most one may be non-null
+            assert columnNames != null;
 
             long bytesRead = -1L;
             if (isEOF() || seekTo(position) < 0)
@@ -510,11 +498,7 @@ public class SequenceFile
                 */
                 if (keyInDisk.equals(key))
                 {
-                    if (timeRange == null) {
-                        readColumns(key, bufOut, columnFamilyName, columnNames);
-                    } else {
-                        readTimeRange(key, bufOut, columnFamilyName, timeRange);
-                    }
+                    readColumns(key, bufOut, columnFamilyName, columnNames);
                 }
                 else
                 {
@@ -528,70 +512,6 @@ public class SequenceFile
             }
 
             return bytesRead;
-        }
-
-        private void readTimeRange(String key, DataOutputBuffer bufOut, String columnFamilyName, IndexHelper.TimeRange timeRange)
-                throws IOException
-        {
-            int dataSize = file_.readInt();
-
-            /* write the key into buffer */
-            bufOut.writeUTF(key);
-
-            int bytesSkipped = IndexHelper.skipBloomFilter(file_);
-            /*
-             * read the correct number of bytes for the column family and
-             * write data into buffer. Subtract from dataSize the bloom
-             * filter size.
-            */
-            dataSize -= bytesSkipped;
-            List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-            /* Read the times indexes if present */
-            int totalBytesRead = handleColumnTimeIndexes(columnFamilyName, columnIndexList);
-            dataSize -= totalBytesRead;
-
-            /* read the column family name */
-            String cfName = file_.readUTF();
-            dataSize -= (utfPrefix_ + cfName.length());
-
-            String cfType = file_.readUTF();
-            dataSize -= (utfPrefix_ + cfType.length());
-
-            int indexType = file_.readInt();
-            dataSize -= 4;
-
-            /* read local deletion time */
-            int localDeletionTime = file_.readInt();
-            dataSize -=4;
-
-            /* read if this cf is marked for delete */
-            long markedForDeleteAt = file_.readLong();
-            dataSize -= 8;
-
-            /* read the total number of columns */
-            int totalNumCols = file_.readInt();
-            dataSize -= 4;
-
-            /* get the column range we have to read */
-            IndexHelper.ColumnRange columnRange = IndexHelper.getColumnRangeFromTimeIndex(timeRange, columnIndexList, dataSize, totalNumCols);
-
-            Coordinate coordinate = columnRange.coordinate();
-            /* seek to the correct offset to the data, and calculate the data size */
-            file_.skipBytes((int) coordinate.start_);
-            dataSize = (int) (coordinate.end_ - coordinate.start_);
-
-            // returned data size
-            bufOut.writeInt(dataSize + utfPrefix_ * 2 + cfName.length() + cfType.length() + 4 + 4 + 8 + 4);
-            // echo back the CF data we read
-            bufOut.writeUTF(cfName);
-            bufOut.writeUTF(cfType);
-            bufOut.writeInt(indexType);
-            bufOut.writeInt(localDeletionTime);
-            bufOut.writeLong(markedForDeleteAt);
-            /* write number of columns */
-            bufOut.writeInt(columnRange.count());
-            /* now write the columns */
-            bufOut.write(file_, dataSize);
         }
 
         private void readColumns(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> cNames)

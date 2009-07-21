@@ -246,93 +246,7 @@ public class IndexHelper
 
 		return columnRanges;
 	}
-    
-    /**
-     * Returns the range in which a given column falls in the index. This
-     * is used when time range queries are in play. For instance if we are
-     * looking for columns in the range [t, t2]
-     * @param cIndexInfo the time we are interested in.
-     * @param columnIndexList the in-memory representation of the column index
-     * @param dataSize the total size of the data
-     * @param totalNumCols total number of columns
-     * @return an object describing a subrange in which the column is serialized
-     */
-    static ColumnRange getColumnRangeFromTimeIndex(IndexHelper.TimeRange timeRange, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
-    {
-        /* if column indexes were not present for this column family, the handle accordingly */
-        if(columnIndexList.size() == 0)
-        {
-            return new ColumnRange(0, dataSize, totalNumCols);
-        }
-
-        /* find the offset for the column */
-        int size = columnIndexList.size();
-        long start = 0;
-        long end = dataSize;
-        int numColumns = 0;      
-       
-        /*
-         *  Time indices are sorted in descending order. So
-         *  we need to apply a reverse comparator for the 
-         *  binary search.        
-        */        
-        Comparator<IndexHelper.ColumnIndexInfo> comparator = Collections.reverseOrder(); 
-        IndexHelper.ColumnIndexInfo rhs = IndexHelper.ColumnIndexFactory.instance(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
-        rhs.set(timeRange.rhs());
-        int index = Collections.binarySearch(columnIndexList, rhs, comparator);
-        if ( index < 0 )
-        {
-            /* We are here which means that the requested column is not an index. */
-            index = (++index)*(-1);
-        }
-        else
-        {
-            ++index;
-        }
-
-        /* 
-         * Calculate the starting offset from which we have to read. So
-         * we achieve this by performing the probe using the bigger timestamp
-         * and then scanning the column position chunks till we reach the
-         * lower timestamp in the time range.      
-        */
-        start = (index == 0) ? 0 : columnIndexList.get(index - 1).position();
-        /* add the number of columns in the first chunk. */
-        numColumns += (index ==0) ? columnIndexList.get(0).count() : columnIndexList.get(index - 1).count(); 
-        if( index < size )
-        {            
-            int chunks = columnIndexList.size();
-            /* Index info for the lower bound of the time range */
-            IndexHelper.ColumnIndexInfo lhs = IndexHelper.ColumnIndexFactory.instance(ColumnComparatorFactory.ComparatorType.TIMESTAMP);
-            lhs.set(timeRange.lhs());
-            int i = index + 1;
-            for ( ; i < chunks; ++i )
-            {
-                IndexHelper.ColumnIndexInfo cIndexInfo2 = columnIndexList.get(i);
-                if ( cIndexInfo2.compareTo(lhs) < 0 )
-                {
-                    numColumns += cIndexInfo2.count();
-                    break;
-                } 
-                numColumns += cIndexInfo2.count();
-            }
-            
-            end = columnIndexList.get(i).position();                       
-        }
-        else
-        {
-            end = dataSize;  
-            int totalColsIndexed = 0;
-            for( IndexHelper.ColumnIndexInfo colPosInfo : columnIndexList )
-            {
-                totalColsIndexed += colPosInfo.count();
-            }
-            numColumns = totalNumCols - totalColsIndexed;
-        }
-       
-        return new ColumnRange(start, end, numColumns);
-    }    
-    
+        
     public static class ColumnIndexFactory
     {
         public static ColumnIndexInfo instance(ColumnComparatorFactory.ComparatorType typeInfo)
@@ -341,37 +255,8 @@ public class IndexHelper
                     ? new ColumnNameIndexInfo() : new ColumnTimestampIndexInfo();
         }
     }
-    
-    /**
-     * Encapsulates a time range. Queries use 
-     * this abstraction for indicating start 
-     * and end regions of a time filter.
-     * 
-     * @author alakshman
-     *
-     */
-    public static class TimeRange
-    {
-        private long lhs_;
-        private long rhs_;
-        
-        public TimeRange(long lhs, long rhs)
-        {
-            lhs_ = lhs;
-            rhs_ = rhs;
-        }
-        
-        public long lhs()
-        {
-            return lhs_;
-        }
-        
-        public long rhs()
-        {
-            return rhs_;
-        }
-    }
-    
+
+
     /**
      * A column range containing the start and end
      * offset of the appropriate column index chunk

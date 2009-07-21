@@ -287,11 +287,6 @@ public class SSTableReader extends SSTable
 
     public DataInputBuffer next(final String clientKey, String cfName, SortedSet<String> columnNames) throws IOException
     {
-        return next(clientKey, cfName, columnNames, null);
-    }
-
-    public DataInputBuffer next(final String clientKey, String cfName, SortedSet<String> columnNames, IndexHelper.TimeRange timeRange) throws IOException
-    {
         IFileReader dataReader = null;
         try
         {
@@ -301,7 +296,7 @@ public class SSTableReader extends SSTable
 
             DataOutputBuffer bufOut = new DataOutputBuffer();
             DataInputBuffer bufIn = new DataInputBuffer();
-            long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columnNames, timeRange, position);
+            long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columnNames, position);
             if (bytesRead != -1L)
             {
                 if (bufOut.getLength() > 0)
