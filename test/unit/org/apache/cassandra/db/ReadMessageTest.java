@@ -24,55 +24,48 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AsciiType;
 
 public class ReadMessageTest
 {
     @Test
-    public void testMakeReadMessage()
+    public void testMakeReadMessage() throws IOException
     {
-        ArrayList<String> colList = new ArrayList<String>();
-        colList.add("col1");
-        colList.add("col2");
+        ArrayList<byte[]> colList = new ArrayList<byte[]>();
+        colList.add("col1".getBytes());
+        colList.add("col2".getBytes());
         
         ReadCommand rm, rm2;
         
-        rm = new SliceByNamesReadCommand("Table1", "row1", new QueryPath("foo"), colList);
+        rm = new SliceByNamesReadCommand("Table1", "row1", new QueryPath("Standard1"), colList);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "", "", true, 2);
+        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
         
-        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("foo"), "a", "z", true, 5);
+        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
     }
 
-    private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm)
+    private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm) throws IOException
     {
-        ReadCommand rm2 = null;
         ReadCommandSerializer rms = ReadCommand.serializer();
         DataOutputBuffer dos = new DataOutputBuffer();
         DataInputBuffer dis = new DataInputBuffer();
 
-        try
-        {
-            rms.serialize(rm, dos);
-            dis.reset(dos.getData(), dos.getLength());
-            rm2 = rms.deserialize(dis);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return rm2;
+        rms.serialize(rm, dos);
+        dis.reset(dos.getData(), dos.getLength());
+        return rms.deserialize(dis);
     }
     
     @Test
@@ -83,13 +76,13 @@ public class ReadMessageTest
 
         // add data
         rm = new RowMutation("Table1", "key1");
-        rm.add(new QueryPath("Standard1", null, "Column1"), "abcd".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "abcd".getBytes(), 0);
         rm.apply();
 
-        ReadCommand command = new SliceByNamesReadCommand("Table1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1"));
+        ReadCommand command = new SliceByNamesReadCommand("Table1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));
         Row row = command.getRow(table);
         ColumnFamily cf = row.getColumnFamily("Standard1");
-        IColumn col = cf.getColumn("Column1");
-        assert Arrays.equals(((Column)col).value(), "abcd".getBytes());  
+        IColumn col = cf.getColumn("Column1".getBytes());
+        assert Arrays.equals(col.value(), "abcd".getBytes());  
     }
 }

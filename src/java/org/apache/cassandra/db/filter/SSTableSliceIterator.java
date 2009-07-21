@@ -5,6 +5,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SequenceFile;
@@ -17,20 +18,22 @@ import com.google.common.collect.AbstractIterator;
 class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIterator
 {
     protected boolean isAscending;
-    private String startColumn;
+    private byte[] startColumn;
     private DataOutputBuffer outBuf = new DataOutputBuffer();
     private DataInputBuffer inBuf = new DataInputBuffer();
     private int curColumnIndex;
     private ColumnFamily curCF = null;
     private ArrayList<IColumn> curColumns = new ArrayList<IColumn>();
     private SequenceFile.ColumnGroupReader reader;
+    private AbstractType comparator;
 
-    public SSTableSliceIterator(String filename, String key, String cfName, String startColumn, boolean isAscending)
+    public SSTableSliceIterator(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending)
     throws IOException
     {
         this.isAscending = isAscending;
         SSTableReader ssTable = SSTableReader.open(filename);
         reader = ssTable.getColumnGroupReader(key, cfName, startColumn, isAscending);
+        this.comparator = comparator;
         this.startColumn = startColumn;
         curColumnIndex = isAscending ? 0 : -1;
     }
@@ -38,9 +41,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     private boolean isColumnNeeded(IColumn column)
     {
         if (isAscending)
-            return (column.name().compareTo(startColumn) >= 0);
+            return comparator.compare(column.name(), startColumn) >= 0;
         else
-            return (column.name().compareTo(startColumn) <= 0);
+            return comparator.compare(column.name(), startColumn) <= 0;
     }
 
     private void getColumnsFromBuffer() throws IOException
@@ -51,7 +54,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         if (curCF == null)
             curCF = columnFamily.cloneMeShallow();
         curColumns.clear();
-        for (IColumn column : columnFamily.getAllColumns())
+        for (IColumn column : columnFamily.getSortedColumns())
             if (isColumnNeeded(column))
                 curColumns.add(column);
 

@@ -3,10 +3,12 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Arrays;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 public abstract class QueryFilter
 {
@@ -23,13 +25,13 @@ public abstract class QueryFilter
      * returns an iterator that returns columns from the given memtable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ColumnIterator getMemColumnIterator(Memtable memtable);
+    public abstract ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator);
 
     /**
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException;
+    public abstract ColumnIterator getSSTableColumnIterator(SSTableReader sstable, AbstractType comparator) throws IOException;
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined
@@ -44,13 +46,13 @@ public abstract class QueryFilter
      */
     public abstract void filterSuperColumn(SuperColumn superColumn);
 
-    public Comparator<IColumn> getColumnComparator()
+    public Comparator<IColumn> getColumnComparator(final AbstractType comparator)
     {
         return new Comparator<IColumn>()
         {
             public int compare(IColumn c1, IColumn c2)
             {
-                return c1.name().compareTo(c2.name());
+                return comparator.compare(c1.name(), c2.name());
             }
         };
     }
@@ -63,9 +65,9 @@ public abstract class QueryFilter
         {
             ColumnFamily curCF = returnCF.cloneMeShallow();
 
-            protected Object getKey(IColumn o)
+            protected boolean isEqual(IColumn o1, IColumn o2)
             {
-                return o == null ? null : o.name();
+                return Arrays.equals(o1.name(), o2.name());
             }
 
             public void reduce(IColumn current)
@@ -75,7 +77,7 @@ public abstract class QueryFilter
 
             protected IColumn getReduced()
             {
-                IColumn c = curCF.getAllColumns().first();
+                IColumn c = curCF.getSortedColumns().iterator().next();
                 curCF.clear();
                 return c;
             }

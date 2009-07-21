@@ -28,11 +28,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IndexHelper;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 
 /**
  * Help to create an index for a column family based on size of columns
- * Author : Karthik Ranganathan ( kranganathan@facebook.com )
  */
 
 public class ColumnIndexer
@@ -46,7 +46,7 @@ public class ColumnIndexer
 	 */
     public static void serialize(ColumnFamily columnFamily, DataOutputStream dos) throws IOException
 	{
-        Collection<IColumn> columns = columnFamily.getAllColumns();
+        Collection<IColumn> columns = columnFamily.getSortedColumns();
         BloomFilter bf = createColumnBloomFilter(columns);                    
         /* Write out the bloom filter. */
         DataOutputBuffer bufOut = new DataOutputBuffer(); 
@@ -57,7 +57,7 @@ public class ColumnIndexer
         dos.write(bufOut.getData(), 0, bufOut.getLength());
 
         /* Do the indexing */
-        doIndexing(columnFamily.getComparatorType(), columns, dos);
+        doIndexing(columnFamily.getComparator(), columns, dos);
 	}
     
     /**
@@ -69,37 +69,26 @@ public class ColumnIndexer
     private static BloomFilter createColumnBloomFilter(Collection<IColumn> columns)
     {
         int columnCount = 0;
-        for ( IColumn column : columns )
+        for (IColumn column : columns)
         {
             columnCount += column.getObjectCount();
         }
-        
+
         BloomFilter bf = new BloomFilter(columnCount, 4);
-        for ( IColumn column : columns )
+        for (IColumn column : columns)
         {
             bf.add(column.name());
             /* If this is SuperColumn type Column Family we need to get the subColumns too. */
-            if ( column instanceof SuperColumn )
+            if (column instanceof SuperColumn)
             {
                 Collection<IColumn> subColumns = column.getSubColumns();
-                for ( IColumn subColumn : subColumns )
+                for (IColumn subColumn : subColumns)
                 {
                     bf.add(subColumn.name());
                 }
             }
         }
         return bf;
-    }
-    
-    private static IndexHelper.ColumnIndexInfo getColumnIndexInfo(ColumnComparatorFactory.ComparatorType typeInfo, IColumn column)
-    {
-        IndexHelper.ColumnIndexInfo cIndexInfo = null;
-        
-        cIndexInfo = IndexHelper.ColumnIndexFactory.instance(typeInfo);
-        cIndexInfo.set(typeInfo == ColumnComparatorFactory.ComparatorType.NAME
-                       ? column.name() : column.timestamp());
-
-        return cIndexInfo;
     }
 
     /**
@@ -111,7 +100,7 @@ public class ColumnIndexer
      *            to be written.
      * @throws IOException
      */
-    private static void doIndexing(ColumnComparatorFactory.ComparatorType typeInfo, Collection<IColumn> columns, DataOutputStream dos) throws IOException
+    private static void doIndexing(AbstractType comparator, Collection<IColumn> columns, DataOutputStream dos) throws IOException
     {
         /* we are going to write column indexes */
         int numColumns = 0;
@@ -139,7 +128,7 @@ public class ColumnIndexer
                  * SuperColumn always use the name indexing scheme for
                  * the SuperColumns. We will fix this later.
                  */
-                IndexHelper.ColumnIndexInfo cIndexInfo = getColumnIndexInfo(typeInfo, column);                
+                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column.name(), 0, 0, comparator);
                 cIndexInfo.position(position);
                 cIndexInfo.count(numColumns);                
                 columnIndexList.add(cIndexInfo);

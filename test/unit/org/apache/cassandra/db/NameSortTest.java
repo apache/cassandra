@@ -22,11 +22,15 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.Collection;
 import java.util.Arrays;
+import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import static org.apache.cassandra.Util.addMutation;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import static junit.framework.Assert.assertEquals;
 
 public class NameSortTest extends CleanupHelper
 {
@@ -66,20 +70,20 @@ public class NameSortTest extends CleanupHelper
             {
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 rm = new RowMutation("Table1", key);
-                rm.add(new QueryPath("Standard1", null, "Column-" + j), bytes, j);
+                rm.add(new QueryPath("Standard1", null, ("Column-" + j).getBytes()), bytes, j);
                 rm.apply();
             }
 
             // super
             for (int j = 0; j < 8; ++j)
             {
+                rm = new RowMutation("Table1", key);
                 for (int k = 0; k < 4; ++k)
                 {
-                    byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                    rm = new RowMutation("Table1", key);
-                    rm.add(new QueryPath("Super1", "SuperColumn-" + j, "Column-" + k), bytes, k);
-                    rm.apply();
+                    String value = (j + k) % 2 == 0 ? "a" : "b";
+                    addMutation(rm, "Super1", "SuperColumn-" + j, k, value, k);
                 }
+                rm.apply();
             }
         }
 
@@ -98,26 +102,26 @@ public class NameSortTest extends CleanupHelper
             ColumnFamily cf;
 
             cf = table.get(key, "Standard1");
-            Collection<IColumn> columns = cf.getAllColumns();
+            Collection<IColumn> columns = cf.getSortedColumns();
             for (IColumn column : columns)
             {
-                int j = Integer.valueOf(column.name().split("-")[1]);
+                int j = Integer.valueOf(new String(column.name()).split("-")[1]);
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 assert Arrays.equals(bytes, column.value());
             }
 
             cf = table.get(key, "Super1");
             assert cf != null : "key " + key + " is missing!";
-            Collection<IColumn> superColumns = cf.getAllColumns();
-            assert superColumns.size() == 8;
+            Collection<IColumn> superColumns = cf.getSortedColumns();
+            assert superColumns.size() == 8 : cf;
             for (IColumn superColumn : superColumns)
             {
-                int j = Integer.valueOf(superColumn.name().split("-")[1]);
+                int j = Integer.valueOf(new String(superColumn.name()).split("-")[1]);
                 Collection<IColumn> subColumns = superColumn.getSubColumns();
                 assert subColumns.size() == 4;
                 for (IColumn subColumn : subColumns)
                 {
-                    int k = Integer.valueOf(subColumn.name().split("-")[1]);
+                    long k = ByteBuffer.wrap(subColumn.name()).getLong();
                     byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
                     assert Arrays.equals(bytes, subColumn.value());
                 }

@@ -101,7 +101,7 @@ public class HintedHandOffManager
         return quorumResponseHandler.get();
     }
 
-    private static void deleteEndPoint(String endpointAddress, String tableName, String key, long timestamp) throws IOException
+    private static void deleteEndPoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
     {
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, tableName);
         rm.delete(new QueryPath(HINTS_CF, key, endpointAddress), timestamp);
@@ -124,16 +124,15 @@ public class HintedHandOffManager
         Collection<ColumnFamily> cfs = row.getColumnFamilies();
         for (ColumnFamily cf : cfs)
         {
-            Set<IColumn> columns = cf.getAllColumns();
             long maxTS = Long.MIN_VALUE;
             if (!cf.isSuper())
             {
-                for (IColumn col : columns)
+                for (IColumn col : cf.getSortedColumns())
                     maxTS = Math.max(maxTS, col.timestamp());
             }
             else
             {
-                for (IColumn col : columns)
+                for (IColumn col : cf.getSortedColumns())
                 {
                     maxTS = Math.max(maxTS, col.timestamp());
                     Collection<IColumn> subColumns = col.getSubColumns();
@@ -166,15 +165,17 @@ public class HintedHandOffManager
             {
                 continue;
             }
-            Collection<IColumn> keys = hintColumnFamily.getAllColumns();
+            Collection<IColumn> keys = hintColumnFamily.getSortedColumns();
 
             for (IColumn keyColumn : keys)
             {
                 Collection<IColumn> endpoints = keyColumn.getSubColumns();
+                String keyStr = new String(keyColumn.name(), "UTF-8");
                 int deleted = 0;
                 for (IColumn endpoint : endpoints)
                 {
-                    if (sendMessage(endpoint.name(), tableName, keyColumn.name()))
+                    String endpointStr = new String(endpoint.name(), "UTF-8");
+                    if (sendMessage(endpointStr, tableName, keyStr))
                     {
                         deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
                         deleted++;
@@ -182,7 +183,7 @@ public class HintedHandOffManager
                 }
                 if (deleted == endpoints.size())
                 {
-                    deleteHintedData(tableName, keyColumn.name());
+                    deleteHintedData(tableName, keyStr);
                 }
             }
         }
@@ -198,6 +199,7 @@ public class HintedHandOffManager
         if (logger_.isDebugEnabled())
           logger_.debug("Started hinted handoff for endPoint " + endPoint.getHost());
 
+        String targetEPBytes = endPoint.getHost();
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recipients if the endpoint matches send
         // 3. Delete that recipient from the key if write was successful
@@ -209,19 +211,20 @@ public class HintedHandOffManager
             {
                 continue;
             }
-            Collection<IColumn> keys = hintedColumnFamily.getAllColumns();
+            Collection<IColumn> keys = hintedColumnFamily.getSortedColumns();
 
             for (IColumn keyColumn : keys)
             {
+                String keyStr = new String(keyColumn.name(), "UTF-8");
                 Collection<IColumn> endpoints = keyColumn.getSubColumns();
-                for (IColumn endpoint : endpoints)
+                for (IColumn hintEndPoint : endpoints)
                 {
-                    if (endpoint.name().equals(endPoint.getHost()) && sendMessage(endpoint.name(), null, keyColumn.name()))
+                    if (hintEndPoint.name().equals(targetEPBytes) && sendMessage(endPoint.getHost(), null, keyStr))
                     {
-                        deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
+                        deleteEndPoint(hintEndPoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
                         if (endpoints.size() == 1)
                         {
-                            deleteHintedData(tableName, keyColumn.name());
+                            deleteHintedData(tableName, keyStr);
                         }
                     }
                 }

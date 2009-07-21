@@ -38,13 +38,10 @@ public class ColumnFamilyTest
     @Test
     public void testSingleColumn() throws IOException
     {
-        Random random = new Random();
-        byte[] bytes = new byte[1024];
-        random.nextBytes(bytes);
         ColumnFamily cf;
 
         cf = ColumnFamily.create("Table1", "Standard1");
-        cf.addColumn(QueryPath.column("C"), bytes, 1);
+        cf.addColumn(column("C", "v", 1));
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer().serialize(cf, bufOut);
 
@@ -53,7 +50,7 @@ public class ColumnFamilyTest
         cf = ColumnFamily.serializer().deserialize(bufIn);
         assert cf != null;
         assert cf.name().equals("Standard1");
-        assert cf.getAllColumns().size() == 1;
+        assert cf.getSortedColumns().size() == 1;
     }
 
     @Test
@@ -61,10 +58,10 @@ public class ColumnFamilyTest
     {
         ColumnFamily cf;
 
-        TreeMap<String, byte[]> map = new TreeMap<String, byte[]>();
+        TreeMap<String, String> map = new TreeMap<String, String>();
         for (int i = 100; i < 1000; ++i)
         {
-            map.put(Integer.toString(i), ("Avinash Lakshman is a good man: " + i).getBytes());
+            map.put(Integer.toString(i), "Avinash Lakshman is a good man: " + i);
         }
 
         // write
@@ -72,7 +69,7 @@ public class ColumnFamilyTest
         DataOutputBuffer bufOut = new DataOutputBuffer();
         for (String cName : map.navigableKeySet())
         {
-            cf.addColumn(QueryPath.column(cName), map.get(cName), 314);
+            cf.addColumn(column(cName, map.get(cName), 314));
         }
         ColumnFamily.serializer().serialize(cf, bufOut);
 
@@ -82,9 +79,9 @@ public class ColumnFamilyTest
         cf = ColumnFamily.serializer().deserialize(bufIn);
         for (String cName : map.navigableKeySet())
         {
-            assert Arrays.equals(cf.getColumn(cName).value(), map.get(cName));
+            assert new String(cf.getColumn(cName.getBytes()).value()).equals(map.get(cName));
         }
-        assert new HashSet<String>(cf.getColumns().keySet()).equals(map.keySet());
+        assert cf.getColumnNames().size() == map.size();
     }
 
     @Test
@@ -97,7 +94,7 @@ public class ColumnFamilyTest
         cf.addColumn(column("col1", "", 3));
 
         assert 2 == cf.getColumnCount();
-        assert 2 == cf.getAllColumns().size();
+        assert 2 == cf.getSortedColumns().size();
     }
 
     @Test
@@ -109,7 +106,7 @@ public class ColumnFamilyTest
         cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
         cf.addColumn(column("col1", "val3", 1)); // older timestamp -- should be ignored
 
-        assert Arrays.equals("val2".getBytes(), cf.getColumn("col1").value());
+        assert Arrays.equals("val2".getBytes(), cf.getColumn("col1".getBytes()).value());
     }
 
     @Test
@@ -122,18 +119,18 @@ public class ColumnFamilyTest
         byte val2[] = "x value ".getBytes();
 
         // exercise addColumn(QueryPath, ...)
-        cf_new.addColumn(QueryPath.column("col1"), val, 3);
-        cf_new.addColumn(QueryPath.column("col2"), val, 4);
+        cf_new.addColumn(QueryPath.column("col1".getBytes()), val, 3);
+        cf_new.addColumn(QueryPath.column("col2".getBytes()), val, 4);
 
-        cf_old.addColumn(QueryPath.column("col2"), val2, 1);
-        cf_old.addColumn(QueryPath.column("col3"), val2, 2);
+        cf_old.addColumn(QueryPath.column("col2".getBytes()), val2, 1);
+        cf_old.addColumn(QueryPath.column("col3".getBytes()), val2, 2);
 
         cf_result.addColumns(cf_new);
         cf_result.addColumns(cf_old);
 
         assert 3 == cf_result.getColumnCount() : "Count is " + cf_new.getColumnCount();
         //addcolumns will only add if timestamp >= old timestamp
-        assert Arrays.equals(val, cf_result.getColumn("col2").value());
+        assert Arrays.equals(val, cf_result.getColumn("col2".getBytes()).value());
     }
 
     @Test

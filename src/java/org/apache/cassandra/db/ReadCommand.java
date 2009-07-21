@@ -28,6 +28,8 @@ import java.util.Map;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 
 public abstract class ReadCommand
@@ -80,6 +82,11 @@ public abstract class ReadCommand
     public abstract ReadCommand copy();
 
     public abstract Row getRow(Table table) throws IOException;
+
+    protected AbstractType getComparator()
+    {
+        return DatabaseDescriptor.getType(table, getColumnFamilyName());
+    }
 }
 
 class ReadCommandSerializer implements ICompactSerializer<ReadCommand>

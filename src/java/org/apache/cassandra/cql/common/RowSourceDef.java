@@ -20,6 +20,7 @@ package org.apache.cassandra.cql.common;
 
 import java.util.List;
 import java.util.Map;
+import java.io.UnsupportedEncodingException;
 
 /**
  * The abstract notion of a row source definition. A row source
@@ -43,6 +44,6 @@ import java.util.Map;
  */
 public abstract class RowSourceDef
 {
-    public abstract List<Map<String,String>> getRows();
+    public abstract List<Map<String,String>> getRows() throws UnsupportedEncodingException;
     public abstract String explainPlan();  
 }

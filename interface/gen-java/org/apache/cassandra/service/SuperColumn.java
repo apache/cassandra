@@ -23,7 +23,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
 
-  public String name;
+  public byte[] name;
   public static final int NAME = 1;
   public List<Column> columns;
   public static final int COLUMNS = 2;
@@ -48,7 +48,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
   }
 
   public SuperColumn(
-    String name,
+    byte[] name,
     List<Column> columns)
   {
     this();
@@ -61,7 +61,8 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
    */
   public SuperColumn(SuperColumn other) {
     if (other.isSetName()) {
-      this.name = other.name;
+      this.name = new byte[other.name.length];
+      System.arraycopy(other.name, 0, name, 0, other.name.length);
     }
     if (other.isSetColumns()) {
       List<Column> __this__columns = new ArrayList<Column>();
@@ -77,11 +78,11 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     return new SuperColumn(this);
   }
 
-  public String getName() {
+  public byte[] getName() {
     return this.name;
   }
 
-  public void setName(String name) {
+  public void setName(byte[] name) {
     this.name = name;
   }
 
@@ -144,7 +145,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
       if (value == null) {
         unsetName();
       } else {
-        setName((String)value);
+        setName((byte[])value);
       }
       break;
 
@@ -204,7 +205,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     if (this_present_name || that_present_name) {
       if (!(this_present_name && that_present_name))
         return false;
-      if (!this.name.equals(that.name))
+      if (!java.util.Arrays.equals(this.name, that.name))
         return false;
     }
 
@@ -238,7 +239,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
       {
         case NAME:
           if (field.type == TType.STRING) {
-            this.name = iprot.readString();
+            this.name = iprot.readBinary();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -280,7 +281,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     oprot.writeStructBegin(STRUCT_DESC);
     if (this.name != null) {
       oprot.writeFieldBegin(NAME_FIELD_DESC);
-      oprot.writeString(this.name);
+      oprot.writeBinary(this.name);
       oprot.writeFieldEnd();
     }
     if (this.columns != null) {
@@ -307,7 +308,12 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     if (this.name == null) {
       sb.append("null");
     } else {
-      sb.append(this.name);
+        int __name_size = Math.min(this.name.length, 128);
+        for (int i = 0; i < __name_size; i++) {
+          if (i != 0) sb.append(" ");
+          sb.append(Integer.toHexString(this.name[i]).length() > 1 ? Integer.toHexString(this.name[i]).substring(Integer.toHexString(this.name[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.name[i]).toUpperCase());
+        }
+        if (this.name.length > 128) sb.append(" ...");
     }
     first = false;
     if (!first) sb.append(", ");

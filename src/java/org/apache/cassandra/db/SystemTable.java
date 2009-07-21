@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 
 import org.apache.log4j.Logger;
 
@@ -26,9 +27,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BasicUtilities;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.QueryFilter;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -39,8 +40,20 @@ public class SystemTable
     private static Logger logger_ = Logger.getLogger(SystemTable.class);
     public static final String LOCATION_CF = "LocationInfo";
     private static final String LOCATION_KEY = "L"; // only one row in Location CF
-    private static final String TOKEN = "Token";
-    private static final String GENERATION = "Generation";
+    private static final byte[] TOKEN = utf8("Token");
+    private static final byte[] GENERATION = utf8("Generation");
+
+    private static byte[] utf8(String str)
+    {
+        try
+        {
+            return str.getBytes("UTF-8");
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     /*
      * This method is used to update the SystemTable with the new token.
@@ -50,7 +63,8 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         /* Retrieve the "LocationInfo" column family */
-        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_KEY), TOKEN));
+        QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_CF), TOKEN);
+        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(filter);
         long oldTokenColumnTimestamp = cf.getColumn(SystemTable.TOKEN).timestamp();
         /* create the "Token" whose value is the new token. */
         IColumn tokenColumn = new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
@@ -74,7 +88,8 @@ public class SystemTable
     {
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
-        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_KEY), GENERATION));
+        QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_CF), GENERATION);
+        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(filter);
 
         IPartitioner p = StorageService.getPartitioner();
         if (cf == null)

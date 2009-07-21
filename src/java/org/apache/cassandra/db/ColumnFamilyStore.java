@@ -40,6 +40,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.collections.IteratorUtils;
@@ -534,9 +535,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // either way (tombstone or non- getting priority) would be fine,
         // but we picked this way because it makes removing delivered hints
         // easier for HintedHandoffManager.
-        for (String cname : new ArrayList<String>(cf.getColumns().keySet()))
+        for (byte[] cname : cf.getColumnNames())
         {
-            IColumn c = cf.getColumns().get(cname);
+            IColumn c = cf.getColumnsMap().get(cname);
             if (c instanceof SuperColumn)
             {
                 long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
@@ -1411,7 +1412,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.mean();
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, String start, String finish, boolean isAscending, int limit) throws IOException
+    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean isAscending, int limit) throws IOException
     {
         return getColumnFamily(new SliceQueryFilter(key, path, start, finish, isAscending, limit));
     }
@@ -1428,14 +1429,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore) throws IOException
     {
+        assert columnFamily_.equals(filter.getColumnFamilyName());
+
         // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
         if (filter.path.superColumnName != null)
         {
-            QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(filter.path.columnFamilyName), filter.path.superColumnName);
+            AbstractType comparator = DatabaseDescriptor.getType(table_, columnFamily_);
+            QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
             ColumnFamily cf = getColumnFamily(nameFilter);
             if (cf != null)
             {
-                for (IColumn column : cf.getAllColumns())
+                for (IColumn column : cf.getSortedColumns())
                 {
                     filter.filterSuperColumn((SuperColumn) column);
                 }
@@ -1455,7 +1459,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memtableLock_.readLock().lock();
             try
             {
-                iter = filter.getMemColumnIterator(memtable_);
+                iter = filter.getMemColumnIterator(memtable_, getComparator());
                 returnCF = iter.getColumnFamily();
             }
             finally
@@ -1468,7 +1472,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             List<Memtable> memtables = getUnflushedMemtables(filter.getColumnFamilyName());
             for (Memtable memtable:memtables)
             {
-                iter = filter.getMemColumnIterator(memtable);
+                iter = filter.getMemColumnIterator(memtable, getComparator());
                 returnCF.delete(iter.getColumnFamily());
                 iterators.add(iter);
             }
@@ -1477,7 +1481,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_.values());
             for (SSTableReader sstable : sstables)
             {
-                iter = filter.getSSTableColumnIterator(sstable);
+                iter = filter.getSSTableColumnIterator(sstable, getComparator());
                 if (iter.hasNext()) // initializes iter.CF
                 {
                     returnCF.delete(iter.getColumnFamily());
@@ -1485,7 +1489,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 iterators.add(iter);
             }
 
-            Comparator<IColumn> comparator = filter.getColumnComparator();
+            Comparator<IColumn> comparator = filter.getColumnComparator(getComparator());
             Iterator collated = IteratorUtils.collatedIterator(comparator, iterators);
             if (!collated.hasNext())
                 return null;
@@ -1511,6 +1515,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             sstableLock_.readLock().unlock();
         }
+    }
+
+    public AbstractType getComparator()
+    {
+        return DatabaseDescriptor.getType(table_, columnFamily_);
     }
 
     /**

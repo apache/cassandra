@@ -98,6 +98,14 @@ public class BloomFilter extends Filter
         }
     }
 
+    public void add(byte[] key)
+    {
+        for (int bucketIndex : getHashBuckets(key))
+        {
+            filter_.set(bucketIndex);
+        }
+    }
+
     public String toString()
     {
         return filter_.toString();

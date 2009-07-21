@@ -18,14 +18,7 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -377,4 +370,18 @@ public class FBUtilities
 
      	return length;
      }
+
+    public static void writeByteArray(byte[] bytes, DataOutput out) throws IOException
+    {
+        out.writeInt(bytes.length);
+        out.write(bytes);
+    }
+
+    public static byte[] readByteArray(DataInput in) throws IOException
+    {
+        int length = in.readInt();
+        byte[] bytes = new byte[length];
+        in.readFully(bytes);
+        return bytes;
+    }
 }

@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql.common;
 
+import java.io.UnsupportedEncodingException;
+
 import org.apache.log4j.Logger;
 
 /**
@@ -38,7 +40,14 @@ public class QueryPlan extends Plan
     {
         if (root != null)
         {
-            return new CqlResult(root.getRows());
+            try
+            {
+                return new CqlResult(root.getRows());
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         else
             logger_.error("No rowsource to execute");

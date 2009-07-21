@@ -28,16 +28,16 @@ import org.apache.cassandra.service.ColumnParent;
 public class SliceFromReadCommand extends ReadCommand
 {
     public final QueryPath column_parent;
-    public final String start, finish;
+    public final byte[] start, finish;
     public final boolean isAscending;
     public final int count;
 
-    public SliceFromReadCommand(String table, String key, ColumnParent column_parent, String start, String finish, boolean isAscending, int count)
+    public SliceFromReadCommand(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean isAscending, int count)
     {
         this(table, key, new QueryPath(column_parent), start, finish, isAscending, count);
     }
 
-    public SliceFromReadCommand(String table, String key, QueryPath columnParent, String start, String finish, boolean isAscending, int count)
+    public SliceFromReadCommand(String table, String key, QueryPath columnParent, byte[] start, byte[] finish, boolean isAscending, int count)
     {
         super(table, key, CMD_TYPE_GET_SLICE);
         this.column_parent = columnParent;
@@ -74,8 +74,8 @@ public class SliceFromReadCommand extends ReadCommand
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", column_parent='" + column_parent + '\'' +
-               ", start='" + start + '\'' +
-               ", finish='" + finish + '\'' +
+               ", start='" + getComparator().getString(start) + '\'' +
+               ", finish='" + getComparator().getString(finish) + '\'' +
                ", isAscending=" + isAscending +
                ", count=" + count +
                ')';
@@ -92,8 +92,8 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         dos.writeUTF(realRM.table);
         dos.writeUTF(realRM.key);
         realRM.column_parent.serialize(dos);
-        dos.writeUTF(realRM.start);
-        dos.writeUTF(realRM.finish);
+        ColumnSerializer.writeName(realRM.start, dos);
+        ColumnSerializer.writeName(realRM.finish, dos);
         dos.writeBoolean(realRM.isAscending);
         dos.writeInt(realRM.count);
     }
@@ -102,7 +102,13 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
     public ReadCommand deserialize(DataInputStream dis) throws IOException
     {
         boolean isDigest = dis.readBoolean();
-        SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(), dis.readUTF(), QueryPath.deserialize(dis), dis.readUTF(), dis.readUTF(), dis.readBoolean(), dis.readInt());
+        SliceFromReadCommand rm = new SliceFromReadCommand(dis.readUTF(),
+                                                           dis.readUTF(),
+                                                           QueryPath.deserialize(dis),
+                                                           ColumnSerializer.readName(dis),
+                                                           ColumnSerializer.readName(dis),
+                                                           dis.readBoolean(), 
+                                                           dis.readInt());
         rm.setDigestQuery(isDigest);
         return rm;
     }

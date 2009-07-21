@@ -19,13 +19,14 @@
 package org.apache.cassandra.io;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 
 /**
  * This class writes key/value pairs sequentially to disk. It is
@@ -33,8 +34,6 @@ import org.apache.log4j.Logger;
  * jump to random positions to read data from the file. This class
  * also has many implementations of the IFileWriter and IFileReader
  * interfaces which are exposed through factory methods.
- * <p/>
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com ) & Karthik Ranganathan ( kranganathan@facebook.com )
  */
 
 public class SequenceFile
@@ -177,7 +176,6 @@ public class SequenceFile
 
         public void close(byte[] footer, int size) throws IOException
         {
-            file_.writeUTF(SequenceFile.marker_);
             file_.writeInt(size);
             file_.write(footer, 0, size);
         }
@@ -230,7 +228,7 @@ public class SequenceFile
         private String key_;
         private String cfName_;
         private String cfType_;
-        private int indexType_;
+        private AbstractType comparator_;
         private boolean isAscending_;
 
         private List<IndexHelper.ColumnIndexInfo> columnIndexList_;
@@ -240,10 +238,11 @@ public class SequenceFile
         private int localDeletionTime_;
         private long markedForDeleteAt_;
 
-        ColumnGroupReader(String filename, String key, String cfName, String startColumn, boolean isAscending, long position) throws IOException
+        ColumnGroupReader(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
         {
             super(filename, 128 * 1024);
             this.cfName_ = cfName;
+            this.comparator_ = comparator;
             this.key_ = key;
             this.isAscending_ = isAscending;
             init(startColumn, position);
@@ -257,7 +256,7 @@ public class SequenceFile
             if (columnIndexList.size() == 0)
             {
                 /* if there is no column index, add an index entry that covers the full space. */
-                return Arrays.asList(new IndexHelper.ColumnIndexInfo[]{new IndexHelper.ColumnNameIndexInfo("", 0, totalNumCols)});
+                return Arrays.asList(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, totalNumCols, comparator_));
             }
 
             List<IndexHelper.ColumnIndexInfo> fullColIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
@@ -266,22 +265,24 @@ public class SequenceFile
                 accumulatededCols += colPosInfo.count();
             int remainingCols = totalNumCols - accumulatededCols;
 
-            fullColIndexList.add(new IndexHelper.ColumnNameIndexInfo("", 0, columnIndexList.get(0).count()));
+            fullColIndexList.add(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, columnIndexList.get(0).count(), comparator_));
             for (int i = 0; i < columnIndexList.size() - 1; i++)
             {
-                IndexHelper.ColumnNameIndexInfo colPosInfo = (IndexHelper.ColumnNameIndexInfo)columnIndexList.get(i);
-                fullColIndexList.add(new IndexHelper.ColumnNameIndexInfo(colPosInfo.name(),
-                                                                         colPosInfo.position(),
-                                                                         columnIndexList.get(i + 1).count()));
+                IndexHelper.ColumnIndexInfo colPosInfo = columnIndexList.get(i);
+                fullColIndexList.add(new IndexHelper.ColumnIndexInfo(colPosInfo.name(),
+                                                                     colPosInfo.position(),
+                                                                     columnIndexList.get(i + 1).count(),
+                                                                     comparator_));
             }
-            String columnName = ((IndexHelper.ColumnNameIndexInfo)columnIndexList.get(columnIndexList.size() - 1)).name();
-            fullColIndexList.add(new IndexHelper.ColumnNameIndexInfo(columnName,
-                                                                     columnIndexList.get(columnIndexList.size() - 1).position(),
-                                                                     remainingCols));
+            byte[] columnName = columnIndexList.get(columnIndexList.size() - 1).name();
+            fullColIndexList.add(new IndexHelper.ColumnIndexInfo(columnName,
+                                                                 columnIndexList.get(columnIndexList.size() - 1).position(),
+                                                                 remainingCols,
+                                                                 comparator_));
             return fullColIndexList;
         }
 
-        private void init(String startColumn, long position) throws IOException
+        private void init(byte[] startColumn, long position) throws IOException
         {
             String keyInDisk = null;
             if (seekTo(position) >= 0)
@@ -307,16 +308,17 @@ public class SequenceFile
                  * 2. calculate the size of all columns */
                 String cfName = file_.readUTF();
                 cfType_ = file_.readUTF();
-                indexType_ = file_.readInt();
+                String comparatorName = file_.readUTF();
+                assert comparatorName.equals(comparator_.getClass().getCanonicalName());
                 localDeletionTime_ = file_.readInt();
                 markedForDeleteAt_ = file_.readLong();
                 int totalNumCols = file_.readInt();
-                allColumnsSize_ = dataSize - (totalBytesRead + 2 * utfPrefix_ + cfName.length() + cfType_.length() + 4 + 4 + 8 + 4);
+                allColumnsSize_ = dataSize - (totalBytesRead + 3 * utfPrefix_ + cfName.length() + cfType_.length() + comparatorName.length() + 4 + 8 + 4);
 
                 columnStartPosition_ = file_.getFilePointer();
                 columnIndexList_ = getFullColumnIndexList(colIndexList, totalNumCols);
 
-                int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnNameIndexInfo(startColumn));
+                int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnIndexInfo(startColumn, 0, 0, comparator_));
                 curRangeIndex_ = index < 0 ? (++index) * (-1) - 1 : index;
             }
             else
@@ -345,7 +347,7 @@ public class SequenceFile
             // write CF info
             bufOut.writeUTF(cfName_);
             bufOut.writeUTF(cfType_);
-            bufOut.writeInt(indexType_);
+            bufOut.writeUTF(comparator_.getClass().getCanonicalName());
             bufOut.writeInt(localDeletionTime_);
             bufOut.writeLong(markedForDeleteAt_);
             // now write the columns
@@ -433,34 +435,6 @@ public class SequenceFile
         }
 
         /**
-         * Reads the column name indexes if present. If the
-         * indexes are based on time then skip over them.
-         *
-         * @param cfName
-         * @return
-         */
-        private int handleColumnTimeIndexes(String cfName, List<IndexHelper.ColumnIndexInfo> columnIndexList) throws IOException
-        {
-            /* check if we have an index */
-            boolean hasColumnIndexes = file_.readBoolean();
-            int totalBytesRead = 1;
-            /* if we do then deserialize the index */
-            if (hasColumnIndexes)
-            {
-                if (DatabaseDescriptor.isTimeSortingEnabled(null, cfName))
-                {
-                    /* read the index */
-                    totalBytesRead += IndexHelper.deserializeIndex(getTableName(), cfName, file_, columnIndexList);
-                }
-                else
-                {
-                    totalBytesRead += IndexHelper.skipIndex(file_);
-                }
-            }
-            return totalBytesRead;
-        }
-
-        /**
          * This method dumps the next key/value into the DataOuputStream
          * passed in. Always use this method to query for application
          * specific data as it will have indexes.
@@ -470,7 +444,7 @@ public class SequenceFile
          * @param columnFamilyName name of the columnFamily
          * @param columnNames columnNames we are interested in
          */
-        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, long position) throws IOException
+        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<byte[]> columnNames, long position) throws IOException
         {
             assert columnNames != null;
 
@@ -514,8 +488,8 @@ public class SequenceFile
             return bytesRead;
         }
 
-        private void readColumns(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> cNames)
-                throws IOException
+        private void readColumns(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<byte[]> cNames)
+        throws IOException
         {
             int dataSize = file_.readInt();
 
@@ -556,8 +530,8 @@ public class SequenceFile
                 String cfType = file_.readUTF();
                 dataSize -= (utfPrefix_ + cfType.length());
 
-                int indexType = file_.readInt();
-                dataSize -= 4;
+                String comparatorName = file_.readUTF();
+                dataSize -= (utfPrefix_ + comparatorName.length());
 
                 /* read local deletion time */
                 int localDeletionTime = file_.readInt();
@@ -590,7 +564,7 @@ public class SequenceFile
                 // echo back the CF data we read
                 bufOut.writeUTF(cfName);
                 bufOut.writeUTF(cfType);
-                bufOut.writeInt(indexType);
+                bufOut.writeUTF(comparatorName);
                 bufOut.writeInt(localDeletionTime);
                 bufOut.writeLong(markedForDeleteAt);
                 /* write number of columns */
@@ -636,15 +610,6 @@ public class SequenceFile
                 bytesRead = endPosition - startPosition;
             }
 
-            /*
-             * If we have read the bloom filter in the data
-             * file we know we are at the end of the file
-             * and no further key processing is required. So
-             * we return -1 indicating we are at the end of
-             * the file.
-            */
-            if (key.equals(SequenceFile.marker_))
-                bytesRead = -1L;
             return bytesRead;
         }
     }

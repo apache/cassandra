@@ -31,7 +31,7 @@ namespace php cassandra
 #
 
 struct Column {
-   1: string                        name,
+   1: binary                        name,
    2: binary                        value,
    3: i64                           timestamp,
 }
@@ -44,7 +44,7 @@ struct BatchMutation {
 }
 
 struct SuperColumn {
-   1: string                        name,
+   1: binary                        name,
    2: list<Column>                  columns,
 }
 
@@ -91,32 +91,32 @@ exception UnavailableException {
 
 struct ColumnParent {
     3: string          column_family,
-    4: optional string super_column,
+    4: optional binary super_column,
 }
 
 struct ColumnPath {
     3: string          column_family,
-    4: optional string super_column,
-    5: string          column,
+    4: optional binary super_column,
+    5: binary          column,
 }
 
 struct SuperColumnPath {
     3: string          column_family,
-    4: string          super_column,
+    4: binary          super_column,
 }
 
 struct ColumnPathOrParent {
     3: string          column_family,
-    4: optional string super_column,
-    5: optional string column,
+    4: optional binary super_column,
+    5: optional binary column,
 }
 
 
 service Cassandra {
-  list<Column> get_slice_by_names(1:string table, 2:string key, 3:ColumnParent column_parent, 4:list<string> column_names)
+  list<Column> get_slice_by_names(1:string table, 2:string key, 3:ColumnParent column_parent, 4:list<binary> column_names)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 count=100)
+  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
   Column       get_column(1:string table, 2:string key, 3:ColumnPath column_path)
@@ -134,10 +134,10 @@ service Cassandra {
   void           remove(1:string table, 2:string key, 3:ColumnPathOrParent column_path_or_parent, 4:i64 timestamp, 5:i32 block_for=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:string start, 5:string finish, 6:bool is_ascending, 7:i32 count=100)
+  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100)
   throws (1: InvalidRequestException ire),
 
-  list<SuperColumn> get_slice_super_by_names(1:string table, 2:string key, 3:string column_family, 4:list<string> super_column_names)
+  list<SuperColumn> get_slice_super_by_names(1:string table, 2:string key, 3:string column_family, 4:list<binary> super_column_names)
   throws (1: InvalidRequestException ire),
 
   SuperColumn  get_super_column(1:string table, 2:string key, 3:SuperColumnPath super_column_path)

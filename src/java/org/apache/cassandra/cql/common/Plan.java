@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql.common;
 
+import java.io.UnsupportedEncodingException;
+
 /**
  * Abstract class representing the shared execution plan for a CQL
  * statement (query or DML operation).
@@ -25,6 +27,6 @@ package org.apache.cassandra.cql.common;
  */
 public abstract class Plan
 {
-    public abstract CqlResult execute();
+    public abstract CqlResult execute() throws UnsupportedEncodingException;
     public abstract String explainPlan();
 }

@@ -25,6 +25,9 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.LogUtil;
 
 import java.util.*;
+import java.io.UnsupportedEncodingException;
+
+import org.apache.commons.lang.ArrayUtils;
 
 // Cli Client Side Library
 public class CliClient 
@@ -135,7 +138,7 @@ public class CliClient
         {
             // table.cf['key']
         	List<Column> columns = new ArrayList<Column>();
-      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), "", "", true, 1000000);
+      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
             int size = columns.size();
             for (Iterator<Column> colIter = columns.iterator(); colIter.hasNext(); )
             {
@@ -151,7 +154,14 @@ public class CliClient
             // table.cf['key']['column']
             String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
             Column column = new Column();
-           	column = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName));
+            try
+            {
+                column = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")));
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                throw new RuntimeException(e);
+            }
             css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
                             column.name, column.value, column.timestamp);
         }
@@ -184,8 +194,15 @@ public class CliClient
             String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
 
             // do the insert
-            thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, null, columnName),
-                                 value.getBytes(), System.currentTimeMillis(), 1);
+            try
+            {
+                thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")),
+                                     value.getBytes(), System.currentTimeMillis(), 1);
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                throw new RuntimeException(e);
+            }
 
             css_.out.println("Value inserted.");
         }

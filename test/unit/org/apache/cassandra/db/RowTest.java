@@ -38,17 +38,17 @@ public class RowTest
         cf2.delete(0, 0);
 
         ColumnFamily cfDiff = cf1.diff(cf2);
-        assertEquals(cfDiff.getColumns().size(), 0);
+        assertEquals(cfDiff.getColumnsMap().size(), 0);
         assertEquals(cfDiff.getMarkedForDeleteAt(), 0);
     }
 
     @Test
     public void testDiffSuperColumn()
     {
-        SuperColumn sc1 = new SuperColumn("one");
+        SuperColumn sc1 = new SuperColumn("one".getBytes());
         sc1.addColumn(column("subcolumn", "A", 0));
 
-        SuperColumn sc2 = new SuperColumn("one");
+        SuperColumn sc2 = new SuperColumn("one".getBytes());
         sc2.markForDeleteAt(0, 0);
 
         SuperColumn scDiff = (SuperColumn)sc1.diff(sc2);
@@ -68,15 +68,15 @@ public class RowTest
         ColumnFamily cf2 = ColumnFamily.create("Table1", "Standard1");
         cf2.addColumn(column("one", "B", 1));
         cf2.addColumn(column("two", "C", 1));
-        ColumnFamily cf3 = ColumnFamily.create("Table2", "Standard2");
+        ColumnFamily cf3 = ColumnFamily.create("Table2", "Standard3");
         cf3.addColumn(column("three", "D", 1));
         row2.addColumnFamily(cf2);
         row2.addColumnFamily(cf3);
 
         row1.repair(row2);
         cf1 = row1.getColumnFamily("Standard1");
-        assert Arrays.equals(cf1.getColumn("one").value(), "B".getBytes());
-        assert Arrays.equals(cf2.getColumn("two").value(), "C".getBytes());
-        assert row1.getColumnFamily("Standard2") != null;
+        assert Arrays.equals(cf1.getColumn("one".getBytes()).value(), "B".getBytes());
+        assert Arrays.equals(cf2.getColumn("two".getBytes()).value(), "C".getBytes());
+        assert row1.getColumnFamily("Standard3") != null;
     }
 }

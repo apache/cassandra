@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.config;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+
 public class CFMetaData
 {
     public String tableName;            // name of table which has this column family
     public String cfName;               // name of the column family
     public String columnType;           // type: super, standard, etc.
-    public String indexProperty_;       // name sorted, time stamp sorted etc. 
+    public AbstractType comparator;       // name sorted, time stamp sorted etc.
 
     // The user chosen names (n_) for various parts of data in a column family.
     // CQL queries, for instance, will refer to/extract data within a column
@@ -36,7 +38,7 @@ public class CFMetaData
     public String n_columnValue;
     public String n_columnTimestamp;
     public int    flushPeriodInMinutes = 0; // flush interval, if <=0, no periodic flusher is scheduled
-    
+
     // a quick and dirty pretty printer for describing the column family...
     public String pretty()
     {
@@ -49,7 +51,7 @@ public class CFMetaData
         desc = tableName + "." + cfName + "(" + n_rowKey + ", " + desc + ")\n";
         
         desc += "Column Family Type: " + columnType + "\n" +
-                "Columns Sorted By: " + indexProperty_ + "\n";
+                "Columns Sorted By: " + comparator + "\n";
         desc += "flush period: " + flushPeriodInMinutes + " minutes\n";
         return desc;
     }

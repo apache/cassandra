@@ -109,15 +109,15 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         // add data
         rm = new RowMutation("Table1", "key1");
-        rm.add(new QueryPath("Standard1", null, "Column1"), "asdf".getBytes(), 0);
-        rm.add(new QueryPath("Standard1", null, "Column2"), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceBloomFilterFailures();
-        ColumnFamily cf = store.getColumnFamily(new IdentityQueryFilter("key2", new QueryPath("Standard1", null, "Column1")));
+        ColumnFamily cf = store.getColumnFamily(new IdentityQueryFilter("key2", new QueryPath("Standard1", null, "Column1".getBytes())));
         assertNull(cf);
     }
 }

@@ -41,7 +41,7 @@ public class OneCompactionTest
         for (int j = 0; j < insertsPerTable; j++) {
             String key = "0";
             RowMutation rm = new RowMutation("Table1", key);
-            rm.add(new QueryPath(columnFamilyName, null, "0"), new byte[0], j);
+            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();

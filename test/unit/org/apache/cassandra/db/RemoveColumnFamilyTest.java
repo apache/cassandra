@@ -38,7 +38,7 @@ public class RemoveColumnFamilyTest
 
         // add data
         rm = new RowMutation("Table1", "key1");
-        rm.add(new QueryPath("Standard1", null, "Column1"), "asdf".getBytes(), 0);
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.apply();
 
         // remove
@@ -46,9 +46,9 @@ public class RemoveColumnFamilyTest
         rm.delete(new QueryPath("Standard1"), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Standard1", null, "Column1")));
+        ColumnFamily retrieved = store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Standard1", null, "Column1".getBytes())));
         assert retrieved.isMarkedForDelete();
-        assertNull(retrieved.getColumn("Column1"));
+        assertNull(retrieved.getColumn("Column1".getBytes()));
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

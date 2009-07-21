@@ -23,7 +23,7 @@ import java.util.*;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.SequenceFile.ColumnGroupReader;
 import org.apache.cassandra.utils.BloomFilter;
@@ -285,7 +285,7 @@ public class SSTableReader extends SSTable
         }
     }
 
-    public DataInputBuffer next(final String clientKey, String cfName, SortedSet<String> columnNames) throws IOException
+    public DataInputBuffer next(final String clientKey, String cfName, SortedSet<byte[]> columnNames) throws IOException
     {
         IFileReader dataReader = null;
         try
@@ -318,18 +318,10 @@ public class SSTableReader extends SSTable
         }
     }
 
-    public DataInputBuffer next(String clientKey, String columnFamilyColumn) throws IOException
-    {
-        String[] values = RowMutation.getColumnAndColumnFamily(columnFamilyColumn);
-        String columnFamilyName = values[0];
-        SortedSet<String> columnNames = (values.length == 1) ? null : new TreeSet<String>(Arrays.asList(values[1]));
-        return next(clientKey, columnFamilyName, columnNames);
-    }
-
     /**
      * obtain a BlockReader for the getColumnSlice call.
      */
-    public ColumnGroupReader getColumnGroupReader(String key, String cfName, String startColumn, boolean isAscending) throws IOException
+    public ColumnGroupReader getColumnGroupReader(String key, String cfName, byte[] startColumn, boolean isAscending) throws IOException
     {
         IFileReader dataReader = SequenceFile.reader(dataFile);
 
@@ -338,7 +330,8 @@ public class SSTableReader extends SSTable
             /* Morph key into actual key based on the partition type. */
             String decoratedKey = partitioner.decorateKey(key);
             long position = getPosition(decoratedKey, partitioner);
-            return new ColumnGroupReader(dataFile, decoratedKey, cfName, startColumn, isAscending, position);
+            AbstractType comparator = DatabaseDescriptor.getType(getTableName(), cfName);
+            return new ColumnGroupReader(dataFile, decoratedKey, cfName, comparator, startColumn, isAscending, position);
         }
         finally
         {
@@ -378,6 +371,11 @@ public class SSTableReader extends SSTable
     public FileStruct getFileStruct() throws IOException
     {
         return new FileStruct(this);
+    }
+
+    public String getTableName()
+    {
+        return parseTableName(dataFile);
     }
 
     public static void deleteAll() throws IOException

@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.Predicate;
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
@@ -591,7 +592,7 @@ public class Table
                 
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
-            Collection<IColumn> columns = columnFamily.getAllColumns();
+            Collection<IColumn> columns = columnFamily.getSortedColumns();
             for(IColumn column : columns)
             {
                 ColumnFamilyStore cfStore = columnFamilyStores_.get(column.name());
@@ -704,7 +705,8 @@ public class Table
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                if (cfs.getColumnFamily(new SliceQueryFilter(current, new QueryPath(cfName), "", "", true, 1), Integer.MAX_VALUE) != null)
+                QueryFilter filter = new SliceQueryFilter(current, new QueryPath(cfName), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1);
+                if (cfs.getColumnFamily(filter, Integer.MAX_VALUE) != null)
                 {
                     keys.add(current);
                 }

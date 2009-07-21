@@ -44,8 +44,8 @@ public class CommitLogTest extends CleanupHelper
         for (int i = 0; i < 10; i++)
         {
             rm = new RowMutation("Table1", "key1");
-            rm.add(new QueryPath("Standard1", null, "Column1"), value, 0);
-            rm.add(new QueryPath("Standard2", null, "Column1"), value, 0);
+            rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), value, 0);
+            rm.add(new QueryPath("Standard2", null, "Column1".getBytes()), value, 0);
             rm.apply();
         }
         assert CommitLog.getSegmentCount() > 1;

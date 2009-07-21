@@ -40,8 +40,10 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.BatchMutationSuper;
 import org.apache.cassandra.service.BatchMutation;
+import org.apache.cassandra.service.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.MarshalException;
 
 
 /**
@@ -66,11 +68,6 @@ public class RowMutation implements Serializable
     private String table_;
     private String key_;
     protected Map<String, ColumnFamily> modifications_ = new HashMap<String, ColumnFamily>();
-
-    /* Ctor for JAXB */
-    private RowMutation()
-    {
-    }
 
     public RowMutation(String table, String key)
     {
@@ -110,9 +107,9 @@ public class RowMutation implements Serializable
         return modifications_.keySet();
     }
 
-    void addHints(String hint) throws IOException
+    void addHints(String key, String host) throws IOException
     {
-        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, null, hint);
+        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, key.getBytes("UTF-8"), host.getBytes("UTF-8"));
         add(path, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 
@@ -261,7 +258,7 @@ public class RowMutation implements Serializable
         return rm;
     }
 
-    public static RowMutation getRowMutation(String table, BatchMutationSuper batchMutationSuper)
+    public static RowMutation getRowMutation(String table, BatchMutationSuper batchMutationSuper) throws InvalidRequestException
     {
         RowMutation rm = new RowMutation(table, batchMutationSuper.key.trim());
         for (String cfName : batchMutationSuper.cfmap.keySet())
@@ -270,7 +267,14 @@ public class RowMutation implements Serializable
             {
                 for (org.apache.cassandra.service.Column column : super_column.columns)
                 {
-                    rm.add(new QueryPath(cfName, super_column.name, column.name), column.value, column.timestamp);
+                    try
+                    {
+                        rm.add(new QueryPath(cfName, super_column.name, column.name), column.value, column.timestamp);
+                    }
+                    catch (MarshalException e)
+                    {
+                        throw new InvalidRequestException(e.getMessage());
+                    }
                 }
             }
         }

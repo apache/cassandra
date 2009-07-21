@@ -22,9 +22,9 @@ public class Cassandra {
 
   public interface Iface {
 
-    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int count) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count) throws InvalidRequestException, NotFoundException, TException;
 
     public Column get_column(String table, String key, ColumnPath column_path) throws InvalidRequestException, NotFoundException, TException;
 
@@ -36,9 +36,9 @@ public class Cassandra {
 
     public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int count) throws InvalidRequestException, TException;
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count) throws InvalidRequestException, TException;
 
-    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names) throws InvalidRequestException, TException;
+    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names) throws InvalidRequestException, TException;
 
     public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path) throws InvalidRequestException, NotFoundException, TException;
 
@@ -83,13 +83,13 @@ public class Cassandra {
       return this.oprot_;
     }
 
-    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names) throws InvalidRequestException, NotFoundException, TException
     {
       send_get_slice_by_names(table, key, column_parent, column_names);
       return recv_get_slice_by_names();
     }
 
-    public void send_get_slice_by_names(String table, String key, ColumnParent column_parent, List<String> column_names) throws TException
+    public void send_get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_by_names", TMessageType.CALL, seqid_));
       get_slice_by_names_args args = new get_slice_by_names_args();
@@ -125,13 +125,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_by_names failed: unknown result");
     }
 
-    public List<Column> get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int count) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count) throws InvalidRequestException, NotFoundException, TException
     {
       send_get_slice(table, key, column_parent, start, finish, is_ascending, count);
       return recv_get_slice();
     }
 
-    public void send_get_slice(String table, String key, ColumnParent column_parent, String start, String finish, boolean is_ascending, int count) throws TException
+    public void send_get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice", TMessageType.CALL, seqid_));
       get_slice_args args = new get_slice_args();
@@ -368,13 +368,13 @@ public class Cassandra {
       return;
     }
 
-    public List<SuperColumn> get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int count) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count) throws InvalidRequestException, TException
     {
       send_get_slice_super(table, key, column_family, start, finish, is_ascending, count);
       return recv_get_slice_super();
     }
 
-    public void send_get_slice_super(String table, String key, String column_family, String start, String finish, boolean is_ascending, int count) throws TException
+    public void send_get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super", TMessageType.CALL, seqid_));
       get_slice_super_args args = new get_slice_super_args();
@@ -410,13 +410,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super failed: unknown result");
     }
 
-    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names) throws InvalidRequestException, TException
     {
       send_get_slice_super_by_names(table, key, column_family, super_column_names);
       return recv_get_slice_super_by_names();
     }
 
-    public void send_get_slice_super_by_names(String table, String key, String column_family, List<String> super_column_names) throws TException
+    public void send_get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super_by_names", TMessageType.CALL, seqid_));
       get_slice_super_by_names_args args = new get_slice_super_by_names_args();
@@ -1196,7 +1196,7 @@ public class Cassandra {
     public static final int KEY = 2;
     public ColumnParent column_parent;
     public static final int COLUMN_PARENT = 3;
-    public List<String> column_names;
+    public List<byte[]> column_names;
     public static final int COLUMN_NAMES = 4;
 
     private final Isset __isset = new Isset();
@@ -1226,7 +1226,7 @@ public class Cassandra {
       String table,
       String key,
       ColumnParent column_parent,
-      List<String> column_names)
+      List<byte[]> column_names)
     {
       this();
       this.table = table;
@@ -1249,9 +1249,11 @@ public class Cassandra {
         this.column_parent = new ColumnParent(other.column_parent);
       }
       if (other.isSetColumn_names()) {
-        List<String> __this__column_names = new ArrayList<String>();
-        for (String other_element : other.column_names) {
-          __this__column_names.add(other_element);
+        List<byte[]> __this__column_names = new ArrayList<byte[]>();
+        for (byte[] other_element : other.column_names) {
+          byte[] temp_binary_element = new byte[other_element.length];
+          System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
+          __this__column_names.add(temp_binary_element);
         }
         this.column_names = __this__column_names;
       }
@@ -1335,22 +1337,22 @@ public class Cassandra {
       return (this.column_names == null) ? 0 : this.column_names.size();
     }
 
-    public java.util.Iterator<String> getColumn_namesIterator() {
+    public java.util.Iterator<byte[]> getColumn_namesIterator() {
       return (this.column_names == null) ? null : this.column_names.iterator();
     }
 
-    public void addToColumn_names(String elem) {
+    public void addToColumn_names(byte[] elem) {
       if (this.column_names == null) {
-        this.column_names = new ArrayList<String>();
+        this.column_names = new ArrayList<byte[]>();
       }
       this.column_names.add(elem);
     }
 
-    public List<String> getColumn_names() {
+    public List<byte[]> getColumn_names() {
       return this.column_names;
     }
 
-    public void setColumn_names(List<String> column_names) {
+    public void setColumn_names(List<byte[]> column_names) {
       this.column_names = column_names;
     }
 
@@ -1399,7 +1401,7 @@ public class Cassandra {
         if (value == null) {
           unsetColumn_names();
         } else {
-          setColumn_names((List<String>)value);
+          setColumn_names((List<byte[]>)value);
         }
         break;
 
@@ -1537,11 +1539,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list31 = iprot.readListBegin();
-                this.column_names = new ArrayList<String>(_list31.size);
+                this.column_names = new ArrayList<byte[]>(_list31.size);
                 for (int _i32 = 0; _i32 < _list31.size; ++_i32)
                 {
-                  String _elem33;
-                  _elem33 = iprot.readString();
+                  byte[] _elem33;
+                  _elem33 = iprot.readBinary();
                   this.column_names.add(_elem33);
                 }
                 iprot.readListEnd();
@@ -1586,8 +1588,8 @@ public class Cassandra {
         oprot.writeFieldBegin(COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.column_names.size()));
-          for (String _iter34 : this.column_names)          {
-            oprot.writeString(_iter34);
+          for (byte[] _iter34 : this.column_names)          {
+            oprot.writeBinary(_iter34);
           }
           oprot.writeListEnd();
         }
@@ -2045,9 +2047,9 @@ public class Cassandra {
     public static final int KEY = 2;
     public ColumnParent column_parent;
     public static final int COLUMN_PARENT = 3;
-    public String start;
+    public byte[] start;
     public static final int START = 4;
-    public String finish;
+    public byte[] finish;
     public static final int FINISH = 5;
     public boolean is_ascending;
     public static final int IS_ASCENDING = 6;
@@ -2090,8 +2092,8 @@ public class Cassandra {
       String table,
       String key,
       ColumnParent column_parent,
-      String start,
-      String finish,
+      byte[] start,
+      byte[] finish,
       boolean is_ascending,
       int count)
     {
@@ -2121,10 +2123,12 @@ public class Cassandra {
         this.column_parent = new ColumnParent(other.column_parent);
       }
       if (other.isSetStart()) {
-        this.start = other.start;
+        this.start = new byte[other.start.length];
+        System.arraycopy(other.start, 0, start, 0, other.start.length);
       }
       if (other.isSetFinish()) {
-        this.finish = other.finish;
+        this.finish = new byte[other.finish.length];
+        System.arraycopy(other.finish, 0, finish, 0, other.finish.length);
       }
       __isset.is_ascending = other.__isset.is_ascending;
       this.is_ascending = other.is_ascending;
@@ -2206,11 +2210,11 @@ public class Cassandra {
       }
     }
 
-    public String getStart() {
+    public byte[] getStart() {
       return this.start;
     }
 
-    public void setStart(String start) {
+    public void setStart(byte[] start) {
       this.start = start;
     }
 
@@ -2229,11 +2233,11 @@ public class Cassandra {
       }
     }
 
-    public String getFinish() {
+    public byte[] getFinish() {
       return this.finish;
     }
 
-    public void setFinish(String finish) {
+    public void setFinish(byte[] finish) {
       this.finish = finish;
     }
 
@@ -2326,7 +2330,7 @@ public class Cassandra {
         if (value == null) {
           unsetStart();
         } else {
-          setStart((String)value);
+          setStart((byte[])value);
         }
         break;
 
@@ -2334,7 +2338,7 @@ public class Cassandra {
         if (value == null) {
           unsetFinish();
         } else {
-          setFinish((String)value);
+          setFinish((byte[])value);
         }
         break;
 
@@ -2454,7 +2458,7 @@ public class Cassandra {
       if (this_present_start || that_present_start) {
         if (!(this_present_start && that_present_start))
           return false;
-        if (!this.start.equals(that.start))
+        if (!java.util.Arrays.equals(this.start, that.start))
           return false;
       }
 
@@ -2463,7 +2467,7 @@ public class Cassandra {
       if (this_present_finish || that_present_finish) {
         if (!(this_present_finish && that_present_finish))
           return false;
-        if (!this.finish.equals(that.finish))
+        if (!java.util.Arrays.equals(this.finish, that.finish))
           return false;
       }
 
@@ -2528,14 +2532,14 @@ public class Cassandra {
             break;
           case START:
             if (field.type == TType.STRING) {
-              this.start = iprot.readString();
+              this.start = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case FINISH:
             if (field.type == TType.STRING) {
-              this.finish = iprot.readString();
+              this.finish = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2590,12 +2594,12 @@ public class Cassandra {
       }
       if (this.start != null) {
         oprot.writeFieldBegin(START_FIELD_DESC);
-        oprot.writeString(this.start);
+        oprot.writeBinary(this.start);
         oprot.writeFieldEnd();
       }
       if (this.finish != null) {
         oprot.writeFieldBegin(FINISH_FIELD_DESC);
-        oprot.writeString(this.finish);
+        oprot.writeBinary(this.finish);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
@@ -2641,7 +2645,12 @@ public class Cassandra {
       if (this.start == null) {
         sb.append("null");
       } else {
-        sb.append(this.start);
+          int __start_size = Math.min(this.start.length, 128);
+          for (int i = 0; i < __start_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.start[i]).length() > 1 ? Integer.toHexString(this.start[i]).substring(Integer.toHexString(this.start[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start[i]).toUpperCase());
+          }
+          if (this.start.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -2649,7 +2658,12 @@ public class Cassandra {
       if (this.finish == null) {
         sb.append("null");
       } else {
-        sb.append(this.finish);
+          int __finish_size = Math.min(this.finish.length, 128);
+          for (int i = 0; i < __finish_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.finish[i]).length() > 1 ? Integer.toHexString(this.finish[i]).substring(Integer.toHexString(this.finish[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.finish[i]).toUpperCase());
+          }
+          if (this.finish.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -6625,9 +6639,9 @@ public class Cassandra {
     public static final int KEY = 2;
     public String column_family;
     public static final int COLUMN_FAMILY = 3;
-    public String start;
+    public byte[] start;
     public static final int START = 4;
-    public String finish;
+    public byte[] finish;
     public static final int FINISH = 5;
     public boolean is_ascending;
     public static final int IS_ASCENDING = 6;
@@ -6670,8 +6684,8 @@ public class Cassandra {
       String table,
       String key,
       String column_family,
-      String start,
-      String finish,
+      byte[] start,
+      byte[] finish,
       boolean is_ascending,
       int count)
     {
@@ -6701,10 +6715,12 @@ public class Cassandra {
         this.column_family = other.column_family;
       }
       if (other.isSetStart()) {
-        this.start = other.start;
+        this.start = new byte[other.start.length];
+        System.arraycopy(other.start, 0, start, 0, other.start.length);
       }
       if (other.isSetFinish()) {
-        this.finish = other.finish;
+        this.finish = new byte[other.finish.length];
+        System.arraycopy(other.finish, 0, finish, 0, other.finish.length);
       }
       __isset.is_ascending = other.__isset.is_ascending;
       this.is_ascending = other.is_ascending;
@@ -6786,11 +6802,11 @@ public class Cassandra {
       }
     }
 
-    public String getStart() {
+    public byte[] getStart() {
       return this.start;
     }
 
-    public void setStart(String start) {
+    public void setStart(byte[] start) {
       this.start = start;
     }
 
@@ -6809,11 +6825,11 @@ public class Cassandra {
       }
     }
 
-    public String getFinish() {
+    public byte[] getFinish() {
       return this.finish;
     }
 
-    public void setFinish(String finish) {
+    public void setFinish(byte[] finish) {
       this.finish = finish;
     }
 
@@ -6906,7 +6922,7 @@ public class Cassandra {
         if (value == null) {
           unsetStart();
         } else {
-          setStart((String)value);
+          setStart((byte[])value);
         }
         break;
 
@@ -6914,7 +6930,7 @@ public class Cassandra {
         if (value == null) {
           unsetFinish();
         } else {
-          setFinish((String)value);
+          setFinish((byte[])value);
         }
         break;
 
@@ -7034,7 +7050,7 @@ public class Cassandra {
       if (this_present_start || that_present_start) {
         if (!(this_present_start && that_present_start))
           return false;
-        if (!this.start.equals(that.start))
+        if (!java.util.Arrays.equals(this.start, that.start))
           return false;
       }
 
@@ -7043,7 +7059,7 @@ public class Cassandra {
       if (this_present_finish || that_present_finish) {
         if (!(this_present_finish && that_present_finish))
           return false;
-        if (!this.finish.equals(that.finish))
+        if (!java.util.Arrays.equals(this.finish, that.finish))
           return false;
       }
 
@@ -7107,14 +7123,14 @@ public class Cassandra {
             break;
           case START:
             if (field.type == TType.STRING) {
-              this.start = iprot.readString();
+              this.start = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
           case FINISH:
             if (field.type == TType.STRING) {
-              this.finish = iprot.readString();
+              this.finish = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7169,12 +7185,12 @@ public class Cassandra {
       }
       if (this.start != null) {
         oprot.writeFieldBegin(START_FIELD_DESC);
-        oprot.writeString(this.start);
+        oprot.writeBinary(this.start);
         oprot.writeFieldEnd();
       }
       if (this.finish != null) {
         oprot.writeFieldBegin(FINISH_FIELD_DESC);
-        oprot.writeString(this.finish);
+        oprot.writeBinary(this.finish);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
@@ -7220,7 +7236,12 @@ public class Cassandra {
       if (this.start == null) {
         sb.append("null");
       } else {
-        sb.append(this.start);
+          int __start_size = Math.min(this.start.length, 128);
+          for (int i = 0; i < __start_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.start[i]).length() > 1 ? Integer.toHexString(this.start[i]).substring(Integer.toHexString(this.start[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.start[i]).toUpperCase());
+          }
+          if (this.start.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -7228,7 +7249,12 @@ public class Cassandra {
       if (this.finish == null) {
         sb.append("null");
       } else {
-        sb.append(this.finish);
+          int __finish_size = Math.min(this.finish.length, 128);
+          for (int i = 0; i < __finish_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.finish[i]).length() > 1 ? Integer.toHexString(this.finish[i]).substring(Integer.toHexString(this.finish[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.finish[i]).toUpperCase());
+          }
+          if (this.finish.length > 128) sb.append(" ...");
       }
       first = false;
       if (!first) sb.append(", ");
@@ -7573,7 +7599,7 @@ public class Cassandra {
     public static final int KEY = 2;
     public String column_family;
     public static final int COLUMN_FAMILY = 3;
-    public List<String> super_column_names;
+    public List<byte[]> super_column_names;
     public static final int SUPER_COLUMN_NAMES = 4;
 
     private final Isset __isset = new Isset();
@@ -7603,7 +7629,7 @@ public class Cassandra {
       String table,
       String key,
       String column_family,
-      List<String> super_column_names)
+      List<byte[]> super_column_names)
     {
       this();
       this.table = table;
@@ -7626,9 +7652,11 @@ public class Cassandra {
         this.column_family = other.column_family;
       }
       if (other.isSetSuper_column_names()) {
-        List<String> __this__super_column_names = new ArrayList<String>();
-        for (String other_element : other.super_column_names) {
-          __this__super_column_names.add(other_element);
+        List<byte[]> __this__super_column_names = new ArrayList<byte[]>();
+        for (byte[] other_element : other.super_column_names) {
+          byte[] temp_binary_element = new byte[other_element.length];
+          System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
+          __this__super_column_names.add(temp_binary_element);
         }
         this.super_column_names = __this__super_column_names;
       }
@@ -7712,22 +7740,22 @@ public class Cassandra {
       return (this.super_column_names == null) ? 0 : this.super_column_names.size();
     }
 
-    public java.util.Iterator<String> getSuper_column_namesIterator() {
+    public java.util.Iterator<byte[]> getSuper_column_namesIterator() {
       return (this.super_column_names == null) ? null : this.super_column_names.iterator();
     }
 
-    public void addToSuper_column_names(String elem) {
+    public void addToSuper_column_names(byte[] elem) {
       if (this.super_column_names == null) {
-        this.super_column_names = new ArrayList<String>();
+        this.super_column_names = new ArrayList<byte[]>();
       }
       this.super_column_names.add(elem);
     }
 
-    public List<String> getSuper_column_names() {
+    public List<byte[]> getSuper_column_names() {
       return this.super_column_names;
     }
 
-    public void setSuper_column_names(List<String> super_column_names) {
+    public void setSuper_column_names(List<byte[]> super_column_names) {
       this.super_column_names = super_column_names;
     }
 
@@ -7776,7 +7804,7 @@ public class Cassandra {
         if (value == null) {
           unsetSuper_column_names();
         } else {
-          setSuper_column_names((List<String>)value);
+          setSuper_column_names((List<byte[]>)value);
         }
         break;
 
@@ -7913,11 +7941,11 @@ public class Cassandra {
             if (field.type == TType.LIST) {
               {
                 TList _list47 = iprot.readListBegin();
-                this.super_column_names = new ArrayList<String>(_list47.size);
+                this.super_column_names = new ArrayList<byte[]>(_list47.size);
                 for (int _i48 = 0; _i48 < _list47.size; ++_i48)
                 {
-                  String _elem49;
-                  _elem49 = iprot.readString();
+                  byte[] _elem49;
+                  _elem49 = iprot.readBinary();
                   this.super_column_names.add(_elem49);
                 }
                 iprot.readListEnd();
@@ -7962,8 +7990,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUPER_COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.super_column_names.size()));
-          for (String _iter50 : this.super_column_names)          {
-            oprot.writeString(_iter50);
+          for (byte[] _iter50 : this.super_column_names)          {
+            oprot.writeBinary(_iter50);
           }
           oprot.writeListEnd();
         }

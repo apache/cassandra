@@ -67,7 +67,7 @@ public class SetSuperColumnMap extends DMLPlan
                 {
                     OperandDef columnKey = entry.getFirst();
                     OperandDef value     = entry.getSecond();
-                    QueryPath path = new QueryPath(cfMetaData_.cfName, (String)(superColumnKey.get()), (String)(columnKey.get()));
+                    QueryPath path = new QueryPath(cfMetaData_.cfName, ((String)(superColumnKey.get())).getBytes("UTF-8"), ((String)(columnKey.get())).getBytes("UTF-8"));
                     rm.add(path, ((String)value.get()).getBytes(), time);
                 }
             }

@@ -4,23 +4,22 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.DataInputStream;
 
+import org.apache.commons.lang.ArrayUtils;
+
 import org.apache.cassandra.service.ColumnParent;
 import org.apache.cassandra.service.ColumnPath;
 import org.apache.cassandra.service.ColumnPathOrParent;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.ColumnSerializer;
 
 public class QueryPath
 {
     public final String columnFamilyName;
-    public final String superColumnName;
-    public final String columnName;
+    public final byte[] superColumnName;
+    public final byte[] columnName;
 
-    public QueryPath(String columnFamilyName, String superColumnName, String columnName)
+    public QueryPath(String columnFamilyName, byte[] superColumnName, byte[] columnName)
     {
-        // TODO remove these when we're sure the last vestiges of the old api are gone
-        assert columnFamilyName == null || !columnFamilyName.contains(":");
-        assert superColumnName == null || !superColumnName.contains(":");
-        assert columnName == null || !columnName.contains(":");
-
         this.columnFamilyName = columnFamilyName;
         this.superColumnName = superColumnName;
         this.columnName = columnName;
@@ -31,7 +30,7 @@ public class QueryPath
         this(columnParent.column_family, columnParent.super_column, null);
     }
 
-    public QueryPath(String columnFamilyName, String superColumnName)
+    public QueryPath(String columnFamilyName, byte[] superColumnName)
     {
         this(columnFamilyName, superColumnName, null);
     }
@@ -51,7 +50,7 @@ public class QueryPath
         this(column_path_or_parent.column_family, column_path_or_parent.super_column, column_path_or_parent.column);
     }
 
-    public static QueryPath column(String columnName)
+    public static QueryPath column(byte[] columnName)
     {
         return new QueryPath(null, null, columnName);
     }
@@ -69,18 +68,18 @@ public class QueryPath
     public void serialize(DataOutputStream dos) throws IOException
     {
         assert !"".equals(columnFamilyName);
-        assert !"".equals(superColumnName);
-        assert !"".equals(columnName);
+        assert superColumnName == null || superColumnName.length > 0;
+        assert columnName == null || columnName.length > 0;
         dos.writeUTF(columnFamilyName == null ? "" : columnFamilyName);
-        dos.writeUTF(superColumnName == null ? "" : superColumnName);
-        dos.writeUTF(columnName == null ? "" : columnName);
+        ColumnSerializer.writeName(superColumnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : superColumnName, dos);
+        ColumnSerializer.writeName(columnName == null ? ArrayUtils.EMPTY_BYTE_ARRAY : columnName, dos);
     }
 
     public static QueryPath deserialize(DataInputStream din) throws IOException
     {
         String cfName = din.readUTF();
-        String scName = din.readUTF();
-        String cName = din.readUTF();
-        return new QueryPath(cfName.isEmpty() ? null : cfName, scName.isEmpty() ? null : scName, cName.isEmpty() ? null : cName);
+        byte[] scName = ColumnSerializer.readName(din);
+        byte[] cName = ColumnSerializer.readName(din);
+        return new QueryPath(cfName.isEmpty() ? null : cfName, scName.length == 0 ? null : scName, cName.length == 0 ? null : cName);
     }
 }

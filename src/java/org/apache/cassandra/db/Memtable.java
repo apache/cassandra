@@ -33,6 +33,7 @@ import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.log4j.Logger;
 
@@ -279,12 +280,12 @@ public class Memtable implements Comparable<Memtable>
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
-    public ColumnIterator getSliceIterator(SliceQueryFilter filter)
+    public ColumnIterator getSliceIterator(SliceQueryFilter filter, AbstractType typeComparator)
     {
         ColumnFamily cf = columnFamilies_.get(filter.key);
         final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
 
-        final IColumn columns[] = (cf == null ? columnFamily : cf).getAllColumns().toArray(new IColumn[columnFamily.getAllColumns().size()]);
+        final IColumn columns[] = (cf == null ? columnFamily : cf).getSortedColumns().toArray(new IColumn[columnFamily.getSortedColumns().size()]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
         if (!filter.isAscending)
             ArrayUtils.reverse(columns);
@@ -296,7 +297,7 @@ public class Memtable implements Comparable<Memtable>
 
         // can't use a ColumnComparatorFactory comparator since those compare on both name and time (and thus will fail to match
         // our dummy column, since the time there is arbitrary).
-        Comparator<IColumn> comparator = filter.getColumnComparator();
+        Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
         int index = Arrays.binarySearch(columns, startIColumn, comparator);
         final int startIndex = index < 0 ? -(index + 1) : index;
 
@@ -328,8 +329,8 @@ public class Memtable implements Comparable<Memtable>
 
         return new SimpleAbstractColumnIterator()
         {
-            private Iterator<String> iter = filter.columns.iterator();
-            private String current;
+            private Iterator<byte[]> iter = filter.columns.iterator();
+            private byte[] current;
 
             public ColumnFamily getColumnFamily()
             {

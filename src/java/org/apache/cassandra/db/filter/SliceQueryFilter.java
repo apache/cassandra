@@ -8,14 +8,15 @@ import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 public class SliceQueryFilter extends QueryFilter
 {
-    public final String start, finish;
+    public final byte[] start, finish;
     public final boolean isAscending;
     public final int count;
 
-    public SliceQueryFilter(String key, QueryPath columnParent, String start, String finish, boolean ascending, int count)
+    public SliceQueryFilter(String key, QueryPath columnParent, byte[] start, byte[] finish, boolean ascending, int count)
     {
         super(key, columnParent);
         this.start = start;
@@ -24,14 +25,14 @@ public class SliceQueryFilter extends QueryFilter
         this.count = count;
     }
 
-    public ColumnIterator getMemColumnIterator(Memtable memtable)
+    public ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator)
     {
-        return memtable.getSliceIterator(this);
+        return memtable.getSliceIterator(this, comparator);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
+    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable, AbstractType comparator) throws IOException
     {
-        return new SSTableSliceIterator(sstable.getFilename(), key, getColumnFamilyName(), start, isAscending);
+        return new SSTableSliceIterator(sstable.getFilename(), key, getColumnFamilyName(), comparator, start, isAscending);
     }
 
     public void filterSuperColumn(SuperColumn superColumn)
@@ -41,23 +42,23 @@ public class SliceQueryFilter extends QueryFilter
     }
 
     @Override
-    public Comparator<IColumn> getColumnComparator()
+    public Comparator<IColumn> getColumnComparator(AbstractType comparator)
     {
-        Comparator<IColumn> comparator = super.getColumnComparator();
-        return isAscending ? comparator : new ReverseComparator(comparator);
+        return isAscending ? super.getColumnComparator(comparator) : new ReverseComparator(super.getColumnComparator(comparator));
     }
 
     public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns, int gcBefore)
     {
         int liveColumns = 0;
+        AbstractType comparator = returnCF.getComparator();
 
         for (IColumn column : reducedColumns)
         {
             if (liveColumns >= count)
                 break;
-            if (!finish.isEmpty()
-                && ((isAscending && column.name().compareTo(finish) > 0))
-                    || (!isAscending && column.name().compareTo(finish) < 0))
+            if (finish.length > 0
+                && ((isAscending && comparator.compare(column.name(), finish) > 0))
+                    || (!isAscending && comparator.compare(column.name(), finish) < 0))
                 break;
 
             if (!column.isMarkedForDelete())

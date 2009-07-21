@@ -39,6 +39,12 @@ public abstract class Filter
         return Filter.getHashBuckets(key, hashCount, buckets());
     }
 
+    public int[] getHashBuckets(byte[] key)
+    {
+        return Filter.getHashBuckets(key, hashCount, buckets());
+    }
+
+
     abstract int buckets();
 
     public abstract void add(String key);
@@ -78,6 +84,11 @@ public abstract class Filter
         {
             throw new RuntimeException(e);
         }
+        return getHashBuckets(b, hashCount, max);
+    }
+
+    static int[] getHashBuckets(byte[] b, int hashCount, int max)
+    {
         int[] result = new int[hashCount];
         int hash1 = hasher.hash(b, b.length, 0);
         int hash2 = hasher.hash(b, b.length, hash1);

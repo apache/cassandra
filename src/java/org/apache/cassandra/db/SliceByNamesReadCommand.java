@@ -27,22 +27,25 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.service.ColumnParent;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class SliceByNamesReadCommand extends ReadCommand
 {
     public final QueryPath columnParent;
-    public final SortedSet<String> columnNames;
+    public final SortedSet<byte[]> columnNames;
 
-    public SliceByNamesReadCommand(String table, String key, ColumnParent column_parent, Collection<String> columnNames)
+    public SliceByNamesReadCommand(String table, String key, ColumnParent column_parent, Collection<byte[]> columnNames)
     {
         this(table, key, new QueryPath(column_parent), columnNames);
     }
 
-    public SliceByNamesReadCommand(String table, String key, QueryPath path, Collection<String> columnNames)
+    public SliceByNamesReadCommand(String table, String key, QueryPath path, Collection<byte[]> columnNames)
     {
         super(table, key, CMD_TYPE_GET_SLICE_BY_NAMES);
         this.columnParent = path;
-        this.columnNames = new TreeSet<String>(columnNames);
+        this.columnNames = new TreeSet<byte[]>(getComparator());
+        this.columnNames.addAll(columnNames);
     }
 
     @Override
@@ -72,7 +75,7 @@ public class SliceByNamesReadCommand extends ReadCommand
                "table='" + table + '\'' +
                ", key='" + key + '\'' +
                ", columnParent='" + columnParent + '\'' +
-               ", columns=[" + StringUtils.join(columnNames, ", ") + "]" +
+               ", columns=[" + getComparator().getString(columnNames) + "]" +
                ')';
     }
 
@@ -91,10 +94,9 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         dos.writeInt(realRM.columnNames.size());
         if (realRM.columnNames.size() > 0)
         {
-            for (String cName : realRM.columnNames)
+            for (byte[] cName : realRM.columnNames)
             {
-                dos.writeInt(cName.getBytes().length);
-                dos.write(cName.getBytes());
+                ColumnSerializer.writeName(cName, dos);
             }
         }
     }
@@ -108,12 +110,10 @@ class SliceByNamesReadCommandSerializer extends ReadCommandSerializer
         QueryPath columnParent = QueryPath.deserialize(dis);
 
         int size = dis.readInt();
-        List<String> columns = new ArrayList<String>();
+        List<byte[]> columns = new ArrayList<byte[]>();
         for (int i = 0; i < size; ++i)
         {
-            byte[] bytes = new byte[dis.readInt()];
-            dis.readFully(bytes);
-            columns.add(new String(bytes));
+            columns.add(ColumnSerializer.readName(dis));
         }
         SliceByNamesReadCommand rm = new SliceByNamesReadCommand(table, key, columnParent, columns);
         rm.setDigestQuery(isDigest);

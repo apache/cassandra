@@ -73,7 +73,7 @@ public interface IFileReader
      * @param columnNames - The list of columns in the cfName column family
      * 					     that we want to return
     */
-    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<String> columnNames, long position) throws IOException;
+    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<byte[]> columnNames, long position) throws IOException;
 
     /**
      * Close the file after reading.

@@ -25,9 +25,8 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.ColumnComparatorFactory;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.ColumnSerializer;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 
 /**
@@ -152,21 +151,21 @@ public class IndexHelper
         DataInputBuffer indexIn = new DataInputBuffer();
         indexIn.reset(indexOut.getData(), indexOut.getLength());
         
-        ColumnComparatorFactory.ComparatorType typeInfo = DatabaseDescriptor.getTypeInfo(tableName, cfName);
+        AbstractType comparator = DatabaseDescriptor.getType(tableName, cfName);
 
-        while(indexIn.available() > 0)
-        {            
-            ColumnIndexInfo cIndexInfo = ColumnIndexFactory.instance(typeInfo);
-        	cIndexInfo = cIndexInfo.deserialize(indexIn);
-        	columnIndexList.add(cIndexInfo);
+        while (indexIn.available() > 0)
+        {
+            // TODO this is all kinds of messed up
+            ColumnIndexInfo cIndexInfo = new ColumnIndexInfo(comparator);
+            cIndexInfo = cIndexInfo.deserialize(indexIn);
+            columnIndexList.add(cIndexInfo);
         }
 
-		return totalBytesRead;
+        return totalBytesRead;
 	}
 
     /**
      * Returns the range in which a given column falls in the index
-     * @param column The column whose range needs to be found
      * @param columnIndexList the in-memory representation of the column index
      * @param dataSize the total size of the data
      * @param totalNumCols total number of columns
@@ -221,40 +220,31 @@ public class IndexHelper
 	 * @param totalNumCols the total number of columns
 	 * @return a list of subranges which contain all the columns in columnNames
 	 */
-	static List<ColumnRange> getMultiColumnRangesFromNameIndex(SortedSet<String> columnNames, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
+	static List<ColumnRange> getMultiColumnRangesFromNameIndex(SortedSet<byte[]> columnNames, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
 	{
-		List<ColumnRange> columnRanges = new ArrayList<ColumnRange>();				
+		List<ColumnRange> columnRanges = new ArrayList<ColumnRange>();
 
-        if ( columnIndexList.size() == 0 )
+        if (columnIndexList.size() == 0)
         {
-            columnRanges.add( new ColumnRange(0, dataSize, totalNumCols) );
+            columnRanges.add(new ColumnRange(0, dataSize, totalNumCols));
         }
         else
         {
             Map<Long, Boolean> offset = new HashMap<Long, Boolean>();
-    		for(String column : columnNames)
-    		{
-                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnNameIndexInfo(column);
-    			ColumnRange columnRange = getColumnRangeFromNameIndex(cIndexInfo, columnIndexList, dataSize, totalNumCols);   
-                if ( offset.get( columnRange.coordinate().start_ ) == null ) 
+            for (byte[] column : columnNames)
+            {
+                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column, 0, 0, (AbstractType)columnNames.comparator());
+                ColumnRange columnRange = getColumnRangeFromNameIndex(cIndexInfo, columnIndexList, dataSize, totalNumCols);
+                if (offset.get(columnRange.coordinate().start_) == null)
                 {
                     columnRanges.add(columnRange);
                     offset.put(columnRange.coordinate().start_, true);
                 }
-    		}
+            }
         }
 
-		return columnRanges;
+        return columnRanges;
 	}
-        
-    public static class ColumnIndexFactory
-    {
-        public static ColumnIndexInfo instance(ColumnComparatorFactory.ComparatorType typeInfo)
-        {
-            return typeInfo == ColumnComparatorFactory.ComparatorType.NAME
-                    ? new ColumnNameIndexInfo() : new ColumnTimestampIndexInfo();
-        }
-    }
 
 
     /**
@@ -290,13 +280,22 @@ public class IndexHelper
 	 * A helper class to generate indexes while
      * the columns are sorted by name on disk.
 	*/
-    public static abstract class ColumnIndexInfo implements Comparable<ColumnIndexInfo>
+    public static class ColumnIndexInfo implements Comparable<ColumnIndexInfo>
     {
         private long position_;
-        private int columnCount_;        
-        
-        ColumnIndexInfo(long position, int columnCount)
+        private int columnCount_;
+        private byte[] name_;
+        private AbstractType comparator_;
+
+        public ColumnIndexInfo(AbstractType comparator_)
         {
+            this.comparator_ = comparator_;
+        }
+
+        public ColumnIndexInfo(byte[] name, long position, int columnCount, AbstractType comparator)
+        {
+            this(comparator);
+            name_ = name;
             position_ = position;
             columnCount_ = columnCount;
         }
@@ -320,135 +319,36 @@ public class IndexHelper
         {
             columnCount_ = count;
         }
-                
-        public abstract void set(Object o);
-        public abstract void serialize(DataOutputStream dos) throws IOException;
-        public abstract ColumnIndexInfo deserialize(DataInputStream dis) throws IOException;
-        
-        public int size()
-        {
-            /* size of long for "position_"  + size of columnCount_ */
-            return (8 + 4);
-        }
-    }
 
-    static class ColumnNameIndexInfo extends ColumnIndexInfo
-    {
-        private String name_;       
-        
-        ColumnNameIndexInfo()
-        {
-            super(0L, 0);
-        }
-        
-        ColumnNameIndexInfo(String name)
-        {
-            this(name, 0L, 0);
-        }
-                
-        ColumnNameIndexInfo(String name, long position, int columnCount)
-        {
-            super(position, columnCount);
-            name_ = name;
-        }
-        
-        String name()
-        {
-            return name_;
-        }                
-        
-        public void set(Object o)
-        {
-            name_ = (String)o;
-        }
-        
         public int compareTo(ColumnIndexInfo rhs)
         {
-            IndexHelper.ColumnNameIndexInfo cIndexInfo = (IndexHelper.ColumnNameIndexInfo)rhs;
-            return name_.compareTo(cIndexInfo.name_);
+            return comparator_.compare(name_, rhs.name_);
         }
-        
-        public void serialize(DataOutputStream dos) throws IOException
-        {
-            dos.writeLong(position()); 
-            dos.writeInt(count());
-            dos.writeUTF(name_);        
-        }
-        
-        public ColumnNameIndexInfo deserialize(DataInputStream dis) throws IOException
-        {
-            long position = dis.readLong();
-            int columnCount = dis.readInt();            
-            String name = dis.readUTF();       
-            return new ColumnNameIndexInfo(name, position, columnCount);
-        }
-        
-        public int size()
-        {
-            int size = super.size();
-            /* Size of the name_ as an UTF8 and the actual length as a short for the readUTF. */
-            size += FBUtilities.getUTF8Length(name_) + IColumn.UtfPrefix_;
-            return size;
-        }
-    }
 
-    static class ColumnTimestampIndexInfo extends ColumnIndexInfo
-    {
-        private long timestamp_;
-        
-        ColumnTimestampIndexInfo()
-        {
-            super(0L, 0);
-        }
-        
-        ColumnTimestampIndexInfo(long timestamp)
-        {
-            this(timestamp, 0L, 0);  
-        }
-        
-        ColumnTimestampIndexInfo(long timestamp, long position, int columnCount)
-        {
-            super(position, columnCount);
-            timestamp_ = timestamp;
-        }
-        
-        public long timestamp()
-        {
-            return timestamp_;
-        }
-        
-        public void set(Object o)
-        {
-            timestamp_ = (Long)o;
-        }
-        
-        public int compareTo(ColumnIndexInfo rhs)
-        {
-            ColumnTimestampIndexInfo cIndexInfo = (ColumnTimestampIndexInfo)rhs;
-            return Long.valueOf(timestamp_).compareTo(Long.valueOf(cIndexInfo.timestamp_));
-        }
-        
         public void serialize(DataOutputStream dos) throws IOException
         {
-            dos.writeLong(position()); 
+            dos.writeLong(position());
             dos.writeInt(count());
-            dos.writeLong(timestamp_);        
+            ColumnSerializer.writeName(name_, dos);
         }
-        
-        public ColumnTimestampIndexInfo deserialize(DataInputStream dis) throws IOException
+
+        public ColumnIndexInfo deserialize(DataInputStream dis) throws IOException
         {
             long position = dis.readLong();
             int columnCount = dis.readInt();
-            long timestamp = dis.readLong();        
-            return new ColumnTimestampIndexInfo(timestamp, position, columnCount);
+            byte[] name = ColumnSerializer.readName(dis);
+            return new ColumnIndexInfo(name, position, columnCount, comparator_);
         }
-        
+
         public int size()
         {
-            int size = super.size();
-            /* add the size of the timestamp which is a long */ 
-            size += 8;
-            return size;
+            // serialized size -- CS.writeName includes a 2-byte length prefix
+            return 8 + 4 + 2 + name_.length;
+        }
+
+        public byte[] name()
+        {
+            return name_;
         }
     }
 }

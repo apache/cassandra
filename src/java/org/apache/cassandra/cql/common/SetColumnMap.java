@@ -84,11 +84,11 @@ public class SetColumnMap extends DMLPlan
                 if (superColumnKey_ != null)
                 {
                     String superColumnKey = (String)(superColumnKey_.get());
-                    path = new QueryPath(cfMetaData_.cfName, superColumnKey, (String)columnKey.get());
+                    path = new QueryPath(cfMetaData_.cfName, superColumnKey.getBytes("UTF-8"), ((String)columnKey.get()).getBytes("UTF-8"));
                 }
                 else
                 {
-                    path = new QueryPath(cfMetaData_.cfName, null, (String)columnKey.get());
+                    path = new QueryPath(cfMetaData_.cfName, null, ((String)columnKey.get()).getBytes("UTF-8"));
                 }
 
                 rm.add(path, ((String)value.get()).getBytes(), time);

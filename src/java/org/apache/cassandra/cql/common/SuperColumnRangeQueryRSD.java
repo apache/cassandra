@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.List;
+import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
@@ -32,6 +33,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 
 /**
  * A Row Source Definition (RSD) for doing a super column range query on a Super Column Family.
@@ -58,13 +60,13 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
         limit_          = limit;
     }
 
-    public List<Map<String,String>> getRows()
+    public List<Map<String,String>> getRows() throws UnsupportedEncodingException
     {
         Row row = null;
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, new QueryPath(cfMetaData_.cfName), "", "", true, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, new QueryPath(cfMetaData_.cfName), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)
@@ -79,7 +81,7 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
             ColumnFamily cfamily = row.getColumnFamily(cfMetaData_.cfName);
             if (cfamily != null)
             {
-                Collection<IColumn> columns = cfamily.getAllColumns();
+                Collection<IColumn> columns = cfamily.getSortedColumns();
                 if (columns != null && columns.size() > 0)
                 {
                     for (IColumn column : columns)
@@ -88,8 +90,8 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
                         for( IColumn subColumn : subColumns )
                         {
                            Map<String, String> result = new HashMap<String, String>();
-                           result.put(cfMetaData_.n_superColumnKey, column.name());
-                           result.put(cfMetaData_.n_columnKey, subColumn.name());
+                           result.put(cfMetaData_.n_superColumnKey, new String(column.name(), "UTF-8"));
+                           result.put(cfMetaData_.n_columnKey, new String(subColumn.name(), "UTF-8"));
                            result.put(cfMetaData_.n_columnValue, new String(subColumn.value()));
                            result.put(cfMetaData_.n_columnTimestamp, Long.toString(subColumn.timestamp()));
                            rows.add(result);
@@ -114,6 +116,6 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
                 cfMetaData_.cfName,
                 rowKey_.explain(),
                 limit_,
-                cfMetaData_.indexProperty_);
+                cfMetaData_.comparator);
     }
 }

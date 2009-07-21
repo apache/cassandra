@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.cql.common;
 
+import java.io.UnsupportedEncodingException;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.RowMutation;
@@ -69,7 +71,7 @@ public class SetUniqueKey extends DMLPlan
         value_          = value;
     }
 
-    public CqlResult execute()
+    public CqlResult execute() throws UnsupportedEncodingException
     {
         String columnKey = (String)(columnKey_.get());
         QueryPath path;
@@ -77,11 +79,11 @@ public class SetUniqueKey extends DMLPlan
         if (superColumnKey_ != null)
         {
             String superColumnKey = (String)(superColumnKey_.get());
-            path = new QueryPath(cfMetaData_.cfName, superColumnKey, columnKey);
+            path = new QueryPath(cfMetaData_.cfName, superColumnKey.getBytes("UTF-8"), columnKey.getBytes("UTF-8"));
         }
         else
         {
-            path = new QueryPath(cfMetaData_.cfName, null, columnKey);
+            path = new QueryPath(cfMetaData_.cfName, null, columnKey.getBytes("UTF-8"));
         }
 
         try

@@ -13,10 +13,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 {
     private ColumnFamily cf;
     private Iterator<IColumn> iter;
-    public final SortedSet<String> columns;
+    public final SortedSet<byte[]> columns;
 
     // TODO make this actually iterate so we don't have to read + deserialize + filter data that we don't need due to merging other sstables
-    public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<String> columns) throws IOException
+    public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<byte[]> columns) throws IOException
     {
         this.columns = columns;
         SSTableReader ssTable = SSTableReader.open(filename);
@@ -24,7 +24,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         if (buffer.getLength() > 0)
         {
             cf = ColumnFamily.serializer().deserialize(buffer);
-            iter = cf.getAllColumns().iterator();
+            iter = cf.getSortedColumns().iterator();
         }
     }
 

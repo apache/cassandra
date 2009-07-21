@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.List;
+import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
@@ -32,6 +33,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 
 /**
  * A Row Source Defintion (RSD) for doing a range query on a column map
@@ -75,7 +77,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         limit_          = limit;
     }
 
-    public List<Map<String,String>> getRows()
+    public List<Map<String,String>> getRows() throws UnsupportedEncodingException
     {
         QueryPath path;
         String superColumnKey = null;
@@ -83,7 +85,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         if (superColumnKey_ != null)
         {
             superColumnKey = (String)(superColumnKey_.get());
-            path = new QueryPath(cfMetaData_.cfName, superColumnKey);
+            path = new QueryPath(cfMetaData_.cfName, superColumnKey.getBytes("UTF-8"));
         }
         else
         {
@@ -94,7 +96,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, path, "", "", true, limit_);
+            ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, path, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, limit_);
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)
@@ -113,13 +115,13 @@ public class ColumnRangeQueryRSD extends RowSourceDef
                 if (superColumnKey_ != null)
                 {
                     // this is the super column case
-                    IColumn column = cfamily.getColumn(superColumnKey);
+                    IColumn column = cfamily.getColumn(superColumnKey.getBytes("UTF-8"));
                     if (column != null)
                         columns = column.getSubColumns();
                 }
                 else
                 {
-                    columns = cfamily.getAllColumns();
+                    columns = cfamily.getSortedColumns();
                 }
 
                 if (columns != null && columns.size() > 0)
@@ -128,7 +130,7 @@ public class ColumnRangeQueryRSD extends RowSourceDef
                     {
                         Map<String, String> result = new HashMap<String, String>();
 
-                        result.put(cfMetaData_.n_columnKey, column.name());
+                        result.put(cfMetaData_.n_columnKey, new String(column.name(), "UTF-8"));
                         result.put(cfMetaData_.n_columnValue, new String(column.value()));
                         result.put(cfMetaData_.n_columnTimestamp, Long.toString(column.timestamp()));
 
@@ -155,6 +157,6 @@ public class ColumnRangeQueryRSD extends RowSourceDef
                 rowKey_.explain(),
                 (superColumnKey_ == null) ? "" : "  SuperColumnKey:   " + superColumnKey_.explain() + "\n",
                 limit_,
-                cfMetaData_.indexProperty_);
+                cfMetaData_.comparator);
     }
 }

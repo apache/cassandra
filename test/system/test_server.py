@@ -17,18 +17,22 @@
 # to run a single test, run from trunk/:
 # PYTHONPATH=test nosetests --tests=system.test_server:TestMutations.test_empty_range
 
-import os, sys, time
+import os, sys, time, struct
 
 from . import client, root, CassandraTester
 
 from thrift.Thrift import TApplicationException
 from ttypes import *
 
+
+def _i64(n):
+    return struct.pack('<q', n) # little endian, to match cassandra.db.marshal.LongType
+
 _SIMPLE_COLUMNS = [Column('c1', 'value1', 0),
                    Column('c2', 'value2', 0)]
-_SUPER_COLUMNS = [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]),
-                  SuperColumn(name='sc2', columns=[Column('c5', 'value5', 0),
-                                                   Column('c6', 'value6', 0)])]
+_SUPER_COLUMNS = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
+                  SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 0),
+                                                   Column(_i64(6), 'value6', 0)])]
 
 def _insert_simple(block=True):
     client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 0, block)
@@ -50,9 +54,9 @@ def _verify_simple():
     assert L == _SIMPLE_COLUMNS, L
 
 def _insert_super():
-    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc1', 'c4'), 'value4', 0, False)
-    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 0, False)
-    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c6'), 'value6', 0, False)
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 0, False)
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, False)
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(6)), 'value6', 0, False)
     time.sleep(0.1)
 
 def _insert_range():
@@ -75,7 +79,7 @@ def _verify_range():
 
 	 	
 def _verify_super(supercf='Super1'):
-    assert client.get_column('Table1', 'key1', ColumnPath(supercf, 'sc1', 'c4')) == Column('c4', 'value4', 0)
+    assert client.get_column('Table1', 'key1', ColumnPath(supercf, 'sc1', _i64(4))) == Column(_i64(4), 'value4', 0)
     slice = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
     assert slice == _SUPER_COLUMNS, slice
 
@@ -203,35 +207,37 @@ class TestMutations(CassandraTester):
         _insert_super()
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
-        client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2', 'c5'), 5, True)
-        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5')))
+        client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2', _i64(5)), 5, True)
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5))))
         assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == \
-            [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]),
-             SuperColumn(name='sc2', columns=[Column('c6', 'value6', 0)])]
+            [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
+             SuperColumn(name='sc2', columns=[Column(_i64(6), 'value6', 0)])]
         _verify_simple()
 
         # New insert, make sure it shows up post-remove:
-        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c7'), 'value7', 0, True)
-        scs = [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]),
+        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(7)), 'value7', 0, True)
+        scs = [SuperColumn(name='sc1', 
+                           columns=[Column(_i64(4), 'value4', 0)]),
                SuperColumn(name='sc2', 
-                             columns=[Column('c6', 'value6', 0), Column('c7', 'value7', 0)])]
+                           columns=[Column(_i64(6), 'value6', 0), Column(_i64(7), 'value7', 0)])]
 
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == scs
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == scs, actual
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
-        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 0, True)
+        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, True)
         actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == scs, actual
 
         # Next, w/ a newer timestamp; it should come back
-        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5'), 'value5', 6, True)
+        client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 6, True)
         actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == \
-            [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)]), 
-             SuperColumn(name='sc2', columns=[Column('c5', 'value5', 6), 
-                                              Column('c6', 'value6', 0), 
-                                              Column('c7', 'value7', 0)])], actual
+            [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]), 
+             SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6), 
+                                              Column(_i64(6), 'value6', 0), 
+                                              Column(_i64(7), 'value7', 0)])], actual
 
     def test_super_cf_remove_supercolumn(self):
         _insert_simple()
@@ -239,10 +245,10 @@ class TestMutations(CassandraTester):
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
         client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2'), 5, True)
-        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', 'c5')))
-        actual = client.get_columns_since('Table1', 'key1', ColumnParent('Super1', 'sc2'), -1)
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5))))
+        actual = client.get_slice('Table1', 'key1', ColumnParent('Super1', 'sc2'), '', '', True, 1000)
         assert actual == [], actual
-        scs = [SuperColumn(name='sc1', columns=[Column('c4', 'value4', 0)])]
+        scs = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)])]
         actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
         assert actual == scs, actual
         _verify_simple()
@@ -318,6 +324,6 @@ class TestMutations(CassandraTester):
         assert result[1].name == 'c2'
 
         _insert_super()
-        result = client.get_slice_by_names('Table1','key1', ColumnParent('Super1', 'sc1'), ['c4']) 
+        result = client.get_slice_by_names('Table1','key1', ColumnParent('Super1', 'sc1'), [_i64(4)]) 
         assert len(result) == 1
-        assert result[0].name == 'c4'
+        assert result[0].name == _i64(4)

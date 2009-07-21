@@ -24,12 +24,12 @@ public abstract class ReducingIterator<T> extends AbstractIterator<T> implements
     protected abstract T getReduced();
 
     /** override this if the keys you want to base the reduce on are not the same as the object itself (but can be generated from it) */
-    protected Object getKey(T o)
+    protected boolean isEqual(T o1, T o2)
     {
-        return o;
+        return o1.equals(o2);
     }
 
-     protected T computeNext()
+    protected T computeNext()
     {
         if (last == null && !source.hasNext())
             return endOfData();
@@ -45,7 +45,7 @@ public abstract class ReducingIterator<T> extends AbstractIterator<T> implements
                 break;
             }
             T current = source.next();
-            if (last != null && !getKey(current).equals(getKey(last)))
+            if (last != null && !isEqual(current, last))
                 keyChanged = true;
             last = current;
         }

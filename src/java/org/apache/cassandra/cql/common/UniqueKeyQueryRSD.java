@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql.common;
 
 import java.util.*;
+import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
@@ -59,7 +60,7 @@ public class UniqueKeyQueryRSD extends RowSourceDef
     }
 
     // specific column lookup
-    public List<Map<String,String>> getRows() throws RuntimeException
+    public List<Map<String,String>> getRows() throws UnsupportedEncodingException
     {
         String columnKey = (String)(columnKey_.get());
         QueryPath path = null;
@@ -68,7 +69,7 @@ public class UniqueKeyQueryRSD extends RowSourceDef
         if (superColumnKey_ != null)
         {
             superColumnKey = (String)(superColumnKey_.get());
-            path = new QueryPath(cfMetaData_.cfName, superColumnKey);
+            path = new QueryPath(cfMetaData_.cfName, superColumnKey.getBytes("UTF-8"));
         }
         else
         {
@@ -79,7 +80,7 @@ public class UniqueKeyQueryRSD extends RowSourceDef
         try
         {
             String key = (String)(rowKey_.get());
-            ReadCommand readCommand = new SliceByNamesReadCommand(cfMetaData_.tableName, key, path, Arrays.asList(columnKey));
+            ReadCommand readCommand = new SliceByNamesReadCommand(cfMetaData_.tableName, key, path, Arrays.asList(columnKey.getBytes("UTF-8")));
             row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
         }
         catch (Exception e)
@@ -97,13 +98,13 @@ public class UniqueKeyQueryRSD extends RowSourceDef
                 if (superColumnKey_ != null)
                 {
                     // this is the super column case
-                    IColumn column = cfamily.getColumn(superColumnKey);
+                    IColumn column = cfamily.getColumn(superColumnKey.getBytes("UTF-8"));
                     if (column != null)
                         columns = column.getSubColumns();
                 }
                 else
                 {
-                    columns = cfamily.getAllColumns();
+                    columns = cfamily.getSortedColumns();
                 }
 
                 if (columns != null && columns.size() > 0)
@@ -120,7 +121,7 @@ public class UniqueKeyQueryRSD extends RowSourceDef
                         List<Map<String, String>> rows = new LinkedList<Map<String, String>>();
 
                         Map<String, String> result = new HashMap<String, String>();
-                        result.put(cfMetaData_.n_columnKey, column.name());
+                        result.put(cfMetaData_.n_columnKey, new String(column.name(), "UTF-8"));
                         result.put(cfMetaData_.n_columnValue, new String(column.value()));
                         result.put(cfMetaData_.n_columnTimestamp, Long.toString(column.timestamp()));
 

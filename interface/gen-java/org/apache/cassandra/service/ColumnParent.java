@@ -25,7 +25,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
 
   public String column_family;
   public static final int COLUMN_FAMILY = 3;
-  public String super_column;
+  public byte[] super_column;
   public static final int SUPER_COLUMN = 4;
 
   private final Isset __isset = new Isset();
@@ -48,7 +48,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
 
   public ColumnParent(
     String column_family,
-    String super_column)
+    byte[] super_column)
   {
     this();
     this.column_family = column_family;
@@ -63,7 +63,8 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
       this.column_family = other.column_family;
     }
     if (other.isSetSuper_column()) {
-      this.super_column = other.super_column;
+      this.super_column = new byte[other.super_column.length];
+      System.arraycopy(other.super_column, 0, super_column, 0, other.super_column.length);
     }
   }
 
@@ -95,11 +96,11 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
     }
   }
 
-  public String getSuper_column() {
+  public byte[] getSuper_column() {
     return this.super_column;
   }
 
-  public void setSuper_column(String super_column) {
+  public void setSuper_column(byte[] super_column) {
     this.super_column = super_column;
   }
 
@@ -132,7 +133,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
       if (value == null) {
         unsetSuper_column();
       } else {
-        setSuper_column((String)value);
+        setSuper_column((byte[])value);
       }
       break;
 
@@ -193,7 +194,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
     if (this_present_super_column || that_present_super_column) {
       if (!(this_present_super_column && that_present_super_column))
         return false;
-      if (!this.super_column.equals(that.super_column))
+      if (!java.util.Arrays.equals(this.super_column, that.super_column))
         return false;
     }
 
@@ -225,7 +226,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
           break;
         case SUPER_COLUMN:
           if (field.type == TType.STRING) {
-            this.super_column = iprot.readString();
+            this.super_column = iprot.readBinary();
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -254,7 +255,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
     }
     if (this.super_column != null) {
       oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
-      oprot.writeString(this.super_column);
+      oprot.writeBinary(this.super_column);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -279,7 +280,12 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
       if (this.super_column == null) {
         sb.append("null");
       } else {
-        sb.append(this.super_column);
+          int __super_column_size = Math.min(this.super_column.length, 128);
+          for (int i = 0; i < __super_column_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.super_column[i]).length() > 1 ? Integer.toHexString(this.super_column[i]).substring(Integer.toHexString(this.super_column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.super_column[i]).toUpperCase());
+          }
+          if (this.super_column.length > 128) sb.append(" ...");
       }
       first = false;
     }

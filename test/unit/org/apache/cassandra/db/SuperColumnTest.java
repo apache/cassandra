@@ -23,14 +23,15 @@ import org.junit.Test;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 import static org.apache.cassandra.Util.column;
+import static org.apache.cassandra.Util.getBytes;
 
 public class SuperColumnTest
 {   
     @Test
     public void testMissingSubcolumn() {
-    	SuperColumn sc = new SuperColumn("sc1");
-    	sc.addColumn(column("col1","sample value",1L));
-    	assertNotNull(sc.getSubColumn("col1"));
-    	assertNull(sc.getSubColumn("col2"));
+    	SuperColumn sc = new SuperColumn("sc1".getBytes());
+    	sc.addColumn(new Column(getBytes(1), "value".getBytes(), 1));
+    	assertNotNull(sc.getSubColumn(getBytes(1)));
+    	assertNull(sc.getSubColumn(getBytes(2)));
     }
 }
