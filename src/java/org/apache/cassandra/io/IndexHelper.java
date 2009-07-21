@@ -151,7 +151,7 @@ public class IndexHelper
         DataInputBuffer indexIn = new DataInputBuffer();
         indexIn.reset(indexOut.getData(), indexOut.getLength());
         
-        AbstractType comparator = DatabaseDescriptor.getType(tableName, cfName);
+        AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
 
         while (indexIn.available() > 0)
         {

@@ -1434,7 +1434,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
         if (filter.path.superColumnName != null)
         {
-            AbstractType comparator = DatabaseDescriptor.getType(table_, columnFamily_);
+            AbstractType comparator = DatabaseDescriptor.getComparator(table_, columnFamily_);
             QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
             ColumnFamily cf = getColumnFamily(nameFilter);
             if (cf != null)
@@ -1519,7 +1519,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public AbstractType getComparator()
     {
-        return DatabaseDescriptor.getType(table_, columnFamily_);
+        return DatabaseDescriptor.getComparator(table_, columnFamily_);
     }
 
     /**

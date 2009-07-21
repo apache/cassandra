@@ -85,7 +85,7 @@ public abstract class ReadCommand
 
     protected AbstractType getComparator()
     {
-        return DatabaseDescriptor.getType(table, getColumnFamilyName());
+        return DatabaseDescriptor.getComparator(table, getColumnFamilyName());
     }
 }
 

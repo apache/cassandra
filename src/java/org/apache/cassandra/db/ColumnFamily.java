@@ -22,7 +22,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Proxy;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -88,7 +87,7 @@ public final class ColumnFamily
     public static ColumnFamily create(String tableName, String cfName)
     {
         String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
-        AbstractType comparator = DatabaseDescriptor.getType(tableName, cfName);
+        AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
         return new ColumnFamily(cfName, columnType, comparator);
     }
 

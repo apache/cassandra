@@ -770,7 +770,7 @@ public class DatabaseDescriptor
         return dataFileDirectory;
     }
     
-    public static AbstractType getType(String tableName, String cfName)
+    public static AbstractType getComparator(String tableName, String cfName)
     {
         assert tableName != null;
         return getCFMetaData(tableName, cfName).comparator;

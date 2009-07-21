@@ -330,7 +330,7 @@ public class SSTableReader extends SSTable
             /* Morph key into actual key based on the partition type. */
             String decoratedKey = partitioner.decorateKey(key);
             long position = getPosition(decoratedKey, partitioner);
-            AbstractType comparator = DatabaseDescriptor.getType(getTableName(), cfName);
+            AbstractType comparator = DatabaseDescriptor.getComparator(getTableName(), cfName);
             return new ColumnGroupReader(dataFile, decoratedKey, cfName, comparator, startColumn, isAscending, position);
         }
         finally
