@@ -148,18 +148,21 @@
 	The jar target makes cassandra.jar output.
     -->
     <target name="jar" depends="build">
-    <jar jarfile="${build.dir}/${final.name}.jar"
-         basedir="${build.classes}">
-      <manifest>
+      <mkdir dir="${build.classes}/META-INF"/>
+      <copy file="LICENSE.txt" tofile="${build.classes}/META-INF/LICENSE.txt"/>
+      <copy file="NOTICE.txt" tofile="${build.classes}/META-INF/NOTICE.txt"/>
+      <jar jarfile="${build.dir}/${final.name}.jar"
+           basedir="${build.classes}">
+        <manifest>
         <!-- <section name="org/apache/cassandra/infrastructure"> -->
           <attribute name="Implementation-Title" value="Cassandra"/>
           <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Facebook"/>
-	        <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
+          <attribute name="Implementation-Vendor" value="Apache"/>
+          <attribute name="Premain-Class" value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
         <!-- </section> -->
-      </manifest>
-    </jar>
-  </target>
+        </manifest>
+      </jar>
+    </target>
 
     <!-- creates a release tarball -->	
     <target name="release" depends="jar,javadoc">
