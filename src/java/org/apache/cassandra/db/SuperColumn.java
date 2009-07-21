@@ -32,7 +32,6 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
@@ -40,26 +39,26 @@ import org.apache.cassandra.db.marshal.MarshalException;
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
-public final class SuperColumn implements IColumn, Serializable
+public final class SuperColumn implements IColumn
 {
 	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
-	private static SuperColumnSerializer serializer_ = new SuperColumnSerializer();
 
-    static SuperColumnSerializer serializer()
+    static SuperColumnSerializer serializer(AbstractType comparator)
     {
-        return serializer_;
+        return new SuperColumnSerializer(comparator);
     }
 
     private byte[] name_;
     // TODO make subcolumn comparator configurable
-    private ConcurrentSkipListMap<byte[], IColumn> columns_ = new ConcurrentSkipListMap<byte[], IColumn>(new LongType());
+    private ConcurrentSkipListMap<byte[], IColumn> columns_;
     private int localDeletionTime = Integer.MIN_VALUE;
 	private long markedForDeleteAt = Long.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
 
-    SuperColumn(byte[] name)
+    SuperColumn(byte[] name, AbstractType comparator)
     {
     	name_ = name;
+        columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
     }
 
     public AbstractType getComparator()
@@ -69,7 +68,7 @@ public final class SuperColumn implements IColumn, Serializable
 
     public SuperColumn cloneMeShallow()
     {
-        SuperColumn sc = new SuperColumn(name_);
+        SuperColumn sc = new SuperColumn(name_, getComparator());
         sc.markForDeleteAt(localDeletionTime, markedForDeleteAt);
         return sc;
     }
@@ -253,7 +252,7 @@ public final class SuperColumn implements IColumn, Serializable
 
     public IColumn diff(IColumn columnNew)
     {
-    	IColumn columnDiff = new SuperColumn(columnNew.name());
+    	IColumn columnDiff = new SuperColumn(columnNew.name(), ((SuperColumn)columnNew).getComparator());
         if (columnNew.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             ((SuperColumn)columnDiff).markForDeleteAt(columnNew.getLocalDeletionTime(), columnNew.getMarkedForDeleteAt());
@@ -329,6 +328,18 @@ public final class SuperColumn implements IColumn, Serializable
 
 class SuperColumnSerializer implements ICompactSerializer<IColumn>
 {
+    private AbstractType comparator;
+
+    public SuperColumnSerializer(AbstractType comparator)
+    {
+        this.comparator = comparator;
+    }
+
+    public AbstractType getComparator()
+    {
+        return comparator;
+    }
+
     public void serialize(IColumn column, DataOutputStream dos) throws IOException
     {
     	SuperColumn superColumn = (SuperColumn)column;
@@ -350,7 +361,7 @@ class SuperColumnSerializer implements ICompactSerializer<IColumn>
     public IColumn deserialize(DataInputStream dis) throws IOException
     {
         byte[] name = ColumnSerializer.readName(dis);
-        SuperColumn superColumn = new SuperColumn(name);
+        SuperColumn superColumn = new SuperColumn(name, comparator);
         superColumn.markForDeleteAt(dis.readInt(), dis.readLong());
         assert dis.available() > 0;
 
@@ -365,5 +376,4 @@ class SuperColumnSerializer implements ICompactSerializer<IColumn>
         }
         return superColumn;
     }
-
 }

@@ -33,6 +33,8 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
@@ -41,6 +43,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class FBUtilities
 {
+    private static Logger logger_ = Logger.getLogger(FBUtilities.class);
 
     private static InetAddress localInetAddress_;
 
@@ -380,6 +383,7 @@ public class FBUtilities
     public static byte[] readByteArray(DataInput in) throws IOException
     {
         int length = in.readInt();
+        logger_.debug(length);
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return bytes;

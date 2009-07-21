@@ -31,6 +31,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.SSTableReader;
 
 public class TableTest extends CleanupHelper
@@ -323,7 +324,7 @@ public class TableTest extends CleanupHelper
             {
                 RowMutation rm = new RowMutation("Table1", ROW);
                 ColumnFamily cf = ColumnFamily.create("Table1", "Super1");
-                SuperColumn sc = new SuperColumn("sc1".getBytes());
+                SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType());
                 sc.addColumn(new Column(getBytes(1), "val1".getBytes(), 1L));
                 cf.addColumn(sc);
                 rm.add(cf);

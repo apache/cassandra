@@ -20,6 +20,9 @@ package org.apache.cassandra.config;
 
 import java.util.*;
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+
+import javax.xml.transform.TransformerException;
 
 import org.apache.log4j.Logger;
 
@@ -27,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
 import org.w3c.dom.Node;
@@ -317,22 +321,22 @@ public class DatabaseDescriptor
                 for ( int j = 0; j < size2; ++j )
                 {
                     Node columnFamily = columnFamilies.item(j);
-                    String cName = XMLUtils.getAttributeValue(columnFamily, "Name");
-                    if (cName == null)
+                    String cfName = XMLUtils.getAttributeValue(columnFamily, "Name");
+                    if (cfName == null)
                     {
                         throw new ConfigurationException("ColumnFamily name attribute is required");
                     }
-                    String xqlCF = xqlTable + "ColumnFamily[@Name='" + cName + "']/";
+                    String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
 
                     /* squirrel away the application column families */
-                    applicationColumnFamilies_.add(cName);
+                    applicationColumnFamilies_.add(cfName);
 
                     // Parse out the column type
                     String rawColumnType = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
                     String columnType = ColumnFamily.getColumnType(rawColumnType);
                     if (columnType == null)
                     {
-                        throw new ConfigurationException("Column " + cName + " has invalid type " + rawColumnType);
+                        throw new ConfigurationException("ColumnFamily " + cfName + " has invalid type " + rawColumnType);
                     }
 
                     if (XMLUtils.getAttributeValue(columnFamily, "ColumnSort") != null)
@@ -341,25 +345,16 @@ public class DatabaseDescriptor
                     }
 
                     // Parse out the column comparator
-                    Class<? extends AbstractType> typeClass;
-                    String compareWith = XMLUtils.getAttributeValue(columnFamily, "CompareWith");
-                    if (compareWith == null)
+                    AbstractType columnComparator = getComparator(columnFamily, "CompareWith");
+                    AbstractType subcolumnComparator;
+                    if (columnType.equals("Super"))
                     {
-                        typeClass = org.apache.cassandra.db.marshal.AsciiType.class;
+                        subcolumnComparator = getComparator(columnFamily, "CompareSubcolumnsWith");
                     }
-                    else
+                    else if (XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith") != null)
                     {
-                        String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
-                        try
-                        {
-                            typeClass = (Class<? extends AbstractType>)Class.forName(className);
-                        }
-                        catch (ClassNotFoundException e)
-                        {
-                            throw new ConfigurationException("Unable to load class " + className + " for CompareWith attribute");
-                        }
+                        throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
                     }
-                    AbstractType columnComparator = typeClass.getConstructor().newInstance();
 
                     // see if flush period is set
                     String flushPeriodInMinutes = XMLUtils.getAttributeValue(columnFamily, "FlushPeriodInMinutes");
@@ -399,10 +394,11 @@ public class DatabaseDescriptor
                     CFMetaData cfMetaData = new CFMetaData();
 
                     cfMetaData.tableName = tName;
-                    cfMetaData.cfName = cName;
+                    cfMetaData.cfName = cfName;
 
                     cfMetaData.columnType = columnType;
                     cfMetaData.comparator = columnComparator;
+                    cfMetaData.subcolumnComparator = columnComparator;
 
                     cfMetaData.n_rowKey = n_rowKey;
                     cfMetaData.n_columnMap = n_columnMap;
@@ -416,7 +412,7 @@ public class DatabaseDescriptor
                     }
                     cfMetaData.flushPeriodInMinutes = flushPeriod;
                     
-                    tableToCFMetaDataMap_.get(tName).put(cName, cfMetaData);
+                    tableToCFMetaDataMap_.get(tName).put(cfName, cfMetaData);
                 }
             }
 
@@ -430,6 +426,7 @@ public class DatabaseDescriptor
             data = new CFMetaData();
             data.columnType = "Super";
             data.comparator = new UTF8Type();
+            data.subcolumnComparator = new BytesType();
             systemMetadata.put(HintedHandOffManager.HINTS_CF, data);
 
             tableToCFMetaDataMap_.put("system", systemMetadata);
@@ -455,7 +452,31 @@ public class DatabaseDescriptor
             throw new RuntimeException(e);
         }
     }
-    
+
+    private static AbstractType getComparator(Node columnFamily, String attr)
+    throws ConfigurationException, TransformerException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException
+    {
+        Class<? extends AbstractType> typeClass;
+        String compareWith = XMLUtils.getAttributeValue(columnFamily, attr);
+        if (compareWith == null)
+        {
+            typeClass = AsciiType.class;
+        }
+        else
+        {
+            String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
+            try
+            {
+                typeClass = (Class<? extends AbstractType>)Class.forName(className);
+            }
+            catch (ClassNotFoundException e)
+            {
+                throw new ConfigurationException("Unable to load class " + className + " for " + attr + " attribute");
+            }
+        }
+        return typeClass.getConstructor().newInstance();
+    }
+
     /**
      * Create the table directory in each data directory
      */
@@ -771,6 +792,12 @@ public class DatabaseDescriptor
     }
     
     public static AbstractType getComparator(String tableName, String cfName)
+    {
+        assert tableName != null;
+        return getCFMetaData(tableName, cfName).comparator;
+    }
+
+    public static AbstractType getSubComparator(String tableName, String cfName)
     {
         assert tableName != null;
         return getCFMetaData(tableName, cfName).comparator;

@@ -229,6 +229,7 @@ public class SequenceFile
         private String cfName_;
         private String cfType_;
         private AbstractType comparator_;
+        private String subComparatorName_;
         private boolean isAscending_;
 
         private List<IndexHelper.ColumnIndexInfo> columnIndexList_;
@@ -243,6 +244,7 @@ public class SequenceFile
             super(filename, 128 * 1024);
             this.cfName_ = cfName;
             this.comparator_ = comparator;
+            this.subComparatorName_ = DatabaseDescriptor.getSubComparator(SSTableReader.parseTableName(filename), cfName).getClass().getCanonicalName();
             this.key_ = key;
             this.isAscending_ = isAscending;
             init(startColumn, position);
@@ -311,10 +313,11 @@ public class SequenceFile
                 cfType_ = file_.readUTF();
                 String comparatorName = file_.readUTF();
                 assert comparatorName.equals(comparator_.getClass().getCanonicalName());
+                String subComparatorName = file_.readUTF(); // subcomparator
                 localDeletionTime_ = file_.readInt();
                 markedForDeleteAt_ = file_.readLong();
                 int totalNumCols = file_.readInt();
-                allColumnsSize_ = dataSize - (totalBytesRead + 3 * utfPrefix_ + cfName.length() + cfType_.length() + comparatorName.length() + 4 + 8 + 4);
+                allColumnsSize_ = dataSize - (totalBytesRead + 4 * utfPrefix_ + cfName.length() + cfType_.length() + comparatorName.length() + subComparatorName.length() + 4 + 8 + 4);
 
                 columnStartPosition_ = file_.getFilePointer();
                 columnIndexList_ = getFullColumnIndexList(colIndexList, totalNumCols);
@@ -349,6 +352,7 @@ public class SequenceFile
             bufOut.writeUTF(cfName_);
             bufOut.writeUTF(cfType_);
             bufOut.writeUTF(comparator_.getClass().getCanonicalName());
+            bufOut.writeUTF(subComparatorName_);
             bufOut.writeInt(localDeletionTime_);
             bufOut.writeLong(markedForDeleteAt_);
             // now write the columns
@@ -534,6 +538,9 @@ public class SequenceFile
                 String comparatorName = file_.readUTF();
                 dataSize -= (utfPrefix_ + comparatorName.length());
 
+                String subComparatorName = file_.readUTF();
+                dataSize -= (utfPrefix_ + subComparatorName.length());
+
                 /* read local deletion time */
                 int localDeletionTime = file_.readInt();
                 dataSize -=4;
@@ -561,11 +568,12 @@ public class SequenceFile
                 }
 
                 // returned data size
-                bufOut.writeInt(dataSizeReturned + utfPrefix_ * 2 + cfName.length() + cfType.length() + 4 + 4 + 8 + 4);
+                bufOut.writeInt(dataSizeReturned + utfPrefix_ * 4 + cfName.length() + cfType.length() + comparatorName.length() + subComparatorName.length() + 4 + 4 + 8 + 4);
                 // echo back the CF data we read
                 bufOut.writeUTF(cfName);
                 bufOut.writeUTF(cfType);
                 bufOut.writeUTF(comparatorName);
+                bufOut.writeUTF(subComparatorName);
                 bufOut.writeInt(localDeletionTime);
                 bufOut.writeLong(markedForDeleteAt);
                 /* write number of columns */

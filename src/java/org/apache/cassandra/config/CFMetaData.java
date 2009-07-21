@@ -26,6 +26,7 @@ public class CFMetaData
     public String cfName;               // name of the column family
     public String columnType;           // type: super, standard, etc.
     public AbstractType comparator;       // name sorted, time stamp sorted etc.
+    public AbstractType subcolumnComparator; // like comparator, for supercolumns
 
     // The user chosen names (n_) for various parts of data in a column family.
     // CQL queries, for instance, will refer to/extract data within a column

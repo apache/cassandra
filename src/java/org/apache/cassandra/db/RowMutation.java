@@ -44,6 +44,7 @@ import org.apache.cassandra.service.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 
 /**
@@ -173,7 +174,7 @@ public class RowMutation implements Serializable
         }
         else if (path.columnName == null)
         {
-            SuperColumn sc = new SuperColumn(path.superColumnName);
+            SuperColumn sc = new SuperColumn(path.superColumnName, DatabaseDescriptor.getSubComparator(table_, cfName));
             sc.markForDeleteAt(localDeleteTime, timestamp);
             columnFamily.addColumn(sc);
         }

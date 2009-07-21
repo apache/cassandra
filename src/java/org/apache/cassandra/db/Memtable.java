@@ -293,7 +293,7 @@ public class Memtable implements Comparable<Memtable>
         if (DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard"))
             startIColumn = new Column(filter.start);
         else
-            startIColumn = new SuperColumn(filter.start);
+            startIColumn = new SuperColumn(filter.start, null); // ok to not have subcolumnComparator since we won't be adding columns to this object
 
         // can't use a ColumnComparatorFactory comparator since those compare on both name and time (and thus will fail to match
         // our dummy column, since the time there is arbitrary).

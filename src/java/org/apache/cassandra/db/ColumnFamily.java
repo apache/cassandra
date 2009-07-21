@@ -40,6 +40,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.LongType;
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -88,7 +89,8 @@ public final class ColumnFamily
     {
         String columnType = DatabaseDescriptor.getColumnFamilyType(tableName, cfName);
         AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
-        return new ColumnFamily(cfName, columnType, comparator);
+        AbstractType subcolumnComparator = DatabaseDescriptor.getSubComparator(tableName, cfName);
+        return new ColumnFamily(cfName, columnType, comparator, subcolumnComparator);
     }
 
     private String name_;
@@ -99,20 +101,25 @@ public final class ColumnFamily
     private AtomicInteger size_ = new AtomicInteger(0);
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
 
-    public ColumnFamily(String cfName, String columnType, AbstractType comparator)
+    public ColumnFamily(String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator)
     {
         name_ = cfName;
         type_ = columnType;
-        columnSerializer_ = columnType.equals("Standard") ? Column.serializer() : SuperColumn.serializer();
+        columnSerializer_ = columnType.equals("Standard") ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
         columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
     }
 
     public ColumnFamily cloneMeShallow()
     {
-        ColumnFamily cf = new ColumnFamily(name_, type_, getComparator());
+        ColumnFamily cf = new ColumnFamily(name_, type_, getComparator(), getSubComparator());
         cf.markedForDeleteAt = markedForDeleteAt;
         cf.localDeletionTime = localDeletionTime;
         return cf;
+    }
+
+    private AbstractType getSubComparator()
+    {
+        return (columnSerializer_ instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer_).getComparator() : null;
     }
 
     ColumnFamily cloneMe()
@@ -190,6 +197,7 @@ public final class ColumnFamily
         }
         else
         {
+            assert isSuper();
             try
             {
                 getComparator().validate(path.superColumnName);
@@ -198,7 +206,7 @@ public final class ColumnFamily
             {
                 throw new MarshalException("Invalid supercolumn name in " + path.columnFamilyName + " for " + getComparator().getClass().getName());
             }
-            column = new SuperColumn(path.superColumnName);
+            column = new SuperColumn(path.superColumnName, getSubComparator());
             column.addColumn(new Column(path.columnName, value, timestamp, deleted)); // checks subcolumn name
         }
 		addColumn(column);
@@ -290,7 +298,7 @@ public final class ColumnFamily
      */
     ColumnFamily diff(ColumnFamily cfComposite)
     {
-    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator());
+    	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator(), getSubComparator());
         if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
         {
             cfDiff.delete(cfComposite.getLocalDeletionTime(), cfComposite.getMarkedForDeleteAt());
@@ -453,11 +461,15 @@ public final class ColumnFamily
         */
         public void serialize(ColumnFamily columnFamily, DataOutputStream dos) throws IOException
         {
+            // TODO whenever we change this we need to change the code in SequenceFile to match in two places.
+            // This SUCKS and is inefficient to boot.  let's fix this ASAP. 
             Collection<IColumn> columns = columnFamily.getSortedColumns();
 
             dos.writeUTF(columnFamily.name());
             dos.writeUTF(columnFamily.type_);
             dos.writeUTF(columnFamily.getComparator().getClass().getCanonicalName());
+            AbstractType subcolumnComparator = columnFamily.getSubComparator();
+            dos.writeUTF(subcolumnComparator == null ? "" : subcolumnComparator.getClass().getCanonicalName());
             dos.writeInt(columnFamily.localDeletionTime);
             dos.writeLong(columnFamily.markedForDeleteAt);
 
@@ -472,6 +484,7 @@ public final class ColumnFamily
         {
             ColumnFamily cf = new ColumnFamily(dis.readUTF(),
                                                dis.readUTF(),
+                                               readComparator(dis),
                                                readComparator(dis));
             cf.delete(dis.readInt(), dis.readLong());
             int size = dis.readInt();
@@ -487,6 +500,11 @@ public final class ColumnFamily
         private AbstractType readComparator(DataInputStream dis) throws IOException
         {
             String className = dis.readUTF();
+            if (className.equals(""))
+            {
+                return null;
+            }
+
             try
             {
                 return (AbstractType)Class.forName(className).getConstructor().newInstance();

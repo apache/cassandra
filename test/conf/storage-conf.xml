@@ -44,12 +44,13 @@
        <ColumnFamily Name="Standard2"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong1"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong2"/>
-       <ColumnFamily ColumnType="Super" Name="Super1"/>
-       <ColumnFamily ColumnType="Super" Name="Super2"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super1"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super2"/>
      </Table>
      <Table Name = "Table2">
        <ColumnFamily Name="Standard1"/>
        <ColumnFamily Name="Standard3"/>
+       <ColumnFamily ColumnType="Super" Name="Super3"/>
      </Table>
    </Tables>
    <Seeds>

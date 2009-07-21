@@ -24,6 +24,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.marshal.AsciiType;
 import static org.apache.cassandra.Util.column;
 
 public class RowTest
@@ -45,10 +46,10 @@ public class RowTest
     @Test
     public void testDiffSuperColumn()
     {
-        SuperColumn sc1 = new SuperColumn("one".getBytes());
+        SuperColumn sc1 = new SuperColumn("one".getBytes(), new AsciiType());
         sc1.addColumn(column("subcolumn", "A", 0));
 
-        SuperColumn sc2 = new SuperColumn("one".getBytes());
+        SuperColumn sc2 = new SuperColumn("one".getBytes(), new AsciiType());
         sc2.markForDeleteAt(0, 0);
 
         SuperColumn scDiff = (SuperColumn)sc1.diff(sc2);
