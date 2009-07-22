@@ -101,6 +101,11 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<Column> thriftifyColumns(Collection<IColumn> columns)
     {
+        return thriftifyColumns(columns, false);
+    }
+    
+    public List<Column> thriftifyColumns(Collection<IColumn> columns, boolean reverseOrder)
+    {
         if (columns == null || columns.isEmpty())
         {
             return EMPTY_COLUMNS;
@@ -117,6 +122,8 @@ public class CassandraServer implements Cassandra.Iface
             thriftColumns.add(thrift_column);
         }
 
+        if (reverseOrder)
+            Collections.reverse(thriftColumns);
         return thriftColumns;
     }
 
@@ -124,6 +131,11 @@ public class CassandraServer implements Cassandra.Iface
     private List<Column> getSlice(ReadCommand command) throws InvalidRequestException
     {
         ColumnFamily cfamily = readColumnFamily(command);
+        boolean reverseOrder = false;
+        
+        if (command instanceof SliceFromReadCommand)
+            reverseOrder = !((SliceFromReadCommand)command).isAscending;
+
         if (cfamily == null || cfamily.getColumnsMap().size() == 0)
         {
             return EMPTY_COLUMNS;
@@ -131,9 +143,9 @@ public class CassandraServer implements Cassandra.Iface
         if (cfamily.isSuper())
         {
             IColumn column = cfamily.getColumnsMap().values().iterator().next();
-            return thriftifyColumns(column.getSubColumns());
+            return thriftifyColumns(column.getSubColumns(), reverseOrder);
         }
-        return thriftifyColumns(cfamily.getSortedColumns());
+        return thriftifyColumns(cfamily.getSortedColumns(), reverseOrder);
     }
 
     public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names)
@@ -306,6 +318,11 @@ public class CassandraServer implements Cassandra.Iface
 
     private List<SuperColumn> thriftifySuperColumns(Collection<IColumn> columns)
     {
+        return thriftifySuperColumns(columns, false);
+    }
+    
+    private List<SuperColumn> thriftifySuperColumns(Collection<IColumn> columns, boolean reverseOrder)
+    {
         if (columns == null || columns.isEmpty())
         {
             return EMPTY_SUPERCOLUMNS;
@@ -321,6 +338,9 @@ public class CassandraServer implements Cassandra.Iface
             }
             thriftSuperColumns.add(new SuperColumn(column.name(), subcolumns));
         }
+
+        if (reverseOrder)
+            Collections.reverse(thriftSuperColumns);
 
         return thriftSuperColumns;
     }
@@ -340,7 +360,7 @@ public class CassandraServer implements Cassandra.Iface
             return EMPTY_SUPERCOLUMNS;
         }
         Collection<IColumn> columns = cfamily.getSortedColumns();
-        return thriftifySuperColumns(columns);
+        return thriftifySuperColumns(columns, !is_ascending);
     }
 
 

@@ -71,13 +71,35 @@ def _verify_range():
     assert result[0].name == 'c1'
     assert result[1].name == 'c2'
 
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c3', 'c2', False, 1000)
+    assert len(result) == 2
+    assert result[0].name == 'c3'
+    assert result[1].name == 'c2'
+
     result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 1000)
     assert len(result) == 3, result
     
     result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 2)
     assert len(result) == 2, result
-
 	 	
+def _insert_super_range():
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 0, False)
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, False)
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(6)), 'value6', 0, False)
+    client.insert('Table1', 'key1', ColumnPath('Super1', 'sc3', _i64(7)), 'value7', 0, False)
+    time.sleep(0.1)
+
+def _verify_super_range():
+    result = client.get_slice_super('Table1','key1', 'Super1', 'sc2', 'sc3', True, 2)
+    assert len(result) == 2
+    assert result[0].name == 'sc2'
+    assert result[1].name == 'sc3'
+
+    result = client.get_slice_super('Table1','key1', 'Super1', 'sc3', 'sc2', False, 2)
+    assert len(result) == 2
+    assert result[0].name == 'sc3'
+    assert result[1].name == 'sc2'
+
 def _verify_super(supercf='Super1'):
     assert client.get_column('Table1', 'key1', ColumnPath(supercf, 'sc1', _i64(4))) == Column(_i64(4), 'value4', 0)
     slice = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
@@ -315,6 +337,10 @@ class TestMutations(CassandraTester):
     def test_get_slice_range(self):
 	_insert_range()
 	_verify_range()
+        
+    def test_get_slice_super_range(self):
+	_insert_super_range()
+	_verify_super_range()
         
     def test_get_slice_by_names(self):
         _insert_range()
