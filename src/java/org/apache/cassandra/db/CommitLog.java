@@ -215,6 +215,7 @@ public class CommitLog
     {
         IFileWriter logWriter = CommitLog.createWriter(commitLogFileName);
         writeCommitLogHeader(logWriter, bytes);
+        logWriter.close();
     }
 
     /*
