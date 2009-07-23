@@ -474,18 +474,18 @@ public class CassandraServer implements Cassandra.Iface
             Map<String, String> columnMap = new HashMap<String, String>();
             desc = columnFamilyMetaData.n_columnMap + "(" + columnFamilyMetaData.n_columnKey + ", " + columnFamilyMetaData.n_columnValue + ", " + columnFamilyMetaData.n_columnTimestamp + ")";
             if (columnFamilyMetaData.columnType.equals("Super")) {
-                columnMap.put("type", "Super");
+                columnMap.put("Type", "Super");
                 desc = columnFamilyMetaData.n_superColumnMap + "(" + columnFamilyMetaData.n_superColumnKey + ", " + desc + ")"; 
             } else {
-                columnMap.put("type", "Standard");
+                columnMap.put("Type", "Standard");
             }
             
             desc = columnFamilyMetaData.tableName + "." + columnFamilyMetaData.cfName + "(" + 
                 columnFamilyMetaData.n_rowKey + ", " + desc + ")";
 
-            columnMap.put("desc", desc);
-            columnMap.put("type", columnFamilyMetaData.comparator.getClass().getName());
-            columnMap.put("flushperiod", columnFamilyMetaData.flushPeriodInMinutes + "");
+            columnMap.put("Desc", desc);
+            columnMap.put("CompareWith", columnFamilyMetaData.comparator.getClass().getName());
+            columnMap.put("FlushPeriodInMinutes", columnFamilyMetaData.flushPeriodInMinutes + "");
             columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }
         return columnFamiliesMap;

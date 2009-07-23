@@ -77,7 +77,7 @@ public class DatabaseDescriptor
     private static String d_columnMap_        = "COLUMN_MAP";
     private static String d_columnKey_        = "COLUMN_KEY";
     private static String d_columnValue_      = "COLUMN_VALUE";
-    private static String d_columnTimestamp_  = "ColumnIMESTAMP";
+    private static String d_columnTimestamp_  = "COLUMN_TIMESTAMP";
 
     private static Map<String, Double> tableKeysCachedFractions_;
     /*
