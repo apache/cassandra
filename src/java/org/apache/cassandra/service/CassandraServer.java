@@ -402,7 +402,7 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(block_for, rm);
     }
 
-    public String getStringProperty(String propertyName)
+    public String get_string_property(String propertyName)
     {
         if (propertyName.equals("cluster name"))
         {
@@ -440,7 +440,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public List<String> getStringListProperty(String propertyName)
+    public List<String> get_string_list_property(String propertyName)
     {
         if (propertyName.equals("tables"))
         {
@@ -452,7 +452,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException
+    public Map<String,Map<String,String>> describe_table(String tableName) throws NotFoundException
     {
         Map <String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>> ();
 
@@ -491,7 +491,7 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public org.apache.cassandra.service.CqlResult executeQuery(String query) throws TException
+    public org.apache.cassandra.service.CqlResult execute_query(String query) throws TException
     {
         org.apache.cassandra.service.CqlResult result = new org.apache.cassandra.service.CqlResult();
 

@@ -44,15 +44,15 @@ public class Cassandra {
 
     public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<String> get_key_range(String table, String column_family, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException;
+    public List<String> get_key_range(String table, String column_family, String start, String finish, int count) throws InvalidRequestException, TException;
 
-    public String getStringProperty(String propertyName) throws TException;
+    public String get_string_property(String property) throws TException;
 
-    public List<String> getStringListProperty(String propertyName) throws TException;
+    public List<String> get_string_list_property(String property) throws TException;
 
-    public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException, TException;
+    public Map<String,Map<String,String>> describe_table(String table) throws NotFoundException, TException;
 
-    public CqlResult executeQuery(String query) throws TException;
+    public CqlResult execute_query(String query) throws TException;
 
   }
 
@@ -528,21 +528,21 @@ public class Cassandra {
       return;
     }
 
-    public List<String> get_key_range(String table, String column_family, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
+    public List<String> get_key_range(String table, String column_family, String start, String finish, int count) throws InvalidRequestException, TException
     {
-      send_get_key_range(table, column_family, startWith, stopAt, maxResults);
+      send_get_key_range(table, column_family, start, finish, count);
       return recv_get_key_range();
     }
 
-    public void send_get_key_range(String table, String column_family, String startWith, String stopAt, int maxResults) throws TException
+    public void send_get_key_range(String table, String column_family, String start, String finish, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_key_range", TMessageType.CALL, seqid_));
       get_key_range_args args = new get_key_range_args();
       args.table = table;
       args.column_family = column_family;
-      args.startWith = startWith;
-      args.stopAt = stopAt;
-      args.maxResults = maxResults;
+      args.start = start;
+      args.finish = finish;
+      args.count = count;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -568,23 +568,23 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_key_range failed: unknown result");
     }
 
-    public String getStringProperty(String propertyName) throws TException
+    public String get_string_property(String property) throws TException
     {
-      send_getStringProperty(propertyName);
-      return recv_getStringProperty();
+      send_get_string_property(property);
+      return recv_get_string_property();
     }
 
-    public void send_getStringProperty(String propertyName) throws TException
+    public void send_get_string_property(String property) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("getStringProperty", TMessageType.CALL, seqid_));
-      getStringProperty_args args = new getStringProperty_args();
-      args.propertyName = propertyName;
+      oprot_.writeMessageBegin(new TMessage("get_string_property", TMessageType.CALL, seqid_));
+      get_string_property_args args = new get_string_property_args();
+      args.property = property;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public String recv_getStringProperty() throws TException
+    public String recv_get_string_property() throws TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -592,32 +592,32 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      getStringProperty_result result = new getStringProperty_result();
+      get_string_property_result result = new get_string_property_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
         return result.success;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "getStringProperty failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_string_property failed: unknown result");
     }
 
-    public List<String> getStringListProperty(String propertyName) throws TException
+    public List<String> get_string_list_property(String property) throws TException
     {
-      send_getStringListProperty(propertyName);
-      return recv_getStringListProperty();
+      send_get_string_list_property(property);
+      return recv_get_string_list_property();
     }
 
-    public void send_getStringListProperty(String propertyName) throws TException
+    public void send_get_string_list_property(String property) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("getStringListProperty", TMessageType.CALL, seqid_));
-      getStringListProperty_args args = new getStringListProperty_args();
-      args.propertyName = propertyName;
+      oprot_.writeMessageBegin(new TMessage("get_string_list_property", TMessageType.CALL, seqid_));
+      get_string_list_property_args args = new get_string_list_property_args();
+      args.property = property;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public List<String> recv_getStringListProperty() throws TException
+    public List<String> recv_get_string_list_property() throws TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -625,32 +625,32 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      getStringListProperty_result result = new getStringListProperty_result();
+      get_string_list_property_result result = new get_string_list_property_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
         return result.success;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "getStringListProperty failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_string_list_property failed: unknown result");
     }
 
-    public Map<String,Map<String,String>> describeTable(String tableName) throws NotFoundException, TException
+    public Map<String,Map<String,String>> describe_table(String table) throws NotFoundException, TException
     {
-      send_describeTable(tableName);
-      return recv_describeTable();
+      send_describe_table(table);
+      return recv_describe_table();
     }
 
-    public void send_describeTable(String tableName) throws TException
+    public void send_describe_table(String table) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("describeTable", TMessageType.CALL, seqid_));
-      describeTable_args args = new describeTable_args();
-      args.tableName = tableName;
+      oprot_.writeMessageBegin(new TMessage("describe_table", TMessageType.CALL, seqid_));
+      describe_table_args args = new describe_table_args();
+      args.table = table;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public Map<String,Map<String,String>> recv_describeTable() throws NotFoundException, TException
+    public Map<String,Map<String,String>> recv_describe_table() throws NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -658,7 +658,7 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      describeTable_result result = new describeTable_result();
+      describe_table_result result = new describe_table_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
@@ -667,26 +667,26 @@ public class Cassandra {
       if (result.nfe != null) {
         throw result.nfe;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describeTable failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_table failed: unknown result");
     }
 
-    public CqlResult executeQuery(String query) throws TException
+    public CqlResult execute_query(String query) throws TException
     {
-      send_executeQuery(query);
-      return recv_executeQuery();
+      send_execute_query(query);
+      return recv_execute_query();
     }
 
-    public void send_executeQuery(String query) throws TException
+    public void send_execute_query(String query) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("executeQuery", TMessageType.CALL, seqid_));
-      executeQuery_args args = new executeQuery_args();
+      oprot_.writeMessageBegin(new TMessage("execute_query", TMessageType.CALL, seqid_));
+      execute_query_args args = new execute_query_args();
       args.query = query;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public CqlResult recv_executeQuery() throws TException
+    public CqlResult recv_execute_query() throws TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -694,13 +694,13 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      executeQuery_result result = new executeQuery_result();
+      execute_query_result result = new execute_query_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
         return result.success;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "executeQuery failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "execute_query failed: unknown result");
     }
 
   }
@@ -721,10 +721,10 @@ public class Cassandra {
       processMap_.put("get_super_column", new get_super_column());
       processMap_.put("batch_insert_super_column", new batch_insert_super_column());
       processMap_.put("get_key_range", new get_key_range());
-      processMap_.put("getStringProperty", new getStringProperty());
-      processMap_.put("getStringListProperty", new getStringListProperty());
-      processMap_.put("describeTable", new describeTable());
-      processMap_.put("executeQuery", new executeQuery());
+      processMap_.put("get_string_property", new get_string_property());
+      processMap_.put("get_string_list_property", new get_string_list_property());
+      processMap_.put("describe_table", new describe_table());
+      processMap_.put("execute_query", new execute_query());
     }
 
     protected static interface ProcessFunction {
@@ -1085,7 +1085,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_key_range_result result = new get_key_range_result();
         try {
-          result.success = iface_.get_key_range(args.table, args.column_family, args.startWith, args.stopAt, args.maxResults);
+          result.success = iface_.get_key_range(args.table, args.column_family, args.start, args.finish, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1105,15 +1105,15 @@ public class Cassandra {
 
     }
 
-    private class getStringProperty implements ProcessFunction {
+    private class get_string_property implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        getStringProperty_args args = new getStringProperty_args();
+        get_string_property_args args = new get_string_property_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        getStringProperty_result result = new getStringProperty_result();
-        result.success = iface_.getStringProperty(args.propertyName);
-        oprot.writeMessageBegin(new TMessage("getStringProperty", TMessageType.REPLY, seqid));
+        get_string_property_result result = new get_string_property_result();
+        result.success = iface_.get_string_property(args.property);
+        oprot.writeMessageBegin(new TMessage("get_string_property", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -1121,15 +1121,15 @@ public class Cassandra {
 
     }
 
-    private class getStringListProperty implements ProcessFunction {
+    private class get_string_list_property implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        getStringListProperty_args args = new getStringListProperty_args();
+        get_string_list_property_args args = new get_string_list_property_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        getStringListProperty_result result = new getStringListProperty_result();
-        result.success = iface_.getStringListProperty(args.propertyName);
-        oprot.writeMessageBegin(new TMessage("getStringListProperty", TMessageType.REPLY, seqid));
+        get_string_list_property_result result = new get_string_list_property_result();
+        result.success = iface_.get_string_list_property(args.property);
+        oprot.writeMessageBegin(new TMessage("get_string_list_property", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -1137,27 +1137,27 @@ public class Cassandra {
 
     }
 
-    private class describeTable implements ProcessFunction {
+    private class describe_table implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        describeTable_args args = new describeTable_args();
+        describe_table_args args = new describe_table_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        describeTable_result result = new describeTable_result();
+        describe_table_result result = new describe_table_result();
         try {
-          result.success = iface_.describeTable(args.tableName);
+          result.success = iface_.describe_table(args.table);
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
-          LOGGER.error("Internal error processing describeTable", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describeTable");
-          oprot.writeMessageBegin(new TMessage("describeTable", TMessageType.EXCEPTION, seqid));
+          LOGGER.error("Internal error processing describe_table", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describe_table");
+          oprot.writeMessageBegin(new TMessage("describe_table", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
           oprot.writeMessageEnd();
           oprot.getTransport().flush();
           return;
         }
-        oprot.writeMessageBegin(new TMessage("describeTable", TMessageType.REPLY, seqid));
+        oprot.writeMessageBegin(new TMessage("describe_table", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -1165,15 +1165,15 @@ public class Cassandra {
 
     }
 
-    private class executeQuery implements ProcessFunction {
+    private class execute_query implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        executeQuery_args args = new executeQuery_args();
+        execute_query_args args = new execute_query_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        executeQuery_result result = new executeQuery_result();
-        result.success = iface_.executeQuery(args.query);
-        oprot.writeMessageBegin(new TMessage("executeQuery", TMessageType.REPLY, seqid));
+        execute_query_result result = new execute_query_result();
+        result.success = iface_.execute_query(args.query);
+        oprot.writeMessageBegin(new TMessage("execute_query", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -9682,24 +9682,24 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("get_key_range_args");
     private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)2);
-    private static final TField START_WITH_FIELD_DESC = new TField("startWith", TType.STRING, (short)3);
-    private static final TField STOP_AT_FIELD_DESC = new TField("stopAt", TType.STRING, (short)4);
-    private static final TField MAX_RESULTS_FIELD_DESC = new TField("maxResults", TType.I32, (short)5);
+    private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)3);
+    private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)4);
+    private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
 
     public String table;
     public static final int TABLE = 1;
     public String column_family;
     public static final int COLUMN_FAMILY = 2;
-    public String startWith;
-    public static final int STARTWITH = 3;
-    public String stopAt;
-    public static final int STOPAT = 4;
-    public int maxResults;
-    public static final int MAXRESULTS = 5;
+    public String start;
+    public static final int START = 3;
+    public String finish;
+    public static final int FINISH = 4;
+    public int count;
+    public static final int COUNT = 5;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean maxResults = false;
+      public boolean count = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -9707,11 +9707,11 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(STARTWITH, new FieldMetaData("startWith", TFieldRequirementType.DEFAULT, 
+      put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(STOPAT, new FieldMetaData("stopAt", TFieldRequirementType.DEFAULT, 
+      put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(MAXRESULTS, new FieldMetaData("maxResults", TFieldRequirementType.DEFAULT, 
+      put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -9720,28 +9720,28 @@ public class Cassandra {
     }
 
     public get_key_range_args() {
-      this.startWith = "";
+      this.start = "";
 
-      this.stopAt = "";
+      this.finish = "";
 
-      this.maxResults = 100;
+      this.count = 100;
 
     }
 
     public get_key_range_args(
       String table,
       String column_family,
-      String startWith,
-      String stopAt,
-      int maxResults)
+      String start,
+      String finish,
+      int count)
     {
       this();
       this.table = table;
       this.column_family = column_family;
-      this.startWith = startWith;
-      this.stopAt = stopAt;
-      this.maxResults = maxResults;
-      this.__isset.maxResults = true;
+      this.start = start;
+      this.finish = finish;
+      this.count = count;
+      this.__isset.count = true;
     }
 
     /**
@@ -9754,14 +9754,14 @@ public class Cassandra {
       if (other.isSetColumn_family()) {
         this.column_family = other.column_family;
       }
-      if (other.isSetStartWith()) {
-        this.startWith = other.startWith;
+      if (other.isSetStart()) {
+        this.start = other.start;
       }
-      if (other.isSetStopAt()) {
-        this.stopAt = other.stopAt;
+      if (other.isSetFinish()) {
+        this.finish = other.finish;
       }
-      __isset.maxResults = other.__isset.maxResults;
-      this.maxResults = other.maxResults;
+      __isset.count = other.__isset.count;
+      this.count = other.count;
     }
 
     @Override
@@ -9815,72 +9815,72 @@ public class Cassandra {
       }
     }
 
-    public String getStartWith() {
-      return this.startWith;
+    public String getStart() {
+      return this.start;
     }
 
-    public void setStartWith(String startWith) {
-      this.startWith = startWith;
+    public void setStart(String start) {
+      this.start = start;
     }
 
-    public void unsetStartWith() {
-      this.startWith = null;
+    public void unsetStart() {
+      this.start = null;
     }
 
-    // Returns true if field startWith is set (has been asigned a value) and false otherwise
-    public boolean isSetStartWith() {
-      return this.startWith != null;
+    // Returns true if field start is set (has been asigned a value) and false otherwise
+    public boolean isSetStart() {
+      return this.start != null;
     }
 
-    public void setStartWithIsSet(boolean value) {
+    public void setStartIsSet(boolean value) {
       if (!value) {
-        this.startWith = null;
+        this.start = null;
       }
     }
 
-    public String getStopAt() {
-      return this.stopAt;
+    public String getFinish() {
+      return this.finish;
     }
 
-    public void setStopAt(String stopAt) {
-      this.stopAt = stopAt;
+    public void setFinish(String finish) {
+      this.finish = finish;
     }
 
-    public void unsetStopAt() {
-      this.stopAt = null;
+    public void unsetFinish() {
+      this.finish = null;
     }
 
-    // Returns true if field stopAt is set (has been asigned a value) and false otherwise
-    public boolean isSetStopAt() {
-      return this.stopAt != null;
+    // Returns true if field finish is set (has been asigned a value) and false otherwise
+    public boolean isSetFinish() {
+      return this.finish != null;
     }
 
-    public void setStopAtIsSet(boolean value) {
+    public void setFinishIsSet(boolean value) {
       if (!value) {
-        this.stopAt = null;
+        this.finish = null;
       }
     }
 
-    public int getMaxResults() {
-      return this.maxResults;
+    public int getCount() {
+      return this.count;
     }
 
-    public void setMaxResults(int maxResults) {
-      this.maxResults = maxResults;
-      this.__isset.maxResults = true;
+    public void setCount(int count) {
+      this.count = count;
+      this.__isset.count = true;
     }
 
-    public void unsetMaxResults() {
-      this.__isset.maxResults = false;
+    public void unsetCount() {
+      this.__isset.count = false;
     }
 
-    // Returns true if field maxResults is set (has been asigned a value) and false otherwise
-    public boolean isSetMaxResults() {
-      return this.__isset.maxResults;
+    // Returns true if field count is set (has been asigned a value) and false otherwise
+    public boolean isSetCount() {
+      return this.__isset.count;
     }
 
-    public void setMaxResultsIsSet(boolean value) {
-      this.__isset.maxResults = value;
+    public void setCountIsSet(boolean value) {
+      this.__isset.count = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -9901,27 +9901,27 @@ public class Cassandra {
         }
         break;
 
-      case STARTWITH:
+      case START:
         if (value == null) {
-          unsetStartWith();
+          unsetStart();
         } else {
-          setStartWith((String)value);
+          setStart((String)value);
         }
         break;
 
-      case STOPAT:
+      case FINISH:
         if (value == null) {
-          unsetStopAt();
+          unsetFinish();
         } else {
-          setStopAt((String)value);
+          setFinish((String)value);
         }
         break;
 
-      case MAXRESULTS:
+      case COUNT:
         if (value == null) {
-          unsetMaxResults();
+          unsetCount();
         } else {
-          setMaxResults((Integer)value);
+          setCount((Integer)value);
         }
         break;
 
@@ -9938,14 +9938,14 @@ public class Cassandra {
       case COLUMN_FAMILY:
         return getColumn_family();
 
-      case STARTWITH:
-        return getStartWith();
+      case START:
+        return getStart();
 
-      case STOPAT:
-        return getStopAt();
+      case FINISH:
+        return getFinish();
 
-      case MAXRESULTS:
-        return new Integer(getMaxResults());
+      case COUNT:
+        return new Integer(getCount());
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -9959,12 +9959,12 @@ public class Cassandra {
         return isSetTable();
       case COLUMN_FAMILY:
         return isSetColumn_family();
-      case STARTWITH:
-        return isSetStartWith();
-      case STOPAT:
-        return isSetStopAt();
-      case MAXRESULTS:
-        return isSetMaxResults();
+      case START:
+        return isSetStart();
+      case FINISH:
+        return isSetFinish();
+      case COUNT:
+        return isSetCount();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -10001,30 +10001,30 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_startWith = true && this.isSetStartWith();
-      boolean that_present_startWith = true && that.isSetStartWith();
-      if (this_present_startWith || that_present_startWith) {
-        if (!(this_present_startWith && that_present_startWith))
+      boolean this_present_start = true && this.isSetStart();
+      boolean that_present_start = true && that.isSetStart();
+      if (this_present_start || that_present_start) {
+        if (!(this_present_start && that_present_start))
           return false;
-        if (!this.startWith.equals(that.startWith))
-          return false;
-      }
-
-      boolean this_present_stopAt = true && this.isSetStopAt();
-      boolean that_present_stopAt = true && that.isSetStopAt();
-      if (this_present_stopAt || that_present_stopAt) {
-        if (!(this_present_stopAt && that_present_stopAt))
-          return false;
-        if (!this.stopAt.equals(that.stopAt))
+        if (!this.start.equals(that.start))
           return false;
       }
 
-      boolean this_present_maxResults = true;
-      boolean that_present_maxResults = true;
-      if (this_present_maxResults || that_present_maxResults) {
-        if (!(this_present_maxResults && that_present_maxResults))
+      boolean this_present_finish = true && this.isSetFinish();
+      boolean that_present_finish = true && that.isSetFinish();
+      if (this_present_finish || that_present_finish) {
+        if (!(this_present_finish && that_present_finish))
           return false;
-        if (this.maxResults != that.maxResults)
+        if (!this.finish.equals(that.finish))
+          return false;
+      }
+
+      boolean this_present_count = true;
+      boolean that_present_count = true;
+      if (this_present_count || that_present_count) {
+        if (!(this_present_count && that_present_count))
+          return false;
+        if (this.count != that.count)
           return false;
       }
 
@@ -10061,24 +10061,24 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case STARTWITH:
+          case START:
             if (field.type == TType.STRING) {
-              this.startWith = iprot.readString();
+              this.start = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case STOPAT:
+          case FINISH:
             if (field.type == TType.STRING) {
-              this.stopAt = iprot.readString();
+              this.finish = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case MAXRESULTS:
+          case COUNT:
             if (field.type == TType.I32) {
-              this.maxResults = iprot.readI32();
-              this.__isset.maxResults = true;
+              this.count = iprot.readI32();
+              this.__isset.count = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10110,18 +10110,18 @@ public class Cassandra {
         oprot.writeString(this.column_family);
         oprot.writeFieldEnd();
       }
-      if (this.startWith != null) {
-        oprot.writeFieldBegin(START_WITH_FIELD_DESC);
-        oprot.writeString(this.startWith);
+      if (this.start != null) {
+        oprot.writeFieldBegin(START_FIELD_DESC);
+        oprot.writeString(this.start);
         oprot.writeFieldEnd();
       }
-      if (this.stopAt != null) {
-        oprot.writeFieldBegin(STOP_AT_FIELD_DESC);
-        oprot.writeString(this.stopAt);
+      if (this.finish != null) {
+        oprot.writeFieldBegin(FINISH_FIELD_DESC);
+        oprot.writeString(this.finish);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(MAX_RESULTS_FIELD_DESC);
-      oprot.writeI32(this.maxResults);
+      oprot.writeFieldBegin(COUNT_FIELD_DESC);
+      oprot.writeI32(this.count);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -10148,24 +10148,24 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("startWith:");
-      if (this.startWith == null) {
+      sb.append("start:");
+      if (this.start == null) {
         sb.append("null");
       } else {
-        sb.append(this.startWith);
+        sb.append(this.start);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("stopAt:");
-      if (this.stopAt == null) {
+      sb.append("finish:");
+      if (this.finish == null) {
         sb.append("null");
       } else {
-        sb.append(this.stopAt);
+        sb.append(this.finish);
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("maxResults:");
-      sb.append(this.maxResults);
+      sb.append("count:");
+      sb.append(this.count);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -10487,80 +10487,80 @@ public class Cassandra {
 
   }
 
-  public static class getStringProperty_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("getStringProperty_args");
-    private static final TField PROPERTY_NAME_FIELD_DESC = new TField("propertyName", TType.STRING, (short)1);
+  public static class get_string_property_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_string_property_args");
+    private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
 
-    public String propertyName;
-    public static final int PROPERTYNAME = 1;
+    public String property;
+    public static final int PROPERTY = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(PROPERTYNAME, new FieldMetaData("propertyName", TFieldRequirementType.DEFAULT, 
+      put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(getStringProperty_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(get_string_property_args.class, metaDataMap);
     }
 
-    public getStringProperty_args() {
+    public get_string_property_args() {
     }
 
-    public getStringProperty_args(
-      String propertyName)
+    public get_string_property_args(
+      String property)
     {
       this();
-      this.propertyName = propertyName;
+      this.property = property;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getStringProperty_args(getStringProperty_args other) {
-      if (other.isSetPropertyName()) {
-        this.propertyName = other.propertyName;
+    public get_string_property_args(get_string_property_args other) {
+      if (other.isSetProperty()) {
+        this.property = other.property;
       }
     }
 
     @Override
-    public getStringProperty_args clone() {
-      return new getStringProperty_args(this);
+    public get_string_property_args clone() {
+      return new get_string_property_args(this);
     }
 
-    public String getPropertyName() {
-      return this.propertyName;
+    public String getProperty() {
+      return this.property;
     }
 
-    public void setPropertyName(String propertyName) {
-      this.propertyName = propertyName;
+    public void setProperty(String property) {
+      this.property = property;
     }
 
-    public void unsetPropertyName() {
-      this.propertyName = null;
+    public void unsetProperty() {
+      this.property = null;
     }
 
-    // Returns true if field propertyName is set (has been asigned a value) and false otherwise
-    public boolean isSetPropertyName() {
-      return this.propertyName != null;
+    // Returns true if field property is set (has been asigned a value) and false otherwise
+    public boolean isSetProperty() {
+      return this.property != null;
     }
 
-    public void setPropertyNameIsSet(boolean value) {
+    public void setPropertyIsSet(boolean value) {
       if (!value) {
-        this.propertyName = null;
+        this.property = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case PROPERTYNAME:
+      case PROPERTY:
         if (value == null) {
-          unsetPropertyName();
+          unsetProperty();
         } else {
-          setPropertyName((String)value);
+          setProperty((String)value);
         }
         break;
 
@@ -10571,8 +10571,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case PROPERTYNAME:
-        return getPropertyName();
+      case PROPERTY:
+        return getProperty();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -10582,8 +10582,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case PROPERTYNAME:
-        return isSetPropertyName();
+      case PROPERTY:
+        return isSetProperty();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -10593,21 +10593,21 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getStringProperty_args)
-        return this.equals((getStringProperty_args)that);
+      if (that instanceof get_string_property_args)
+        return this.equals((get_string_property_args)that);
       return false;
     }
 
-    public boolean equals(getStringProperty_args that) {
+    public boolean equals(get_string_property_args that) {
       if (that == null)
         return false;
 
-      boolean this_present_propertyName = true && this.isSetPropertyName();
-      boolean that_present_propertyName = true && that.isSetPropertyName();
-      if (this_present_propertyName || that_present_propertyName) {
-        if (!(this_present_propertyName && that_present_propertyName))
+      boolean this_present_property = true && this.isSetProperty();
+      boolean that_present_property = true && that.isSetProperty();
+      if (this_present_property || that_present_property) {
+        if (!(this_present_property && that_present_property))
           return false;
-        if (!this.propertyName.equals(that.propertyName))
+        if (!this.property.equals(that.property))
           return false;
       }
 
@@ -10630,9 +10630,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case PROPERTYNAME:
+          case PROPERTY:
             if (field.type == TType.STRING) {
-              this.propertyName = iprot.readString();
+              this.property = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10654,9 +10654,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.propertyName != null) {
-        oprot.writeFieldBegin(PROPERTY_NAME_FIELD_DESC);
-        oprot.writeString(this.propertyName);
+      if (this.property != null) {
+        oprot.writeFieldBegin(PROPERTY_FIELD_DESC);
+        oprot.writeString(this.property);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -10665,14 +10665,14 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getStringProperty_args(");
+      StringBuilder sb = new StringBuilder("get_string_property_args(");
       boolean first = true;
 
-      sb.append("propertyName:");
-      if (this.propertyName == null) {
+      sb.append("property:");
+      if (this.property == null) {
         sb.append("null");
       } else {
-        sb.append(this.propertyName);
+        sb.append(this.property);
       }
       first = false;
       sb.append(")");
@@ -10686,8 +10686,8 @@ public class Cassandra {
 
   }
 
-  public static class getStringProperty_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("getStringProperty_result");
+  public static class get_string_property_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_string_property_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
 
     public String success;
@@ -10703,13 +10703,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(getStringProperty_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(get_string_property_result.class, metaDataMap);
     }
 
-    public getStringProperty_result() {
+    public get_string_property_result() {
     }
 
-    public getStringProperty_result(
+    public get_string_property_result(
       String success)
     {
       this();
@@ -10719,15 +10719,15 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getStringProperty_result(getStringProperty_result other) {
+    public get_string_property_result(get_string_property_result other) {
       if (other.isSetSuccess()) {
         this.success = other.success;
       }
     }
 
     @Override
-    public getStringProperty_result clone() {
-      return new getStringProperty_result(this);
+    public get_string_property_result clone() {
+      return new get_string_property_result(this);
     }
 
     public String getSuccess() {
@@ -10792,12 +10792,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getStringProperty_result)
-        return this.equals((getStringProperty_result)that);
+      if (that instanceof get_string_property_result)
+        return this.equals((get_string_property_result)that);
       return false;
     }
 
-    public boolean equals(getStringProperty_result that) {
+    public boolean equals(get_string_property_result that) {
       if (that == null)
         return false;
 
@@ -10863,7 +10863,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getStringProperty_result(");
+      StringBuilder sb = new StringBuilder("get_string_property_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -10884,80 +10884,80 @@ public class Cassandra {
 
   }
 
-  public static class getStringListProperty_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("getStringListProperty_args");
-    private static final TField PROPERTY_NAME_FIELD_DESC = new TField("propertyName", TType.STRING, (short)1);
+  public static class get_string_list_property_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_string_list_property_args");
+    private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
 
-    public String propertyName;
-    public static final int PROPERTYNAME = 1;
+    public String property;
+    public static final int PROPERTY = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(PROPERTYNAME, new FieldMetaData("propertyName", TFieldRequirementType.DEFAULT, 
+      put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(getStringListProperty_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(get_string_list_property_args.class, metaDataMap);
     }
 
-    public getStringListProperty_args() {
+    public get_string_list_property_args() {
     }
 
-    public getStringListProperty_args(
-      String propertyName)
+    public get_string_list_property_args(
+      String property)
     {
       this();
-      this.propertyName = propertyName;
+      this.property = property;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getStringListProperty_args(getStringListProperty_args other) {
-      if (other.isSetPropertyName()) {
-        this.propertyName = other.propertyName;
+    public get_string_list_property_args(get_string_list_property_args other) {
+      if (other.isSetProperty()) {
+        this.property = other.property;
       }
     }
 
     @Override
-    public getStringListProperty_args clone() {
-      return new getStringListProperty_args(this);
+    public get_string_list_property_args clone() {
+      return new get_string_list_property_args(this);
     }
 
-    public String getPropertyName() {
-      return this.propertyName;
+    public String getProperty() {
+      return this.property;
     }
 
-    public void setPropertyName(String propertyName) {
-      this.propertyName = propertyName;
+    public void setProperty(String property) {
+      this.property = property;
     }
 
-    public void unsetPropertyName() {
-      this.propertyName = null;
+    public void unsetProperty() {
+      this.property = null;
     }
 
-    // Returns true if field propertyName is set (has been asigned a value) and false otherwise
-    public boolean isSetPropertyName() {
-      return this.propertyName != null;
+    // Returns true if field property is set (has been asigned a value) and false otherwise
+    public boolean isSetProperty() {
+      return this.property != null;
     }
 
-    public void setPropertyNameIsSet(boolean value) {
+    public void setPropertyIsSet(boolean value) {
       if (!value) {
-        this.propertyName = null;
+        this.property = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case PROPERTYNAME:
+      case PROPERTY:
         if (value == null) {
-          unsetPropertyName();
+          unsetProperty();
         } else {
-          setPropertyName((String)value);
+          setProperty((String)value);
         }
         break;
 
@@ -10968,8 +10968,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case PROPERTYNAME:
-        return getPropertyName();
+      case PROPERTY:
+        return getProperty();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -10979,8 +10979,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case PROPERTYNAME:
-        return isSetPropertyName();
+      case PROPERTY:
+        return isSetProperty();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -10990,21 +10990,21 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getStringListProperty_args)
-        return this.equals((getStringListProperty_args)that);
+      if (that instanceof get_string_list_property_args)
+        return this.equals((get_string_list_property_args)that);
       return false;
     }
 
-    public boolean equals(getStringListProperty_args that) {
+    public boolean equals(get_string_list_property_args that) {
       if (that == null)
         return false;
 
-      boolean this_present_propertyName = true && this.isSetPropertyName();
-      boolean that_present_propertyName = true && that.isSetPropertyName();
-      if (this_present_propertyName || that_present_propertyName) {
-        if (!(this_present_propertyName && that_present_propertyName))
+      boolean this_present_property = true && this.isSetProperty();
+      boolean that_present_property = true && that.isSetProperty();
+      if (this_present_property || that_present_property) {
+        if (!(this_present_property && that_present_property))
           return false;
-        if (!this.propertyName.equals(that.propertyName))
+        if (!this.property.equals(that.property))
           return false;
       }
 
@@ -11027,9 +11027,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case PROPERTYNAME:
+          case PROPERTY:
             if (field.type == TType.STRING) {
-              this.propertyName = iprot.readString();
+              this.property = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -11051,9 +11051,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.propertyName != null) {
-        oprot.writeFieldBegin(PROPERTY_NAME_FIELD_DESC);
-        oprot.writeString(this.propertyName);
+      if (this.property != null) {
+        oprot.writeFieldBegin(PROPERTY_FIELD_DESC);
+        oprot.writeString(this.property);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -11062,14 +11062,14 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getStringListProperty_args(");
+      StringBuilder sb = new StringBuilder("get_string_list_property_args(");
       boolean first = true;
 
-      sb.append("propertyName:");
-      if (this.propertyName == null) {
+      sb.append("property:");
+      if (this.property == null) {
         sb.append("null");
       } else {
-        sb.append(this.propertyName);
+        sb.append(this.property);
       }
       first = false;
       sb.append(")");
@@ -11083,8 +11083,8 @@ public class Cassandra {
 
   }
 
-  public static class getStringListProperty_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("getStringListProperty_result");
+  public static class get_string_list_property_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("get_string_list_property_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
 
     public List<String> success;
@@ -11101,13 +11101,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(getStringListProperty_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(get_string_list_property_result.class, metaDataMap);
     }
 
-    public getStringListProperty_result() {
+    public get_string_list_property_result() {
     }
 
-    public getStringListProperty_result(
+    public get_string_list_property_result(
       List<String> success)
     {
       this();
@@ -11117,7 +11117,7 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public getStringListProperty_result(getStringListProperty_result other) {
+    public get_string_list_property_result(get_string_list_property_result other) {
       if (other.isSetSuccess()) {
         List<String> __this__success = new ArrayList<String>();
         for (String other_element : other.success) {
@@ -11128,8 +11128,8 @@ public class Cassandra {
     }
 
     @Override
-    public getStringListProperty_result clone() {
-      return new getStringListProperty_result(this);
+    public get_string_list_property_result clone() {
+      return new get_string_list_property_result(this);
     }
 
     public int getSuccessSize() {
@@ -11209,12 +11209,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof getStringListProperty_result)
-        return this.equals((getStringListProperty_result)that);
+      if (that instanceof get_string_list_property_result)
+        return this.equals((get_string_list_property_result)that);
       return false;
     }
 
-    public boolean equals(getStringListProperty_result that) {
+    public boolean equals(get_string_list_property_result that) {
       if (that == null)
         return false;
 
@@ -11296,7 +11296,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("getStringListProperty_result(");
+      StringBuilder sb = new StringBuilder("get_string_list_property_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -11317,80 +11317,80 @@ public class Cassandra {
 
   }
 
-  public static class describeTable_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("describeTable_args");
-    private static final TField TABLE_NAME_FIELD_DESC = new TField("tableName", TType.STRING, (short)1);
+  public static class describe_table_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_table_args");
+    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
 
-    public String tableName;
-    public static final int TABLENAME = 1;
+    public String table;
+    public static final int TABLE = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLENAME, new FieldMetaData("tableName", TFieldRequirementType.DEFAULT, 
+      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(describeTable_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(describe_table_args.class, metaDataMap);
     }
 
-    public describeTable_args() {
+    public describe_table_args() {
     }
 
-    public describeTable_args(
-      String tableName)
+    public describe_table_args(
+      String table)
     {
       this();
-      this.tableName = tableName;
+      this.table = table;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public describeTable_args(describeTable_args other) {
-      if (other.isSetTableName()) {
-        this.tableName = other.tableName;
+    public describe_table_args(describe_table_args other) {
+      if (other.isSetTable()) {
+        this.table = other.table;
       }
     }
 
     @Override
-    public describeTable_args clone() {
-      return new describeTable_args(this);
+    public describe_table_args clone() {
+      return new describe_table_args(this);
     }
 
-    public String getTableName() {
-      return this.tableName;
+    public String getTable() {
+      return this.table;
     }
 
-    public void setTableName(String tableName) {
-      this.tableName = tableName;
+    public void setTable(String table) {
+      this.table = table;
     }
 
-    public void unsetTableName() {
-      this.tableName = null;
+    public void unsetTable() {
+      this.table = null;
     }
 
-    // Returns true if field tableName is set (has been asigned a value) and false otherwise
-    public boolean isSetTableName() {
-      return this.tableName != null;
+    // Returns true if field table is set (has been asigned a value) and false otherwise
+    public boolean isSetTable() {
+      return this.table != null;
     }
 
-    public void setTableNameIsSet(boolean value) {
+    public void setTableIsSet(boolean value) {
       if (!value) {
-        this.tableName = null;
+        this.table = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLENAME:
+      case TABLE:
         if (value == null) {
-          unsetTableName();
+          unsetTable();
         } else {
-          setTableName((String)value);
+          setTable((String)value);
         }
         break;
 
@@ -11401,8 +11401,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return getTableName();
+      case TABLE:
+        return getTable();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -11412,8 +11412,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLENAME:
-        return isSetTableName();
+      case TABLE:
+        return isSetTable();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -11423,21 +11423,21 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof describeTable_args)
-        return this.equals((describeTable_args)that);
+      if (that instanceof describe_table_args)
+        return this.equals((describe_table_args)that);
       return false;
     }
 
-    public boolean equals(describeTable_args that) {
+    public boolean equals(describe_table_args that) {
       if (that == null)
         return false;
 
-      boolean this_present_tableName = true && this.isSetTableName();
-      boolean that_present_tableName = true && that.isSetTableName();
-      if (this_present_tableName || that_present_tableName) {
-        if (!(this_present_tableName && that_present_tableName))
+      boolean this_present_table = true && this.isSetTable();
+      boolean that_present_table = true && that.isSetTable();
+      if (this_present_table || that_present_table) {
+        if (!(this_present_table && that_present_table))
           return false;
-        if (!this.tableName.equals(that.tableName))
+        if (!this.table.equals(that.table))
           return false;
       }
 
@@ -11460,9 +11460,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLENAME:
+          case TABLE:
             if (field.type == TType.STRING) {
-              this.tableName = iprot.readString();
+              this.table = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -11484,9 +11484,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.tableName != null) {
-        oprot.writeFieldBegin(TABLE_NAME_FIELD_DESC);
-        oprot.writeString(this.tableName);
+      if (this.table != null) {
+        oprot.writeFieldBegin(TABLE_FIELD_DESC);
+        oprot.writeString(this.table);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -11495,14 +11495,14 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("describeTable_args(");
+      StringBuilder sb = new StringBuilder("describe_table_args(");
       boolean first = true;
 
-      sb.append("tableName:");
-      if (this.tableName == null) {
+      sb.append("table:");
+      if (this.table == null) {
         sb.append("null");
       } else {
-        sb.append(this.tableName);
+        sb.append(this.table);
       }
       first = false;
       sb.append(")");
@@ -11516,8 +11516,8 @@ public class Cassandra {
 
   }
 
-  public static class describeTable_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("describeTable_result");
+  public static class describe_table_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_table_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)1);
 
@@ -11542,13 +11542,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(describeTable_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(describe_table_result.class, metaDataMap);
     }
 
-    public describeTable_result() {
+    public describe_table_result() {
     }
 
-    public describeTable_result(
+    public describe_table_result(
       Map<String,Map<String,String>> success,
       NotFoundException nfe)
     {
@@ -11560,7 +11560,7 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public describeTable_result(describeTable_result other) {
+    public describe_table_result(describe_table_result other) {
       if (other.isSetSuccess()) {
         Map<String,Map<String,String>> __this__success = new HashMap<String,Map<String,String>>();
         for (Map.Entry<String, Map<String,String>> other_element : other.success.entrySet()) {
@@ -11593,8 +11593,8 @@ public class Cassandra {
     }
 
     @Override
-    public describeTable_result clone() {
-      return new describeTable_result(this);
+    public describe_table_result clone() {
+      return new describe_table_result(this);
     }
 
     public int getSuccessSize() {
@@ -11706,12 +11706,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof describeTable_result)
-        return this.equals((describeTable_result)that);
+      if (that instanceof describe_table_result)
+        return this.equals((describe_table_result)that);
       return false;
     }
 
-    public boolean equals(describeTable_result that) {
+    public boolean equals(describe_table_result that) {
       if (that == null)
         return false;
 
@@ -11836,7 +11836,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("describeTable_result(");
+      StringBuilder sb = new StringBuilder("describe_table_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -11865,8 +11865,8 @@ public class Cassandra {
 
   }
 
-  public static class executeQuery_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("executeQuery_args");
+  public static class execute_query_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("execute_query_args");
     private static final TField QUERY_FIELD_DESC = new TField("query", TType.STRING, (short)1);
 
     public String query;
@@ -11882,13 +11882,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(executeQuery_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(execute_query_args.class, metaDataMap);
     }
 
-    public executeQuery_args() {
+    public execute_query_args() {
     }
 
-    public executeQuery_args(
+    public execute_query_args(
       String query)
     {
       this();
@@ -11898,15 +11898,15 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public executeQuery_args(executeQuery_args other) {
+    public execute_query_args(execute_query_args other) {
       if (other.isSetQuery()) {
         this.query = other.query;
       }
     }
 
     @Override
-    public executeQuery_args clone() {
-      return new executeQuery_args(this);
+    public execute_query_args clone() {
+      return new execute_query_args(this);
     }
 
     public String getQuery() {
@@ -11971,12 +11971,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof executeQuery_args)
-        return this.equals((executeQuery_args)that);
+      if (that instanceof execute_query_args)
+        return this.equals((execute_query_args)that);
       return false;
     }
 
-    public boolean equals(executeQuery_args that) {
+    public boolean equals(execute_query_args that) {
       if (that == null)
         return false;
 
@@ -12043,7 +12043,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("executeQuery_args(");
+      StringBuilder sb = new StringBuilder("execute_query_args(");
       boolean first = true;
 
       sb.append("query:");
@@ -12064,8 +12064,8 @@ public class Cassandra {
 
   }
 
-  public static class executeQuery_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("executeQuery_result");
+  public static class execute_query_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("execute_query_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
 
     public CqlResult success;
@@ -12081,13 +12081,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(executeQuery_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(execute_query_result.class, metaDataMap);
     }
 
-    public executeQuery_result() {
+    public execute_query_result() {
     }
 
-    public executeQuery_result(
+    public execute_query_result(
       CqlResult success)
     {
       this();
@@ -12097,15 +12097,15 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public executeQuery_result(executeQuery_result other) {
+    public execute_query_result(execute_query_result other) {
       if (other.isSetSuccess()) {
         this.success = new CqlResult(other.success);
       }
     }
 
     @Override
-    public executeQuery_result clone() {
-      return new executeQuery_result(this);
+    public execute_query_result clone() {
+      return new execute_query_result(this);
     }
 
     public CqlResult getSuccess() {
@@ -12170,12 +12170,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof executeQuery_result)
-        return this.equals((executeQuery_result)that);
+      if (that instanceof execute_query_result)
+        return this.equals((execute_query_result)that);
       return false;
     }
 
-    public boolean equals(executeQuery_result that) {
+    public boolean equals(execute_query_result that) {
       if (that == null)
         return false;
 
@@ -12242,7 +12242,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("executeQuery_result(");
+      StringBuilder sb = new StringBuilder("execute_query_result(");
       boolean first = true;
 
       sb.append("success:");

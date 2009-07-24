@@ -147,7 +147,7 @@ service Cassandra {
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys
-  list<string>   get_key_range(1:string table, 2:string column_family, 3:string startWith="", 4:string stopAt="", 5:i32 maxResults=100) 
+  list<string>   get_key_range(1:string table, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100) 
   throws (1: InvalidRequestException ire),
 
   /////////////////////////////////////////////////////////////////////////////////////
@@ -156,16 +156,16 @@ service Cassandra {
   /////////////////////////////////////////////////////////////////////////////////////
 
   // get property whose value is of type "string"
-  string         getStringProperty(1:string propertyName),
+  string         get_string_property(1:string property),
 
   // get property whose value is list of "strings"
-  list<string>   getStringListProperty(1:string propertyName),
+  list<string>   get_string_list_property(1:string property),
 
   // describe specified table
-  map<string, map<string, string>>  describeTable(1:string tableName)
+  map<string, map<string, string>>  describe_table(1:string table)
   throws (1: NotFoundException nfe),
 
   // execute a CQL query
-  CqlResult    executeQuery(1:string query)
+  CqlResult    execute_query(1:string query)
 }
 

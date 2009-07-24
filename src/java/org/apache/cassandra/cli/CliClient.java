@@ -218,7 +218,7 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
 
-        String propertyValue = thriftClient_.getStringProperty(propertyName);
+        String propertyValue = thriftClient_.get_string_property(propertyName);
         css_.out.println(propertyValue);
         return;
     }
@@ -229,7 +229,7 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
         
-        List<String> tables = thriftClient_.getStringListProperty("tables");
+        List<String> tables = thriftClient_.get_string_list_property("tables");
         for (String table : tables)
         {
             css_.out.println(table);
@@ -250,7 +250,7 @@ public class CliClient
         // Describe and display
         Map<String, Map<String, String>> columnFamiliesMap;
         try {
-            columnFamiliesMap = thriftClient_.describeTable(tableName);
+            columnFamiliesMap = thriftClient_.describe_table(tableName);
             for (String columnFamilyName: columnFamiliesMap.keySet()) {
                 Map<String, String> columnMap = columnFamiliesMap.get(columnFamilyName);
                 String desc = columnMap.get("desc");
@@ -299,7 +299,7 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
         
-        CqlResult result = thriftClient_.executeQuery(query);
+        CqlResult result = thriftClient_.execute_query(query);
         
         if (result == null)
         {
