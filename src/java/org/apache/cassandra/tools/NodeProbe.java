@@ -426,6 +426,24 @@ public class NodeProbe
     }
     
     /**
+     * Take a snapshot of all the tables.
+     * 
+     * @param snapshotName the name of the snapshot.
+     */
+    public void takeSnapshot(String snapshotName) throws IOException
+    {
+        ssProxy.takeAllSnapshot(snapshotName);
+    }
+
+    /**
+     * Remove all the existing snapshots.
+     */
+    public void clearSnapshot() throws IOException
+    {
+        ssProxy.clearSnapshot();
+    }
+
+    /**
      * Retrieve any non-option arguments passed on the command line.
      * 
      * @return non-option command args
@@ -454,7 +472,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats");
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -490,7 +508,8 @@ public class NodeProbe
         }
         
         // Execute the requested command.
-        String cmdName = probe.getArgs()[0];
+        String[] arguments = probe.getArgs();
+        String cmdName = arguments[0];
         if (cmdName.equals("ring"))
         {
             probe.printRing(System.out);
@@ -514,6 +533,19 @@ public class NodeProbe
         else if (cmdName.equals("cfstats"))
         {
             probe.printColumnFamilyStats(System.out);
+        }
+        else if (cmdName.equals("snapshot"))
+        {
+            String snapshotName = "";
+            if (arguments.length > 1)
+            {
+                snapshotName = arguments[1];
+            }
+            probe.takeSnapshot(snapshotName);
+        }
+        else if (cmdName.equals("clearsnapshot"))
+        {
+            probe.clearSnapshot();
         }
         else
         {

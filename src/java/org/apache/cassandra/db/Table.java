@@ -56,6 +56,7 @@ public class Table
     public static final String SYSTEM_TABLE = "system";
 
     private static Logger logger_ = Logger.getLogger(Table.class);
+    private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
 
     /*
      * This class represents the metadata of this Table. The metadata
@@ -403,16 +404,47 @@ public class Table
         }   
     }
     
-    /*
-     * Clear the existing snapshots in the system
-     */
-    public void clearSnapshot()
-    {
-    	String snapshotDir = DatabaseDescriptor.getSnapshotDirectory();
-    	File snapshot = new File(snapshotDir);
-    	FileUtils.deleteDir(snapshot);
-    }
     
+    /**
+     * Take a snapshot of the entire set of column families with a given timestamp.
+     * 
+     * @param clientSuppliedName the tag associated with the name of the snapshot.  This
+     *                           value can be null.
+     */
+    public void snapshot(String clientSuppliedName) throws IOException
+    {
+        String snapshotName = Long.toString(System.currentTimeMillis());
+        if (clientSuppliedName != null && !clientSuppliedName.equals(""))
+        {
+            snapshotName = snapshotName + "-" + clientSuppliedName;
+        }
+
+        for (ColumnFamilyStore cfStore : columnFamilyStores_.values())
+        {
+            cfStore.snapshot(snapshotName);
+        }
+    }
+
+
+    /**
+     * Clear all the snapshots for a given table.
+     */
+    public void clearSnapshot() throws IOException
+    {
+        for (String dataDirPath : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            String snapshotPath = dataDirPath + File.separator + table_ + File.separator + SNAPSHOT_SUBDIR_NAME;
+            File snapshotDir = new File(snapshotPath);
+            if (snapshotDir.exists())
+            {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Removing snapshot directory " + snapshotPath);
+                if (!FileUtils.deleteDir(snapshotDir))
+                    throw new IOException("Could not clear snapshot directory " + snapshotPath);
+            }
+        }
+    }
+
     /*
      * This method is invoked only during a bootstrap process. We basically
      * do a complete compaction since we can figure out based on the ranges
@@ -729,4 +761,8 @@ public class Table
         }
     }
 
+    public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)
+    {
+        return dataDirPath + File.separator + tableName + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
+    }
 }

@@ -56,7 +56,6 @@ public class DatabaseDescriptor
     private static int replicationFactor_ = 3;
     private static long rpcTimeoutInMillis_ = 2000;
     private static Set<String> seeds_ = new HashSet<String>();
-    private static String snapshotDirectory_;
     /* Keeps the list of data file directories */
     private static String[] dataFileDirectories_;
     /* Current index into the above list of directories */
@@ -232,11 +231,6 @@ public class DatabaseDescriptor
             {
                 columnIndexSizeInKB_ = Integer.parseInt(columnIndexSizeInKB);
             }
-
-            /* snapshot directory */
-            snapshotDirectory_ = xmlUtils.getNodeValue("/Storage/SnapshotDirectory");
-            if ( snapshotDirectory_ != null )
-                FileUtils.createDirectory(snapshotDirectory_);
 
             /* data file directory */
             dataFileDirectories_ = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
@@ -682,21 +676,18 @@ public class DatabaseDescriptor
         return threadsPerPool_;
     }
 
-    public static String getSnapshotDirectory()
-    {
-        return snapshotDirectory_;
-    }
-
-    public static void setSnapshotDirectory(String snapshotDirectory)
-    {
-    	snapshotDirectory_ = snapshotDirectory;
-    }
-
     public static String[] getAllDataFileLocations()
     {
         return dataFileDirectories_;
     }
 
+    /**
+     * Get a list of data directories for a given table
+     * 
+     * @param table name of the table.
+     * 
+     * @return an array of path to the data directories. 
+     */
     public static String[] getAllDataFileLocationsForTable(String table)
     {
         String[] tableLocations = new String[dataFileDirectories_.length];

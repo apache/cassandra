@@ -263,4 +263,44 @@ public class FileUtils
         // The directory is now empty so now it can be smoked
         return dir.delete();
     }
+
+    /**
+     * Create a hard link for a given file.
+     * 
+     * @param sourceFile      The name of the source file.
+     * @param destinationFile The name of the destination file.
+     * 
+     * @throws IOException if an error has occurred while creating the link.
+     */
+    public static void createHardLink(File sourceFile, File destinationFile) throws IOException
+    {
+        String osname = System.getProperty("os.name");
+        ProcessBuilder pb;
+        if (osname.startsWith("Windows"))
+        {
+            float osversion = Float.parseFloat(System.getProperty("os.version"));
+            if (osversion >= 6.0f)
+            {
+                pb = new ProcessBuilder("cmd", "/c", "mklink", "/H", destinationFile.getAbsolutePath(), sourceFile.getAbsolutePath());
+            }
+            else
+            {
+                pb = new ProcessBuilder("fsutil", "hardlink", "create", destinationFile.getAbsolutePath(), sourceFile.getAbsolutePath());
+            }
+        }
+        else
+        {
+            pb = new ProcessBuilder("ln", sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
+            pb.redirectErrorStream(true);
+        }
+        Process p = pb.start();
+        try
+        {
+            p.waitFor();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 }

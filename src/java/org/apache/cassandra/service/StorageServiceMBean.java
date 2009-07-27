@@ -66,4 +66,24 @@ public interface StorageServiceMBean
      * @param target endpoint receiving data.
     */
     public void forceHandoff(List<String> directories, String target) throws IOException;
+
+    /**
+     * Takes the snapshot for a given table.
+     * 
+     * @param tableName the name of the table.
+     * @param tag       the tag given to the snapshot (null is permissible)
+     */
+    public void takeSnapshot(String tableName, String tag) throws IOException;
+
+    /**
+     * Takes a snapshot for every table.
+     * 
+     * @param tag the tag given to the snapshot (null is permissible)
+     */
+    public void takeAllSnapshot(String tag) throws IOException;
+
+    /**
+     * Remove all the existing snapshots.
+     */
+    public void clearSnapshot() throws IOException;
 }

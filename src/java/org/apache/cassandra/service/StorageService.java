@@ -734,6 +734,50 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
+    /**
+     * Takes the snapshot for a given table.
+     * 
+     * @param table the name of the table.
+     * @param tag   the tag given to the snapshot (null is permissible)
+     */
+    public void takeSnapshot(String tableName, String tag) throws IOException
+    {
+    	if (DatabaseDescriptor.getTable(tableName) == null)
+        {
+            throw new IOException("Table " + tableName + "does not exist");
+    	}
+        Table tableInstance = Table.open(tableName);
+        tableInstance.snapshot(tag);
+    }
+    
+    /**
+     * Takes a snapshot for every table.
+     * 
+     * @param tag the tag given to the snapshot (null is permissible)
+     */
+    public void takeAllSnapshot(String tag) throws IOException
+    {
+    	for (String tableName: DatabaseDescriptor.getTables())
+        {
+            Table tableInstance = Table.open(tableName);
+            tableInstance.snapshot(tag);
+    	}
+    }
+
+    /**
+     * Remove all the existing snapshots.
+     */
+    public void clearSnapshot() throws IOException
+    {
+    	for (String tableName: DatabaseDescriptor.getTables())
+        {
+            Table tableInstance = Table.open(tableName);
+            tableInstance.clearSnapshot();
+    	}
+        if (logger_.isDebugEnabled())
+            logger_.debug("Cleared out all snapshot directories");
+    }
+
     /* End of MBean interface methods */
     
     /**

@@ -1523,6 +1523,37 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
+     * Take a snap shot of this columnfamily store.
+     * 
+     * @param snapshotName the name of the associated with the snapshot 
+     */
+    public void snapshot(String snapshotName) throws IOException
+    {
+        sstableLock_.readLock().lock();
+        try
+        {
+            for (String filename : new ArrayList<String>(ssTables_.keySet()))
+            {
+                File sourceFile = new File(filename);
+
+                File dataDirectory = sourceFile.getParentFile().getParentFile();
+                String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
+                FileUtils.createDirectory(snapshotDirectoryPath);
+
+                File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(new File(filename), targetLink);
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +    
+                        " created as " + targetLink.getAbsolutePath());
+            }
+        }
+        finally
+        {
+            sstableLock_.readLock().unlock();
+        }
+    }
+
+    /**
      * for testing.  no effort is made to clear historical memtables.
      */
     void clearUnsafe()
