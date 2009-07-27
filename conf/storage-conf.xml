@@ -187,7 +187,7 @@
       before flushing to disk.  This is also a per-memtable setting.
       Use with MemtableSizeInMB to tune memory usage.
     -->
-    <MemtableObjectCountInMillions>0.02</MemtableObjectCountInMillions>
+    <MemtableObjectCountInMillions>0.01</MemtableObjectCountInMillions>
 
     <!-- Time to wait before garbage-collection deletion markers.
          Set this to a large enough value that you are confident
