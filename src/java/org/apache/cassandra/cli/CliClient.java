@@ -253,10 +253,10 @@ public class CliClient
             columnFamiliesMap = thriftClient_.describe_table(tableName);
             for (String columnFamilyName: columnFamiliesMap.keySet()) {
                 Map<String, String> columnMap = columnFamiliesMap.get(columnFamilyName);
-                String desc = columnMap.get("desc");
-                String columnFamilyType = columnMap.get("type");
-                String sort = columnMap.get("sort");
-                Integer flushperiod = Integer.parseInt(columnMap.get("flushperiod"));
+                String desc = columnMap.get("Desc");
+                String columnFamilyType = columnMap.get("Type");
+                String sort = columnMap.get("CompareWith");
+		 String flushperiod = columnMap.get("FlushPeriodInMinutes");
                 css_.out.println(desc);
                 css_.out.println("Column Family Type: " + columnFamilyType);
                 css_.out.println("Column Sorted By: " + sort);
