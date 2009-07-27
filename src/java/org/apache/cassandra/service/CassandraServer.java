@@ -35,6 +35,7 @@ import org.apache.cassandra.cql.driver.CqlDriver;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.thrift.TException;
@@ -248,7 +249,7 @@ public class CassandraServer implements Cassandra.Iface
         return columns.size();
 	}
 
-    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for)
+    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("insert");
@@ -264,10 +265,10 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException(e.getMessage());
         }
-        doInsert(block_for, rm);
+        doInsert(consistency_level, rm);
     }
 
-    public void batch_insert(String table, BatchMutation batch_mutation, int block_for)
+    public void batch_insert(String table, BatchMutation batch_mutation, int consistency_level)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert");
@@ -275,10 +276,10 @@ public class CassandraServer implements Cassandra.Iface
         Set<String> cfNames = rm.columnFamilyNames();
         ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        doInsert(block_for, rm);
+        doInsert(consistency_level, rm);
     }
 
-    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for)
+    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("remove");
@@ -287,14 +288,14 @@ public class CassandraServer implements Cassandra.Iface
         RowMutation rm = new RowMutation(table, key.trim());
         rm.delete(new QueryPath(column_path_or_parent), timestamp);
 
-        doInsert(block_for, rm);
+        doInsert(consistency_level, rm);
 	}
 
-    private void doInsert(int block, RowMutation rm) throws UnavailableException
+    private void doInsert(int consistency_level, RowMutation rm) throws UnavailableException
     {
-        if (block > 0)
+        if (consistency_level != ConsistencyLevel.ZERO)
         {
-            StorageProxy.insertBlocking(rm,block);
+            StorageProxy.insertBlocking(rm, consistency_level);
         }
         else
         {
@@ -391,7 +392,7 @@ public class CassandraServer implements Cassandra.Iface
         return new SuperColumn(column.name(), thriftifyColumns(column.getSubColumns()));
     }
 
-    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for)
+    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level)
     throws InvalidRequestException, UnavailableException
     {
         logger.debug("batch_insert_SuperColumn");
@@ -399,7 +400,7 @@ public class CassandraServer implements Cassandra.Iface
         Set<String> cfNames = rm.columnFamilyNames();
         ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        doInsert(block_for, rm);
+        doInsert(consistency_level, rm);
     }
 
     public String get_string_property(String propertyName)

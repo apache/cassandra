@@ -150,7 +150,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    public static void insertBlocking(RowMutation rm, int blockFor) throws UnavailableException
+    public static void insertBlocking(RowMutation rm, int consistency_level) throws UnavailableException
     {
         long startTime = System.currentTimeMillis();
         Message message = null;
@@ -168,6 +168,23 @@ public class StorageProxy implements StorageProxyMBean
             if (endpoints.length < (DatabaseDescriptor.getReplicationFactor() / 2) + 1)
             {
                 throw new UnavailableException();
+            }
+            int blockFor;
+            if (consistency_level == ConsistencyLevel.ONE)
+            {
+                blockFor = 1;
+            }
+            else if (consistency_level == ConsistencyLevel.QUORUM)
+            {
+                blockFor = (DatabaseDescriptor.getReplicationFactor() >> 1) + 1;
+            }
+            else if (consistency_level == ConsistencyLevel.ALL)
+            {
+                blockFor = DatabaseDescriptor.getReplicationFactor();
+            }
+            else
+            {
+                throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
             }
             QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(blockFor, new WriteResponseResolver());
             logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpoints, ", ") + "]");
@@ -189,7 +206,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static void insertBlocking(RowMutation rm) throws UnavailableException
     {
-        insertBlocking(rm, (DatabaseDescriptor.getReplicationFactor() >> 1) + 1);
+        insertBlocking(rm, ConsistencyLevel.QUORUM);
     }
     
     private static Map<String, Message> constructMessages(Map<String, ReadCommand> readMessages) throws IOException

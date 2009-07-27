@@ -30,11 +30,11 @@ public class Cassandra {
 
     public int get_column_count(String table, String key, ColumnParent column_parent) throws InvalidRequestException, TException;
 
-    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public void batch_insert(String table, BatchMutation batch_mutation, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert(String table, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
     public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count) throws InvalidRequestException, TException;
 
@@ -42,7 +42,7 @@ public class Cassandra {
 
     public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path) throws InvalidRequestException, NotFoundException, TException;
 
-    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
     public List<String> get_key_range(String table, String column_family, String start, String finish, int count) throws InvalidRequestException, TException;
 
@@ -249,13 +249,13 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column_count failed: unknown result");
     }
 
-    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_insert(table, key, column_path, value, timestamp, block_for);
+      send_insert(table, key, column_path, value, timestamp, consistency_level);
       recv_insert();
     }
 
-    public void send_insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int block_for) throws TException
+    public void send_insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
@@ -264,7 +264,7 @@ public class Cassandra {
       args.column_path = column_path;
       args.value = value;
       args.timestamp = timestamp;
-      args.block_for = block_for;
+      args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -290,19 +290,19 @@ public class Cassandra {
       return;
     }
 
-    public void batch_insert(String table, BatchMutation batch_mutation, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert(String table, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert(table, batch_mutation, block_for);
+      send_batch_insert(table, batch_mutation, consistency_level);
       recv_batch_insert();
     }
 
-    public void send_batch_insert(String table, BatchMutation batch_mutation, int block_for) throws TException
+    public void send_batch_insert(String table, BatchMutation batch_mutation, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert", TMessageType.CALL, seqid_));
       batch_insert_args args = new batch_insert_args();
       args.table = table;
       args.batch_mutation = batch_mutation;
-      args.block_for = block_for;
+      args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -328,13 +328,13 @@ public class Cassandra {
       return;
     }
 
-    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_remove(table, key, column_path_or_parent, timestamp, block_for);
+      send_remove(table, key, column_path_or_parent, timestamp, consistency_level);
       recv_remove();
     }
 
-    public void send_remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int block_for) throws TException
+    public void send_remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
@@ -342,7 +342,7 @@ public class Cassandra {
       args.key = key;
       args.column_path_or_parent = column_path_or_parent;
       args.timestamp = timestamp;
-      args.block_for = block_for;
+      args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -490,19 +490,19 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_super_column failed: unknown result");
     }
 
-    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert_super_column(table, batch_mutation_super, block_for);
+      send_batch_insert_super_column(table, batch_mutation_super, consistency_level);
       recv_batch_insert_super_column();
     }
 
-    public void send_batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int block_for) throws TException
+    public void send_batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert_super_column", TMessageType.CALL, seqid_));
       batch_insert_super_column_args args = new batch_insert_super_column_args();
       args.table = table;
       args.batch_mutation_super = batch_mutation_super;
-      args.block_for = block_for;
+      args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -879,7 +879,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         insert_result result = new insert_result();
         try {
-          iface_.insert(args.table, args.key, args.column_path, args.value, args.timestamp, args.block_for);
+          iface_.insert(args.table, args.key, args.column_path, args.value, args.timestamp, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -909,7 +909,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_result result = new batch_insert_result();
         try {
-          iface_.batch_insert(args.table, args.batch_mutation, args.block_for);
+          iface_.batch_insert(args.table, args.batch_mutation, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -939,7 +939,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
-          iface_.remove(args.table, args.key, args.column_path_or_parent, args.timestamp, args.block_for);
+          iface_.remove(args.table, args.key, args.column_path_or_parent, args.timestamp, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1055,7 +1055,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_super_column_result result = new batch_insert_super_column_result();
         try {
-          iface_.batch_insert_super_column(args.table, args.batch_mutation_super, args.block_for);
+          iface_.batch_insert_super_column(args.table, args.batch_mutation_super, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -4396,7 +4396,7 @@ public class Cassandra {
     private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
     private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)4);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)5);
-    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)6);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
 
     public String table;
     public static final int TABLE = 1;
@@ -4408,13 +4408,13 @@ public class Cassandra {
     public static final int VALUE = 4;
     public long timestamp;
     public static final int TIMESTAMP = 5;
-    public int block_for;
-    public static final int BLOCK_FOR = 6;
+    public int consistency_level;
+    public static final int CONSISTENCY_LEVEL = 6;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean timestamp = false;
-      public boolean block_for = false;
+      public boolean consistency_level = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -4428,7 +4428,7 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
-      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -4437,7 +4437,7 @@ public class Cassandra {
     }
 
     public insert_args() {
-      this.block_for = 0;
+      this.consistency_level = 0;
 
     }
 
@@ -4447,7 +4447,7 @@ public class Cassandra {
       ColumnPath column_path,
       byte[] value,
       long timestamp,
-      int block_for)
+      int consistency_level)
     {
       this();
       this.table = table;
@@ -4456,8 +4456,8 @@ public class Cassandra {
       this.value = value;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
     /**
@@ -4479,8 +4479,8 @@ public class Cassandra {
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
-      __isset.block_for = other.__isset.block_for;
-      this.block_for = other.block_for;
+      __isset.consistency_level = other.__isset.consistency_level;
+      this.consistency_level = other.consistency_level;
     }
 
     @Override
@@ -4602,26 +4602,26 @@ public class Cassandra {
       this.__isset.timestamp = value;
     }
 
-    public int getBlock_for() {
-      return this.block_for;
+    public int getConsistency_level() {
+      return this.consistency_level;
     }
 
-    public void setBlock_for(int block_for) {
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+    public void setConsistency_level(int consistency_level) {
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
-    public void unsetBlock_for() {
-      this.__isset.block_for = false;
+    public void unsetConsistency_level() {
+      this.__isset.consistency_level = false;
     }
 
-    // Returns true if field block_for is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock_for() {
-      return this.__isset.block_for;
+    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
+    public boolean isSetConsistency_level() {
+      return this.__isset.consistency_level;
     }
 
-    public void setBlock_forIsSet(boolean value) {
-      this.__isset.block_for = value;
+    public void setConsistency_levelIsSet(boolean value) {
+      this.__isset.consistency_level = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -4666,11 +4666,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK_FOR:
+      case CONSISTENCY_LEVEL:
         if (value == null) {
-          unsetBlock_for();
+          unsetConsistency_level();
         } else {
-          setBlock_for((Integer)value);
+          setConsistency_level((Integer)value);
         }
         break;
 
@@ -4696,8 +4696,8 @@ public class Cassandra {
       case TIMESTAMP:
         return new Long(getTimestamp());
 
-      case BLOCK_FOR:
-        return new Integer(getBlock_for());
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -4717,8 +4717,8 @@ public class Cassandra {
         return isSetValue();
       case TIMESTAMP:
         return isSetTimestamp();
-      case BLOCK_FOR:
-        return isSetBlock_for();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -4782,12 +4782,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block_for = true;
-      boolean that_present_block_for = true;
-      if (this_present_block_for || that_present_block_for) {
-        if (!(this_present_block_for && that_present_block_for))
+      boolean this_present_consistency_level = true;
+      boolean that_present_consistency_level = true;
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
           return false;
-        if (this.block_for != that.block_for)
+        if (this.consistency_level != that.consistency_level)
           return false;
       }
 
@@ -4847,10 +4847,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK_FOR:
+          case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
-              this.block_for = iprot.readI32();
-              this.__isset.block_for = true;
+              this.consistency_level = iprot.readI32();
+              this.__isset.consistency_level = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4895,8 +4895,8 @@ public class Cassandra {
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
       oprot.writeI64(this.timestamp);
       oprot.writeFieldEnd();
-      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
-      oprot.writeI32(this.block_for);
+      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+      oprot.writeI32(this.consistency_level);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -4948,8 +4948,16 @@ public class Cassandra {
       sb.append(this.timestamp);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block_for:");
-      sb.append(this.block_for);
+      sb.append("consistency_level:");
+      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(consistency_level_name);
+        sb.append(" (");
+      }
+      sb.append(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(")");
+      }
       first = false;
       sb.append(")");
       return sb.toString();
@@ -4958,6 +4966,9 @@ public class Cassandra {
     public void validate() throws TException {
       // check for required fields
       // check that fields of type enum have valid values
+      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
+        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
+      }
     }
 
   }
@@ -5240,18 +5251,18 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_args");
     private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField BATCH_MUTATION_FIELD_DESC = new TField("batch_mutation", TType.STRUCT, (short)2);
-    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)3);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
 
     public String table;
     public static final int TABLE = 1;
     public BatchMutation batch_mutation;
     public static final int BATCH_MUTATION = 2;
-    public int block_for;
-    public static final int BLOCK_FOR = 3;
+    public int consistency_level;
+    public static final int CONSISTENCY_LEVEL = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean block_for = false;
+      public boolean consistency_level = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -5259,7 +5270,7 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(BATCH_MUTATION, new FieldMetaData("batch_mutation", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, BatchMutation.class)));
-      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -5268,20 +5279,20 @@ public class Cassandra {
     }
 
     public batch_insert_args() {
-      this.block_for = 0;
+      this.consistency_level = 0;
 
     }
 
     public batch_insert_args(
       String table,
       BatchMutation batch_mutation,
-      int block_for)
+      int consistency_level)
     {
       this();
       this.table = table;
       this.batch_mutation = batch_mutation;
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
     /**
@@ -5294,8 +5305,8 @@ public class Cassandra {
       if (other.isSetBatch_mutation()) {
         this.batch_mutation = new BatchMutation(other.batch_mutation);
       }
-      __isset.block_for = other.__isset.block_for;
-      this.block_for = other.block_for;
+      __isset.consistency_level = other.__isset.consistency_level;
+      this.consistency_level = other.consistency_level;
     }
 
     @Override
@@ -5349,26 +5360,26 @@ public class Cassandra {
       }
     }
 
-    public int getBlock_for() {
-      return this.block_for;
+    public int getConsistency_level() {
+      return this.consistency_level;
     }
 
-    public void setBlock_for(int block_for) {
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+    public void setConsistency_level(int consistency_level) {
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
-    public void unsetBlock_for() {
-      this.__isset.block_for = false;
+    public void unsetConsistency_level() {
+      this.__isset.consistency_level = false;
     }
 
-    // Returns true if field block_for is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock_for() {
-      return this.__isset.block_for;
+    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
+    public boolean isSetConsistency_level() {
+      return this.__isset.consistency_level;
     }
 
-    public void setBlock_forIsSet(boolean value) {
-      this.__isset.block_for = value;
+    public void setConsistency_levelIsSet(boolean value) {
+      this.__isset.consistency_level = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -5389,11 +5400,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK_FOR:
+      case CONSISTENCY_LEVEL:
         if (value == null) {
-          unsetBlock_for();
+          unsetConsistency_level();
         } else {
-          setBlock_for((Integer)value);
+          setConsistency_level((Integer)value);
         }
         break;
 
@@ -5410,8 +5421,8 @@ public class Cassandra {
       case BATCH_MUTATION:
         return getBatch_mutation();
 
-      case BLOCK_FOR:
-        return new Integer(getBlock_for());
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -5425,8 +5436,8 @@ public class Cassandra {
         return isSetTable();
       case BATCH_MUTATION:
         return isSetBatch_mutation();
-      case BLOCK_FOR:
-        return isSetBlock_for();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -5463,12 +5474,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block_for = true;
-      boolean that_present_block_for = true;
-      if (this_present_block_for || that_present_block_for) {
-        if (!(this_present_block_for && that_present_block_for))
+      boolean this_present_consistency_level = true;
+      boolean that_present_consistency_level = true;
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
           return false;
-        if (this.block_for != that.block_for)
+        if (this.consistency_level != that.consistency_level)
           return false;
       }
 
@@ -5506,10 +5517,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK_FOR:
+          case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
-              this.block_for = iprot.readI32();
-              this.__isset.block_for = true;
+              this.consistency_level = iprot.readI32();
+              this.__isset.consistency_level = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5541,8 +5552,8 @@ public class Cassandra {
         this.batch_mutation.write(oprot);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
-      oprot.writeI32(this.block_for);
+      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+      oprot.writeI32(this.consistency_level);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -5569,8 +5580,16 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block_for:");
-      sb.append(this.block_for);
+      sb.append("consistency_level:");
+      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(consistency_level_name);
+        sb.append(" (");
+      }
+      sb.append(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(")");
+      }
       first = false;
       sb.append(")");
       return sb.toString();
@@ -5579,6 +5598,9 @@ public class Cassandra {
     public void validate() throws TException {
       // check for required fields
       // check that fields of type enum have valid values
+      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
+        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
+      }
     }
 
   }
@@ -5863,7 +5885,7 @@ public class Cassandra {
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PATH_OR_PARENT_FIELD_DESC = new TField("column_path_or_parent", TType.STRUCT, (short)3);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)4);
-    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)5);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String table;
     public static final int TABLE = 1;
@@ -5873,13 +5895,13 @@ public class Cassandra {
     public static final int COLUMN_PATH_OR_PARENT = 3;
     public long timestamp;
     public static final int TIMESTAMP = 4;
-    public int block_for;
-    public static final int BLOCK_FOR = 5;
+    public int consistency_level;
+    public static final int CONSISTENCY_LEVEL = 5;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
       public boolean timestamp = false;
-      public boolean block_for = false;
+      public boolean consistency_level = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -5891,7 +5913,7 @@ public class Cassandra {
           new StructMetaData(TType.STRUCT, ColumnPathOrParent.class)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
-      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -5900,7 +5922,7 @@ public class Cassandra {
     }
 
     public remove_args() {
-      this.block_for = 0;
+      this.consistency_level = 0;
 
     }
 
@@ -5909,7 +5931,7 @@ public class Cassandra {
       String key,
       ColumnPathOrParent column_path_or_parent,
       long timestamp,
-      int block_for)
+      int consistency_level)
     {
       this();
       this.table = table;
@@ -5917,8 +5939,8 @@ public class Cassandra {
       this.column_path_or_parent = column_path_or_parent;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
     /**
@@ -5936,8 +5958,8 @@ public class Cassandra {
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
-      __isset.block_for = other.__isset.block_for;
-      this.block_for = other.block_for;
+      __isset.consistency_level = other.__isset.consistency_level;
+      this.consistency_level = other.consistency_level;
     }
 
     @Override
@@ -6036,26 +6058,26 @@ public class Cassandra {
       this.__isset.timestamp = value;
     }
 
-    public int getBlock_for() {
-      return this.block_for;
+    public int getConsistency_level() {
+      return this.consistency_level;
     }
 
-    public void setBlock_for(int block_for) {
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+    public void setConsistency_level(int consistency_level) {
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
-    public void unsetBlock_for() {
-      this.__isset.block_for = false;
+    public void unsetConsistency_level() {
+      this.__isset.consistency_level = false;
     }
 
-    // Returns true if field block_for is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock_for() {
-      return this.__isset.block_for;
+    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
+    public boolean isSetConsistency_level() {
+      return this.__isset.consistency_level;
     }
 
-    public void setBlock_forIsSet(boolean value) {
-      this.__isset.block_for = value;
+    public void setConsistency_levelIsSet(boolean value) {
+      this.__isset.consistency_level = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -6092,11 +6114,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK_FOR:
+      case CONSISTENCY_LEVEL:
         if (value == null) {
-          unsetBlock_for();
+          unsetConsistency_level();
         } else {
-          setBlock_for((Integer)value);
+          setConsistency_level((Integer)value);
         }
         break;
 
@@ -6119,8 +6141,8 @@ public class Cassandra {
       case TIMESTAMP:
         return new Long(getTimestamp());
 
-      case BLOCK_FOR:
-        return new Integer(getBlock_for());
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -6138,8 +6160,8 @@ public class Cassandra {
         return isSetColumn_path_or_parent();
       case TIMESTAMP:
         return isSetTimestamp();
-      case BLOCK_FOR:
-        return isSetBlock_for();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -6194,12 +6216,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block_for = true;
-      boolean that_present_block_for = true;
-      if (this_present_block_for || that_present_block_for) {
-        if (!(this_present_block_for && that_present_block_for))
+      boolean this_present_consistency_level = true;
+      boolean that_present_consistency_level = true;
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
           return false;
-        if (this.block_for != that.block_for)
+        if (this.consistency_level != that.consistency_level)
           return false;
       }
 
@@ -6252,10 +6274,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK_FOR:
+          case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
-              this.block_for = iprot.readI32();
-              this.__isset.block_for = true;
+              this.consistency_level = iprot.readI32();
+              this.__isset.consistency_level = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -6295,8 +6317,8 @@ public class Cassandra {
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
       oprot.writeI64(this.timestamp);
       oprot.writeFieldEnd();
-      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
-      oprot.writeI32(this.block_for);
+      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+      oprot.writeI32(this.consistency_level);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -6335,8 +6357,16 @@ public class Cassandra {
       sb.append(this.timestamp);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block_for:");
-      sb.append(this.block_for);
+      sb.append("consistency_level:");
+      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(consistency_level_name);
+        sb.append(" (");
+      }
+      sb.append(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(")");
+      }
       first = false;
       sb.append(")");
       return sb.toString();
@@ -6345,6 +6375,9 @@ public class Cassandra {
     public void validate() throws TException {
       // check for required fields
       // check that fields of type enum have valid values
+      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
+        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
+      }
     }
 
   }
@@ -9061,18 +9094,18 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_super_column_args");
     private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
     private static final TField BATCH_MUTATION_SUPER_FIELD_DESC = new TField("batch_mutation_super", TType.STRUCT, (short)2);
-    private static final TField BLOCK_FOR_FIELD_DESC = new TField("block_for", TType.I32, (short)3);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
 
     public String table;
     public static final int TABLE = 1;
     public BatchMutationSuper batch_mutation_super;
     public static final int BATCH_MUTATION_SUPER = 2;
-    public int block_for;
-    public static final int BLOCK_FOR = 3;
+    public int consistency_level;
+    public static final int CONSISTENCY_LEVEL = 3;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
-      public boolean block_for = false;
+      public boolean consistency_level = false;
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -9080,7 +9113,7 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(BATCH_MUTATION_SUPER, new FieldMetaData("batch_mutation_super", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, BatchMutationSuper.class)));
-      put(BLOCK_FOR, new FieldMetaData("block_for", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -9089,20 +9122,20 @@ public class Cassandra {
     }
 
     public batch_insert_super_column_args() {
-      this.block_for = 0;
+      this.consistency_level = 0;
 
     }
 
     public batch_insert_super_column_args(
       String table,
       BatchMutationSuper batch_mutation_super,
-      int block_for)
+      int consistency_level)
     {
       this();
       this.table = table;
       this.batch_mutation_super = batch_mutation_super;
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
     /**
@@ -9115,8 +9148,8 @@ public class Cassandra {
       if (other.isSetBatch_mutation_super()) {
         this.batch_mutation_super = new BatchMutationSuper(other.batch_mutation_super);
       }
-      __isset.block_for = other.__isset.block_for;
-      this.block_for = other.block_for;
+      __isset.consistency_level = other.__isset.consistency_level;
+      this.consistency_level = other.consistency_level;
     }
 
     @Override
@@ -9170,26 +9203,26 @@ public class Cassandra {
       }
     }
 
-    public int getBlock_for() {
-      return this.block_for;
+    public int getConsistency_level() {
+      return this.consistency_level;
     }
 
-    public void setBlock_for(int block_for) {
-      this.block_for = block_for;
-      this.__isset.block_for = true;
+    public void setConsistency_level(int consistency_level) {
+      this.consistency_level = consistency_level;
+      this.__isset.consistency_level = true;
     }
 
-    public void unsetBlock_for() {
-      this.__isset.block_for = false;
+    public void unsetConsistency_level() {
+      this.__isset.consistency_level = false;
     }
 
-    // Returns true if field block_for is set (has been asigned a value) and false otherwise
-    public boolean isSetBlock_for() {
-      return this.__isset.block_for;
+    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
+    public boolean isSetConsistency_level() {
+      return this.__isset.consistency_level;
     }
 
-    public void setBlock_forIsSet(boolean value) {
-      this.__isset.block_for = value;
+    public void setConsistency_levelIsSet(boolean value) {
+      this.__isset.consistency_level = value;
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -9210,11 +9243,11 @@ public class Cassandra {
         }
         break;
 
-      case BLOCK_FOR:
+      case CONSISTENCY_LEVEL:
         if (value == null) {
-          unsetBlock_for();
+          unsetConsistency_level();
         } else {
-          setBlock_for((Integer)value);
+          setConsistency_level((Integer)value);
         }
         break;
 
@@ -9231,8 +9264,8 @@ public class Cassandra {
       case BATCH_MUTATION_SUPER:
         return getBatch_mutation_super();
 
-      case BLOCK_FOR:
-        return new Integer(getBlock_for());
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -9246,8 +9279,8 @@ public class Cassandra {
         return isSetTable();
       case BATCH_MUTATION_SUPER:
         return isSetBatch_mutation_super();
-      case BLOCK_FOR:
-        return isSetBlock_for();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -9284,12 +9317,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_block_for = true;
-      boolean that_present_block_for = true;
-      if (this_present_block_for || that_present_block_for) {
-        if (!(this_present_block_for && that_present_block_for))
+      boolean this_present_consistency_level = true;
+      boolean that_present_consistency_level = true;
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
           return false;
-        if (this.block_for != that.block_for)
+        if (this.consistency_level != that.consistency_level)
           return false;
       }
 
@@ -9327,10 +9360,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case BLOCK_FOR:
+          case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
-              this.block_for = iprot.readI32();
-              this.__isset.block_for = true;
+              this.consistency_level = iprot.readI32();
+              this.__isset.consistency_level = true;
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9362,8 +9395,8 @@ public class Cassandra {
         this.batch_mutation_super.write(oprot);
         oprot.writeFieldEnd();
       }
-      oprot.writeFieldBegin(BLOCK_FOR_FIELD_DESC);
-      oprot.writeI32(this.block_for);
+      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+      oprot.writeI32(this.consistency_level);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -9390,8 +9423,16 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("block_for:");
-      sb.append(this.block_for);
+      sb.append("consistency_level:");
+      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(consistency_level_name);
+        sb.append(" (");
+      }
+      sb.append(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(")");
+      }
       first = false;
       sb.append(")");
       return sb.toString();
@@ -9400,6 +9441,9 @@ public class Cassandra {
     public void validate() throws TException {
       // check for required fields
       // check that fields of type enum have valid values
+      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
+        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
+      }
     }
 
   }

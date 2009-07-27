@@ -64,7 +64,6 @@ struct CqlResult {
    3: ResultSet                     result_set,
 }
 
-
 #
 # Exceptions
 #
@@ -88,6 +87,13 @@ exception UnavailableException {
 #
 # service api
 #
+
+enum ConsistencyLevel { 
+    ZERO = 0, 
+    ONE = 1, 
+    QUORUM = 2, 
+    ALL = 3, 
+}
 
 struct ColumnParent {
     3: string          column_family,
@@ -125,13 +131,13 @@ service Cassandra {
   i32            get_column_count(1:string table, 2:string key, 3:ColumnParent column_parent)
   throws (1: InvalidRequestException ire),
 
-  void     insert(1:string table, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:i32 block_for=0)
+  void     insert(1:string table, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void     batch_insert(1:string table, 2:BatchMutation batch_mutation, 3:i32 block_for=0)
+  void     batch_insert(1:string table, 2:BatchMutation batch_mutation, 3:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void           remove(1:string table, 2:string key, 3:ColumnPathOrParent column_path_or_parent, 4:i64 timestamp, 5:i32 block_for=0)
+  void           remove(1:string table, 2:string key, 3:ColumnPathOrParent column_path_or_parent, 4:i64 timestamp, 5:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100)
@@ -143,7 +149,7 @@ service Cassandra {
   SuperColumn  get_super_column(1:string table, 2:string key, 3:SuperColumnPath super_column_path)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  void     batch_insert_super_column(1:string table, 2:BatchMutationSuper batch_mutation_super, 3:i32 block_for=0)
+  void     batch_insert_super_column(1:string table, 2:BatchMutationSuper batch_mutation_super, 3:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys

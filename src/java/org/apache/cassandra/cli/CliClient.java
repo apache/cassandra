@@ -197,7 +197,7 @@ public class CliClient
             try
             {
                 thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")),
-                                     value.getBytes(), System.currentTimeMillis(), 1);
+                                 value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
             }
             catch (UnsupportedEncodingException e)
             {
