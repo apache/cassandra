@@ -46,7 +46,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.collections.IteratorUtils;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
+
 
 /**
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
@@ -1277,7 +1277,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<Memtable> memtables = memtablesPendingFlush.get(columnFamilyName);
         if (memtables == null)
         {
-            memtablesPendingFlush.putIfAbsent(columnFamilyName, new NonBlockingHashSet<Memtable>());
+            memtablesPendingFlush.putIfAbsent(columnFamilyName, new ConcurrentSkipListSet<Memtable>());
             memtables = memtablesPendingFlush.get(columnFamilyName); // might not be the object we just put, if there was a race!
         }
         return memtables;
