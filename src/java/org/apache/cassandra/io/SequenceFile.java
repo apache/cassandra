@@ -258,7 +258,6 @@ public class SequenceFile
             if (columnIndexList.size() == 0)
             {
                 /* if there is no column index, add an index entry that covers the full space. */
-                // TODO can we remove this?  it causes a lot of ugliness in everything that touches Marshal
                 return Arrays.asList(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, totalNumCols, comparator_));
             }
 

@@ -4,8 +4,15 @@ import java.util.Comparator;
 import java.util.Collection;
 
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.SuperColumn;
 
+/**
+ * Specifies a Comparator for a specific type of byte[].
+ *
+ * Note that empty byte[] are used to represent "start at the beginning"
+ * or "stop at the end" arguments to get_slice, so the Comparator
+ * should always handle those values even if they normally do not
+ * represent a valid byte[] for the type being compared.
+ */
 public abstract class AbstractType implements Comparator<byte[]>
 {
     /** get a string representation of the bytes suitable for log messages */
