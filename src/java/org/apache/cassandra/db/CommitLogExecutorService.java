@@ -2,7 +2,6 @@ package org.apache.cassandra.db;
 
 import java.util.concurrent.*;
 import java.util.List;
-import java.util.Queue;
 import java.util.ArrayList;
 import java.io.IOException;
 
@@ -10,112 +9,89 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class CommitLogExecutorService extends AbstractExecutorService
 {
-    Queue<CheaterFutureTask> queue;
+    BlockingQueue<CheaterFutureTask> queue;
 
     public CommitLogExecutorService()
     {
-        queue = new ConcurrentLinkedQueue<CheaterFutureTask>();
+        queue = new ArrayBlockingQueue<CheaterFutureTask>(10000);
         Runnable runnable = new Runnable()
         {
             public void run()
             {
-                if (DatabaseDescriptor.isCommitLogSyncEnabled())
+                try
                 {
-                    while (true)
+                    if (DatabaseDescriptor.isCommitLogSyncEnabled())
                     {
-                        processWithSyncDelay();
+                        while (true)
+                        {
+                            processWithSyncDelay();
+                        }
+                    }
+                    else
+                    {
+                        while (true)
+                        {
+                            process();
+                        }
                     }
                 }
-                else
+                catch (Exception e)
                 {
-                    while (true)
-                    {
-                        process();
-                    }
+                    throw new RuntimeException(e);
                 }
             }
         };
         new Thread(runnable).start();
     }
 
-    private void process()
+    private void process() throws InterruptedException
     {
-        while (queue.isEmpty())
-        {
-            try
-            {
-                Thread.sleep(1);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        while (!queue.isEmpty())
-        {
-            queue.remove().run();
-        }
+        queue.take().run();
     }
 
     private ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
     private ArrayList taskValues = new ArrayList(); // TODO not sure how to generify this
-    private void processWithSyncDelay()
+    private void processWithSyncDelay() throws Exception
     {
-        while (queue.isEmpty())
+        CheaterFutureTask firstTask = queue.take();
+        if (!(firstTask.getRawCallable() instanceof CommitLog.LogRecordAdder))
         {
-            try
-            {
-                Thread.sleep(1);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
+            firstTask.run();
+            return;
         }
 
         // attempt to do a bunch of LogRecordAdder ops before syncing
+        // (this is a little clunky since there is no blocking peek method,
+        //  so we have to break it into firstTask / extra tasks)
         incompleteTasks.clear();
         taskValues.clear();
         long end = System.nanoTime() + 1000 * DatabaseDescriptor.getCommitLogSyncDelay();
+
+        // it doesn't seem worth bothering future-izing the exception
+        // since if a commitlog op throws, we're probably screwed anyway
+        incompleteTasks.add(firstTask);
+        taskValues.add(firstTask.getRawCallable().call());
         while (!queue.isEmpty()
                && queue.peek().getRawCallable() instanceof CommitLog.LogRecordAdder
-               && (incompleteTasks.isEmpty() || System.nanoTime() < end))
+               && System.nanoTime() < end)
         {
             CheaterFutureTask task = queue.remove();
             incompleteTasks.add(task);
-            try
-            {
-                taskValues.add(task.getRawCallable().call());
-            }
-            catch (Exception e)
-            {
-                // it doesn't seem worth bothering future-izing the exception
-                // since if a commitlog op throws, we're probably screwed anyway
-                throw new RuntimeException(e);
-            }
+            taskValues.add(task.getRawCallable().call());
         }
 
-        if (incompleteTasks.size() == 0)
+        // now sync and set the tasks' values (which allows thread calling get() to proceed)
+        try
         {
-            // no LRAs; just run the task
-            queue.remove().run();
+            CommitLog.open().sync();
         }
-        else
+        catch (IOException e)
         {
-            // now sync and set the tasks' values (which allows thread calling get() to proceed)
-            try
-            {
-                CommitLog.open().sync();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            for (int i = 0; i < incompleteTasks.size(); i++)
-            {
-                incompleteTasks.get(i).set(taskValues.get(i));
-            }
+            throw new RuntimeException(e);
+        }
+        for (int i = 0; i < incompleteTasks.size(); i++)
+        {
+            incompleteTasks.get(i).set(taskValues.get(i));
         }
     }
 
@@ -133,7 +109,14 @@ public class CommitLogExecutorService extends AbstractExecutorService
 
     public void execute(Runnable command)
     {
-        queue.add((CheaterFutureTask)command);
+        try
+        {
+            queue.put((CheaterFutureTask)command);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public boolean isShutdown()

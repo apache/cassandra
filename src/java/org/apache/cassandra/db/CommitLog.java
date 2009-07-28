@@ -25,14 +25,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 
 import org.apache.log4j.Logger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;

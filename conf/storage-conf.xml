@@ -204,7 +204,7 @@
          odds of losing data from a failure after writing the log
          entry but before it actually reaches the disk.
     -->
-    <CommitLogSync>true</CommitLogSync>
+    <CommitLogSync>false</CommitLogSync>
     <!-- Delay (in microseconds) during which additional commit log
          entries may be written before fsync.  This will increase
          latency slightly, but can vastly improve throughput where

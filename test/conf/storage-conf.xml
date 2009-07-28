@@ -19,7 +19,7 @@
 <Storage>
    <ClusterName>Test Cluster</ClusterName>
    <CommitLogSync>true</CommitLogSync>
-   <CommitLogSyncDelay>100</CommitLogSyncDelay>
+   <CommitLogSyncDelay>1000</CommitLogSyncDelay>
    <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
    <RackAware>false</RackAware>
    <ReplicationFactor>1</ReplicationFactor>
@@ -37,7 +37,6 @@
    <CalloutLocation>build/test/cassandra/callouts</CalloutLocation>
    <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
    <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
-   <CommitLogFastSync>false</CommitLogFastSync>
    <MemtableSizeInMB>1</MemtableSizeInMB>
    <MemtableObjectCountInMillions>0.00002</MemtableObjectCountInMillions> <!-- 20 -->
    <Tables>
