@@ -6,6 +6,8 @@ import java.util.Queue;
 import java.util.ArrayList;
 import java.io.IOException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 public class CommitLogExecutorService extends AbstractExecutorService
 {
     Queue<CheaterFutureTask> queue;
@@ -17,18 +19,48 @@ public class CommitLogExecutorService extends AbstractExecutorService
         {
             public void run()
             {
-                while (true)
+                if (DatabaseDescriptor.isCommitLogSyncEnabled())
                 {
-                    process();
+                    while (true)
+                    {
+                        processWithSyncDelay();
+                    }
+                }
+                else
+                {
+                    while (true)
+                    {
+                        process();
+                    }
                 }
             }
         };
         new Thread(runnable).start();
     }
 
+    private void process()
+    {
+        while (queue.isEmpty())
+        {
+            try
+            {
+                Thread.sleep(1);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        while (!queue.isEmpty())
+        {
+            queue.remove().run();
+        }
+    }
+
     private ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
     private ArrayList taskValues = new ArrayList(); // TODO not sure how to generify this
-    void process()
+    private void processWithSyncDelay()
     {
         while (queue.isEmpty())
         {
@@ -45,9 +77,10 @@ public class CommitLogExecutorService extends AbstractExecutorService
         // attempt to do a bunch of LogRecordAdder ops before syncing
         incompleteTasks.clear();
         taskValues.clear();
+        long end = System.nanoTime() + 1000 * DatabaseDescriptor.getCommitLogSyncDelay();
         while (!queue.isEmpty()
                && queue.peek().getRawCallable() instanceof CommitLog.LogRecordAdder
-               && incompleteTasks.size() < 20)
+               && (incompleteTasks.isEmpty() || System.nanoTime() < end))
         {
             CheaterFutureTask task = queue.remove();
             incompleteTasks.add(task);

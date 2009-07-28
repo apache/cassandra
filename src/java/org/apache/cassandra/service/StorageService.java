@@ -61,7 +61,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     /* All stage identifiers */
     public final static String mutationStage_ = "ROW-MUTATION-STAGE";
     public final static String readStage_ = "ROW-READ-STAGE";
-    public final static String mrStage_ = "MAP-REDUCE-STAGE";
     
     /* All verb handler identifiers */
     public final static String mutationVerbHandler_ = "ROW-MUTATION-VERB-HANDLER";
@@ -223,16 +222,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.rangeVerbHandler_, new RangeVerbHandler());
         
         /* register the stage for the mutations */
-        int threadCount = DatabaseDescriptor.getThreadsPerPool();
-        consistencyManager_ = new DebuggableThreadPoolExecutor(threadCount,
-        		threadCount,
-                Integer.MAX_VALUE, TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl(
-                        "CONSISTENCY-MANAGER"));
+        consistencyManager_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
+                                                               DatabaseDescriptor.getConsistencyThreads(),
+                                                               Integer.MAX_VALUE, TimeUnit.SECONDS,
+                                                               new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl("CONSISTENCY-MANAGER"));
         
-        StageManager.registerStage(StorageService.mutationStage_, new MultiThreadedStage(StorageService.mutationStage_, threadCount));
-        StageManager.registerStage(StorageService.readStage_, new MultiThreadedStage(StorageService.readStage_, 2*threadCount));        
-        StageManager.registerStage(StorageService.mrStage_, new MultiThreadedStage(StorageService.mrStage_, threadCount));
+        StageManager.registerStage(StorageService.mutationStage_,
+                                   new MultiThreadedStage(StorageService.mutationStage_, DatabaseDescriptor.getConcurrentWriters()));
+        StageManager.registerStage(StorageService.readStage_,
+                                   new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
 
         if ( DatabaseDescriptor.isRackAware() )
             nodePicker_ = new RackAwareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());

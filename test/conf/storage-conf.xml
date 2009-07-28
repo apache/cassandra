@@ -18,6 +18,8 @@
  -->
 <Storage>
    <ClusterName>Test Cluster</ClusterName>
+   <CommitLogSync>true</CommitLogSync>
+   <CommitLogSyncDelay>100</CommitLogSyncDelay>
    <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
    <RackAware>false</RackAware>
    <ReplicationFactor>1</ReplicationFactor>

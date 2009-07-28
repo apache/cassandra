@@ -63,7 +63,9 @@ public class DatabaseDescriptor
     private static String logFileDirectory_;
     private static String bootstrapFileDirectory_;
     private static boolean rackAware_ = false;
-    private static int threadsPerPool_ = 4;
+    private static int consistencyThreads_ = 4; // not configurable
+    private static int concurrentReaders_ = 8;
+    private static int concurrentWriters_ = 32;
     private static List<String> tables_ = new ArrayList<String>();
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
 
@@ -114,6 +116,10 @@ public class DatabaseDescriptor
     /* initial token in the ring */
     private static String initialToken_ = null;
 
+    private static boolean commitLogSync_;
+
+    private static int commitLogSyncDelay_;
+
     static
     {
         try
@@ -125,6 +131,16 @@ public class DatabaseDescriptor
 
             /* Cluster Name */
             clusterName_ = xmlUtils.getNodeValue("/Storage/ClusterName");
+
+            String syncRaw = xmlUtils.getNodeValue("/Storage/CommitLogSync");
+            if (!"false".equals(syncRaw) && !"true".equals(syncRaw))
+            {
+                // Bool.valueOf will silently assume false for values it doesn't recognize
+                throw new ConfigurationException("Unrecognized value for CommitLogSync.  Use 'true' or 'false'.");
+            }
+            commitLogSync_ = Boolean.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSync"));
+
+            commitLogSyncDelay_ = Integer.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncDelay"));
 
             /* Hashing strategy */
             partitionerClass_ = xmlUtils.getNodeValue("/Storage/Partitioner");
@@ -167,9 +183,16 @@ public class DatabaseDescriptor
                 rpcTimeoutInMillis_ = Integer.parseInt(rpcTimeoutInMillis);
 
             /* Thread per pool */
-            String threadsPerPool = xmlUtils.getNodeValue("/Storage/ThreadsPerPool");
-            if ( threadsPerPool != null )
-                threadsPerPool_ = Integer.parseInt(threadsPerPool);
+            String rawReaders = xmlUtils.getNodeValue("/Storage/ConcurrentReads");
+            if (rawReaders != null)
+            {
+                concurrentReaders_ = Integer.parseInt(rawReaders);
+            }
+            String rawWriters = xmlUtils.getNodeValue("/Storage/ConcurrentWrites");
+            if (rawWriters != null)
+            {
+                concurrentWriters_ = Integer.parseInt(rawWriters);
+            }
 
             /* TCP port on which the storage system listens */
             String port = xmlUtils.getNodeValue("/Storage/StoragePort");
@@ -671,9 +694,19 @@ public class DatabaseDescriptor
         return rpcTimeoutInMillis_;
     }
 
-    public static int getThreadsPerPool()
+    public static int getConsistencyThreads()
     {
-        return threadsPerPool_;
+        return consistencyThreads_;
+    }
+
+    public static int getConcurrentReaders()
+    {
+        return concurrentReaders_;
+    }
+
+    public static int getConcurrentWriters()
+    {
+        return concurrentWriters_;
     }
 
     public static String[] getAllDataFileLocations()
@@ -820,5 +853,15 @@ public class DatabaseDescriptor
     public static String getThriftAddress()
     {
         return thriftAddress_;
+    }
+
+    public static int getCommitLogSyncDelay()
+    {
+        return commitLogSyncDelay_;
+    }
+
+    public static boolean isCommitLogSyncEnabled()
+    {
+        return commitLogSync_;
     }
 }

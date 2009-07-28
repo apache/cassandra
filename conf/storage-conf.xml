@@ -189,6 +189,35 @@
     -->
     <MemtableObjectCountInMillions>0.01</MemtableObjectCountInMillions>
 
+    <!-- Unlike most systems, in Cassandra writes are faster than
+         reads, so you can afford more of those in parallel.
+	 A good rule of thumb is 2 concurrent reads per processor core.
+         You especially want more concurrentwrites if you are using
+         CommitLogSync + CommitLogSyncDelay. -->
+    <ConcurrentReads>8</ConcurrentReads>
+    <ConcurrentWrites>32</ConcurrentWrites>
+
+    <!-- Turn on CommitLogSync to improve durability.
+         When enabled, Cassandra won't ack writes until the commit log
+         has been synced to disk.  This is less necessary in Cassandra
+         than in traditional databases since replication reduces the
+         odds of losing data from a failure after writing the log
+         entry but before it actually reaches the disk.
+    -->
+    <CommitLogSync>true</CommitLogSync>
+    <!-- Delay (in microseconds) during which additional commit log
+         entries may be written before fsync.  This will increase
+         latency slightly, but can vastly improve throughput where
+         there are many writers.  Set to zero to disable
+         (each entry will be synced individually).
+	 Reasonable values range from a minimal 100 to even 10000
+         if throughput matters more than latency.  (10000us = 10ms
+         write latency isn't even that bad by traditional db
+         standards.)
+    -->
+    <CommitLogSyncDelay>1000</CommitLogSyncDelay>
+         
+
     <!-- Time to wait before garbage-collection deletion markers.
          Set this to a large enough value that you are confident
          that the deletion marker will be propagated to all replicas
