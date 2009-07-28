@@ -91,7 +91,7 @@ public class CassandraServer implements Cassandra.Iface
         Row row;
         try
         {
-            row = StorageProxy.readProtocol(command, ConsistencyLevel.ONE);
+            row = StorageProxy.readProtocol(command, consistency_level);
         }
         catch (IOException e)
         {
