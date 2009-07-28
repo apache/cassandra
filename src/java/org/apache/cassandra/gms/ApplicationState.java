@@ -22,10 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.IFileWriter;
 
 
 /**

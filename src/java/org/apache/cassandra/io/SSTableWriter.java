@@ -18,7 +18,7 @@ public class SSTableWriter extends SSTable
     private static Logger logger = Logger.getLogger(SSTableWriter.class);
 
     private long keysWritten;
-    private IFileWriter dataWriter;
+    private AbstractWriter dataWriter;
     private BufferedRandomAccessFile indexRAF;
     private String lastWrittenKey;
     private BloomFilter bf;

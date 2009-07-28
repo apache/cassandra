@@ -23,10 +23,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.IFileWriter;
+
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
 
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndPointState

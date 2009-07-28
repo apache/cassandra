@@ -38,186 +38,6 @@ import org.apache.commons.lang.ArrayUtils;
 
 public class SequenceFile
 {
-    public static abstract class AbstractWriter implements IFileWriter
-    {
-        protected String filename_;
-
-        AbstractWriter(String filename)
-        {
-            filename_ = filename;
-        }
-
-        public String getFileName()
-        {
-            return filename_;
-        }
-
-        public long lastModified()
-        {
-            File file = new File(filename_);
-            return file.lastModified();
-        }
-    }
-
-    public static class Writer extends AbstractWriter
-    {
-        protected RandomAccessFile file_;
-
-        Writer(String filename) throws IOException
-        {
-            super(filename);
-            init(filename);
-        }
-
-        Writer(String filename, int size) throws IOException
-        {
-            super(filename);
-            init(filename, size);
-        }
-
-        protected void init(String filename) throws IOException
-        {
-            File file = new File(filename);
-            if (!file.exists())
-            {
-                file.createNewFile();
-            }
-            file_ = new RandomAccessFile(file, "rw");
-        }
-
-        protected void init(String filename, int size) throws IOException
-        {
-            init(filename);
-        }
-
-        public long getCurrentPosition() throws IOException
-        {
-            return file_.getFilePointer();
-        }
-
-        public void seek(long position) throws IOException
-        {
-            file_.seek(position);
-        }
-
-        public void append(DataOutputBuffer buffer) throws IOException
-        {
-            file_.write(buffer.getData(), 0, buffer.getLength());
-        }
-
-        public void append(DataOutputBuffer keyBuffer, DataOutputBuffer buffer) throws IOException
-        {
-            int keyBufLength = keyBuffer.getLength();
-            if (keyBuffer == null || keyBufLength == 0)
-                throw new IllegalArgumentException("Key cannot be NULL or of zero length.");
-
-            file_.writeInt(keyBufLength);
-            file_.write(keyBuffer.getData(), 0, keyBufLength);
-
-            int length = buffer.getLength();
-            file_.writeInt(length);
-            file_.write(buffer.getData(), 0, length);
-        }
-
-        public void append(String key, DataOutputBuffer buffer) throws IOException
-        {
-            if (key == null)
-                throw new IllegalArgumentException("Key cannot be NULL.");
-
-            file_.writeUTF(key);
-            int length = buffer.getLength();
-            file_.writeInt(length);
-            file_.write(buffer.getData(), 0, length);
-        }
-
-        public void append(String key, byte[] value) throws IOException
-        {
-            if (key == null)
-                throw new IllegalArgumentException("Key cannot be NULL.");
-
-            file_.writeUTF(key);
-            file_.writeInt(value.length);
-            file_.write(value);
-        }
-
-        public void append(String key, long value) throws IOException
-        {
-            if (key == null)
-                throw new IllegalArgumentException("Key cannot be NULL.");
-
-            file_.writeUTF(key);
-            file_.writeLong(value);
-        }
-
-        /**
-         * Be extremely careful while using this API. This currently
-         * used to write the commit log header in the commit logs.
-         * If not used carefully it could completely screw up reads
-         * of other key/value pairs that are written.
-         *
-         * @param bytes the bytes to write
-         */
-        public long writeDirect(byte[] bytes) throws IOException
-        {
-            file_.write(bytes);
-            return file_.getFilePointer();
-        }
-
-        public void writeLong(long value) throws IOException
-        {
-            file_.writeLong(value);
-        }
-
-        public void close() throws IOException
-        {
-            file_.getChannel().force(true);
-            file_.close();
-        }
-
-        public void close(byte[] footer, int size) throws IOException
-        {
-            file_.writeInt(size);
-            file_.write(footer, 0, size);
-        }
-
-        public String getFileName()
-        {
-            return filename_;
-        }
-
-        public long getFileSize() throws IOException
-        {
-            return file_.length();
-        }
-    }
-
-    public static class BufferWriter extends Writer
-    {
-
-        BufferWriter(String filename, int size) throws IOException
-        {
-            super(filename, size);
-        }
-
-        @Override
-        protected void init(String filename) throws IOException
-        {
-            init(filename, 0);
-        }
-
-        @Override
-        protected void init(String filename, int size) throws IOException
-        {
-            File file = new File(filename);
-            file_ = new BufferedRandomAccessFile(file, "rw", size);
-            if (!file.exists())
-            {
-                file.createNewFile();
-            }
-        }
-    }
-
-
     /**
      *  This is a reader that finds the block for a starting column and returns
      *  blocks before/after it for each next call. This function assumes that
@@ -703,14 +523,14 @@ public class SequenceFile
     public static final short utfPrefix_ = 2;
     public static final String marker_ = "Bloom-Filter";
 
-    public static IFileWriter writer(String filename) throws IOException
+    public static AbstractWriter writer(String filename) throws IOException
     {
-        return new Writer(filename);
+        return new AbstractWriter.Writer(filename);
     }
 
-    public static IFileWriter bufferedWriter(String filename, int size) throws IOException
+    public static AbstractWriter bufferedWriter(String filename, int size) throws IOException
     {
-        return new BufferWriter(filename, size);
+        return new AbstractWriter.BufferWriter(filename, size);
     }
 
     public static IFileReader reader(String filename) throws IOException

@@ -22,11 +22,7 @@ import java.io.*;
 import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.IFileWriter;
-import org.apache.cassandra.io.SequenceFile;
+import org.apache.cassandra.io.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
 
@@ -123,7 +119,7 @@ public class CommitLog
         return Long.parseLong(entries[entries.length - 2]);
     }
 
-    private static IFileWriter createWriter(String file) throws IOException
+    private static AbstractWriter createWriter(String file) throws IOException
     {        
         return SequenceFile.writer(file);
     }
@@ -153,7 +149,7 @@ public class CommitLog
     private String logFile_;
     /* header for current commit log */
     private CommitLogHeader clHeader_;
-    private IFileWriter logWriter_;
+    private AbstractWriter logWriter_;
 
     /*
      * Generates a file name of the format CommitLog-<table>-<timestamp>.log in the
@@ -213,7 +209,7 @@ public class CommitLog
     */
     private static void writeCommitLogHeader(String commitLogFileName, byte[] bytes) throws IOException
     {
-        IFileWriter logWriter = CommitLog.createWriter(commitLogFileName);
+        AbstractWriter logWriter = CommitLog.createWriter(commitLogFileName);
         writeCommitLogHeader(logWriter, bytes);
         logWriter.close();
     }
@@ -240,7 +236,7 @@ public class CommitLog
         logWriter_.seek(currentPos);
     }
 
-    private static void writeCommitLogHeader(IFileWriter logWriter, byte[] bytes) throws IOException
+    private static void writeCommitLogHeader(AbstractWriter logWriter, byte[] bytes) throws IOException
     {
         logWriter.writeLong(bytes.length);
         logWriter.writeDirect(bytes);
