@@ -25,10 +25,17 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
+import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 
 import org.apache.log4j.Logger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 
 /*
  * Commit Log tracks every write operation into the system. The aim
@@ -58,7 +65,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * means that either the CF was clean in the old CL or it has been flushed since the
  * switch in the new.)
  *
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
+ * The CommitLog class itself is "mostly a singleton."  open() always returns one
+ * instance, but log replay will bypass that.
  */
 public class CommitLog
 {
@@ -67,6 +75,9 @@ public class CommitLog
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(CommitLog.class);
     private static Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
+
+    private ExecutorService executor;
+
 
     public static final class CommitLogContext
     {
@@ -171,6 +182,7 @@ public class CommitLog
     {
         if ( !recoveryMode )
         {
+            executor = new DebuggableThreadPoolExecutor("COMMITLOG-POOL");
             setNextFileName();            
             logWriter_ = CommitLog.createWriter(logFile_);
             writeCommitLogHeader();
@@ -331,7 +343,25 @@ public class CommitLog
     
     CommitLogContext getContext() throws IOException
     {
-        return new CommitLogContext(logFile_, logWriter_.getCurrentPosition());
+        Callable<CommitLogContext> task = new Callable<CommitLogContext>()
+        {
+            public CommitLogContext call() throws Exception
+            {
+                return new CommitLogContext(logFile_, logWriter_.getCurrentPosition());
+            }
+        };
+        try
+        {
+            return executor.submit(task).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /*
@@ -340,34 +370,51 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    synchronized CommitLogContext add(Row row) throws IOException
+    CommitLogContext add(final Row row) throws IOException
     {
-        long currentPosition = -1L;
-        CommitLogContext cLogCtx = null;
-        DataOutputBuffer cfBuffer = new DataOutputBuffer();
+        Callable<CommitLogContext> task = new Callable<CommitLogContext>()
+        {
+            public CommitLogContext call() throws Exception
+            {
+                long currentPosition = -1L;
+                DataOutputBuffer cfBuffer = new DataOutputBuffer();
+                try
+                {
+                    /* serialize the row */
+                    Row.serializer().serialize(row, cfBuffer);
+                    currentPosition = logWriter_.getCurrentPosition();
+                    CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
+                    /* Update the header */
+                    maybeUpdateHeader(row);
+                    logWriter_.writeLong(cfBuffer.getLength());
+                    logWriter_.append(cfBuffer);
+                    if (!maybeRollLog())
+                    {
+                        logWriter_.sync();
+                    }
+                    return cLogCtx;
+                }
+                catch (IOException e)
+                {
+                    if ( currentPosition != -1 )
+                        logWriter_.seek(currentPosition);
+                    throw e;
+                }
+            }
+        };
 
         try
         {
-            /* serialize the row */
-            Row.serializer().serialize(row, cfBuffer);
-            currentPosition = logWriter_.getCurrentPosition();
-            cLogCtx = new CommitLogContext(logFile_, currentPosition);
-            /* Update the header */
-            maybeUpdateHeader(row);
-            logWriter_.writeLong(cfBuffer.getLength());
-            logWriter_.append(cfBuffer);
-            if (!maybeRollLog())
-            {
-                logWriter_.sync();
-            }
+            return executor.submit(task).get();
         }
-        catch (IOException e)
+        catch (InterruptedException e)
         {
-            if ( currentPosition != -1 )
-                logWriter_.seek(currentPosition);
-            throw e;
+            throw new RuntimeException(e);
         }
-        return cLogCtx;
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /*
@@ -376,11 +423,30 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    synchronized void onMemtableFlush(String tableName, String cf, CommitLog.CommitLogContext cLogCtx) throws IOException
+    void onMemtableFlush(final String tableName, final String cf, final CommitLog.CommitLogContext cLogCtx) throws IOException
     {
-        Table table = Table.open(tableName);
-        int id = table.getColumnFamilyId(cf);
-        discardCompletedSegments(cLogCtx, id);
+        Callable task = new Callable()
+        {
+            public Object call() throws IOException
+            {
+                Table table = Table.open(tableName);
+                int id = table.getColumnFamilyId(cf);
+                discardCompletedSegments(cLogCtx, id);
+                return null;
+            }
+        };
+        try
+        {
+            executor.submit(task).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /*
