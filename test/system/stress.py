@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# nosetests --tests=test.stress:Stress.ten_million_inserts
+# PYTHONPATH=test nosetests --tests=system.stress:Stress.ten_million_inserts
 
 from hashlib import md5
 from threading import Thread
@@ -22,36 +22,39 @@ from thread import get_ident
 import time
 
 from . import get_client, root, CassandraTester
+from ttypes import *
 
 class Inserter(Thread):
     def run(self):
         id = get_ident()
         self.count = 0
-        client = get_client()
+        client = get_client(port=9160)
         client.transport.open()
         for i in xrange(0, 1000):
             data = md5(str(i)).hexdigest()
             for j in xrange(0, 1000):
                 key = '%s.%s.%s' % (time.time(), id, j)
-                client.insert('Table1', key, 'Standard1:A', data, i)
-                client.insert('Table1', key, 'Standard1:B', data, i)
-            self.count += 1000
+                client.insert('Table1', key, ColumnPath('Standard1', column='A'), data, i, 1)
+                client.insert('Table1', key, ColumnPath('Standard1', column='B'), data, i, 1)
+                self.count += 1
 
 class Stress(CassandraTester):
     runserver = False
 
     def ten_million_inserts(self):
         threads = []
-        for i in xrange(0, 10):
+        for i in xrange(0, 50):
             th = Inserter()
             threads.append(th)
             th.start()
 
-        total = 0
+        total = old_total = 0
         while True:
-            time.sleep(1)
+            time.sleep(10)
+            old_total = total
             total = sum(th.count for th in threads)
-            file('/tmp/progress', 'w').write('%s\n' % str(total))
+            delta = total - old_total
+            file('/tmp/progress', 'w').write('%d at %d/s\n' % (total, delta / 10))
             if not [th for th in threads if th.isAlive()]:
                 file('/tmp/progress', 'w').write('done -- %s\n' % str(total))
                 break

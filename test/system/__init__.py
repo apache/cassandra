@@ -30,8 +30,7 @@ _ipath = os.path.join(root, 'interface', 'gen-py')
 sys.path.append(os.path.join(_ipath, 'cassandra'))
 import Cassandra
 
-host, port = '127.0.0.1', 9170
-def get_client():
+def get_client(host='127.0.0.1', port=9170):
     socket = TSocket.TSocket(host, port)
     transport = TTransport.TBufferedTransport(socket)
     protocol = TBinaryProtocol.TBinaryProtocol(transport)
@@ -97,7 +96,10 @@ class CassandraTester(object):
                     print "Stderr: %s" % (stderr_value)
                 sys.exit()
         else:
-            client.transport.open()
+            try:
+                client.transport.open()
+            except:
+                pass
 
     def tearDown(self):
         if self.runserver:
