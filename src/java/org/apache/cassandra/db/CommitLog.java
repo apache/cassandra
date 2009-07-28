@@ -182,7 +182,7 @@ public class CommitLog
     {
         if ( !recoveryMode )
         {
-            executor = new DebuggableThreadPoolExecutor("COMMITLOG-POOL");
+            executor = new CommitLogExecutorService();
             setNextFileName();            
             logWriter_ = CommitLog.createWriter(logFile_);
             writeCommitLogHeader();
@@ -372,36 +372,7 @@ public class CommitLog
     */
     CommitLogContext add(final Row row) throws IOException
     {
-        Callable<CommitLogContext> task = new Callable<CommitLogContext>()
-        {
-            public CommitLogContext call() throws Exception
-            {
-                long currentPosition = -1L;
-                DataOutputBuffer cfBuffer = new DataOutputBuffer();
-                try
-                {
-                    /* serialize the row */
-                    Row.serializer().serialize(row, cfBuffer);
-                    currentPosition = logWriter_.getCurrentPosition();
-                    CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
-                    /* Update the header */
-                    maybeUpdateHeader(row);
-                    logWriter_.writeLong(cfBuffer.getLength());
-                    logWriter_.append(cfBuffer);
-                    if (!maybeRollLog())
-                    {
-                        logWriter_.sync();
-                    }
-                    return cLogCtx;
-                }
-                catch (IOException e)
-                {
-                    if ( currentPosition != -1 )
-                        logWriter_.seek(currentPosition);
-                    throw e;
-                }
-            }
-        };
+        Callable<CommitLogContext> task = new LogRecordAdder(row);
 
         try
         {
@@ -551,5 +522,45 @@ public class CommitLog
             return true;
         }
         return false;
+    }
+
+    void sync() throws IOException
+    {
+        logWriter_.sync();
+    }
+
+    class LogRecordAdder implements Callable<CommitLog.CommitLogContext>
+    {
+        Row row;
+
+        LogRecordAdder(Row row)
+        {
+            this.row = row;
+        }
+
+        public CommitLog.CommitLogContext call() throws Exception
+        {
+            long currentPosition = -1L;
+            DataOutputBuffer cfBuffer = new DataOutputBuffer();
+            try
+            {
+                /* serialize the row */
+                Row.serializer().serialize(row, cfBuffer);
+                currentPosition = logWriter_.getCurrentPosition();
+                CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
+                /* Update the header */
+                maybeUpdateHeader(row);
+                logWriter_.writeLong(cfBuffer.getLength());
+                logWriter_.append(cfBuffer);
+                maybeRollLog();
+                return cLogCtx;
+            }
+            catch (IOException e)
+            {
+                if ( currentPosition != -1 )
+                    logWriter_.seek(currentPosition);
+                throw e;
+            }
+        }
     }
 }
