@@ -270,8 +270,17 @@ public class CommitLog
             /* read the logs populate RowMutation and apply */
             while ( !reader.isEOF() )
             {
-                byte[] bytes = new byte[(int)reader.readLong()];
-                reader.readDirect(bytes);
+                byte[] bytes;
+                try
+                {
+                    bytes = new byte[(int)reader.readLong()];
+                    reader.readDirect(bytes);
+                }
+                catch (EOFException e)
+                {
+                    // last CL entry didn't get completely written.  that's ok.
+                    break;
+                }
                 bufIn.reset(bytes, bytes.length);
 
                 /* read the commit log entry */
