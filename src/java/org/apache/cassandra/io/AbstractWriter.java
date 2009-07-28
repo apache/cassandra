@@ -117,6 +117,9 @@ public abstract class AbstractWriter
      */
     public abstract long getFileSize() throws IOException;
 
+    /** fsync the writer */
+    public abstract void sync() throws IOException;
+
 
     public static class Writer extends AbstractWriter
     {
@@ -229,7 +232,7 @@ public abstract class AbstractWriter
 
         public void close() throws IOException
         {
-            file_.getChannel().force(true);
+            sync();
             file_.close();
         }
 
@@ -247,6 +250,11 @@ public abstract class AbstractWriter
         public long getFileSize() throws IOException
         {
             return file_.length();
+        }
+
+        public void sync() throws IOException
+        {
+            file_.getChannel().force(true);
         }
     }
 

@@ -349,7 +349,6 @@ public class CommitLog
         try
         {
             /* serialize the row */
-            cfBuffer.reset();
             Row.serializer().serialize(row, cfBuffer);
             currentPosition = logWriter_.getCurrentPosition();
             cLogCtx = new CommitLogContext(logFile_, currentPosition);
@@ -357,17 +356,16 @@ public class CommitLog
             maybeUpdateHeader(row);
             logWriter_.writeLong(cfBuffer.getLength());
             logWriter_.append(cfBuffer);
-            checkThresholdAndRollLog();
+            if (!maybeRollLog())
+            {
+                logWriter_.sync();
+            }
         }
         catch (IOException e)
         {
             if ( currentPosition != -1 )
                 logWriter_.seek(currentPosition);
             throw e;
-        }
-        finally
-        {                  	
-            cfBuffer.close();            
         }
         return cLogCtx;
     }
@@ -466,7 +464,7 @@ public class CommitLog
         }
     }
 
-    private void checkThresholdAndRollLog() throws IOException
+    private boolean maybeRollLog() throws IOException
     {
         if (logWriter_.getFileSize() >= SEGMENT_SIZE)
         {
@@ -484,6 +482,8 @@ public class CommitLog
             // with the current one.
             clHeader_.zeroPositions();
             writeCommitLogHeader(logWriter_, clHeader_.toByteArray());
+            return true;
         }
+        return false;
     }
 }
