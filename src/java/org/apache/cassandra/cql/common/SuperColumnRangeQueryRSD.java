@@ -29,6 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql.execution.RuntimeErrorMsg;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.service.ConsistencyLevel;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
@@ -67,7 +68,7 @@ public class SuperColumnRangeQueryRSD extends RowSourceDef
         {
             String key = (String)(rowKey_.get());
             ReadCommand readCommand = new SliceFromReadCommand(cfMetaData_.tableName, key, new QueryPath(cfMetaData_.cfName), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, limit_);
-            row = StorageProxy.readProtocol(readCommand, StorageService.ConsistencyLevel.WEAK);
+            row = StorageProxy.readProtocol(readCommand, ConsistencyLevel.ONE);
         }
         catch (Exception e)
         {

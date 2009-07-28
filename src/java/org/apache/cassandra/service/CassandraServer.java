@@ -74,15 +74,24 @@ public class CassandraServer implements Cassandra.Iface
 		storageService.start();
 	}
 
-    protected ColumnFamily readColumnFamily(ReadCommand command) throws InvalidRequestException
+    protected ColumnFamily readColumnFamily(ReadCommand command, int consistency_level) throws InvalidRequestException
     {
         String cfName = command.getColumnFamilyName();
         ThriftValidation.validateKey(command.key);
 
+        if (consistency_level == ConsistencyLevel.ZERO)
+        {
+            throw new InvalidRequestException("Consistency level zero may not be applied to read operations");
+        }
+        if (consistency_level == ConsistencyLevel.ALL)
+        {
+            throw new InvalidRequestException("Consistency level all is not yet supported on read operations");
+        }
+
         Row row;
         try
         {
-            row = StorageProxy.readProtocol(command, StorageService.ConsistencyLevel.WEAK);
+            row = StorageProxy.readProtocol(command, ConsistencyLevel.ONE);
         }
         catch (IOException e)
         {
@@ -129,9 +138,9 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     /** for resultsets of standard columns */
-    private List<Column> getSlice(ReadCommand command) throws InvalidRequestException
+    private List<Column> getSlice(ReadCommand command, int consistency_level) throws InvalidRequestException
     {
-        ColumnFamily cfamily = readColumnFamily(command);
+        ColumnFamily cfamily = readColumnFamily(command, consistency_level);
         boolean reverseOrder = false;
         
         if (command instanceof SliceFromReadCommand)
@@ -149,15 +158,15 @@ public class CassandraServer implements Cassandra.Iface
         return thriftifyColumns(cfamily.getSortedColumns(), reverseOrder);
     }
 
-    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names)
+    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level)
     throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_slice_by_names");
         ThriftValidation.validateColumnParent(table, column_parent);
-        return getSlice(new SliceByNamesReadCommand(table, key, column_parent, column_names));
+        return getSlice(new SliceByNamesReadCommand(table, key, column_parent, column_names), consistency_level);
     }
 
-    public List<Column> get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count)
+    public List<Column> get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level)
     throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_slice_from");
@@ -166,17 +175,17 @@ public class CassandraServer implements Cassandra.Iface
         if (count <= 0)
             throw new InvalidRequestException("get_slice requires positive count");
 
-        return getSlice(new SliceFromReadCommand(table, key, column_parent, start, finish, is_ascending, count));
+        return getSlice(new SliceFromReadCommand(table, key, column_parent, start, finish, is_ascending, count), consistency_level);
     }
 
-    public Column get_column(String table, String key, ColumnPath column_path)
+    public Column get_column(String table, String key, ColumnPath column_path, int consistency_level)
     throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_column");
         ThriftValidation.validateColumnPath(table, column_path);
 
         QueryPath path = new QueryPath(column_path.column_family, column_path.super_column);
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, path, Arrays.asList(column_path.column)));
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, path, Arrays.asList(column_path.column)), consistency_level);
         // TODO can we leverage getSlice here and just check that it returns one column?
         if (cfamily == null)
         {
@@ -210,7 +219,7 @@ public class CassandraServer implements Cassandra.Iface
         return new Column(column.name(), column.value(), column.timestamp());
     }
 
-    public int get_column_count(String table, String key, ColumnParent column_parent)
+    public int get_column_count(String table, String key, ColumnParent column_parent, int consistency_level)
     throws InvalidRequestException
     {
         logger.debug("get_column_count");
@@ -224,7 +233,7 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         ColumnFamily cfamily;
-        cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE));
+        cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE), consistency_level);
         if (cfamily == null)
         {
             return 0;
@@ -303,13 +312,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names)
+    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names, int consistency_level)
     throws InvalidRequestException
     {
         logger.debug("get_slice_super_by_names");
         ThriftValidation.validateColumnFamily(table, column_family);
 
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, new QueryPath(column_family), super_column_names));
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, new QueryPath(column_family), super_column_names), consistency_level);
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;
@@ -346,7 +355,7 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count)
+    public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level)
     throws InvalidRequestException
     {
         logger.debug("get_slice_super");
@@ -355,7 +364,7 @@ public class CassandraServer implements Cassandra.Iface
         if (count <= 0)
             throw new InvalidRequestException("get_slice_super requires positive count");
 
-        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(table, key, new QueryPath(column_family), start, finish, is_ascending, count));
+        ColumnFamily cfamily = readColumnFamily(new SliceFromReadCommand(table, key, new QueryPath(column_family), start, finish, is_ascending, count), consistency_level);
         if (cfamily == null)
         {
             return EMPTY_SUPERCOLUMNS;
@@ -365,13 +374,13 @@ public class CassandraServer implements Cassandra.Iface
     }
 
 
-    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path)
+    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path, int consistency_level)
     throws InvalidRequestException, NotFoundException
     {
         logger.debug("get_superColumn");
         ThriftValidation.validateSuperColumnPath(table, super_column_path);
 
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, new QueryPath(super_column_path.column_family), Arrays.asList(super_column_path.super_column)));
+        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, new QueryPath(super_column_path.column_family), Arrays.asList(super_column_path.super_column)), consistency_level);
         if (cfamily == null)
         {
             throw new NotFoundException();

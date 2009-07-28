@@ -138,7 +138,7 @@ public class CliClient
         {
             // table.cf['key']
         	List<Column> columns = new ArrayList<Column>();
-      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
+      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000, ConsistencyLevel.ONE);
             int size = columns.size();
             for (Iterator<Column> colIter = columns.iterator(); colIter.hasNext(); )
             {
@@ -156,7 +156,7 @@ public class CliClient
             Column column = new Column();
             try
             {
-                column = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")));
+                column = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")), ConsistencyLevel.ONE);
             }
             catch (UnsupportedEncodingException e)
             {

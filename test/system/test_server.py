@@ -54,12 +54,12 @@ def _insert_batch(block):
 
 def _verify_batch():
     _verify_simple()
-    L = client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 1000)
+    L = client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 1000, ConsistencyLevel.ONE)
     assert L == _SIMPLE_COLUMNS, L
 
 def _verify_simple():
-    assert client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c1')) == Column('c1', 'value1', 0)
-    L = client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000)
+    assert client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE) == Column('c1', 'value1', 0)
+    L = client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE)
     assert L == _SIMPLE_COLUMNS, L
 
 def _insert_super():
@@ -75,20 +75,20 @@ def _insert_range():
     time.sleep(0.1)
 
 def _verify_range():
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c1', 'c2', True, 1000)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c1', 'c2', True, 1000, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].name == 'c1'
     assert result[1].name == 'c2'
 
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c3', 'c2', False, 1000)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'c3', 'c2', False, 1000, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].name == 'c3'
     assert result[1].name == 'c2'
 
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 1000)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 1000, ConsistencyLevel.ONE)
     assert len(result) == 3, result
     
-    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 2)
+    result = client.get_slice('Table1','key1', ColumnParent('Standard1'), 'a', 'z' , True, 2, ConsistencyLevel.ONE)
     assert len(result) == 2, result
 	 	
 def _insert_super_range():
@@ -99,19 +99,19 @@ def _insert_super_range():
     time.sleep(0.1)
 
 def _verify_super_range():
-    result = client.get_slice_super('Table1','key1', 'Super1', 'sc2', 'sc3', True, 2)
+    result = client.get_slice_super('Table1','key1', 'Super1', 'sc2', 'sc3', True, 2, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].name == 'sc2'
     assert result[1].name == 'sc3'
 
-    result = client.get_slice_super('Table1','key1', 'Super1', 'sc3', 'sc2', False, 2)
+    result = client.get_slice_super('Table1','key1', 'Super1', 'sc3', 'sc2', False, 2, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].name == 'sc3'
     assert result[1].name == 'sc2'
 
 def _verify_super(supercf='Super1'):
-    assert client.get_column('Table1', 'key1', ColumnPath(supercf, 'sc1', _i64(4))) == Column(_i64(4), 'value4', 0)
-    slice = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+    assert client.get_column('Table1', 'key1', ColumnPath(supercf, 'sc1', _i64(4)), ConsistencyLevel.ONE) == Column(_i64(4), 'value4', 0)
+    slice = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
     assert slice == _SUPER_COLUMNS, slice
 
 def _expect_exception(fn, type_):
@@ -132,21 +132,21 @@ class TestMutations(CassandraTester):
         _verify_simple()
 
     def test_empty_slice(self):
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 1000) == []
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard2'), '', '', True, 1000, ConsistencyLevel.ONE) == []
 
     def test_empty_slice_super(self):
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == []
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE) == []
 
     def test_missing_super(self):
-        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc1', 'c1')))
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc1', 'c1'), ConsistencyLevel.ONE))
 
     def test_count(self):
         _insert_simple()
         _insert_super()
-        assert client.get_column_count('Table1', 'key1', ColumnParent('Standard2')) == 0
-        assert client.get_column_count('Table1', 'key1', ColumnParent('Standard1')) == 2
-        assert client.get_column_count('Table1', 'key1', ColumnParent('Super1', 'sc2')) == 2
-        assert client.get_column_count('Table1', 'key1', ColumnParent('Super1')) == 2
+        assert client.get_column_count('Table1', 'key1', ColumnParent('Standard2'), ConsistencyLevel.ONE) == 0
+        assert client.get_column_count('Table1', 'key1', ColumnParent('Standard1'), ConsistencyLevel.ONE) == 2
+        assert client.get_column_count('Table1', 'key1', ColumnParent('Super1', 'sc2'), ConsistencyLevel.ONE) == 2
+        assert client.get_column_count('Table1', 'key1', ColumnParent('Super1'), ConsistencyLevel.ONE) == 2
 
     def test_insert_blocking(self):
         _insert_simple()
@@ -168,10 +168,10 @@ class TestMutations(CassandraTester):
     def test_bad_calls(self):
         _expect_exception(lambda: client.insert('Table1', 'key1', ColumnPath('Standard1', 'x', 'y'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
 
-        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1')), InvalidRequestException)
-        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1', 'x', 'y')), InvalidRequestException)
-        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1')), InvalidRequestException)
-        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'x')), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1'), ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1', 'x', 'y'), ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1'), ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'x'), ConsistencyLevel.ONE), InvalidRequestException)
         _expect_exception(lambda: client.get_key_range('Table1', 'S', '', '', 1000), InvalidRequestException)
 
     def test_batch_insert_super(self):
@@ -192,25 +192,25 @@ class TestMutations(CassandraTester):
     def test_cf_remove_column(self):
         _insert_simple()
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1', column='c1'), 1, ConsistencyLevel.ONE)
-        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c1')))
-        assert client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c2')) \
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE))
+        assert client.get_column('Table1', 'key1', ColumnPath('Standard1', column='c2'), ConsistencyLevel.ONE) \
             == Column('c2', 'value2', 0)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) \
             == [Column('c2', 'value2', 0)]
 
         # New insert, make sure it shows up post-remove:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c3'), 'value3', 0, ConsistencyLevel.ONE)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) == \
             [Column('c2', 'value2', 0), Column('c3', 'value3', 0)]
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 0, ConsistencyLevel.ONE)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) == \
             [Column('c2', 'value2', 0), Column('c3', 'value3', 0)]
         # Next, w/ a newer timestamp; it should come back:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 2, ConsistencyLevel.ONE)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) == \
             [Column('c1', 'value1', 2), Column('c2', 'value2', 0), Column('c3', 'value3', 0)]
 
 
@@ -220,16 +220,16 @@ class TestMutations(CassandraTester):
 
         # Remove the key1:Standard1 cf:
         client.remove('Table1', 'key1', ColumnPathOrParent('Standard1'), 3, ConsistencyLevel.ONE)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == []
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) == []
         _verify_super()
 
         # Test resurrection.  First, re-insert a value w/ older timestamp, 
         # and make sure it stays removed:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 0, ConsistencyLevel.ONE)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == []
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) == []
         # Next, w/ a newer timestamp; it should come back:
         client.insert('Table1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 4, ConsistencyLevel.ONE)
-        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000) == \
+        assert client.get_slice('Table1', 'key1', ColumnParent('Standard1'), '', '', True, 1000, ConsistencyLevel.ONE) == \
             [Column('c1', 'value1', 4)]
 
 
@@ -239,8 +239,8 @@ class TestMutations(CassandraTester):
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
         client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2', _i64(5)), 5, ConsistencyLevel.ONE)
-        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5))))
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == \
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), ConsistencyLevel.ONE))
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE) == \
             [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
              SuperColumn(name='sc2', columns=[Column(_i64(6), 'value6', 0)])]
         _verify_simple()
@@ -252,19 +252,19 @@ class TestMutations(CassandraTester):
                SuperColumn(name='sc2', 
                            columns=[Column(_i64(6), 'value6', 0), Column(_i64(7), 'value7', 0)])]
 
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
-        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000) == scs, actual
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
+        assert client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE) == scs, actual
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, ConsistencyLevel.ONE)
 
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
         assert actual == scs, actual
 
         # Next, w/ a newer timestamp; it should come back
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 6, ConsistencyLevel.ONE)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
         assert actual == \
             [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]), 
              SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6), 
@@ -277,23 +277,23 @@ class TestMutations(CassandraTester):
 
         # Make sure remove clears out what it's supposed to, and _only_ that:
         client.remove('Table1', 'key1', ColumnPathOrParent('Super1', 'sc2'), 5, ConsistencyLevel.ONE)
-        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5))))
-        actual = client.get_slice('Table1', 'key1', ColumnParent('Super1', 'sc2'), '', '', True, 1000)
+        _expect_missing(lambda: client.get_column('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), ConsistencyLevel.ONE))
+        actual = client.get_slice('Table1', 'key1', ColumnParent('Super1', 'sc2'), '', '', True, 1000, ConsistencyLevel.ONE)
         assert actual == [], actual
         scs = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)])]
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
         assert actual == scs, actual
         _verify_simple()
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, ConsistencyLevel.ONE)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
         assert actual == scs, actual
 
         # Next, w/ a newer timestamp; it should come back
         client.insert('Table1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 6, ConsistencyLevel.ONE)
-        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000)
+        actual = client.get_slice_super('Table1', 'key1', 'Super1', '', '', True, 1000, ConsistencyLevel.ONE)
         assert actual == \
             [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
              SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6)])], actual
@@ -354,12 +354,12 @@ class TestMutations(CassandraTester):
         
     def test_get_slice_by_names(self):
         _insert_range()
-        result = client.get_slice_by_names('Table1','key1', ColumnParent('Standard1'), ['c1', 'c2']) 
+        result = client.get_slice_by_names('Table1','key1', ColumnParent('Standard1'), ['c1', 'c2'], ConsistencyLevel.ONE) 
         assert len(result) == 2
         assert result[0].name == 'c1'
         assert result[1].name == 'c2'
 
         _insert_super()
-        result = client.get_slice_by_names('Table1','key1', ColumnParent('Super1', 'sc1'), [_i64(4)]) 
+        result = client.get_slice_by_names('Table1','key1', ColumnParent('Super1', 'sc1'), [_i64(4)], ConsistencyLevel.ONE) 
         assert len(result) == 1
         assert result[0].name == _i64(4)

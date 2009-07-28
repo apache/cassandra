@@ -304,7 +304,7 @@ public class StorageProxy implements StorageProxyMBean
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
-    public static Row readProtocol(ReadCommand command, StorageService.ConsistencyLevel consistencyLevel)
+    public static Row readProtocol(ReadCommand command, int consistency_level)
     throws IOException, TimeoutException, InvalidRequestException
     {
         long startTime = System.currentTimeMillis();
@@ -312,7 +312,7 @@ public class StorageProxy implements StorageProxyMBean
         Row row;
         EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
 
-        if (consistencyLevel == StorageService.ConsistencyLevel.WEAK)
+        if (consistency_level == ConsistencyLevel.ONE)
         {
             boolean foundLocal = Arrays.asList(endpoints).contains(StorageService.getLocalStorageEndPoint());
             if (foundLocal)
@@ -326,7 +326,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            assert consistencyLevel == StorageService.ConsistencyLevel.STRONG;
+            assert consistency_level == ConsistencyLevel.QUORUM;
             row = strongRead(command);
         }
 

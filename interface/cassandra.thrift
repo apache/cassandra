@@ -119,16 +119,16 @@ struct ColumnPathOrParent {
 
 
 service Cassandra {
-  list<Column> get_slice_by_names(1:string table, 2:string key, 3:ColumnParent column_parent, 4:list<binary> column_names)
+  list<Column> get_slice_by_names(1:string table, 2:string key, 3:ColumnParent column_parent, 4:list<binary> column_names, 5:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
   
-  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100)
+  list<Column> get_slice(1:string table, 2:string key, 3:ColumnParent column_parent, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100, 8:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  Column       get_column(1:string table, 2:string key, 3:ColumnPath column_path)
+  Column       get_column(1:string table, 2:string key, 3:ColumnPath column_path, 4:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  i32            get_column_count(1:string table, 2:string key, 3:ColumnParent column_parent)
+  i32            get_column_count(1:string table, 2:string key, 3:ColumnParent column_parent, 5:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
   void     insert(1:string table, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:ConsistencyLevel consistency_level=0)
@@ -140,13 +140,13 @@ service Cassandra {
   void           remove(1:string table, 2:string key, 3:ColumnPathOrParent column_path_or_parent, 4:i64 timestamp, 5:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100)
+  list<SuperColumn> get_slice_super(1:string table, 2:string key, 3:string column_family, 4:binary start, 5:binary finish, 6:bool is_ascending, 7:i32 count=100, 8:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
-  list<SuperColumn> get_slice_super_by_names(1:string table, 2:string key, 3:string column_family, 4:list<binary> super_column_names)
+  list<SuperColumn> get_slice_super_by_names(1:string table, 2:string key, 3:string column_family, 4:list<binary> super_column_names, 5:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
-  SuperColumn  get_super_column(1:string table, 2:string key, 3:SuperColumnPath super_column_path)
+  SuperColumn  get_super_column(1:string table, 2:string key, 3:SuperColumnPath super_column_path, 4:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
   void     batch_insert_super_column(1:string table, 2:BatchMutationSuper batch_mutation_super, 3:ConsistencyLevel consistency_level=0)
