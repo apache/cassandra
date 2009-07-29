@@ -158,7 +158,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     
     public void report(EndPoint ep)
     {
-        logger_.trace("reporting " + ep);
+        if (logger_.isTraceEnabled())
+            logger_.trace("reporting " + ep);
         long now = System.currentTimeMillis();
         ArrivalWindow heartbeatWindow = arrivalSamples_.get(ep);
         if ( heartbeatWindow == null )
@@ -180,7 +181,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         /* We need this so that we do not suspect a convict. */
         boolean isConvicted = false;
         double phi = hbWnd.phi(now);
-        logger_.trace("PHI for " + ep + " : " + phi);
+        if (logger_.isTraceEnabled())
+            logger_.trace("PHI for " + ep + " : " + phi);
         
         /*
         if ( phi > phiConvictThreshold_ )
