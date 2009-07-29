@@ -99,23 +99,12 @@
          clusters with a small number of nodes. -->
     <InitialToken></InitialToken>
 
-	
-    <!-- EndPointSnitch: Setting this to the class that implements IEndPointSnitch
-	     which will see if two endpoints are in the same data center or on the same rack.
-         Out of the box, Cassandra provides
-         org.apache.cassandra.locator.EndPointSnitch
+    <!-- RackAware: Setting this to true instructs Cassandra to try
+         and place one replica in a different datacenter, and the
+         others on different racks in the same one.  If you haven't
+         looked at the code for RackAwareStrategy, leave this off.
     -->
-    <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
-
-    <!-- Strategy: Setting this to the class that implements IReplicaPlacementStrategy
-	     will change the way the node picker works.
-         Out of the box, Cassandra provides
-         org.apache.cassandra.locator.RackUnawareStrategy
-         org.apache.cassandra.locator.RackAwareStrategy 
-		 (place one replica in a different datacenter, and the
-         others on different racks in the same one.)
-    -->
-    <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+    <RackAware>false</RackAware>
 
     <!-- Number of replicas of the data-->
     <ReplicationFactor>1</ReplicationFactor>

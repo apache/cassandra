@@ -21,8 +21,7 @@
    <CommitLogSync>true</CommitLogSync>
    <CommitLogSyncDelay>1000</CommitLogSyncDelay>
    <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
-   <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
-   <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+   <RackAware>false</RackAware>
    <ReplicationFactor>1</ReplicationFactor>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <ListenAddress>127.0.0.1</ListenAddress>

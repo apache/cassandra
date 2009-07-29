@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -204,8 +203,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         init();
         storageLoadBalancer_ = new StorageLoadBalancer(this);
-        endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
-
+        endPointSnitch_ = new EndPointSnitch();
+        
         /* register the verb handlers */
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.tokenVerbHandler_, new TokenUpdateVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.binaryVerbHandler_, new BinaryVerbHandler());
@@ -233,19 +232,25 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         StageManager.registerStage(StorageService.readStage_,
                                    new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
 
-        Class cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
-        Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class };
+        if ( DatabaseDescriptor.isRackAware() )
+            nodePicker_ = new RackAwareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+        else
+            nodePicker_ = new RackUnawareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+    }
+
+    static
+    {
         try
         {
-            nodePicker_ = (IReplicaPlacementStrategy)cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+            Class cls = Class.forName(DatabaseDescriptor.getPartitionerClass());
+            partitioner_ = (IPartitioner) cls.getConstructor().newInstance();
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
-        partitioner_ = DatabaseDescriptor.getPartitioner();
     }
-
+    
     public void start() throws IOException
     {
         storageMetadata_ = SystemTable.initMetadata();
