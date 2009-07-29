@@ -394,13 +394,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                              columnFamily_, SSTable.TEMPFILE_MARKER, index);
     }
 
-    void switchMemtable()
+    void switchMemtable(Memtable oldMemtable, CommitLog.CommitLogContext ctx)
     {
         memtableLock_.writeLock().lock();
         try
         {
+            if (oldMemtable.isFrozen())
+            {
+                return;
+            }
             logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable");
-            getMemtablesPendingFlushNotNull(columnFamily_).add(memtable_); // it's ok for the MT to briefly be both active and pendingFlush
+            oldMemtable.freeze();
+            getMemtablesPendingFlushNotNull(columnFamily_).add(oldMemtable); // it's ok for the MT to briefly be both active and pendingFlush
+            submitFlush(oldMemtable, ctx);
             memtable_ = new Memtable(table_, columnFamily_);
         }
         finally
@@ -423,13 +429,25 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void forceFlush()
     {
-        memtable_.forceflush();
+        if (memtable_.isClean())
+            return;
+
+        CommitLog.CommitLogContext ctx = null;
+        try
+        {
+            ctx = CommitLog.open().getContext();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        switchMemtable(memtable_, ctx);
     }
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
     {
         Memtable oldMemtable = getMemtableThreadSafe();
-        oldMemtable.forceflush();
+        forceFlush();
         // block for flush to finish by adding a no-op action to the flush executorservice
         // and waiting for that to finish.  (this works since flush ES is single-threaded.)
         Future f = flusher_.submit(new Runnable()
@@ -463,8 +481,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Memtable initialMemtable = getMemtableThreadSafe();
         if (initialMemtable.isThresholdViolated())
         {
-            switchMemtable();
-            initialMemtable.enqueueFlush(cLogCtx);
+            switchMemtable(initialMemtable, cLogCtx);
         }
         memtableLock_.writeLock().lock();
         try
@@ -1284,7 +1301,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /* Submit memtables to be flushed to disk */
-    public static void submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
+    private static void submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
     {
         logger_.info("Enqueuing flush of " + memtable);
         flusher_.submit(new Runnable()

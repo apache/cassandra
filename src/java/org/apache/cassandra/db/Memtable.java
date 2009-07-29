@@ -121,13 +121,14 @@ public class Memtable implements Comparable<Memtable>
     	return cfName_;
     }
 
-    synchronized void enqueueFlush(CommitLog.CommitLogContext cLogCtx)
+    boolean isFrozen()
     {
-        if (!isFrozen_)
-        {
-            isFrozen_ = true;
-            ColumnFamilyStore.submitFlush(this, cLogCtx);
-        }
+        return isFrozen_;
+    }
+
+    void freeze()
+    {
+        isFrozen_ = true;
     }
 
     /**
@@ -140,27 +141,6 @@ public class Memtable implements Comparable<Memtable>
         assert !isFrozen_; // not 100% foolproof but hell, it's an assert
         isDirty_ = true;
         resolve(key, columnFamily);
-    }
-
-    /*
-     * This version is used to switch memtable and force flush.
-     * Flushing is still done in a separate executor -- forceFlush only blocks
-     * until the flush runnable is queued.
-    */
-    public void forceflush()
-    {
-        if (isClean())
-            return;
-
-        try
-        {
-            Table.open(table_).getColumnFamilyStore(cfName_).switchMemtable();
-            enqueueFlush(CommitLog.open().getContext());
-        }
-        catch (IOException ex)
-        {
-            throw new RuntimeException(ex);
-        }
     }
 
     /** flush synchronously (in the current thread, not on the executor).
