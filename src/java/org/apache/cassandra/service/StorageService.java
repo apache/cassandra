@@ -705,16 +705,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 String tableName = tableDir.getName();
 
                 for (File file : tableDir.listFiles())
-        {
+                {
                     streamContexts.add(new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), tableName));
-            if (logger_.isDebugEnabled())
+                    if (logger_.isDebugEnabled())
                       logger_.debug("Stream context metadata " + streamContexts);
                 }
             }
         }
         
         if ( streamContexts.size() > 0 )
-    {
+        {
             EndPoint target = new EndPoint(host, DatabaseDescriptor.getStoragePort());
             /* Set up the stream manager with the files that need to streamed */
             StreamManager.instance(target).addFilesToStream((StreamContextManager.StreamContext[]) streamContexts.toArray());
@@ -728,14 +728,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
               logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
             if (logger_.isDebugEnabled())
-            logger_.debug("Done with transfer to " + target);  
+              logger_.debug("Done with transfer to " + target);  
         }
     }
 
     /**
      * Takes the snapshot for a given table.
      * 
-     * @param table the name of the table.
+     * @param tableName the name of the table.
      * @param tag   the tag given to the snapshot (null is permissible)
      */
     public void takeSnapshot(String tableName, String tag) throws IOException

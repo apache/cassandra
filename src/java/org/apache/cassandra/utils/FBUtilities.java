@@ -253,7 +253,8 @@ public class FBUtilities
     	}
     	catch (Exception e)
         {
-    		LogUtil.getLogger(FBUtilities.class.getName()).debug(LogUtil.throwableToString(e));
+    		if (logger_.isDebugEnabled())
+                logger_.debug(LogUtil.throwableToString(e));
     	}
     	return result;
 	}

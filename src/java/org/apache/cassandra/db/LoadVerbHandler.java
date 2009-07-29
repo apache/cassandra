@@ -58,11 +58,13 @@ public class LoadVerbHandler implements IVerbHandler
                 sb.append(endPoint);
 				MessagingService.getMessagingInstance().sendOneWay(messageInternal, endPoint);
 			}
-            logger_.debug("Sent data to " + sb.toString());            
+            if (logger_.isDebugEnabled())
+                logger_.debug("Sent data to " + sb.toString());
         }        
         catch ( Exception e )
         {
-            logger_.debug(LogUtil.throwableToString(e));            
+            if (logger_.isDebugEnabled())
+                logger_.debug(LogUtil.throwableToString(e));            
         }        
     }
 

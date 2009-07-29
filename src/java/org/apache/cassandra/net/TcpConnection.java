@@ -236,7 +236,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 
                 /* returns the number of bytes transferred from file to the socket */
                 long bytesTransferred = fc.transferTo(startPosition, limit, socketChannel_);
-                logger_.debug("Bytes transferred " + bytesTransferred);                
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Bytes transferred " + bytesTransferred);                
                 bytesWritten += bytesTransferred;
                 startPosition += bytesTransferred; 
                 /*

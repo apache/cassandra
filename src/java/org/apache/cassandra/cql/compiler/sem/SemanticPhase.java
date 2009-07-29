@@ -64,7 +64,8 @@ public class SemanticPhase
     {
         Plan plan = null;
 
-        logger_.debug("AST: " + ast.toStringTree());
+        if (logger_.isDebugEnabled())
+            logger_.debug("AST: " + ast.toStringTree());
 
         switch (ast.getType())
         {

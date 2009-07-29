@@ -61,7 +61,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             for ( BootstrapMetadata bsmd : bsMetadata )
             {
                 if (logger_.isDebugEnabled())
-                logger_.debug(bsmd.toString());                                      
+                  logger_.debug(bsmd.toString());                                      
             }
             
             for ( BootstrapMetadata bsmd : bsMetadata )
@@ -69,7 +69,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
                 long startTime = System.currentTimeMillis();
                 doTransfer(bsmd.target_, bsmd.ranges_);     
                 if (logger_.isDebugEnabled())
-                logger_.debug("Time taken to boostrap " + 
+                  logger_.debug("Time taken to boostrap " + 
                         bsmd.target_ + 
                         " is " + 
                         (System.currentTimeMillis() - startTime) +
@@ -103,7 +103,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             sb.append(range.toString());
             sb.append(" ");            
             if (logger_.isDebugEnabled())
-            logger_.debug("Beginning transfer process to " + target + " for ranges " + sb.toString());                
+              logger_.debug("Beginning transfer process to " + target + " for ranges " + sb.toString());                
         }
       
         /*
@@ -166,7 +166,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
               logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
             if (logger_.isDebugEnabled())
-            logger_.debug("Done with transfer to " + target);  
+              logger_.debug("Done with transfer to " + target);  
         }
     }
 }

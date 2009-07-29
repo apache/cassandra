@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.utils;
 
+import org.apache.log4j.Logger;
+
 import java.util.*;
 import java.net.*;
 import java.security.*;
@@ -26,6 +28,7 @@ import java.security.*;
  */
 
 public class GuidGenerator {
+    private static Logger logger_ = Logger.getLogger(GuidGenerator.class);
     private static Random myRand;
     private static SecureRandom mySecureRand;
     private static String s_id;
@@ -42,7 +45,8 @@ public class GuidGenerator {
             s_id = InetAddress.getLocalHost().toString();
         }
         catch (UnknownHostException e) {
-            LogUtil.getLogger(GuidGenerator.class.getName()).debug(LogUtil.throwableToString(e));
+            if (logger_.isDebugEnabled())
+                logger_.debug(LogUtil.throwableToString(e));
         }
 
         try {
@@ -50,7 +54,8 @@ public class GuidGenerator {
             md5 = new SafeMessageDigest(myMd5);
         }
         catch (NoSuchAlgorithmException e) {
-            LogUtil.getLogger(GuidGenerator.class.getName()).debug(LogUtil.throwableToString(e));
+            if (logger_.isDebugEnabled())
+                logger_.debug(LogUtil.throwableToString(e));
         }
     }
 

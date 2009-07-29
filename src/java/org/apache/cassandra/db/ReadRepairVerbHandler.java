@@ -52,7 +52,8 @@ public class ReadRepairVerbHandler implements IVerbHandler
         }
         catch ( IOException e )
         {
-            logger_.debug(LogUtil.throwableToString(e));            
+            if (logger_.isDebugEnabled())
+                logger_.debug(LogUtil.throwableToString(e));            
         }        
     }
 }

@@ -55,7 +55,8 @@ public class SSTableReader extends SSTable
             assert sstable != null;
             int indexKeyCount = sstable.getIndexPositions().size();
             count = count + (indexKeyCount + 1) * INDEX_INTERVAL;
-            logger.debug("index size for bloom filter calc for file  : " + dataFileName + "   : " + count);
+            if (logger.isDebugEnabled())
+                logger.debug("index size for bloom filter calc for file  : " + dataFileName + "   : " + count);
         }
 
         return count;
@@ -100,7 +101,8 @@ public class SSTableReader extends SSTable
             {
                 sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * cacheFraction));
             }
-            logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
+            if (logger.isDebugEnabled())
+                logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
 
             openedFiles.put(dataFileName, sstable);
         }

@@ -1089,9 +1089,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (logger_.isDebugEnabled())
         {
             logger_.debug("Total time taken for range split   ..." + (System.currentTimeMillis() - startTime));
-          logger_.debug("Total bytes Read for range split  ..." + totalBytesRead);
-        logger_.debug("Total bytes written for range split  ..."
-                      + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
+            logger_.debug("Total bytes Read for range split  ..." + totalBytesRead);
+            logger_.debug("Total bytes written for range split  ..."
+                          + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
         }
         return result;
     }

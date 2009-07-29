@@ -62,7 +62,8 @@ public class LeaveJoinProtocolImpl implements Runnable
     {  
         try
         {
-            logger_.debug("Beginning leave/join process for ...");                                                               
+            if (logger_.isDebugEnabled())
+              logger_.debug("Beginning leave/join process for ...");                                                               
             /* copy the token to endpoint map */
             Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* copy the endpoint to token map */

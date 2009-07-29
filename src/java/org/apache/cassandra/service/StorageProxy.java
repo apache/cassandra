@@ -187,7 +187,8 @@ public class StorageProxy implements StorageProxyMBean
                 throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
             }
             QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(blockFor, new WriteResponseResolver());
-            logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpoints, ", ") + "]");
+            if (logger.isDebugEnabled())
+                logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpoints, ", ") + "]");
 
             MessagingService.getMessagingInstance().sendRR(message, endpoints, quorumResponseHandler);
             if (!quorumResponseHandler.get())
@@ -281,7 +282,8 @@ public class StorageProxy implements StorageProxyMBean
         EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
         assert endPoint != null;
         Message message = command.makeReadMessage();
-        logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
+        if (logger.isDebugEnabled())
+            logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
         message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
         IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
         byte[] body;
@@ -424,13 +426,15 @@ public class StorageProxy implements StorageProxyMBean
         */
         endPoints[0] = dataPoint;
         messages[0] = message;
-        logger.debug("strongread reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
+        if (logger.isDebugEnabled())
+            logger.debug("strongread reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
         for (int i = 1; i < endPoints.length; i++)
         {
             EndPoint digestPoint = endpointList.get(i - 1);
             endPoints[i] = digestPoint;
             messages[i] = messageDigestOnly;
-            logger.debug("strongread reading digest for " + command + " from " + messageDigestOnly.getMessageId() + "@" + digestPoint);
+            if (logger.isDebugEnabled())
+                logger.debug("strongread reading digest for " + command + " from " + messageDigestOnly.getMessageId() + "@" + digestPoint);
         }
 
         try
@@ -439,7 +443,8 @@ public class StorageProxy implements StorageProxyMBean
 
             long startTime2 = System.currentTimeMillis();
             row = quorumResponseHandler.get();
-            logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
+            if (logger.isDebugEnabled())
+                logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
         }
         catch (DigestMismatchException ex)
         {
@@ -607,7 +612,8 @@ public class StorageProxy implements StorageProxyMBean
     */
     private static Row weakReadLocal(ReadCommand command) throws IOException
     {
-        logger.debug("weakreadlocal reading " + command);
+        if (logger.isDebugEnabled())
+            logger.debug("weakreadlocal reading " + command);
         List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(command.key);
         /* Remove the local storage endpoint from the list. */
         endpoints.remove(StorageService.getLocalStorageEndPoint());

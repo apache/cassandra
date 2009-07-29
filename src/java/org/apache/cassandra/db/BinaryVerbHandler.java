@@ -58,7 +58,8 @@ public class BinaryVerbHandler implements IVerbHandler
 	    }        
 	    catch ( Exception e )
 	    {
-	        logger_.debug(LogUtil.throwableToString(e));            
+	        if (logger_.isDebugEnabled())
+                logger_.debug(LogUtil.throwableToString(e));            
 	    }        
     }
 

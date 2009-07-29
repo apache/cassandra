@@ -60,7 +60,8 @@ public class WriteResponseResolver implements IResponseResolver<Boolean> {
             }
             boolean result = writeResponseMessage.isSuccess();
             if (!result) {
-				logger_.debug("Write at " + response.getFrom()
+				if (logger_.isDebugEnabled())
+                    logger_.debug("Write at " + response.getFrom()
 						+ " may have failed for the key " + writeResponseMessage.key());
 			}
 			returnValue |= result;

@@ -65,7 +65,8 @@ public class BootStrapper implements Runnable
     {
         try
         {
-            logger_.debug("Beginning bootstrap process for " + targets_ + " ...");                                                               
+            if (logger_.isDebugEnabled())
+              logger_.debug("Beginning bootstrap process for " + targets_ + " ...");                                                               
             /* copy the token to endpoint map */
             Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* remove the tokens associated with the endpoints being bootstrapped */                

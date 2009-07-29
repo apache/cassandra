@@ -90,7 +90,8 @@ class ContentStreamState extends StartState
             }
             if ( bytesRead_ == streamContext_.getExpectedBytes() )
             {       
-                logger_.debug("Removing stream context " + streamContext_);                 
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Removing stream context " + streamContext_);                 
                 handleStreamCompletion(remoteHost);                              
                 bytesRead_ = 0L;
                 fc_.close();

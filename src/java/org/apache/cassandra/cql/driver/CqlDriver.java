@@ -37,11 +37,13 @@ public class CqlDriver
 
         try
         {
-            logger_.debug("Compiling CQL query ...");
+            if (logger_.isDebugEnabled())
+                logger_.debug("Compiling CQL query ...");
             Plan plan = compiler.compileQuery(query);
             if (plan != null)
             {
-                logger_.debug("Executing CQL query ...");            
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Executing CQL query ...");            
                 return plan.execute();
             }
         }

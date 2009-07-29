@@ -84,7 +84,8 @@ public class CassandraDaemon
         Set<String> tables = DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
         for (String table : tables)
         {
-            logger.debug("opening table " + table);
+            if (logger.isDebugEnabled())
+                logger.debug("opening table " + table);
             Table tbl = Table.open(table);
             tbl.onStart();
         }
