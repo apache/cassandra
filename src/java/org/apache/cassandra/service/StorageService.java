@@ -111,6 +111,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         FULL
     }
 
+    static
+    {
+        partitioner_ = DatabaseDescriptor.getPartitioner();
+    }
+
+
     public static class BootstrapInitiateDoneVerbHandler implements IVerbHandler
     {
         private static Logger logger_ = Logger.getLogger( BootstrapInitiateDoneVerbHandler.class );
@@ -203,8 +209,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         init();
         storageLoadBalancer_ = new StorageLoadBalancer(this);
-        endPointSnitch_ = new EndPointSnitch();
-        
+        endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
+
         /* register the verb handlers */
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.tokenVerbHandler_, new TokenUpdateVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.binaryVerbHandler_, new BinaryVerbHandler());
@@ -232,25 +238,18 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         StageManager.registerStage(StorageService.readStage_,
                                    new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
 
-        if ( DatabaseDescriptor.isRackAware() )
-            nodePicker_ = new RackAwareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
-        else
-            nodePicker_ = new RackUnawareStrategy(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
-    }
-
-    static
-    {
+        Class cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
+        Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
         try
         {
-            Class cls = Class.forName(DatabaseDescriptor.getPartitionerClass());
-            partitioner_ = (IPartitioner) cls.getConstructor().newInstance();
+            nodePicker_ = (IReplicaPlacementStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
     }
-    
+
     public void start() throws IOException
     {
         storageMetadata_ = SystemTable.initMetadata();
