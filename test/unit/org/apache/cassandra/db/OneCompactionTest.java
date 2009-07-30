@@ -34,13 +34,13 @@ public class OneCompactionTest
 {
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
 
         Set<String> inserted = new HashSet<String>();
         for (int j = 0; j < insertsPerTable; j++) {
             String key = "0";
-            RowMutation rm = new RowMutation("Table1", key);
+            RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rm.apply();
             inserted.add(key);

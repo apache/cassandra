@@ -20,9 +20,9 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.service.InvalidRequestException;
 
-public class TableNotDefinedException extends InvalidRequestException
+public class KeyspaceNotDefinedException extends InvalidRequestException
 {
-    public TableNotDefinedException(String why)
+    public KeyspaceNotDefinedException(String why)
     {
         super(why);
     }

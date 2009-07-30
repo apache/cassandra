@@ -34,18 +34,18 @@ public class RemoveSubColumnTest
     @Test
     public void testRemoveSubColumn() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
         RowMutation rm;
 
         // add data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.delete(new QueryPath("Super1", "SC1".getBytes(), getBytes(1)), 1);
         rm.apply();
 

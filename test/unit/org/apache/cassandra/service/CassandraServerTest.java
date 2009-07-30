@@ -40,17 +40,17 @@ public class CassandraServerTest extends CleanupHelper
             cfmap.put("Standard1", columns);
             cfmap.put("Standard2", columns);
 
-            BatchMutation m = new BatchMutation("Table1", "key1", cfmap);
+            BatchMutation m = new BatchMutation("Keyspace1", "key1", cfmap);
             server.batch_insert(m, 1);
 
             Column column;
-            column = server.get_column("Table1", "key1", "Standard1:c2");
+            column = server.get_column("Keyspace1", "key1", "Standard1:c2");
             assert column.value.equals("0");
 
-            column = server.get_column("Table1", "key1", "Standard2:c2");
+            column = server.get_column("Keyspace1", "key1", "Standard2:c2");
             assert column.value.equals("0");
 
-            ArrayList<Column> Columns = server.get_slice_strong("Table1", "key1", "Standard1", -1, -1);
+            ArrayList<Column> Columns = server.get_slice_strong("Keyspace1", "key1", "Standard1", -1, -1);
             assert Columns.size() == 2;
         } finally {
             server.shutdown();

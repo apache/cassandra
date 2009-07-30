@@ -16,14 +16,14 @@ public class RecoveryManager2Test extends CleanupHelper
     @Test
     public void testWithFlush() throws IOException, ExecutionException, InterruptedException
     {
-        Table table1 = Table.open("Table1");
+        Table table1 = Table.open("Keyspace1");
         Set<String> keys = new HashSet<String>();
 
         for (int i = 0; i < 100; i++)
         {
             String key = "key" + i;
-            RowMutation rm = new RowMutation("Table1", key);
-            ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
             cf.addColumn(column("col1", "val1", 1L));
             rm.add(cf);
             rm.apply();

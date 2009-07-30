@@ -328,7 +328,7 @@ public class NodeProbe
                 double tableTotalReadTime = 0.0f;
                 double tableTotalWriteTime = 0.0f;
                 
-                outs.println("Table: " + tableName);
+                outs.println("Keyspace: " + tableName);
                 for (ColumnFamilyStoreMBean cfstore: columnFamilies) {
                     int writeCount = cfstore.getWriteCount();
                     int readCount = cfstore.getReadCount();

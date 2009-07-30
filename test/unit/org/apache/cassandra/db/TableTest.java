@@ -62,7 +62,7 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetRowSingleColumn() throws Throwable
     {
-        final Table table = Table.open("Table1");
+        final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
 
         Runner setup = new Runner()
@@ -93,10 +93,10 @@ public class TableTest extends CleanupHelper
     public void testGetRowSliceByRange() throws Throwable
     {
     	String key = TEST_KEY+"slicerow";
-    	Table table = Table.open("Table1");
+    	Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-    	RowMutation rm = new RowMutation("Table1", key);
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+    	RowMutation rm = new RowMutation("Keyspace1", key);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(column("a", "val1", 1L));
         cf.addColumn(column("b", "val2", 1L));
@@ -119,8 +119,8 @@ public class TableTest extends CleanupHelper
 
     private RowMutation makeSimpleRowMutation()
     {
-        RowMutation rm = new RowMutation("Table1",TEST_KEY);
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+        RowMutation rm = new RowMutation("Keyspace1",TEST_KEY);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
         cf.addColumn(column("col3","val3", 1L));
@@ -131,9 +131,9 @@ public class TableTest extends CleanupHelper
     @Test
     public void testGetSliceNoMatch() throws Throwable
     {
-        Table table = Table.open("Table1");
-        RowMutation rm = new RowMutation("Table1", "row1000");
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard2");
+        Table table = Table.open("Keyspace1");
+        RowMutation rm = new RowMutation("Keyspace1", "row1000");
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard2");
         cf.addColumn(column("col1", "val1", 1));
         rm.add(cf);
         rm.apply();
@@ -166,15 +166,15 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromBasic() throws Throwable
     {
         // tests slicing against data from one row in a memtable and then flushed to an sstable
-        final Table table = Table.open("Table1");
+        final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final String ROW = "row1";
         Runner setup = new Runner()
         {
             public void run() throws Exception
             {
-                RowMutation rm = new RowMutation("Table1", ROW);
-                ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+                RowMutation rm = new RowMutation("Keyspace1", ROW);
+                ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
                 cf.addColumn(column("col1", "val1", 1L));
                 cf.addColumn(column("col3", "val3", 1L));
                 cf.addColumn(column("col4", "val4", 1L));
@@ -184,7 +184,7 @@ public class TableTest extends CleanupHelper
                 rm.add(cf);
                 rm.apply();
 
-                rm = new RowMutation("Table1", ROW);
+                rm = new RowMutation("Keyspace1", ROW);
                 rm.delete(new QueryPath("Standard1", null, "col4".getBytes()), 2L);
                 rm.apply();
             }
@@ -225,15 +225,15 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromAdvanced() throws Throwable
     {
         // tests slicing against data from one row spread across two sstables
-        final Table table = Table.open("Table1");
+        final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final String ROW = "row2";
         Runner setup = new Runner()
         {
             public void run() throws Exception
             {
-                RowMutation rm = new RowMutation("Table1", ROW);
-                ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+                RowMutation rm = new RowMutation("Keyspace1", ROW);
+                ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
                 cf.addColumn(column("col1", "val1", 1L));
                 cf.addColumn(column("col2", "val2", 1L));
                 cf.addColumn(column("col3", "val3", 1L));
@@ -244,8 +244,8 @@ public class TableTest extends CleanupHelper
                 rm.apply();
                 cfStore.forceBlockingFlush();
 
-                rm = new RowMutation("Table1", ROW);
-                cf = ColumnFamily.create("Table1", "Standard1");
+                rm = new RowMutation("Keyspace1", ROW);
+                cf = ColumnFamily.create("Keyspace1", "Standard1");
                 cf.addColumn(column("col1", "valx", 2L));
                 cf.addColumn(column("col2", "valx", 2L));
                 cf.addColumn(column("col3", "valx", 2L));
@@ -275,11 +275,11 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromLarge() throws Throwable
     {
         // tests slicing against 1000 columns in an sstable
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         String ROW = "row3";
-        RowMutation rm = new RowMutation("Table1", ROW);
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("vvvvvvvvvvvvvvvv" + i), 1L));
         rm.add(cf);
@@ -315,15 +315,15 @@ public class TableTest extends CleanupHelper
     public void testGetSliceFromSuperBasic() throws Throwable
     {
         // tests slicing against data from one row spread across two sstables
-        final Table table = Table.open("Table1");
+        final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Super1");
         final String ROW = "row2";
         Runner setup = new Runner()
         {
             public void run() throws Exception
             {
-                RowMutation rm = new RowMutation("Table1", ROW);
-                ColumnFamily cf = ColumnFamily.create("Table1", "Super1");
+                RowMutation rm = new RowMutation("Keyspace1", ROW);
+                ColumnFamily cf = ColumnFamily.create("Keyspace1", "Super1");
                 SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType());
                 sc.addColumn(new Column(getBytes(1), "val1".getBytes(), 1L));
                 cf.addColumn(sc);

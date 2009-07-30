@@ -58,7 +58,7 @@ public class NameSortTest extends CleanupHelper
 
     private void testNameSort(int N) throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
 
         for (int i = 0; i < N; ++i)
         {
@@ -69,7 +69,7 @@ public class NameSortTest extends CleanupHelper
             for (int j = 0; j < 8; ++j)
             {
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                rm = new RowMutation("Table1", key);
+                rm = new RowMutation("Keyspace1", key);
                 rm.add(new QueryPath("Standard1", null, ("Column-" + j).getBytes()), bytes, j);
                 rm.apply();
             }
@@ -77,7 +77,7 @@ public class NameSortTest extends CleanupHelper
             // super
             for (int j = 0; j < 8; ++j)
             {
-                rm = new RowMutation("Table1", key);
+                rm = new RowMutation("Keyspace1", key);
                 for (int k = 0; k < 4; ++k)
                 {
                     String value = (j + k) % 2 == 0 ? "a" : "b";

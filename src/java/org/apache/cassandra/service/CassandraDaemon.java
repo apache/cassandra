@@ -85,7 +85,7 @@ public class CassandraDaemon
         for (String table : tables)
         {
             if (logger.isDebugEnabled())
-                logger.debug("opening table " + table);
+                logger.debug("opening keyspace " + table);
             Table tbl = Table.open(table);
             tbl.onStart();
         }

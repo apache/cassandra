@@ -40,7 +40,7 @@ public class ColumnFamilyTest
     {
         ColumnFamily cf;
 
-        cf = ColumnFamily.create("Table1", "Standard1");
+        cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("C", "v", 1));
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer().serialize(cf, bufOut);
@@ -65,7 +65,7 @@ public class ColumnFamilyTest
         }
 
         // write
-        cf = ColumnFamily.create("Table1", "Standard1");
+        cf = ColumnFamily.create("Keyspace1", "Standard1");
         DataOutputBuffer bufOut = new DataOutputBuffer();
         for (String cName : map.navigableKeySet())
         {
@@ -87,7 +87,7 @@ public class ColumnFamilyTest
     @Test
     public void testGetColumnCount()
     {
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
 
         cf.addColumn(column("col1", "", 1));
         cf.addColumn(column("col2", "", 2));
@@ -100,7 +100,7 @@ public class ColumnFamilyTest
     @Test
     public void testTimestamp()
     {
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
 
         cf.addColumn(column("col1", "val1", 2));
         cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
@@ -112,9 +112,9 @@ public class ColumnFamilyTest
     @Test
     public void testMergeAndAdd()
     {
-        ColumnFamily cf_new = ColumnFamily.create("Table1", "Standard1");
-        ColumnFamily cf_old = ColumnFamily.create("Table1", "Standard1");
-        ColumnFamily cf_result = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf_new = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf_old = ColumnFamily.create("Keyspace1", "Standard1");
+        ColumnFamily cf_result = ColumnFamily.create("Keyspace1", "Standard1");
         byte val[] = "sample value".getBytes();
         byte val2[] = "x value ".getBytes();
 
@@ -136,7 +136,7 @@ public class ColumnFamilyTest
     @Test
     public void testEmptyDigest()
     {
-        ColumnFamily cf = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         assert cf.digest().length == 0;
     }
 }

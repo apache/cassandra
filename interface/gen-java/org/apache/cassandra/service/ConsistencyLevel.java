@@ -19,12 +19,7 @@ public class ConsistencyLevel {
   public static final int QUORUM = 2;
   public static final int ALL = 3;
 
-  public static final IntRangeSet VALID_VALUES = new IntRangeSet(
-    ZERO, 
-    ONE, 
-    QUORUM, 
-    ALL );
-
+  public static final IntRangeSet VALID_VALUES = new IntRangeSet(ZERO, ONE, QUORUM, ALL);
   public static final Map<Integer, String> VALUES_TO_NAMES = new HashMap<Integer, String>() {{
     put(ZERO, "ZERO");
     put(ONE, "ONE");

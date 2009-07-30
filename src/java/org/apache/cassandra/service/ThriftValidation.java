@@ -1,8 +1,7 @@
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.db.TableNotDefinedException;
+import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class ThriftValidation
@@ -21,7 +20,7 @@ public class ThriftValidation
         }
     }
 
-    static void validateCommand(String tablename, String... columnFamilyNames) throws TableNotDefinedException, ColumnFamilyNotDefinedException
+    static void validateCommand(String tablename, String... columnFamilyNames) throws KeyspaceNotDefinedException, ColumnFamilyNotDefinedException
     {
         validateTable(tablename);
         for (String cfName : columnFamilyNames)
@@ -33,11 +32,11 @@ public class ThriftValidation
         }
     }
 
-    private static void validateTable(String tablename) throws TableNotDefinedException
+    private static void validateTable(String tablename) throws KeyspaceNotDefinedException
     {
         if (!DatabaseDescriptor.getTables().contains(tablename))
         {
-            throw new TableNotDefinedException("Table " + tablename + " does not exist in this schema.");
+            throw new KeyspaceNotDefinedException("Keyspace " + tablename + " does not exist in this schema.");
         }
     }
 

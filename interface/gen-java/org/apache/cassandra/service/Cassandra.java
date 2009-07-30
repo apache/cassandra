@@ -22,35 +22,35 @@ public class Cassandra {
 
   public interface Iface {
 
-    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_slice_by_names(String keyspace, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
 
-    public List<Column> get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
+    public List<Column> get_slice(String keyspace, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
 
-    public Column get_column(String table, String key, ColumnPath column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
+    public Column get_column(String keyspace, String key, ColumnPath column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
 
-    public int get_column_count(String table, String key, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException;
+    public int get_column_count(String keyspace, String key, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException;
 
-    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
+    public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public void batch_insert(String table, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert(String keyspace, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
+    public void remove(String keyspace, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, TException;
+    public List<SuperColumn> get_slice_super(String keyspace, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, TException;
 
-    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names, int consistency_level) throws InvalidRequestException, TException;
+    public List<SuperColumn> get_slice_super_by_names(String keyspace, String key, String column_family, List<byte[]> super_column_names, int consistency_level) throws InvalidRequestException, TException;
 
-    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
+    public SuperColumn get_super_column(String keyspace, String key, SuperColumnPath super_column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException;
 
-    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
+    public void batch_insert_super_column(String keyspace, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<String> get_key_range(String table, String column_family, String start, String finish, int count) throws InvalidRequestException, TException;
+    public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count) throws InvalidRequestException, TException;
 
     public String get_string_property(String property) throws TException;
 
     public List<String> get_string_list_property(String property) throws TException;
 
-    public Map<String,Map<String,String>> describe_table(String table) throws NotFoundException, TException;
+    public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException;
 
     public CqlResult execute_query(String query) throws TException;
 
@@ -83,17 +83,17 @@ public class Cassandra {
       return this.oprot_;
     }
 
-    public List<Column> get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice_by_names(String keyspace, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_slice_by_names(table, key, column_parent, column_names, consistency_level);
+      send_get_slice_by_names(keyspace, key, column_parent, column_names, consistency_level);
       return recv_get_slice_by_names();
     }
 
-    public void send_get_slice_by_names(String table, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level) throws TException
+    public void send_get_slice_by_names(String keyspace, String key, ColumnParent column_parent, List<byte[]> column_names, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_by_names", TMessageType.CALL, seqid_));
       get_slice_by_names_args args = new get_slice_by_names_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_parent = column_parent;
       args.column_names = column_names;
@@ -126,17 +126,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_by_names failed: unknown result");
     }
 
-    public List<Column> get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, NotFoundException, TException
+    public List<Column> get_slice(String keyspace, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_slice(table, key, column_parent, start, finish, is_ascending, count, consistency_level);
+      send_get_slice(keyspace, key, column_parent, start, finish, is_ascending, count, consistency_level);
       return recv_get_slice();
     }
 
-    public void send_get_slice(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws TException
+    public void send_get_slice(String keyspace, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice", TMessageType.CALL, seqid_));
       get_slice_args args = new get_slice_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_parent = column_parent;
       args.start = start;
@@ -172,17 +172,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice failed: unknown result");
     }
 
-    public Column get_column(String table, String key, ColumnPath column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException
+    public Column get_column(String keyspace, String key, ColumnPath column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_column(table, key, column_path, consistency_level);
+      send_get_column(keyspace, key, column_path, consistency_level);
       return recv_get_column();
     }
 
-    public void send_get_column(String table, String key, ColumnPath column_path, int consistency_level) throws TException
+    public void send_get_column(String keyspace, String key, ColumnPath column_path, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_column", TMessageType.CALL, seqid_));
       get_column_args args = new get_column_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_path = column_path;
       args.consistency_level = consistency_level;
@@ -214,17 +214,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column failed: unknown result");
     }
 
-    public int get_column_count(String table, String key, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException
+    public int get_column_count(String keyspace, String key, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException
     {
-      send_get_column_count(table, key, column_parent, consistency_level);
+      send_get_column_count(keyspace, key, column_parent, consistency_level);
       return recv_get_column_count();
     }
 
-    public void send_get_column_count(String table, String key, ColumnParent column_parent, int consistency_level) throws TException
+    public void send_get_column_count(String keyspace, String key, ColumnParent column_parent, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_column_count", TMessageType.CALL, seqid_));
       get_column_count_args args = new get_column_count_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_parent = column_parent;
       args.consistency_level = consistency_level;
@@ -253,17 +253,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_column_count failed: unknown result");
     }
 
-    public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
+    public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_insert(table, key, column_path, value, timestamp, consistency_level);
+      send_insert(keyspace, key, column_path, value, timestamp, consistency_level);
       recv_insert();
     }
 
-    public void send_insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws TException
+    public void send_insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
       insert_args args = new insert_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_path = column_path;
       args.value = value;
@@ -294,17 +294,17 @@ public class Cassandra {
       return;
     }
 
-    public void batch_insert(String table, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert(String keyspace, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert(table, batch_mutation, consistency_level);
+      send_batch_insert(keyspace, batch_mutation, consistency_level);
       recv_batch_insert();
     }
 
-    public void send_batch_insert(String table, BatchMutation batch_mutation, int consistency_level) throws TException
+    public void send_batch_insert(String keyspace, BatchMutation batch_mutation, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert", TMessageType.CALL, seqid_));
       batch_insert_args args = new batch_insert_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.batch_mutation = batch_mutation;
       args.consistency_level = consistency_level;
       args.write(oprot_);
@@ -332,17 +332,17 @@ public class Cassandra {
       return;
     }
 
-    public void remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
+    public void remove(String keyspace, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_remove(table, key, column_path_or_parent, timestamp, consistency_level);
+      send_remove(keyspace, key, column_path_or_parent, timestamp, consistency_level);
       recv_remove();
     }
 
-    public void send_remove(String table, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws TException
+    public void send_remove(String keyspace, String key, ColumnPathOrParent column_path_or_parent, long timestamp, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_path_or_parent = column_path_or_parent;
       args.timestamp = timestamp;
@@ -372,17 +372,17 @@ public class Cassandra {
       return;
     }
 
-    public List<SuperColumn> get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super(String keyspace, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws InvalidRequestException, TException
     {
-      send_get_slice_super(table, key, column_family, start, finish, is_ascending, count, consistency_level);
+      send_get_slice_super(keyspace, key, column_family, start, finish, is_ascending, count, consistency_level);
       return recv_get_slice_super();
     }
 
-    public void send_get_slice_super(String table, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws TException
+    public void send_get_slice_super(String keyspace, String key, String column_family, byte[] start, byte[] finish, boolean is_ascending, int count, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super", TMessageType.CALL, seqid_));
       get_slice_super_args args = new get_slice_super_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_family = column_family;
       args.start = start;
@@ -415,17 +415,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super failed: unknown result");
     }
 
-    public List<SuperColumn> get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names, int consistency_level) throws InvalidRequestException, TException
+    public List<SuperColumn> get_slice_super_by_names(String keyspace, String key, String column_family, List<byte[]> super_column_names, int consistency_level) throws InvalidRequestException, TException
     {
-      send_get_slice_super_by_names(table, key, column_family, super_column_names, consistency_level);
+      send_get_slice_super_by_names(keyspace, key, column_family, super_column_names, consistency_level);
       return recv_get_slice_super_by_names();
     }
 
-    public void send_get_slice_super_by_names(String table, String key, String column_family, List<byte[]> super_column_names, int consistency_level) throws TException
+    public void send_get_slice_super_by_names(String keyspace, String key, String column_family, List<byte[]> super_column_names, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_slice_super_by_names", TMessageType.CALL, seqid_));
       get_slice_super_by_names_args args = new get_slice_super_by_names_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.column_family = column_family;
       args.super_column_names = super_column_names;
@@ -455,17 +455,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_slice_super_by_names failed: unknown result");
     }
 
-    public SuperColumn get_super_column(String table, String key, SuperColumnPath super_column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException
+    public SuperColumn get_super_column(String keyspace, String key, SuperColumnPath super_column_path, int consistency_level) throws InvalidRequestException, NotFoundException, TException
     {
-      send_get_super_column(table, key, super_column_path, consistency_level);
+      send_get_super_column(keyspace, key, super_column_path, consistency_level);
       return recv_get_super_column();
     }
 
-    public void send_get_super_column(String table, String key, SuperColumnPath super_column_path, int consistency_level) throws TException
+    public void send_get_super_column(String keyspace, String key, SuperColumnPath super_column_path, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_super_column", TMessageType.CALL, seqid_));
       get_super_column_args args = new get_super_column_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.key = key;
       args.super_column_path = super_column_path;
       args.consistency_level = consistency_level;
@@ -497,17 +497,17 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_super_column failed: unknown result");
     }
 
-    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException
+    public void batch_insert_super_column(String keyspace, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_batch_insert_super_column(table, batch_mutation_super, consistency_level);
+      send_batch_insert_super_column(keyspace, batch_mutation_super, consistency_level);
       recv_batch_insert_super_column();
     }
 
-    public void send_batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level) throws TException
+    public void send_batch_insert_super_column(String keyspace, BatchMutationSuper batch_mutation_super, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("batch_insert_super_column", TMessageType.CALL, seqid_));
       batch_insert_super_column_args args = new batch_insert_super_column_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.batch_mutation_super = batch_mutation_super;
       args.consistency_level = consistency_level;
       args.write(oprot_);
@@ -535,17 +535,17 @@ public class Cassandra {
       return;
     }
 
-    public List<String> get_key_range(String table, String column_family, String start, String finish, int count) throws InvalidRequestException, TException
+    public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count) throws InvalidRequestException, TException
     {
-      send_get_key_range(table, column_family, start, finish, count);
+      send_get_key_range(keyspace, column_family, start, finish, count);
       return recv_get_key_range();
     }
 
-    public void send_get_key_range(String table, String column_family, String start, String finish, int count) throws TException
+    public void send_get_key_range(String keyspace, String column_family, String start, String finish, int count) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_key_range", TMessageType.CALL, seqid_));
       get_key_range_args args = new get_key_range_args();
-      args.table = table;
+      args.keyspace = keyspace;
       args.column_family = column_family;
       args.start = start;
       args.finish = finish;
@@ -641,23 +641,23 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_string_list_property failed: unknown result");
     }
 
-    public Map<String,Map<String,String>> describe_table(String table) throws NotFoundException, TException
+    public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException
     {
-      send_describe_table(table);
-      return recv_describe_table();
+      send_describe_keyspace(keyspace);
+      return recv_describe_keyspace();
     }
 
-    public void send_describe_table(String table) throws TException
+    public void send_describe_keyspace(String keyspace) throws TException
     {
-      oprot_.writeMessageBegin(new TMessage("describe_table", TMessageType.CALL, seqid_));
-      describe_table_args args = new describe_table_args();
-      args.table = table;
+      oprot_.writeMessageBegin(new TMessage("describe_keyspace", TMessageType.CALL, seqid_));
+      describe_keyspace_args args = new describe_keyspace_args();
+      args.keyspace = keyspace;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
     }
 
-    public Map<String,Map<String,String>> recv_describe_table() throws NotFoundException, TException
+    public Map<String,Map<String,String>> recv_describe_keyspace() throws NotFoundException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -665,7 +665,7 @@ public class Cassandra {
         iprot_.readMessageEnd();
         throw x;
       }
-      describe_table_result result = new describe_table_result();
+      describe_keyspace_result result = new describe_keyspace_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
       if (result.isSetSuccess()) {
@@ -674,7 +674,7 @@ public class Cassandra {
       if (result.nfe != null) {
         throw result.nfe;
       }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_table failed: unknown result");
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_keyspace failed: unknown result");
     }
 
     public CqlResult execute_query(String query) throws TException
@@ -730,7 +730,7 @@ public class Cassandra {
       processMap_.put("get_key_range", new get_key_range());
       processMap_.put("get_string_property", new get_string_property());
       processMap_.put("get_string_list_property", new get_string_list_property());
-      processMap_.put("describe_table", new describe_table());
+      processMap_.put("describe_keyspace", new describe_keyspace());
       processMap_.put("execute_query", new execute_query());
     }
 
@@ -767,7 +767,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_by_names_result result = new get_slice_by_names_result();
         try {
-          result.success = iface_.get_slice_by_names(args.table, args.key, args.column_parent, args.column_names, args.consistency_level);
+          result.success = iface_.get_slice_by_names(args.keyspace, args.key, args.column_parent, args.column_names, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -797,7 +797,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_result result = new get_slice_result();
         try {
-          result.success = iface_.get_slice(args.table, args.key, args.column_parent, args.start, args.finish, args.is_ascending, args.count, args.consistency_level);
+          result.success = iface_.get_slice(args.keyspace, args.key, args.column_parent, args.start, args.finish, args.is_ascending, args.count, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -827,7 +827,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_column_result result = new get_column_result();
         try {
-          result.success = iface_.get_column(args.table, args.key, args.column_path, args.consistency_level);
+          result.success = iface_.get_column(args.keyspace, args.key, args.column_path, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -857,7 +857,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_column_count_result result = new get_column_count_result();
         try {
-          result.success = iface_.get_column_count(args.table, args.key, args.column_parent, args.consistency_level);
+          result.success = iface_.get_column_count(args.keyspace, args.key, args.column_parent, args.consistency_level);
           result.__isset.success = true;
         } catch (InvalidRequestException ire) {
           result.ire = ire;
@@ -886,7 +886,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         insert_result result = new insert_result();
         try {
-          iface_.insert(args.table, args.key, args.column_path, args.value, args.timestamp, args.consistency_level);
+          iface_.insert(args.keyspace, args.key, args.column_path, args.value, args.timestamp, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -916,7 +916,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_result result = new batch_insert_result();
         try {
-          iface_.batch_insert(args.table, args.batch_mutation, args.consistency_level);
+          iface_.batch_insert(args.keyspace, args.batch_mutation, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -946,7 +946,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
-          iface_.remove(args.table, args.key, args.column_path_or_parent, args.timestamp, args.consistency_level);
+          iface_.remove(args.keyspace, args.key, args.column_path_or_parent, args.timestamp, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -976,7 +976,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_super_result result = new get_slice_super_result();
         try {
-          result.success = iface_.get_slice_super(args.table, args.key, args.column_family, args.start, args.finish, args.is_ascending, args.count, args.consistency_level);
+          result.success = iface_.get_slice_super(args.keyspace, args.key, args.column_family, args.start, args.finish, args.is_ascending, args.count, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1004,7 +1004,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_slice_super_by_names_result result = new get_slice_super_by_names_result();
         try {
-          result.success = iface_.get_slice_super_by_names(args.table, args.key, args.column_family, args.super_column_names, args.consistency_level);
+          result.success = iface_.get_slice_super_by_names(args.keyspace, args.key, args.column_family, args.super_column_names, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1032,7 +1032,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_super_column_result result = new get_super_column_result();
         try {
-          result.success = iface_.get_super_column(args.table, args.key, args.super_column_path, args.consistency_level);
+          result.success = iface_.get_super_column(args.keyspace, args.key, args.super_column_path, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (NotFoundException nfe) {
@@ -1062,7 +1062,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         batch_insert_super_column_result result = new batch_insert_super_column_result();
         try {
-          iface_.batch_insert_super_column(args.table, args.batch_mutation_super, args.consistency_level);
+          iface_.batch_insert_super_column(args.keyspace, args.batch_mutation_super, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -1092,7 +1092,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_key_range_result result = new get_key_range_result();
         try {
-          result.success = iface_.get_key_range(args.table, args.column_family, args.start, args.finish, args.count);
+          result.success = iface_.get_key_range(args.keyspace, args.column_family, args.start, args.finish, args.count);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -1144,27 +1144,27 @@ public class Cassandra {
 
     }
 
-    private class describe_table implements ProcessFunction {
+    private class describe_keyspace implements ProcessFunction {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
-        describe_table_args args = new describe_table_args();
+        describe_keyspace_args args = new describe_keyspace_args();
         args.read(iprot);
         iprot.readMessageEnd();
-        describe_table_result result = new describe_table_result();
+        describe_keyspace_result result = new describe_keyspace_result();
         try {
-          result.success = iface_.describe_table(args.table);
+          result.success = iface_.describe_keyspace(args.keyspace);
         } catch (NotFoundException nfe) {
           result.nfe = nfe;
         } catch (Throwable th) {
-          LOGGER.error("Internal error processing describe_table", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describe_table");
-          oprot.writeMessageBegin(new TMessage("describe_table", TMessageType.EXCEPTION, seqid));
+          LOGGER.error("Internal error processing describe_keyspace", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing describe_keyspace");
+          oprot.writeMessageBegin(new TMessage("describe_keyspace", TMessageType.EXCEPTION, seqid));
           x.write(oprot);
           oprot.writeMessageEnd();
           oprot.getTransport().flush();
           return;
         }
-        oprot.writeMessageBegin(new TMessage("describe_table", TMessageType.REPLY, seqid));
+        oprot.writeMessageBegin(new TMessage("describe_keyspace", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -1192,14 +1192,14 @@ public class Cassandra {
 
   public static class get_slice_by_names_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_by_names_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
     private static final TField COLUMN_NAMES_FIELD_DESC = new TField("column_names", TType.LIST, (short)4);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public ColumnParent column_parent;
@@ -1215,7 +1215,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -1238,14 +1238,14 @@ public class Cassandra {
     }
 
     public get_slice_by_names_args(
-      String table,
+      String keyspace,
       String key,
       ColumnParent column_parent,
       List<byte[]> column_names,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_parent = column_parent;
       this.column_names = column_names;
@@ -1257,8 +1257,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_by_names_args(get_slice_by_names_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -1284,26 +1284,26 @@ public class Cassandra {
       return new get_slice_by_names_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -1415,11 +1415,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -1462,8 +1462,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -1485,8 +1485,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_PARENT:
@@ -1513,12 +1513,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -1577,9 +1577,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -1641,9 +1641,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -1679,11 +1679,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_by_names_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -2123,7 +2123,7 @@ public class Cassandra {
 
   public static class get_slice_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)4);
@@ -2132,8 +2132,8 @@ public class Cassandra {
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)7);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)8);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public ColumnParent column_parent;
@@ -2157,7 +2157,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -2187,7 +2187,7 @@ public class Cassandra {
     }
 
     public get_slice_args(
-      String table,
+      String keyspace,
       String key,
       ColumnParent column_parent,
       byte[] start,
@@ -2197,7 +2197,7 @@ public class Cassandra {
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_parent = column_parent;
       this.start = start;
@@ -2214,8 +2214,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_args(get_slice_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -2244,26 +2244,26 @@ public class Cassandra {
       return new get_slice_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -2427,11 +2427,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -2498,8 +2498,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -2530,8 +2530,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_PARENT:
@@ -2564,12 +2564,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -2655,9 +2655,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2732,9 +2732,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -2775,11 +2775,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -3245,13 +3245,13 @@ public class Cassandra {
 
   public static class get_column_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_column_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public ColumnPath column_path;
@@ -3265,7 +3265,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -3285,13 +3285,13 @@ public class Cassandra {
     }
 
     public get_column_args(
-      String table,
+      String keyspace,
       String key,
       ColumnPath column_path,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_path = column_path;
       this.consistency_level = consistency_level;
@@ -3302,8 +3302,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_column_args(get_column_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -3320,26 +3320,26 @@ public class Cassandra {
       return new get_column_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -3413,11 +3413,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -3452,8 +3452,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -3472,8 +3472,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_PATH:
@@ -3498,12 +3498,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -3553,9 +3553,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3600,9 +3600,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -3627,11 +3627,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_column_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -4027,13 +4027,13 @@ public class Cassandra {
 
   public static class get_column_count_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_column_count_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public ColumnParent column_parent;
@@ -4047,7 +4047,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -4067,13 +4067,13 @@ public class Cassandra {
     }
 
     public get_column_count_args(
-      String table,
+      String keyspace,
       String key,
       ColumnParent column_parent,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_parent = column_parent;
       this.consistency_level = consistency_level;
@@ -4084,8 +4084,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_column_count_args(get_column_count_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -4102,26 +4102,26 @@ public class Cassandra {
       return new get_column_count_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -4195,11 +4195,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -4234,8 +4234,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -4254,8 +4254,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_PARENT:
@@ -4280,12 +4280,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -4335,9 +4335,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4382,9 +4382,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -4409,11 +4409,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_column_count_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -4730,15 +4730,15 @@ public class Cassandra {
 
   public static class insert_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("insert_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
     private static final TField VALUE_FIELD_DESC = new TField("value", TType.STRING, (short)4);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)5);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public ColumnPath column_path;
@@ -4757,7 +4757,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -4781,7 +4781,7 @@ public class Cassandra {
     }
 
     public insert_args(
-      String table,
+      String keyspace,
       String key,
       ColumnPath column_path,
       byte[] value,
@@ -4789,7 +4789,7 @@ public class Cassandra {
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_path = column_path;
       this.value = value;
@@ -4803,8 +4803,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public insert_args(insert_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -4827,26 +4827,26 @@ public class Cassandra {
       return new insert_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -4965,11 +4965,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -5020,8 +5020,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -5046,8 +5046,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_PATH:
@@ -5076,12 +5076,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -5149,9 +5149,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5211,9 +5211,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -5246,11 +5246,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("insert_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -5588,12 +5588,12 @@ public class Cassandra {
 
   public static class batch_insert_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField BATCH_MUTATION_FIELD_DESC = new TField("batch_mutation", TType.STRUCT, (short)2);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public BatchMutation batch_mutation;
     public static final int BATCH_MUTATION = 2;
     public int consistency_level;
@@ -5605,7 +5605,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(BATCH_MUTATION, new FieldMetaData("batch_mutation", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, BatchMutation.class)));
@@ -5623,12 +5623,12 @@ public class Cassandra {
     }
 
     public batch_insert_args(
-      String table,
+      String keyspace,
       BatchMutation batch_mutation,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.batch_mutation = batch_mutation;
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
@@ -5638,8 +5638,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public batch_insert_args(batch_insert_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetBatch_mutation()) {
         this.batch_mutation = new BatchMutation(other.batch_mutation);
@@ -5653,26 +5653,26 @@ public class Cassandra {
       return new batch_insert_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -5723,11 +5723,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -5754,8 +5754,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case BATCH_MUTATION:
         return getBatch_mutation();
@@ -5771,8 +5771,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case BATCH_MUTATION:
         return isSetBatch_mutation();
       case CONSISTENCY_LEVEL:
@@ -5795,12 +5795,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -5841,9 +5841,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5881,9 +5881,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.batch_mutation != null) {
@@ -5903,11 +5903,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("batch_insert_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -6220,14 +6220,14 @@ public class Cassandra {
 
   public static class remove_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("remove_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PATH_OR_PARENT_FIELD_DESC = new TField("column_path_or_parent", TType.STRUCT, (short)3);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)4);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public ColumnPathOrParent column_path_or_parent;
@@ -6244,7 +6244,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -6266,14 +6266,14 @@ public class Cassandra {
     }
 
     public remove_args(
-      String table,
+      String keyspace,
       String key,
       ColumnPathOrParent column_path_or_parent,
       long timestamp,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_path_or_parent = column_path_or_parent;
       this.timestamp = timestamp;
@@ -6286,8 +6286,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public remove_args(remove_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -6306,26 +6306,26 @@ public class Cassandra {
       return new remove_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -6421,11 +6421,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -6468,8 +6468,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -6491,8 +6491,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_PATH_OR_PARENT:
@@ -6519,12 +6519,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -6583,9 +6583,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -6638,9 +6638,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -6668,11 +6668,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("remove_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -6997,7 +6997,7 @@ public class Cassandra {
 
   public static class get_slice_super_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_super_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)4);
@@ -7006,8 +7006,8 @@ public class Cassandra {
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)7);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)8);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public String column_family;
@@ -7031,7 +7031,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -7061,7 +7061,7 @@ public class Cassandra {
     }
 
     public get_slice_super_args(
-      String table,
+      String keyspace,
       String key,
       String column_family,
       byte[] start,
@@ -7071,7 +7071,7 @@ public class Cassandra {
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_family = column_family;
       this.start = start;
@@ -7088,8 +7088,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_super_args(get_slice_super_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -7118,26 +7118,26 @@ public class Cassandra {
       return new get_slice_super_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -7301,11 +7301,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -7372,8 +7372,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -7404,8 +7404,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_FAMILY:
@@ -7438,12 +7438,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -7529,9 +7529,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -7605,9 +7605,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -7648,11 +7648,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_super_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -8043,14 +8043,14 @@ public class Cassandra {
 
   public static class get_slice_super_by_names_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_super_by_names_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
     private static final TField SUPER_COLUMN_NAMES_FIELD_DESC = new TField("super_column_names", TType.LIST, (short)4);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public String column_family;
@@ -8066,7 +8066,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -8089,14 +8089,14 @@ public class Cassandra {
     }
 
     public get_slice_super_by_names_args(
-      String table,
+      String keyspace,
       String key,
       String column_family,
       List<byte[]> super_column_names,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.column_family = column_family;
       this.super_column_names = super_column_names;
@@ -8108,8 +8108,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_super_by_names_args(get_slice_super_by_names_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -8135,26 +8135,26 @@ public class Cassandra {
       return new get_slice_super_by_names_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -8266,11 +8266,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -8313,8 +8313,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -8336,8 +8336,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case COLUMN_FAMILY:
@@ -8364,12 +8364,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -8428,9 +8428,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -8491,9 +8491,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -8529,11 +8529,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_slice_super_by_names_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -8898,13 +8898,13 @@ public class Cassandra {
 
   public static class get_super_column_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_super_column_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField SUPER_COLUMN_PATH_FIELD_DESC = new TField("super_column_path", TType.STRUCT, (short)3);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
     public SuperColumnPath super_column_path;
@@ -8918,7 +8918,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -8938,13 +8938,13 @@ public class Cassandra {
     }
 
     public get_super_column_args(
-      String table,
+      String keyspace,
       String key,
       SuperColumnPath super_column_path,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.key = key;
       this.super_column_path = super_column_path;
       this.consistency_level = consistency_level;
@@ -8955,8 +8955,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_super_column_args(get_super_column_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetKey()) {
         this.key = other.key;
@@ -8973,26 +8973,26 @@ public class Cassandra {
       return new get_super_column_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -9066,11 +9066,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -9105,8 +9105,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case KEY:
         return getKey();
@@ -9125,8 +9125,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case KEY:
         return isSetKey();
       case SUPER_COLUMN_PATH:
@@ -9151,12 +9151,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -9206,9 +9206,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9253,9 +9253,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.key != null) {
@@ -9280,11 +9280,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_super_column_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -9680,12 +9680,12 @@ public class Cassandra {
 
   public static class batch_insert_super_column_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_super_column_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField BATCH_MUTATION_SUPER_FIELD_DESC = new TField("batch_mutation_super", TType.STRUCT, (short)2);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public BatchMutationSuper batch_mutation_super;
     public static final int BATCH_MUTATION_SUPER = 2;
     public int consistency_level;
@@ -9697,7 +9697,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(BATCH_MUTATION_SUPER, new FieldMetaData("batch_mutation_super", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, BatchMutationSuper.class)));
@@ -9715,12 +9715,12 @@ public class Cassandra {
     }
 
     public batch_insert_super_column_args(
-      String table,
+      String keyspace,
       BatchMutationSuper batch_mutation_super,
       int consistency_level)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.batch_mutation_super = batch_mutation_super;
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
@@ -9730,8 +9730,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public batch_insert_super_column_args(batch_insert_super_column_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetBatch_mutation_super()) {
         this.batch_mutation_super = new BatchMutationSuper(other.batch_mutation_super);
@@ -9745,26 +9745,26 @@ public class Cassandra {
       return new batch_insert_super_column_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -9815,11 +9815,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -9846,8 +9846,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case BATCH_MUTATION_SUPER:
         return getBatch_mutation_super();
@@ -9863,8 +9863,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case BATCH_MUTATION_SUPER:
         return isSetBatch_mutation_super();
       case CONSISTENCY_LEVEL:
@@ -9887,12 +9887,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -9933,9 +9933,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -9973,9 +9973,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.batch_mutation_super != null) {
@@ -9995,11 +9995,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("batch_insert_super_column_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -10312,14 +10312,14 @@ public class Cassandra {
 
   public static class get_key_range_args implements TBase, java.io.Serializable, Cloneable   {
     private static final TStruct STRUCT_DESC = new TStruct("get_key_range_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)2);
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)3);
     private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)4);
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
     public String column_family;
     public static final int COLUMN_FAMILY = 2;
     public String start;
@@ -10335,7 +10335,7 @@ public class Cassandra {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
@@ -10361,14 +10361,14 @@ public class Cassandra {
     }
 
     public get_key_range_args(
-      String table,
+      String keyspace,
       String column_family,
       String start,
       String finish,
       int count)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
       this.column_family = column_family;
       this.start = start;
       this.finish = finish;
@@ -10380,8 +10380,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_key_range_args(get_key_range_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
       if (other.isSetColumn_family()) {
         this.column_family = other.column_family;
@@ -10401,26 +10401,26 @@ public class Cassandra {
       return new get_key_range_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
@@ -10517,11 +10517,11 @@ public class Cassandra {
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -10564,8 +10564,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       case COLUMN_FAMILY:
         return getColumn_family();
@@ -10587,8 +10587,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       case COLUMN_FAMILY:
         return isSetColumn_family();
       case START:
@@ -10615,12 +10615,12 @@ public class Cassandra {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -10679,9 +10679,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -10732,9 +10732,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       if (this.column_family != null) {
@@ -10764,11 +10764,11 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("get_key_range_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -11949,80 +11949,80 @@ public class Cassandra {
 
   }
 
-  public static class describe_table_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("describe_table_args");
-    private static final TField TABLE_FIELD_DESC = new TField("table", TType.STRING, (short)1);
+  public static class describe_keyspace_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_keyspace_args");
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
 
-    public String table;
-    public static final int TABLE = 1;
+    public String keyspace;
+    public static final int KEYSPACE = 1;
 
     private final Isset __isset = new Isset();
     private static final class Isset implements java.io.Serializable {
     }
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(TABLE, new FieldMetaData("table", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(describe_table_args.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(describe_keyspace_args.class, metaDataMap);
     }
 
-    public describe_table_args() {
+    public describe_keyspace_args() {
     }
 
-    public describe_table_args(
-      String table)
+    public describe_keyspace_args(
+      String keyspace)
     {
       this();
-      this.table = table;
+      this.keyspace = keyspace;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public describe_table_args(describe_table_args other) {
-      if (other.isSetTable()) {
-        this.table = other.table;
+    public describe_keyspace_args(describe_keyspace_args other) {
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
       }
     }
 
     @Override
-    public describe_table_args clone() {
-      return new describe_table_args(this);
+    public describe_keyspace_args clone() {
+      return new describe_keyspace_args(this);
     }
 
-    public String getTable() {
-      return this.table;
+    public String getKeyspace() {
+      return this.keyspace;
     }
 
-    public void setTable(String table) {
-      this.table = table;
+    public void setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
     }
 
-    public void unsetTable() {
-      this.table = null;
+    public void unsetKeyspace() {
+      this.keyspace = null;
     }
 
-    // Returns true if field table is set (has been asigned a value) and false otherwise
-    public boolean isSetTable() {
-      return this.table != null;
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
     }
 
-    public void setTableIsSet(boolean value) {
+    public void setKeyspaceIsSet(boolean value) {
       if (!value) {
-        this.table = null;
+        this.keyspace = null;
       }
     }
 
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
-      case TABLE:
+      case KEYSPACE:
         if (value == null) {
-          unsetTable();
+          unsetKeyspace();
         } else {
-          setTable((String)value);
+          setKeyspace((String)value);
         }
         break;
 
@@ -12033,8 +12033,8 @@ public class Cassandra {
 
     public Object getFieldValue(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return getTable();
+      case KEYSPACE:
+        return getKeyspace();
 
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
@@ -12044,8 +12044,8 @@ public class Cassandra {
     // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
     public boolean isSet(int fieldID) {
       switch (fieldID) {
-      case TABLE:
-        return isSetTable();
+      case KEYSPACE:
+        return isSetKeyspace();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -12055,21 +12055,21 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof describe_table_args)
-        return this.equals((describe_table_args)that);
+      if (that instanceof describe_keyspace_args)
+        return this.equals((describe_keyspace_args)that);
       return false;
     }
 
-    public boolean equals(describe_table_args that) {
+    public boolean equals(describe_keyspace_args that) {
       if (that == null)
         return false;
 
-      boolean this_present_table = true && this.isSetTable();
-      boolean that_present_table = true && that.isSetTable();
-      if (this_present_table || that_present_table) {
-        if (!(this_present_table && that_present_table))
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
           return false;
-        if (!this.table.equals(that.table))
+        if (!this.keyspace.equals(that.keyspace))
           return false;
       }
 
@@ -12092,9 +12092,9 @@ public class Cassandra {
         }
         switch (field.id)
         {
-          case TABLE:
+          case KEYSPACE:
             if (field.type == TType.STRING) {
-              this.table = iprot.readString();
+              this.keyspace = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -12116,9 +12116,9 @@ public class Cassandra {
       validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (this.table != null) {
-        oprot.writeFieldBegin(TABLE_FIELD_DESC);
-        oprot.writeString(this.table);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -12127,14 +12127,14 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("describe_table_args(");
+      StringBuilder sb = new StringBuilder("describe_keyspace_args(");
       boolean first = true;
 
-      sb.append("table:");
-      if (this.table == null) {
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
         sb.append("null");
       } else {
-        sb.append(this.table);
+        sb.append(this.keyspace);
       }
       first = false;
       sb.append(")");
@@ -12148,8 +12148,8 @@ public class Cassandra {
 
   }
 
-  public static class describe_table_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("describe_table_result");
+  public static class describe_keyspace_result implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_keyspace_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)1);
 
@@ -12174,13 +12174,13 @@ public class Cassandra {
     }});
 
     static {
-      FieldMetaData.addStructMetaDataMap(describe_table_result.class, metaDataMap);
+      FieldMetaData.addStructMetaDataMap(describe_keyspace_result.class, metaDataMap);
     }
 
-    public describe_table_result() {
+    public describe_keyspace_result() {
     }
 
-    public describe_table_result(
+    public describe_keyspace_result(
       Map<String,Map<String,String>> success,
       NotFoundException nfe)
     {
@@ -12192,7 +12192,7 @@ public class Cassandra {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public describe_table_result(describe_table_result other) {
+    public describe_keyspace_result(describe_keyspace_result other) {
       if (other.isSetSuccess()) {
         Map<String,Map<String,String>> __this__success = new HashMap<String,Map<String,String>>();
         for (Map.Entry<String, Map<String,String>> other_element : other.success.entrySet()) {
@@ -12225,8 +12225,8 @@ public class Cassandra {
     }
 
     @Override
-    public describe_table_result clone() {
-      return new describe_table_result(this);
+    public describe_keyspace_result clone() {
+      return new describe_keyspace_result(this);
     }
 
     public int getSuccessSize() {
@@ -12338,12 +12338,12 @@ public class Cassandra {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof describe_table_result)
-        return this.equals((describe_table_result)that);
+      if (that instanceof describe_keyspace_result)
+        return this.equals((describe_keyspace_result)that);
       return false;
     }
 
-    public boolean equals(describe_table_result that) {
+    public boolean equals(describe_keyspace_result that) {
       if (that == null)
         return false;
 
@@ -12468,7 +12468,7 @@ public class Cassandra {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("describe_table_result(");
+      StringBuilder sb = new StringBuilder("describe_keyspace_result(");
       boolean first = true;
 
       sb.append("success:");

@@ -463,7 +463,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public List<String> get_string_list_property(String propertyName)
     {
-        if (propertyName.equals("tables"))
+        if (propertyName.equals("keyspaces"))
         {
             return DatabaseDescriptor.getTables();        
         }
@@ -473,11 +473,11 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public Map<String,Map<String,String>> describe_table(String tableName) throws NotFoundException
+    public Map<String, Map<String, String>> describe_keyspace(String table) throws NotFoundException
     {
         Map <String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>> ();
 
-        Map<String, CFMetaData> tableMetaData = DatabaseDescriptor.getTableMetaData(tableName);
+        Map<String, CFMetaData> tableMetaData = DatabaseDescriptor.getTableMetaData(table);
         // table doesn't exist
         if (tableMetaData == null) {
             throw new NotFoundException();

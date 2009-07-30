@@ -103,12 +103,12 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     @Test
     public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
         RowMutation rm;
 
         // add data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
         rm.apply();

@@ -25,19 +25,20 @@
          one logical cluster from joining any other cluster. -->
     <ClusterName>Test Cluster</ClusterName>
 
-    <!-- Tables and ColumnFamilies                                            
-         Think of a table as a namespace, not a relational table.
-         (ColumnFamilies are closer in meaning to those.)
+    <!-- Keyspaces and ColumnFamilies                                            
+         A ColumnFamily is the Cassandra concept closest to a relational table.
+         Keyspaces are separate groups of ColumnFamilies.  Except in very
+         unusual circumstances you will have one Keyspace per application.
 
-         There is an implicit table named 'system' for Cassandra internals.
+         There is an implicit keyspace named 'system' for Cassandra internals.
 
          The default ColumnSort is Time for standard column families.
          For super column families, specifying ColumnSort is not supported;
          the supercolumns themselves are always name-sorted and their subcolumns
          are always time-sorted.
     -->
-    <Tables>
-        <Table Name="Table1">
+    <Keyspaces>
+        <Keyspace Name="Keyspace1">
             <!-- The fraction of keys per sstable whose locations we
                  keep in memory in "mostly LRU" order.  (JUST the key
                  locations, NOT any column values.)
@@ -72,8 +73,8 @@
             <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
             <ColumnFamily CompareWith="UUIDType" Name="StandardByUUID1"/>
             <ColumnFamily ColumnType="Super" CompareWith="UTF8Type" CompareSubcolumnsWith="UTF8Type" Name="Super1"/>
-        </Table>
-    </Tables>
+        </Keyspace>
+    </Keyspaces>
 
     <!-- Partitioner: any IPartitioner may be used, including your own
          as long as it is on the classpath.  Out of the box,

@@ -93,14 +93,14 @@ public class CliClient
        css_.out.println("List of all CLI commands:");
        css_.out.println("?                                                         Same as help.");
        css_.out.println("connect <hostname>/<port>                                 Connect to Cassandra's thrift service.");
-       css_.out.println("describe table <tbl>                                      Describe table.");
+       css_.out.println("describe keyspace <keyspacename>                          Describe keyspace.");
        css_.out.println("exit                                                      Exit CLI.");
        css_.out.println("explain plan [<set stmt>|<get stmt>|<select stmt>]        Explains the PLAN for specified stmt.");
        css_.out.println("help                                                      Display this help.");
        css_.out.println("quit                                                      Exit CLI.");
        css_.out.println("show config file                                          Display contents of config file");
        css_.out.println("show cluster name                                         Display cassandra server version");
-       css_.out.println("show tables                                               Show list of tables.");
+       css_.out.println("show keyspaces                                               Show list of keyspaces.");
        css_.out.println("show version                                              Show server version.");
        css_.out.println("select ...                                                CQL select statement (TBD).");
        css_.out.println("get ...                                                   CQL data retrieval statement.");
@@ -229,7 +229,7 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
         
-        List<String> tables = thriftClient_.get_string_list_property("tables");
+        List<String> tables = thriftClient_.get_string_list_property("keyspaces");
         for (String table : tables)
         {
             css_.out.println(table);
@@ -250,7 +250,7 @@ public class CliClient
         // Describe and display
         Map<String, Map<String, String>> columnFamiliesMap;
         try {
-            columnFamiliesMap = thriftClient_.describe_table(tableName);
+            columnFamiliesMap = thriftClient_.describe_keyspace(tableName);
             for (String columnFamilyName: columnFamiliesMap.keySet()) {
                 Map<String, String> columnMap = columnFamiliesMap.get(columnFamilyName);
                 String desc = columnMap.get("Desc");
@@ -264,7 +264,7 @@ public class CliClient
                 css_.out.println("------");
             }
         } catch (NotFoundException e) {
-            css_.out.println("Table " + tableName + " could not be found.");
+            css_.out.println("Keyspace " + tableName + " could not be found.");
         }
         
         return;

@@ -32,10 +32,10 @@ public class RowTest
     @Test
     public void testDiffColumnFamily()
     {
-        ColumnFamily cf1 = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("one", "onev", 0));
 
-        ColumnFamily cf2 = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.delete(0, 0);
 
         ColumnFamily cfDiff = cf1.diff(cf2);
@@ -61,15 +61,15 @@ public class RowTest
     public void testRepair()
     {
         Row row1 = new Row();
-        ColumnFamily cf1 = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("one", "A", 0));
         row1.addColumnFamily(cf1);
 
         Row row2 = new Row();
-        ColumnFamily cf2 = ColumnFamily.create("Table1", "Standard1");
+        ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("one", "B", 1));
         cf2.addColumn(column("two", "C", 1));
-        ColumnFamily cf3 = ColumnFamily.create("Table2", "Standard3");
+        ColumnFamily cf3 = ColumnFamily.create("Keyspace2", "Standard3");
         cf3.addColumn(column("three", "D", 1));
         row2.addColumnFamily(cf2);
         row2.addColumnFamily(cf3);

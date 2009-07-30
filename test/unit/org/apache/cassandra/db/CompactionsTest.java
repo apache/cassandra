@@ -38,7 +38,7 @@ public class CompactionsTest extends CleanupHelper
     public void testCompactions() throws IOException, ExecutionException, InterruptedException
     {
         // this test does enough rows to force multiple block indexes to be used
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
@@ -46,7 +46,7 @@ public class CompactionsTest extends CleanupHelper
         for (int j = 0; j < (SSTableReader.indexInterval() * 3) / ROWS_PER_SSTABLE; j++) {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
                 String key = String.valueOf(i % 2);
-                RowMutation rm = new RowMutation("Table1", key);
+                RowMutation rm = new RowMutation("Keyspace1", key);
                 rm.add(new QueryPath("Standard1", null, String.valueOf(i / 2).getBytes()), new byte[0], j * ROWS_PER_SSTABLE + i);
                 rm.apply();
                 inserted.add(key);

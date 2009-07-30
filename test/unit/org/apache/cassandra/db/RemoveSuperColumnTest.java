@@ -38,17 +38,17 @@ public class RemoveSuperColumnTest
     @Test
     public void testRemoveSuperColumn() throws IOException, ExecutionException, InterruptedException
     {
-        ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super1");
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         RowMutation rm;
 
         // add data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         addMutation(rm, "Super1", "SC1", 1, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.delete(new QueryPath("Super1", "SC1".getBytes()), 1);
         rm.apply();
 
@@ -65,7 +65,7 @@ public class RemoveSuperColumnTest
 
     private void validateRemoveTwoSources() throws IOException
     {
-        ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super1");
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super1"), "SC1".getBytes()));
         assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
         assert resolved.getSortedColumns().iterator().next().getSubColumns().size() == 0;
@@ -75,7 +75,7 @@ public class RemoveSuperColumnTest
 
     private void validateRemoveCompacted() throws IOException
     {
-        ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super1");
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super1"), "SC1".getBytes()));
         assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
@@ -85,22 +85,22 @@ public class RemoveSuperColumnTest
     @Test
     public void testRemoveSuperColumnWithNewData() throws IOException, ExecutionException, InterruptedException
     {
-        ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super2");
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
         RowMutation rm;
 
         // add data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         addMutation(rm, "Super2", "SC1", 1, "val1", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.delete(new QueryPath("Super2", "SC1".getBytes()), 1);
         rm.apply();
 
         // new data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         addMutation(rm, "Super2", "SC1", 2, "val2", 2);
         rm.apply();
 
@@ -117,7 +117,7 @@ public class RemoveSuperColumnTest
 
     private void validateRemoveWithNewData() throws IOException
     {
-        ColumnFamilyStore store = Table.open("Table1").getColumnFamilyStore("Super2");
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
         ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super2", "SC1".getBytes()), getBytes(2)));
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;

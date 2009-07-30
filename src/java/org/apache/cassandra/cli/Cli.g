@@ -178,8 +178,8 @@ K_NAME:       'NAME';
 K_QUIT:       'QUIT';
 K_SET:        'SET';
 K_SHOW:       'SHOW';
-K_TABLE:      'TABLE';
-K_TABLES:     'TABLES';
+K_TABLE:      'KEYSPACE';
+K_TABLES:     'KEYSPACES';
 K_THRIFT:     'THRIFT';
 K_VERSION:    'VERSION';
 

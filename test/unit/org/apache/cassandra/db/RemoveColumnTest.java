@@ -33,18 +33,18 @@ public class RemoveColumnTest
     @Test
     public void testRemoveColumn() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
         RowMutation rm;
 
         // add data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.delete(new QueryPath("Standard1", null, "Column1".getBytes()), 1);
         rm.apply();
 

@@ -34,7 +34,7 @@ public class CommitLogTest extends CleanupHelper
         assert CommitLog.getSegmentCount() == 0;
         CommitLog.setSegmentSize(1000);
 
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         ColumnFamilyStore store1 = table.getColumnFamilyStore("Standard1");
         ColumnFamilyStore store2 = table.getColumnFamilyStore("Standard2");
         RowMutation rm;
@@ -43,7 +43,7 @@ public class CommitLogTest extends CleanupHelper
         // add data.  use relatively large values to force quick segment creation since we have a low flush threshold in the test config.
         for (int i = 0; i < 10; i++)
         {
-            rm = new RowMutation("Table1", "key1");
+            rm = new RowMutation("Keyspace1", "key1");
             rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), value, 0);
             rm.add(new QueryPath("Standard2", null, "Column1".getBytes()), value, 0);
             rm.apply();

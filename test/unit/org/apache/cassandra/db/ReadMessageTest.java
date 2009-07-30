@@ -44,15 +44,15 @@ public class ReadMessageTest
         
         ReadCommand rm, rm2;
         
-        rm = new SliceByNamesReadCommand("Table1", "row1", new QueryPath("Standard1"), colList);
+        rm = new SliceByNamesReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), colList);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
+        rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
         
-        rm = new SliceFromReadCommand("Table1", "row1", new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), true, 5);
+        rm = new SliceFromReadCommand("Keyspace1", "row1", new QueryPath("Standard1"), "a".getBytes(), "z".getBytes(), true, 5);
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
     }
@@ -71,15 +71,15 @@ public class ReadMessageTest
     @Test
     public void testGetColumn() throws IOException, ColumnFamilyNotDefinedException
     {
-        Table table = Table.open("Table1");
+        Table table = Table.open("Keyspace1");
         RowMutation rm;
 
         // add data
-        rm = new RowMutation("Table1", "key1");
+        rm = new RowMutation("Keyspace1", "key1");
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "abcd".getBytes(), 0);
         rm.apply();
 
-        ReadCommand command = new SliceByNamesReadCommand("Table1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));
+        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));
         Row row = command.getRow(table);
         ColumnFamily cf = row.getColumnFamily("Standard1");
         IColumn col = cf.getColumn("Column1".getBytes());

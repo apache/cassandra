@@ -327,7 +327,7 @@ public class DatabaseDescriptor
             }
 
             /* Read the table related stuff from config */
-            NodeList tables = xmlUtils.getRequestedNodeList("/Storage/Tables/Table");
+            NodeList tables = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
             int size = tables.getLength();
             for ( int i = 0; i < size; ++i )
             {
@@ -346,7 +346,7 @@ public class DatabaseDescriptor
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
 
-                String xqlCacheSize = "/Storage/Tables/Table[@Name='" + tName + "']/KeysCachedFraction";
+                String xqlCacheSize = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/KeysCachedFraction";
                 value = xmlUtils.getNodeValue(xqlCacheSize);
                 if (value == null)
                 {
@@ -357,7 +357,7 @@ public class DatabaseDescriptor
                     tableKeysCachedFractions_.put(tName, Double.valueOf(value));
                 }
 
-                String xqlTable = "/Storage/Tables/Table[@Name='" + tName + "']/";
+                String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
 
                 // get name of the rowKey for this table
