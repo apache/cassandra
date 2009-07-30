@@ -475,37 +475,45 @@ public class CassandraServer implements Cassandra.Iface
 
     public Map<String, Map<String, String>> describe_keyspace(String table) throws NotFoundException
     {
-        Map <String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>> ();
+        Map<String, Map<String, String>> columnFamiliesMap = new HashMap<String, Map<String, String>>();
 
         Map<String, CFMetaData> tableMetaData = DatabaseDescriptor.getTableMetaData(table);
         // table doesn't exist
-        if (tableMetaData == null) {
+        if (tableMetaData == null)
+        {
             throw new NotFoundException();
         }
-        
+
         Iterator iter = tableMetaData.entrySet().iterator();
         while (iter.hasNext())
         {
             Map.Entry<String, CFMetaData> pairs = (Map.Entry<String, CFMetaData>) iter.next();
             CFMetaData columnFamilyMetaData = pairs.getValue();
 
-            String desc = ""; 
-                
+            String desc = "";
+
 
             Map<String, String> columnMap = new HashMap<String, String>();
             desc = columnFamilyMetaData.n_columnMap + "(" + columnFamilyMetaData.n_columnKey + ", " + columnFamilyMetaData.n_columnValue + ", " + columnFamilyMetaData.n_columnTimestamp + ")";
-            if (columnFamilyMetaData.columnType.equals("Super")) {
+            if (columnFamilyMetaData.columnType.equals("Super"))
+            {
                 columnMap.put("Type", "Super");
-                desc = columnFamilyMetaData.n_superColumnMap + "(" + columnFamilyMetaData.n_superColumnKey + ", " + desc + ")"; 
-            } else {
+                desc = columnFamilyMetaData.n_superColumnMap + "(" + columnFamilyMetaData.n_superColumnKey + ", " + desc + ")";
+            }
+            else
+            {
                 columnMap.put("Type", "Standard");
             }
-            
-            desc = columnFamilyMetaData.tableName + "." + columnFamilyMetaData.cfName + "(" + 
-                columnFamilyMetaData.n_rowKey + ", " + desc + ")";
+
+            desc = columnFamilyMetaData.tableName + "." + columnFamilyMetaData.cfName + "(" +
+                   columnFamilyMetaData.n_rowKey + ", " + desc + ")";
 
             columnMap.put("Desc", desc);
             columnMap.put("CompareWith", columnFamilyMetaData.comparator.getClass().getName());
+            if (columnFamilyMetaData.columnType.equals("Super"))
+            {
+                columnMap.put("CompareSubcolumnsWith", columnFamilyMetaData.subcolumnComparator.getClass().getName());
+            }
             columnMap.put("FlushPeriodInMinutes", columnFamilyMetaData.flushPeriodInMinutes + "");
             columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }

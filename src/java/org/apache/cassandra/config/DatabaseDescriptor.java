@@ -396,7 +396,7 @@ public class DatabaseDescriptor
 
                     // Parse out the column comparator
                     AbstractType columnComparator = getComparator(columnFamily, "CompareWith");
-                    AbstractType subcolumnComparator;
+                    AbstractType subcolumnComparator = null;
                     if (columnType.equals("Super"))
                     {
                         subcolumnComparator = getComparator(columnFamily, "CompareSubcolumnsWith");
@@ -448,7 +448,7 @@ public class DatabaseDescriptor
 
                     cfMetaData.columnType = columnType;
                     cfMetaData.comparator = columnComparator;
-                    cfMetaData.subcolumnComparator = columnComparator;
+                    cfMetaData.subcolumnComparator = subcolumnComparator;
 
                     cfMetaData.n_rowKey = n_rowKey;
                     cfMetaData.n_columnMap = n_columnMap;
