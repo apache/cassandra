@@ -34,8 +34,8 @@ class Inserter(Thread):
             data = md5(str(i)).hexdigest()
             for j in xrange(0, 1000):
                 key = '%s.%s.%s' % (time.time(), id, j)
-                client.insert('Table1', key, ColumnPath('Standard1', column='A'), data, i, 1)
-                client.insert('Table1', key, ColumnPath('Standard1', column='B'), data, i, 1)
+                client.insert('Keyspace1', key, ColumnPath('Standard1', column='A'), data, i, 1)
+                client.insert('Keyspace1', key, ColumnPath('Standard1', column='B'), data, i, 1)
                 self.count += 1
 
 class Stress(CassandraTester):
