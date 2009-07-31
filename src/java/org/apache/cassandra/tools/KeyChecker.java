@@ -40,7 +40,7 @@ public class KeyChecker
      */
     private static boolean checkIfProcessKey(String key)
     {
-        EndPoint[] endPoints = StorageService.instance().getNStorageEndPoint(key);
+        EndPoint[] endPoints = StorageService.instance().getNStorageEndPoint(key, 0);
         EndPoint localEndPoint = StorageService.getLocalStorageEndPoint();
         for(EndPoint endPoint : endPoints)
         {

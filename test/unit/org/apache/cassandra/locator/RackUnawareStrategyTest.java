@@ -78,7 +78,7 @@ public class RackUnawareStrategyTest
 
         for (int i = 0; i < keyTokens.length; i++)
         {
-            EndPoint[] endPoints = strategy.getStorageEndPoints(keyTokens[i]);
+            EndPoint[] endPoints = strategy.getStorageEndPoints(keyTokens[i], 0);
             assert endPoints.length == 3;
             for (int j = 0; j < endPoints.length; j++)
             {

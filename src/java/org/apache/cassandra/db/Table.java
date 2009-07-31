@@ -656,7 +656,7 @@ public class Table
      * @param maxResults
      * @return list of keys between startWith and stopAt
      */
-    public List<String> getKeyRange(String columnFamily, final String startWith, final String stopAt, int maxResults)
+    public RangeReply getKeyRange(String columnFamily, final String startWith, final String stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
         assert getColumnFamilyStore(columnFamily) != null : columnFamily;
@@ -672,7 +672,7 @@ public class Table
         }
     }
 
-    private List<String> getKeyRangeUnsafe(final String cfName, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    private RangeReply getKeyRangeUnsafe(final String cfName, final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
@@ -729,10 +729,12 @@ public class Table
             // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
             // so we set an arbitrary limit on how many we'll do at once.
             List<String> keys = new ArrayList<String>();
+            boolean rangeCompletedLocally = false;
             for (String current : reduced)
             {
                 if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
                 {
+                    rangeCompletedLocally = true;
                     break;
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
@@ -744,10 +746,11 @@ public class Table
                 }
                 if (keys.size() >= maxResults)
                 {
+                    rangeCompletedLocally = true;
                     break;
                 }
             }
-            return keys;
+            return new RangeReply(keys, rangeCompletedLocally);
         }
         finally
         {

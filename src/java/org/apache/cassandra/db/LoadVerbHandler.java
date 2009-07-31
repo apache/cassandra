@@ -44,7 +44,7 @@ public class LoadVerbHandler implements IVerbHandler
             buffer.reset(body, body.length);
 	        RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(buffer);
 
-            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rmMsg.getRowMutation().key());
+            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rmMsg.getRowMutation().key(), 0);
 
 			Message messageInternal = new Message(StorageService.getLocalStorageEndPoint(), 
 	                StorageService.mutationStage_,

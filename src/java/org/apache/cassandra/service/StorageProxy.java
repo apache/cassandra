@@ -164,7 +164,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
-            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key());
+            EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(rm.key(), 0);
             if (endpoints.length < (DatabaseDescriptor.getReplicationFactor() / 2) + 1)
             {
                 throw new UnavailableException();
@@ -312,7 +312,7 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
 
         Row row;
-        EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
+        EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key, 0);
 
         if (consistency_level == ConsistencyLevel.ONE)
         {
@@ -413,7 +413,7 @@ public class StorageProxy implements StorageProxyMBean
                 DatabaseDescriptor.getQuorum(),
                 readResponseResolver);
         EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-        List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getNStorageEndPoint(command.key)));
+        List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getNStorageEndPoint(command.key, 0)));
         /* Remove the local storage endpoint from the list. */
         endpointList.remove(dataPoint);
         EndPoint[] endPoints = new EndPoint[endpointList.size() + 1];
@@ -634,15 +634,52 @@ public class StorageProxy implements StorageProxyMBean
     static List<String> getKeyRange(RangeCommand command)
     {
         long startTime = System.currentTimeMillis();
+        int endpointOffset = 0;
+        List<String> allKeys = new ArrayList<String>();
+        int maxResults = command.maxResults;
+
         try
         {
-            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.startWith);
-            IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(command.getMessage(), endPoint);
+            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.startWith, endpointOffset);
+            String firstEndpoint = endPoint.toString();
 
-            // read response
-            // TODO send more requests if we need to span multiple nodes
-            byte[] responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            return RangeReply.read(responseBody).keys;
+            do
+            {
+                IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(command.getMessage(), endPoint);
+
+                // read response
+                byte[] responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                RangeReply rangeReply = RangeReply.read(responseBody);
+                List<String> rangeKeys = rangeReply.keys;
+
+                // deal with key overlaps
+                if (allKeys.size() > 0 && rangeKeys != null && rangeKeys.size() > 0 && allKeys.get(allKeys.size() - 1).equals(rangeKeys.get(0)))
+                {
+                    allKeys.remove(allKeys.size() - 1);
+                    allKeys.addAll(rangeKeys);
+                }
+                else if (rangeKeys.size() > 0)
+                {
+                    allKeys.addAll(rangeKeys);
+                }
+
+                if (allKeys.size() >= maxResults || rangeReply.rangeCompletedLocally)
+                {
+                    break;
+                }
+
+                String newStartAt = (allKeys.size() > 0) ? allKeys.get(allKeys.size() - 1) : command.stopAt;
+
+                command = new RangeCommand(command.table, command.columnFamily,
+                                           newStartAt, command.stopAt,
+                                           command.maxResults - rangeKeys.size());
+
+                endPoint = StorageService.instance().findSuitableEndPoint(command.startWith, ++endpointOffset);
+            } while (!endPoint.toString().equals(firstEndpoint));
+
+            return (allKeys.size() > maxResults)
+                   ? allKeys.subList(0, maxResults)
+                   : allKeys;
         }
         catch (Exception e)
         {

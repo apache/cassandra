@@ -29,25 +29,22 @@ import org.apache.cassandra.service.StorageService;
 public class RangeReply
 {
     public final List<String> keys;
+    public final boolean rangeCompletedLocally;
 
-    public RangeReply(List<String> keys)
+    public RangeReply(List<String> keys, boolean rangeCompletedLocally)
     {
         this.keys = Collections.unmodifiableList(keys);
+        this.rangeCompletedLocally = rangeCompletedLocally;
     }
 
-    public Message getReply(Message originalMessage)
+    public Message getReply(Message originalMessage) throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();
+        dob.writeBoolean(rangeCompletedLocally);
+
         for (String key : keys)
         {
-            try
-            {
-                dob.writeUTF(key);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            dob.writeUTF(key);
         }
         byte[] data = Arrays.copyOf(dob.getData(), dob.getLength());
         return originalMessage.getReply(StorageService.getLocalStorageEndPoint(), data);
@@ -56,7 +53,9 @@ public class RangeReply
     public static RangeReply read(byte[] body) throws IOException
     {
         DataInputBuffer bufIn = new DataInputBuffer();
+        boolean rangeCompletedLocally;        
         bufIn.reset(body, body.length);
+        rangeCompletedLocally = bufIn.readBoolean();
 
         List<String> keys = new ArrayList<String>();
         while (bufIn.getPosition() < body.length)
@@ -64,6 +63,6 @@ public class RangeReply
             keys.add(bufIn.readUTF());
         }
         
-        return new RangeReply(keys);
+        return new RangeReply(keys, rangeCompletedLocally);
     }
 }

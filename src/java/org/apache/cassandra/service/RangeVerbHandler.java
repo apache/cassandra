@@ -18,8 +18,6 @@
 */
 package org.apache.cassandra.service;
 
-import java.util.List;
-
 import org.apache.cassandra.db.RangeCommand;
 import org.apache.cassandra.db.RangeReply;
 import org.apache.cassandra.db.Table;
@@ -31,19 +29,19 @@ public class RangeVerbHandler implements IVerbHandler
 {
     public void doVerb(Message message)
     {
-        List<String> keys;
+        RangeReply rangeReply;
         try
         {
             RangeCommand command = RangeCommand.read(message);
             Table table = Table.open(command.table);
-            keys = table.getKeyRange(command.columnFamily, command.startWith, command.stopAt, command.maxResults);
+
+            rangeReply = table.getKeyRange(command.columnFamily, command.startWith, command.stopAt, command.maxResults);
+            Message response = rangeReply.getReply(message);
+            MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
-
-        Message response = new RangeReply(keys).getReply(message);
-        MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
     }
 }
