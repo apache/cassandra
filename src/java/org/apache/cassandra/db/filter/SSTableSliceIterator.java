@@ -41,9 +41,21 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     private boolean isColumnNeeded(IColumn column)
     {
         if (isAscending)
+        {
             return comparator.compare(column.name(), startColumn) >= 0;
+        }
         else
-            return comparator.compare(column.name(), startColumn) <= 0;
+        {
+            if (startColumn.length == 0)
+            {
+                /* assuming scanning from the largest column in descending order */
+                return true;
+            }
+            else
+            {
+                return comparator.compare(column.name(), startColumn) <= 0;
+            }
+        }
     }
 
     private void getColumnsFromBuffer() throws IOException

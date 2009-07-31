@@ -210,6 +210,9 @@ public class TableTest extends CleanupHelper
                 cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col6".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
                 assertColumns(cf, "col3", "col4", "col5");
 
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
+                assertColumns(cf, "col7", "col9");
+
                 cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col95".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
                 assertColumns(cf);
 
@@ -309,6 +312,12 @@ public class TableTest extends CleanupHelper
         assertEquals(new String(cf.getColumn("col1990".getBytes()).value()), "vvvvvvvvvvvvvvvv1990");
         assertEquals(new String(cf.getColumn("col1991".getBytes()).value()), "vvvvvvvvvvvvvvvv1991");
         assertEquals(new String(cf.getColumn("col1992".getBytes()).value()), "vvvvvvvvvvvvvvvv1992");
+
+        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
+        assertColumns(cf, "col1997", "col1998", "col1999");
+        assertEquals(new String(cf.getColumn("col1999".getBytes()).value()), "vvvvvvvvvvvvvvvv1999");
+        assertEquals(new String(cf.getColumn("col1998".getBytes()).value()), "vvvvvvvvvvvvvvvv1998");
+        assertEquals(new String(cf.getColumn("col1997".getBytes()).value()), "vvvvvvvvvvvvvvvv1997");
     }
 
     @Test

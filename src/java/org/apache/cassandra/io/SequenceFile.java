@@ -141,8 +141,16 @@ public class SequenceFile
                 columnStartPosition_ = file_.getFilePointer();
                 columnIndexList_ = getFullColumnIndexList(colIndexList, totalNumCols);
 
-                int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnIndexInfo(startColumn, 0, 0, comparator_));
-                curRangeIndex_ = index < 0 ? (++index) * (-1) - 1 : index;
+                if (startColumn.length == 0 && !isAscending_)
+                {
+                    /* in this case, we assume that we want to scan from the largest column in descending order. */
+                    curRangeIndex_ = columnIndexList_.size() - 1;
+                }
+                else
+                {
+                    int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnIndexInfo(startColumn, 0, 0, comparator_));
+                    curRangeIndex_ = index < 0 ? (++index) * (-1) - 1 : index;
+                }
             }
             else
             {

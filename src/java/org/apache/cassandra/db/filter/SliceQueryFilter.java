@@ -42,8 +42,12 @@ public class SliceQueryFilter extends QueryFilter
 
         for (IColumn column : superColumn.getSubColumns())
         {
-            if ((start.length > 0 && superColumn.getComparator().compare(column.name(), start) < 0)
-                || (finish.length > 0 && superColumn.getComparator().compare(column.name(), finish) > 0)
+            final boolean outOfRange = isAscending
+                                     ? (start.length > 0 && superColumn.getComparator().compare(column.name(), start) < 0)
+                                        || (finish.length > 0 && superColumn.getComparator().compare(column.name(), finish) > 0)
+                                     : (start.length > 0 && superColumn.getComparator().compare(column.name(), start) > 0)
+                                        || (finish.length > 0 && superColumn.getComparator().compare(column.name(), finish) < 0);
+            if (outOfRange
                 || (column.isMarkedForDelete() && column.getLocalDeletionTime() <= gcBefore)
                 || liveColumns > count)
             {

@@ -278,7 +278,16 @@ public class Memtable implements Comparable<Memtable>
         // can't use a ColumnComparatorFactory comparator since those compare on both name and time (and thus will fail to match
         // our dummy column, since the time there is arbitrary).
         Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
-        int index = Arrays.binarySearch(columns, startIColumn, comparator);
+        int index;
+        if (filter.start.length == 0 && !filter.isAscending)
+        {
+            /* assuming the we scan from the largest column in descending order*/
+            index = 0;
+        }
+        else
+        {
+            index = Arrays.binarySearch(columns, startIColumn, comparator);
+        }
         final int startIndex = index < 0 ? -(index + 1) : index;
 
         return new AbstractColumnIterator()
