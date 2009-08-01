@@ -123,11 +123,6 @@ public class ColumnIndexer
             /* if we hit the column index size that we have to index after, go ahead and index it */
             if(position - sizeSummarized >= DatabaseDescriptor.getColumnIndexSize())
             {      
-                /*
-                 * ColumnSort applies only to columns. So in case of 
-                 * SuperColumn always use the name indexing scheme for
-                 * the SuperColumns. We will fix this later.
-                 */
                 IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column.name(), 0, 0, comparator);
                 cIndexInfo.position(position);
                 cIndexInfo.count(numColumns);                

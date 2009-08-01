@@ -328,93 +328,75 @@ public class SequenceFile
             /* write the key into buffer */
             bufOut.writeUTF(key);
 
-            /* if we need to read the all the columns do not read the column indexes */
-            if (cNames == null || cNames.size() == 0)
+            /* Read the bloom filter summarizing the columns */
+            long preBfPos = file_.getFilePointer();
+            BloomFilter bf = defreezeBloomFilter();
+            long postBfPos = file_.getFilePointer();
+            dataSize -= (postBfPos - preBfPos);
+
+            List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+            /* read the column name indexes if present */
+            int totalBytesRead = handleColumnNameIndexes(columnFamilyName, columnIndexList);
+            dataSize -= totalBytesRead;
+
+            /* read the column family name */
+            String cfName = file_.readUTF();
+            dataSize -= (utfPrefix_ + cfName.length());
+
+            String cfType = file_.readUTF();
+            dataSize -= (utfPrefix_ + cfType.length());
+
+            String comparatorName = file_.readUTF();
+            dataSize -= (utfPrefix_ + comparatorName.length());
+
+            String subComparatorName = file_.readUTF();
+            dataSize -= (utfPrefix_ + subComparatorName.length());
+
+            /* read local deletion time */
+            int localDeletionTime = file_.readInt();
+            dataSize -=4;
+
+            /* read if this cf is marked for delete */
+            long markedForDeleteAt = file_.readLong();
+            dataSize -= 8;
+
+            /* read the total number of columns */
+            int totalNumCols = file_.readInt();
+            dataSize -= 4;
+
+            /* get the various column ranges we have to read */
+            List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(cNames, columnIndexList, dataSize, totalNumCols);
+
+            /* calculate the data size */
+            int numColsReturned = 0;
+            int dataSizeReturned = 0;
+            for (IndexHelper.ColumnRange columnRange : columnRanges)
             {
-                int bytesSkipped = IndexHelper.skipBloomFilterAndIndex(file_);
-                /*
-                       * read the correct number of bytes for the column family and
-                       * write data into buffer
-                      */
-                dataSize -= bytesSkipped;
-                /* write the data size */
-                bufOut.writeInt(dataSize);
-                /* write the data into buffer, except the boolean we have read */
-                bufOut.write(file_, dataSize);
+                numColsReturned += columnRange.count();
+                Coordinate coordinate = columnRange.coordinate();
+                dataSizeReturned += coordinate.end_ - coordinate.start_;
             }
-            else
+
+            // returned data size
+            bufOut.writeInt(dataSizeReturned + utfPrefix_ * 4 + cfName.length() + cfType.length() + comparatorName.length() + subComparatorName.length() + 4 + 4 + 8 + 4);
+            // echo back the CF data we read
+            bufOut.writeUTF(cfName);
+            bufOut.writeUTF(cfType);
+            bufOut.writeUTF(comparatorName);
+            bufOut.writeUTF(subComparatorName);
+            bufOut.writeInt(localDeletionTime);
+            bufOut.writeLong(markedForDeleteAt);
+            /* write number of columns */
+            bufOut.writeInt(numColsReturned);
+            int prevPosition = 0;
+            /* now write all the columns we are required to write */
+            for (IndexHelper.ColumnRange columnRange : columnRanges)
             {
-                /* Read the bloom filter summarizing the columns */
-                long preBfPos = file_.getFilePointer();
-                BloomFilter bf = defreezeBloomFilter();
-                long postBfPos = file_.getFilePointer();
-                dataSize -= (postBfPos - preBfPos);
-
-                List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-                /* read the column name indexes if present */
-                int totalBytesRead = handleColumnNameIndexes(columnFamilyName, columnIndexList);
-                dataSize -= totalBytesRead;
-
-                /* read the column family name */
-                String cfName = file_.readUTF();
-                dataSize -= (utfPrefix_ + cfName.length());
-
-                String cfType = file_.readUTF();
-                dataSize -= (utfPrefix_ + cfType.length());
-
-                String comparatorName = file_.readUTF();
-                dataSize -= (utfPrefix_ + comparatorName.length());
-
-                String subComparatorName = file_.readUTF();
-                dataSize -= (utfPrefix_ + subComparatorName.length());
-
-                /* read local deletion time */
-                int localDeletionTime = file_.readInt();
-                dataSize -=4;
-
-                /* read if this cf is marked for delete */
-                long markedForDeleteAt = file_.readLong();
-                dataSize -= 8;
-
-                /* read the total number of columns */
-                int totalNumCols = file_.readInt();
-                dataSize -= 4;
-
-                // TODO: this is name sorted - but eventually this should be sorted by the same criteria as the col index
-                /* get the various column ranges we have to read */
-                List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(cNames, columnIndexList, dataSize, totalNumCols);
-
-                /* calculate the data size */
-                int numColsReturned = 0;
-                int dataSizeReturned = 0;
-                for (IndexHelper.ColumnRange columnRange : columnRanges)
-                {
-                    numColsReturned += columnRange.count();
-                    Coordinate coordinate = columnRange.coordinate();
-                    dataSizeReturned += coordinate.end_ - coordinate.start_;
-                }
-
-                // returned data size
-                bufOut.writeInt(dataSizeReturned + utfPrefix_ * 4 + cfName.length() + cfType.length() + comparatorName.length() + subComparatorName.length() + 4 + 4 + 8 + 4);
-                // echo back the CF data we read
-                bufOut.writeUTF(cfName);
-                bufOut.writeUTF(cfType);
-                bufOut.writeUTF(comparatorName);
-                bufOut.writeUTF(subComparatorName);
-                bufOut.writeInt(localDeletionTime);
-                bufOut.writeLong(markedForDeleteAt);
-                /* write number of columns */
-                bufOut.writeInt(numColsReturned);
-                int prevPosition = 0;
-                /* now write all the columns we are required to write */
-                for (IndexHelper.ColumnRange columnRange : columnRanges)
-                {
-                    /* seek to the correct offset to the data */
-                    Coordinate coordinate = columnRange.coordinate();
-                    file_.skipBytes((int) (coordinate.start_ - prevPosition));
-                    bufOut.write(file_, (int) (coordinate.end_ - coordinate.start_));
-                    prevPosition = (int) coordinate.end_;
-                }
+                /* seek to the correct offset to the data */
+                Coordinate coordinate = columnRange.coordinate();
+                file_.skipBytes((int) (coordinate.start_ - prevPosition));
+                bufOut.write(file_, (int) (coordinate.end_ - coordinate.start_));
+                prevPosition = (int) coordinate.end_;
             }
         }
     }

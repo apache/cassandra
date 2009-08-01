@@ -25,6 +25,9 @@
     - changed `block` boolean on insert methods to ConsistencyLevel enum,
       with options of NONE, ONE, QUORUM, and ALL.
     - added similar consistency_level parameter to read methods
+    - column-name-set slice with no names given now returns zero columns
+      instead of all of them.  ("all" can run your server out of memory.
+      use a range-based slice with a high max column count instead.)
  * Removed the web interface. Node information can now be obtained by 
    using the newly introduced nodeprobe utility.
  * More JMX stats

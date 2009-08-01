@@ -31,6 +31,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.SSTableReader;
 
@@ -58,7 +59,37 @@ public class TableTest extends CleanupHelper
         Row row = table.get("35300190:1");
         assertNotNull(row);
     }
-    
+
+    @Test
+    public void testGetRowNoColumns() throws Throwable
+    {
+        final Table table = Table.open("Keyspace2");
+        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard3");
+
+        Runner setup = new Runner()
+        {
+            public void run() throws Exception
+            {
+                RowMutation rm = makeSimpleRowMutation();
+                rm.apply();
+            }
+        };
+        Runner verify = new Runner()
+        {
+            public void run() throws Exception
+            {
+                ColumnFamily cf;
+
+                cf = cfStore.getColumnFamily(new NamesQueryFilter(TEST_KEY, new QueryPath("Standard3"), new TreeSet<byte[]>()));
+                assertColumns(cf);
+
+                cf = cfStore.getColumnFamily(new SliceQueryFilter(TEST_KEY, new QueryPath("Standard3"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 0));
+                assertColumns(cf);
+            }
+        };
+        reTest(setup, table.getColumnFamilyStore("Standard3"), verify);
+    }
+
     @Test
     public void testGetRowSingleColumn() throws Throwable
     {
@@ -88,7 +119,7 @@ public class TableTest extends CleanupHelper
         };
         reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
     }
-            
+
     @Test
     public void testGetRowSliceByRange() throws Throwable
     {
@@ -119,7 +150,7 @@ public class TableTest extends CleanupHelper
 
     private RowMutation makeSimpleRowMutation()
     {
-        RowMutation rm = new RowMutation("Keyspace1",TEST_KEY);
+        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
