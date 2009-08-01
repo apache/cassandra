@@ -166,19 +166,19 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         /**
          *   Build a list of index entries ready for search.
          */
-        private List<IndexHelper.ColumnIndexInfo> getFullColumnIndexList(List<IndexHelper.ColumnIndexInfo> columnIndexList, int totalNumCols)
+        private List<IndexHelper.ColumnIndexInfo> getFullColumnIndexList(List<IndexHelper.ColumnIndexInfo> columnIndexList, int totalColumns)
         {
             if (columnIndexList.size() == 0)
             {
                 /* if there is no column index, add an index entry that covers the full space. */
-                return Arrays.asList(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, totalNumCols, comparator_));
+                return Arrays.asList(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, totalColumns, comparator_));
             }
 
             List<IndexHelper.ColumnIndexInfo> fullColIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-            int accumulatededCols = 0;
+            int accumulatedColumns = 0;
             for (IndexHelper.ColumnIndexInfo colPosInfo : columnIndexList)
-                accumulatededCols += colPosInfo.count();
-            int remainingCols = totalNumCols - accumulatededCols;
+                accumulatedColumns += colPosInfo.count();
+            int remainingCols = totalColumns - accumulatedColumns;
 
             fullColIndexList.add(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, columnIndexList.get(0).count(), comparator_));
             for (int i = 0; i < columnIndexList.size() - 1; i++)

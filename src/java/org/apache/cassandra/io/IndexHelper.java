@@ -129,7 +129,7 @@ public class IndexHelper
     /**
      * Deserialize the index into a structure and return the number of bytes read.
      * @param tableName
-     *@param in Input from which the serialized form of the index is read
+     * @param in Input from which the serialized form of the index is read
      * @param columnIndexList the structure which is filled in with the deserialized index   @return number of bytes read from the input
      * @throws IOException
      */
@@ -245,7 +245,7 @@ public class IndexHelper
 	}
 
     /**
-         * Reads the column name indexes if present. If the
+     * Reads the column name indexes if present. If the
      * indexes are based on time then skip over them.
      */
     public static int readColumnIndexes(RandomAccessFile file, String tableName, String cfName, List<ColumnIndexInfo> columnIndexList) throws IOException
@@ -263,7 +263,7 @@ public class IndexHelper
     }
 
     /**
-         * Defreeze the bloom filter.
+     * Defreeze the bloom filter.
      *
      * @return bloom filter summarizing the column information
      * @throws java.io.IOException
@@ -308,10 +308,10 @@ public class IndexHelper
         }                
     }
 
-	/**
-	 * A helper class to generate indexes while
+    /**
+     * A helper class to generate indexes while
      * the columns are sorted by name on disk.
-	*/
+     */
     public static class ColumnIndexInfo implements Comparable<ColumnIndexInfo>
     {
         private long position_;
