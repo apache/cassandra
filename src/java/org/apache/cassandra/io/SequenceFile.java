@@ -287,35 +287,11 @@ public class SequenceFile
             /* note the position where the key starts */
             long startPosition = file_.getFilePointer();
             String keyInDisk = file_.readUTF();
-            if (keyInDisk != null)
-            {
-                /*
-                 * If key on disk is greater than requested key
-                 * we can bail out since we exploit the property
-                 * of the SSTable format.
-                */
-                if (keyInDisk.compareTo(key) > 0)
-                    return bytesRead;
+            assert keyInDisk.equals(key);
+            readColumns(key, bufOut, columnFamilyName, columnNames);
 
-                /*
-                 * If we found the key then we populate the buffer that
-                 * is passed in. If not then we skip over this key and
-                 * position ourselves to read the next one.
-                */
-                if (keyInDisk.equals(key))
-                {
-                    readColumns(key, bufOut, columnFamilyName, columnNames);
-                }
-                else
-                {
-                    /* skip over data portion */
-                    int dataSize = file_.readInt();
-                    file_.seek(dataSize + file_.getFilePointer());
-                }
-
-                long endPosition = file_.getFilePointer();
-                bytesRead = endPosition - startPosition;
-            }
+            long endPosition = file_.getFilePointer();
+            bytesRead = endPosition - startPosition;
 
             return bytesRead;
         }

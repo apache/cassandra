@@ -14,7 +14,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
 
-    // TODO make this actually iterate so we don't have to read + deserialize + filter data that we don't need due to merging other sstables
+    // TODO make this actually iterate so we don't have to read + deserialize + filter data that we don't need, only to skip it later in computeNext
     public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<byte[]> columns) throws IOException
     {
         this.columns = columns;
@@ -29,17 +29,15 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             dataReader = SequenceFile.bufferedReader(ssTable.getFilename(), 64 * 1024);
             String decoratedKey = ssTable.getPartitioner().decorateKey(key);
             long position = ssTable.getPosition(decoratedKey);
-
-            long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columns, position);
-            if (bytesRead != -1L)
+            if (position >= 0)
             {
-                if (bufOut.getLength() > 0)
-                {
-                    bufIn.reset(bufOut.getData(), bufOut.getLength());
-                    /* read the key even though we do not use it */
-                    bufIn.readUTF();
-                    bufIn.readInt();
-                }
+                long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columns, position);
+                assert bytesRead > 0;
+                assert bufOut.getLength() > 0;
+                bufIn.reset(bufOut.getData(), bufOut.getLength());
+                /* read the key even though we do not use it */
+                bufIn.readUTF();
+                bufIn.readInt();
             }
         }
         finally
@@ -50,10 +48,9 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             }
         }
 
-        DataInputBuffer buffer = bufIn;
-        if (buffer.getLength() > 0)
+        if (bufIn.getLength() > 0)
         {
-            cf = ColumnFamily.serializer().deserialize(buffer);
+            cf = ColumnFamily.serializer().deserialize(bufIn);
             iter = cf.getSortedColumns().iterator();
         }
     }
