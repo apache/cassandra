@@ -218,7 +218,7 @@ public class IndexHelper
 	 * @param totalNumCols the total number of columns
 	 * @return a list of subranges which contain all the columns in columnNames
 	 */
-	static List<ColumnRange> getMultiColumnRangesFromNameIndex(SortedSet<byte[]> columnNames, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
+	public static List<ColumnRange> getMultiColumnRangesFromNameIndex(SortedSet<byte[]> columnNames, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
 	{
 		List<ColumnRange> columnRanges = new ArrayList<ColumnRange>();
 
@@ -248,7 +248,7 @@ public class IndexHelper
          * Reads the column name indexes if present. If the
      * indexes are based on time then skip over them.
      */
-    static int readColumnIndexes(RandomAccessFile file, String tableName, String cfName, List<ColumnIndexInfo> columnIndexList) throws IOException
+    public static int readColumnIndexes(RandomAccessFile file, String tableName, String cfName, List<ColumnIndexInfo> columnIndexList) throws IOException
     {
         /* check if we have an index */
         boolean hasColumnIndexes = file.readBoolean();
@@ -268,7 +268,7 @@ public class IndexHelper
      * @return bloom filter summarizing the column information
      * @throws java.io.IOException
      */
-    static BloomFilter defreezeBloomFilter(RandomAccessFile file) throws IOException
+    public static BloomFilter defreezeBloomFilter(RandomAccessFile file) throws IOException
     {
         int size = file.readInt();
         byte[] bytes = new byte[size];
@@ -297,12 +297,12 @@ public class IndexHelper
             columnCount_ = columnCount;
         }
         
-        Coordinate coordinate()
+        public Coordinate coordinate()
         {
             return coordinate_;
         }
         
-        int count()
+        public int count()
         {
             return columnCount_;
         }                

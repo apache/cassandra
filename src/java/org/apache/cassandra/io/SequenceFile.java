@@ -191,7 +191,6 @@ public class SequenceFile
 
     public static abstract class AbstractReader implements IFileReader
     {
-        private static final short utfPrefix_ = 2;
         protected RandomAccessFile file_;
         protected String filename_;
 
@@ -209,89 +208,6 @@ public class SequenceFile
         {
             return filename_;
         }
-
-        /**
-         * This method dumps the next key/value into the DataOuputStream
-         * passed in. Always use this method to query for application
-         * specific data as it will have indexes.
-         *
-         * @param key       key we are interested in.
-         * @param bufOut    DataOutputStream that needs to be filled.
-         * @param columnFamilyName name of the columnFamily
-         * @param columnNames columnNames we are interested in
-         */
-        public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<byte[]> columnNames, long position) throws IOException
-        {
-            assert columnNames != null;
-            seek(position);
-
-            /* note the position where the key starts */
-            long startPosition = file_.getFilePointer();
-            String keyInDisk = file_.readUTF();
-            assert keyInDisk.equals(key);
-            int dataSize = file_.readInt();
-
-            /* write the key into buffer */
-            bufOut.writeUTF(key);
-
-            /* Read the bloom filter summarizing the columns */
-            long preBfPos = file_.getFilePointer();
-            IndexHelper.defreezeBloomFilter(file_);
-            long postBfPos = file_.getFilePointer();
-            dataSize -= (postBfPos - preBfPos);
-
-            List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-            dataSize -= IndexHelper.readColumnIndexes(file_, getTableName(), columnFamilyName, columnIndexList);
-
-            // read CF data so we can echo it back to the outstream
-            String cfName = file_.readUTF();
-            String cfType = file_.readUTF();
-            String comparatorName = file_.readUTF();
-            String subComparatorName = file_.readUTF();
-            int localDeletionTime = file_.readInt();
-            long markedForDeleteAt = file_.readLong();
-            int totalColumns = file_.readInt();
-            dataSize -= (4 * utfPrefix_ + cfName.length() + cfType.length() + comparatorName.length() + subComparatorName.length() + 4 + 8 + 4);
-
-            /* get the various column ranges we have to read */
-            List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(columnNames, columnIndexList, dataSize, totalColumns);
-
-            /* calculate the data size */
-            int numColsReturned = 0;
-            int dataSizeReturned = 0;
-            for (IndexHelper.ColumnRange columnRange : columnRanges)
-            {
-                numColsReturned += columnRange.count();
-                Coordinate coordinate = columnRange.coordinate();
-                dataSizeReturned += coordinate.end_ - coordinate.start_;
-            }
-
-            // returned data size
-            bufOut.writeInt(dataSizeReturned + utfPrefix_ * 4 + cfName.length() + cfType.length() + comparatorName.length() + subComparatorName.length() + 4 + 8 + 4);
-            // echo back the CF data we read
-            bufOut.writeUTF(cfName);
-            bufOut.writeUTF(cfType);
-            bufOut.writeUTF(comparatorName);
-            bufOut.writeUTF(subComparatorName);
-            bufOut.writeInt(localDeletionTime);
-            bufOut.writeLong(markedForDeleteAt);
-            /* write number of columns */
-            bufOut.writeInt(numColsReturned);
-            int prevPosition = 0;
-            /* now write all the columns we are required to write */
-            for (IndexHelper.ColumnRange columnRange : columnRanges)
-            {
-                /* seek to the correct offset to the data */
-                Coordinate coordinate = columnRange.coordinate();
-                file_.skipBytes((int) (coordinate.start_ - prevPosition));
-                bufOut.write(file_, (int) (coordinate.end_ - coordinate.start_));
-                prevPosition = (int) coordinate.end_;
-            }
-
-            long endPosition = file_.getFilePointer();
-            return endPosition - startPosition;
-        }
-
     }
 
     public static class Reader extends AbstractReader

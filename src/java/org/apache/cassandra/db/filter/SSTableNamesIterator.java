@@ -3,6 +3,8 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.SortedSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.ArrayList;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
@@ -14,45 +16,71 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
 
-    // TODO make this actually iterate so we don't have to read + deserialize + filter data that we don't need, only to skip it later in computeNext
     public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<byte[]> columns) throws IOException
     {
+        assert columns != null;
         this.columns = columns;
         SSTableReader ssTable = SSTableReader.open(filename);
 
-        IFileReader dataReader = null;
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        DataInputBuffer bufIn = new DataInputBuffer();
+        String decoratedKey = ssTable.getPartitioner().decorateKey(key);
+        long position = ssTable.getPosition(decoratedKey);
+        if (position < 0)
+            return;
 
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(filename, "r");
         try
         {
-            dataReader = SequenceFile.bufferedReader(ssTable.getFilename(), 64 * 1024);
-            String decoratedKey = ssTable.getPartitioner().decorateKey(key);
-            long position = ssTable.getPosition(decoratedKey);
-            if (position >= 0)
+            file.seek(position);
+
+            /* note the position where the key starts */
+            String keyInDisk = file.readUTF();
+            assert keyInDisk.equals(decoratedKey) : keyInDisk;
+            int dataSize = file.readInt();
+
+            /* Read the bloom filter summarizing the columns */
+            long preBfPos = file.getFilePointer();
+            IndexHelper.defreezeBloomFilter(file);
+            long postBfPos = file.getFilePointer();
+            dataSize -= (postBfPos - preBfPos);
+
+            List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
+            dataSize -= IndexHelper.readColumnIndexes(file, ssTable.getTableName(), cfName, columnIndexList);
+
+            cf = ColumnFamily.serializer().deserializeEmpty(file);
+            int totalColumns = file.readInt();
+            dataSize -= cf.serializedSize();
+
+            /* get the various column ranges we have to read */
+            List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(columns, columnIndexList, dataSize, totalColumns);
+
+            int prevPosition = 0;
+            /* now read all the columns from the ranges */
+            for (IndexHelper.ColumnRange columnRange : columnRanges)
             {
-                long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columns, position);
-                assert bytesRead > 0;
-                assert bufOut.getLength() > 0;
-                bufIn.reset(bufOut.getData(), bufOut.getLength());
-                /* read the key even though we do not use it */
-                bufIn.readUTF();
-                bufIn.readInt();
+                /* seek to the correct offset to the data */
+                long columnBegin = file.getFilePointer();
+                Coordinate coordinate = columnRange.coordinate();
+                file.skipBytes((int)(coordinate.start_ - prevPosition));
+                // read the columns in this range
+                // TODO only completely deserialize columns we are interested in
+                while (file.getFilePointer() - columnBegin < coordinate.end_ - coordinate.start_)
+                {
+                    final IColumn column = cf.getColumnSerializer().deserialize(file);
+                    if (columns.contains(column.name()))
+                    {
+                        cf.addColumn(column);
+                    }
+                }
+
+                prevPosition = (int) coordinate.end_;
             }
         }
         finally
         {
-            if (dataReader != null)
-            {
-                dataReader.close();
-            }
+            file.close();
         }
 
-        if (bufIn.getLength() > 0)
-        {
-            cf = ColumnFamily.serializer().deserialize(bufIn);
-            iter = cf.getSortedColumns().iterator();
-        }
+        iter = cf.getSortedColumns().iterator();
     }
 
     public ColumnFamily getColumnFamily()
@@ -62,14 +90,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 
     protected IColumn computeNext()
     {
-        if (iter == null)
+        if (iter == null || !iter.hasNext())
             return endOfData();
-        while (iter.hasNext())
-        {
-            IColumn c = iter.next();
-            if (columns.contains(c.name()))
-                return c;
-        }
-        return endOfData();
+        return iter.next();
     }
 }

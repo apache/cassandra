@@ -411,6 +411,27 @@ public final class ColumnFamily
         return type_;
     }
 
+    private String getComparatorName()
+    {
+        return getComparator().getClass().getCanonicalName();
+    }
+
+    private String getSubComparatorName()
+    {
+        AbstractType subcolumnComparator = getSubComparator();
+        return subcolumnComparator == null ? "" : subcolumnComparator.getClass().getCanonicalName();
+    }
+
+    public int serializedSize()
+    {
+        int subtotal = 4 * IColumn.UtfPrefix_ + name_.length() + type_.length() +  getComparatorName().length() + getSubComparatorName().length() + 4 + 8 + 4;
+        for (IColumn column : columns_.values())
+        {
+            subtotal += column.serializedSize();
+        }
+        return subtotal;
+    }
+
     /** merge all columnFamilies into a single instance, with only the newest versions of columns preserved. */
     static ColumnFamily resolve(List<ColumnFamily> columnFamilies)
     {
@@ -466,9 +487,8 @@ public final class ColumnFamily
 
             dos.writeUTF(columnFamily.name());
             dos.writeUTF(columnFamily.type_);
-            dos.writeUTF(columnFamily.getComparator().getClass().getCanonicalName());
-            AbstractType subcolumnComparator = columnFamily.getSubComparator();
-            dos.writeUTF(subcolumnComparator == null ? "" : subcolumnComparator.getClass().getCanonicalName());
+            dos.writeUTF(columnFamily.getComparatorName());
+            dos.writeUTF(columnFamily.getSubComparatorName());
             dos.writeInt(columnFamily.localDeletionTime);
             dos.writeLong(columnFamily.markedForDeleteAt);
 

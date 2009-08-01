@@ -36,19 +36,6 @@ public interface IFileReader
     public boolean isEOF() throws IOException;
 
     /**
-     * This method dumps the next key/value into the DataOuputStream
-     * passed in. Always use this method to query for application
-     * specific data as it will have indexes.
-     *
-     * @param key - key we are interested in.
-     * @param bufOut - DataOutputStream that needs to be filled.
-     * @param columnFamilyName The name of the column family only without the ":"
-     * @param columnNames - The list of columns in the cfName column family
-     * 					     that we want to return
-    */
-    public long next(String key, DataOutputBuffer bufOut, String columnFamilyName, SortedSet<byte[]> columnNames, long position) throws IOException;
-
-    /**
      * Close the file after reading.
      * @throws IOException
      */
