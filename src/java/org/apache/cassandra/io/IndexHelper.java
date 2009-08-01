@@ -18,15 +18,13 @@
 
 package org.apache.cassandra.io;
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.BloomFilter;
 
 
 /**
@@ -245,6 +243,40 @@ public class IndexHelper
 
         return columnRanges;
 	}
+
+    /**
+         * Reads the column name indexes if present. If the
+     * indexes are based on time then skip over them.
+     */
+    static int readColumnIndexes(RandomAccessFile file, String tableName, String cfName, List<ColumnIndexInfo> columnIndexList) throws IOException
+    {
+        /* check if we have an index */
+        boolean hasColumnIndexes = file.readBoolean();
+        int totalBytesRead = 1;
+        /* if we do then deserialize the index */
+        if (hasColumnIndexes)
+        {
+            /* read the index */
+            totalBytesRead += deserializeIndex(tableName, cfName, file, columnIndexList);
+        }
+        return totalBytesRead;
+    }
+
+    /**
+         * Defreeze the bloom filter.
+     *
+     * @return bloom filter summarizing the column information
+     * @throws java.io.IOException
+     */
+    static BloomFilter defreezeBloomFilter(RandomAccessFile file) throws IOException
+    {
+        int size = file.readInt();
+        byte[] bytes = new byte[size];
+        file.readFully(bytes);
+        DataInputBuffer bufIn = new DataInputBuffer();
+        bufIn.reset(bytes, bytes.length);
+        return BloomFilter.serializer().deserialize(bufIn);
+    }
 
 
     /**
