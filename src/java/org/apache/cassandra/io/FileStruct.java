@@ -19,11 +19,8 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
-import java.io.DataInput;
 import java.util.Iterator;
 
-import org.apache.cassandra.io.IFileReader;
-import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 

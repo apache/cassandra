@@ -67,7 +67,7 @@ public abstract class SSTable
         return dataFile;
     }
 
-    static String parseTableName(String filename)
+    public static String parseTableName(String filename)
     {
         return new File(filename).getParentFile().getName();        
     }

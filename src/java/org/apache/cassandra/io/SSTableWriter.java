@@ -26,7 +26,7 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
-        dataWriter = SequenceFile.bufferedWriter(dataFile, 4 * 1024 * 1024);
+        dataWriter = new AbstractWriter.BufferWriter(dataFile, 4 * 1024 * 1024);
         indexRAF = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
         bf = new BloomFilter(keyCount, 15);
     }

@@ -133,7 +133,7 @@ public class IndexHelper
      * @param columnIndexList the structure which is filled in with the deserialized index   @return number of bytes read from the input
      * @throws IOException
      */
-	static int deserializeIndex(String tableName, String cfName, DataInput in, List<ColumnIndexInfo> columnIndexList) throws IOException
+	public static int deserializeIndex(String tableName, String cfName, DataInput in, List<ColumnIndexInfo> columnIndexList) throws IOException
 	{
 		/* read only the column index list */
 		int columnIndexSize = in.readInt();
@@ -343,7 +343,7 @@ public class IndexHelper
             position_ = position;
         }
         
-        int count()
+        public int count()
         {
             return columnCount_;
         }
