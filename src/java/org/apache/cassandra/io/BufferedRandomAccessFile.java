@@ -42,6 +42,8 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     static final int LogBuffSz_ = 16; // 64K buffer
     public static final int BuffSz_ = (1 << LogBuffSz_);
     static final long BuffMask_ = ~(((long) BuffSz_) - 1L);
+
+    private String path_;
     
     /*
      * This implementation is based on the buffer implementation in Modula-3's
@@ -54,59 +56,59 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
     private long maxHi_; // this.lo + this.buff.length
     private boolean hitEOF_; // buffer contains last file block?
     private long diskPos_; // disk position
-    
+
     /*
-     * To describe the above fields, we introduce the following abstractions for
-     * the file "f":
-     * 
-     * len(f) the length of the file curr(f) the current position in the file
-     * c(f) the abstract contents of the file disk(f) the contents of f's
-     * backing disk file closed(f) true iff the file is closed
-     * 
-     * "curr(f)" is an index in the closed interval [0, len(f)]. "c(f)" is a
-     * character sequence of length "len(f)". "c(f)" and "disk(f)" may differ if
-     * "c(f)" contains unflushed writes not reflected in "disk(f)". The flush
-     * operation has the effect of making "disk(f)" identical to "c(f)".
-     * 
-     * A file is said to be *valid* if the following conditions hold:
-     * 
-     * V1. The "closed" and "curr" fields are correct:
-     * 
-     * f.closed == closed(f) f.curr == curr(f)
-     * 
-     * V2. The current position is either contained in the buffer, or just past
-     * the buffer:
-     * 
-     * f.lo <= f.curr <= f.hi
-     * 
-     * V3. Any (possibly) unflushed characters are stored in "f.buff":
-     * 
-     * (forall i in [f.lo, f.curr): c(f)[i] == f.buff[i - f.lo])
-     * 
-     * V4. For all characters not covered by V3, c(f) and disk(f) agree:
-     * 
-     * (forall i in [f.lo, len(f)): i not in [f.lo, f.curr) => c(f)[i] ==
-     * disk(f)[i])
-     * 
-     * V5. "f.dirty" is true iff the buffer contains bytes that should be
-     * flushed to the file; by V3 and V4, only part of the buffer can be dirty.
-     * 
-     * f.dirty == (exists i in [f.lo, f.curr): c(f)[i] != f.buff[i - f.lo])
-     * 
-     * V6. this.maxHi == this.lo + this.buff.length
-     * 
-     * Note that "f.buff" can be "null" in a valid file, since the range of
-     * characters in V3 is empty when "f.lo == f.curr".
-     * 
-     * A file is said to be *ready* if the buffer contains the current position,
-     * i.e., when:
-     * 
-     * R1. !f.closed && f.buff != null && f.lo <= f.curr && f.curr < f.hi
-     * 
-     * When a file is ready, reading or writing a single byte can be performed
-     * by reading or writing the in-memory buffer without performing a disk
-     * operation.
-     */
+    * To describe the above fields, we introduce the following abstractions for
+    * the file "f":
+    *
+    * len(f) the length of the file curr(f) the current position in the file
+    * c(f) the abstract contents of the file disk(f) the contents of f's
+    * backing disk file closed(f) true iff the file is closed
+    *
+    * "curr(f)" is an index in the closed interval [0, len(f)]. "c(f)" is a
+    * character sequence of length "len(f)". "c(f)" and "disk(f)" may differ if
+    * "c(f)" contains unflushed writes not reflected in "disk(f)". The flush
+    * operation has the effect of making "disk(f)" identical to "c(f)".
+    *
+    * A file is said to be *valid* if the following conditions hold:
+    *
+    * V1. The "closed" and "curr" fields are correct:
+    *
+    * f.closed == closed(f) f.curr == curr(f)
+    *
+    * V2. The current position is either contained in the buffer, or just past
+    * the buffer:
+    *
+    * f.lo <= f.curr <= f.hi
+    *
+    * V3. Any (possibly) unflushed characters are stored in "f.buff":
+    *
+    * (forall i in [f.lo, f.curr): c(f)[i] == f.buff[i - f.lo])
+    *
+    * V4. For all characters not covered by V3, c(f) and disk(f) agree:
+    *
+    * (forall i in [f.lo, len(f)): i not in [f.lo, f.curr) => c(f)[i] ==
+    * disk(f)[i])
+    *
+    * V5. "f.dirty" is true iff the buffer contains bytes that should be
+    * flushed to the file; by V3 and V4, only part of the buffer can be dirty.
+    *
+    * f.dirty == (exists i in [f.lo, f.curr): c(f)[i] != f.buff[i - f.lo])
+    *
+    * V6. this.maxHi == this.lo + this.buff.length
+    *
+    * Note that "f.buff" can be "null" in a valid file, since the range of
+    * characters in V3 is empty when "f.lo == f.curr".
+    *
+    * A file is said to be *ready* if the buffer contains the current position,
+    * i.e., when:
+    *
+    * R1. !f.closed && f.buff != null && f.lo <= f.curr && f.curr < f.hi
+    *
+    * When a file is ready, reading or writing a single byte can be performed
+    * by reading or writing the in-memory buffer without performing a disk
+    * operation.
+    */
     
     /**
      * Open a new <code>BufferedRandomAccessFile</code> on <code>file</code>
@@ -115,13 +117,13 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
      */
     public BufferedRandomAccessFile(File file, String mode) throws IOException
     {
-        super(file, mode);
-        this.init(0);
+        this(file, mode, 0);
     }
     
     public BufferedRandomAccessFile(File file, String mode, int size) throws IOException
     {
         super(file, mode);
+        path_ = file.getAbsolutePath();
         this.init(size);
     }
     
@@ -132,13 +134,13 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
      */
     public BufferedRandomAccessFile(String name, String mode) throws IOException
     {
-        super(name, mode);
-        this.init(0);
+        this(name, mode, 0);
     }
     
     public BufferedRandomAccessFile(String name, String mode, int size) throws FileNotFoundException
     {
         super(name, mode);
+        path_ = name;
         this.init(size);
     }
     
@@ -151,7 +153,18 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
         this.hitEOF_ = false;
         this.diskPos_ = 0L;
     }
-    
+
+    public String getPath()
+    {
+        return path_;
+    }
+
+    public void sync() throws IOException
+    {
+        flush();
+        getChannel().force(true);
+    }
+
     public void close() throws IOException
     {
         this.flush();

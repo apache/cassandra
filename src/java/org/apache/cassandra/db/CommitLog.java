@@ -126,9 +126,9 @@ public class CommitLog
         return Long.parseLong(entries[entries.length - 2]);
     }
 
-    private static AbstractWriter createWriter(String file) throws IOException
+    private static BufferedRandomAccessFile createWriter(String file) throws IOException
     {        
-        return SequenceFile.writer(file);
+        return new BufferedRandomAccessFile(file, "rw");
     }
 
     static CommitLog open() throws IOException
@@ -156,7 +156,7 @@ public class CommitLog
     private String logFile_;
     /* header for current commit log */
     private CommitLogHeader clHeader_;
-    private AbstractWriter logWriter_;
+    private BufferedRandomAccessFile logWriter_;
 
     /*
      * Generates a file name of the format CommitLog-<table>-<timestamp>.log in the
@@ -203,11 +203,11 @@ public class CommitLog
         return logFile_;
     }
     
-    private CommitLogHeader readCommitLogHeader(IFileReader logReader) throws IOException
+    private CommitLogHeader readCommitLogHeader(BufferedRandomAccessFile logReader) throws IOException
     {
         int size = (int)logReader.readLong();
         byte[] bytes = new byte[size];
-        logReader.readDirect(bytes);
+        logReader.read(bytes);
         ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
         return CommitLogHeader.serializer().deserialize(new DataInputStream(byteStream));
     }
@@ -217,7 +217,7 @@ public class CommitLog
     */
     private static void writeCommitLogHeader(String commitLogFileName, byte[] bytes) throws IOException
     {
-        AbstractWriter logWriter = CommitLog.createWriter(commitLogFileName);
+        RandomAccessFile logWriter = CommitLog.createWriter(commitLogFileName);
         writeCommitLogHeader(logWriter, bytes);
         logWriter.close();
     }
@@ -236,7 +236,7 @@ public class CommitLog
     /** writes header at the beginning of the file, then seeks back to current position */
     private void seekAndWriteCommitLogHeader(byte[] bytes) throws IOException
     {
-        long currentPos = logWriter_.getCurrentPosition();
+        long currentPos = logWriter_.getFilePointer();
         logWriter_.seek(0);
 
         writeCommitLogHeader(logWriter_, bytes);
@@ -244,10 +244,10 @@ public class CommitLog
         logWriter_.seek(currentPos);
     }
 
-    private static void writeCommitLogHeader(AbstractWriter logWriter, byte[] bytes) throws IOException
+    private static void writeCommitLogHeader(RandomAccessFile logWriter, byte[] bytes) throws IOException
     {
         logWriter.writeLong(bytes.length);
-        logWriter.writeDirect(bytes);
+        logWriter.write(bytes);
     }
 
     void recover(File[] clogs) throws IOException
@@ -256,7 +256,7 @@ public class CommitLog
 
         for (File file : clogs)
         {
-            IFileReader reader = SequenceFile.reader(file.getAbsolutePath());
+            BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r");
             CommitLogHeader clHeader = readCommitLogHeader(reader);
             /* seek to the lowest position */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
@@ -272,13 +272,13 @@ public class CommitLog
             Set<Table> tablesRecovered = new HashSet<Table>();
 
             /* read the logs populate RowMutation and apply */
-            while ( !reader.isEOF() )
+            while (reader.getFilePointer() < reader.length())
             {
                 byte[] bytes;
                 try
                 {
-                    bytes = new byte[(int)reader.readLong()];
-                    reader.readDirect(bytes);
+                    bytes = new byte[(int) reader.readLong()];
+                    reader.read(bytes);
                 }
                 catch (EOFException e)
                 {
@@ -296,16 +296,18 @@ public class CommitLog
                 for (ColumnFamily columnFamily : columnFamilies)
                 {
                     /* TODO: Remove this to not process Hints */
-                    if ( !DatabaseDescriptor.isApplicationColumnFamily(columnFamily.name()) )
+                    if (!DatabaseDescriptor.isApplicationColumnFamily(columnFamily.name()))
                     {
                         row.removeColumnFamily(columnFamily);
                         continue;
                     }
                     int id = table.getColumnFamilyId(columnFamily.name());
-                    if ( !clHeader.isDirty(id) || reader.getCurrentPosition() < clHeader.getPosition(id) )
+                    if (!clHeader.isDirty(id) || reader.getFilePointer() < clHeader.getPosition(id))
+                    {
                         row.removeColumnFamily(columnFamily);
+                    }
                 }
-                if ( !row.isEmpty() )
+                if (!row.isEmpty())
                 {
                     table.applyNow(row);
                 }
@@ -331,7 +333,7 @@ public class CommitLog
             int id = table.getColumnFamilyId(columnFamily.name());
             if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
             {
-                clHeader_.turnOn(id, logWriter_.getCurrentPosition());
+                clHeader_.turnOn(id, logWriter_.getFilePointer());
                 seekAndWriteCommitLogHeader(clHeader_.toByteArray());
             }
         }
@@ -343,7 +345,7 @@ public class CommitLog
         {
             public CommitLogContext call() throws Exception
             {
-                return new CommitLogContext(logFile_, logWriter_.getCurrentPosition());
+                return new CommitLogContext(logFile_, logWriter_.getFilePointer());
             }
         };
         try
@@ -499,11 +501,11 @@ public class CommitLog
 
     private boolean maybeRollLog() throws IOException
     {
-        if (logWriter_.getFileSize() >= SEGMENT_SIZE)
+        if (logWriter_.length() >= SEGMENT_SIZE)
         {
             /* Rolls the current log file over to a new one. */
             setNextFileName();
-            String oldLogFile = logWriter_.getFileName();
+            String oldLogFile = logWriter_.getPath();
             logWriter_.close();
 
             /* point reader/writer to a new commit log file. */
@@ -542,12 +544,12 @@ public class CommitLog
             {
                 /* serialize the row */
                 Row.serializer().serialize(row, cfBuffer);
-                currentPosition = logWriter_.getCurrentPosition();
+                currentPosition = logWriter_.getFilePointer();
                 CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
                 /* Update the header */
                 maybeUpdateHeader(row);
                 logWriter_.writeLong(cfBuffer.getLength());
-                logWriter_.append(cfBuffer);
+                logWriter_.write(cfBuffer.getData(), 0, cfBuffer.getLength());
                 maybeRollLog();
                 return cLogCtx;
             }

@@ -292,7 +292,7 @@ public class SSTableReader extends SSTable
         IFileReader dataReader = null;
         try
         {
-            dataReader = SequenceFile.reader(dataFile);
+            dataReader = SequenceFile.bufferedReader(dataFile, 64 * 1024);
             String decoratedKey = partitioner.decorateKey(clientKey);
             long position = getPosition(decoratedKey, partitioner);
 
@@ -325,7 +325,7 @@ public class SSTableReader extends SSTable
      */
     public ColumnGroupReader getColumnGroupReader(String key, String cfName, byte[] startColumn, boolean isAscending) throws IOException
     {
-        IFileReader dataReader = SequenceFile.reader(dataFile);
+        IFileReader dataReader = SequenceFile.bufferedReader(dataFile, 64 * 1024);
 
         try
         {

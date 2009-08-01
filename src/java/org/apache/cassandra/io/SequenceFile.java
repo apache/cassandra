@@ -473,11 +473,6 @@ public class SequenceFile
             return file_.getFilePointer();
         }
 
-        public boolean isHealthyFileDescriptor() throws IOException
-        {
-            return file_.getFD().valid();
-        }
-
         public void seek(long position) throws IOException
         {
             file_.seek(position);
@@ -486,23 +481,6 @@ public class SequenceFile
         public boolean isEOF() throws IOException
         {
             return (getCurrentPosition() == getEOF());
-        }
-
-        /**
-         * Be extremely careful while using this API. This currently
-         * used to read the commit log header from the commit logs.
-         * Treat this as an internal API.
-         *
-         * @param bytes read from the buffer into the this array
-         */
-        public void readDirect(byte[] bytes) throws IOException
-        {
-            file_.readFully(bytes);
-        }
-
-        public long readLong() throws IOException
-        {
-            return file_.readLong();
         }
 
         public void close() throws IOException
@@ -531,19 +509,9 @@ public class SequenceFile
     public static final short utfPrefix_ = 2;
     public static final String marker_ = "Bloom-Filter";
 
-    public static AbstractWriter writer(String filename) throws IOException
-    {
-        return new AbstractWriter.Writer(filename);
-    }
-
     public static AbstractWriter bufferedWriter(String filename, int size) throws IOException
     {
         return new AbstractWriter.BufferWriter(filename, size);
-    }
-
-    public static IFileReader reader(String filename) throws IOException
-    {
-        return new Reader(filename);
     }
 
     public static IFileReader bufferedReader(String filename, int size) throws IOException

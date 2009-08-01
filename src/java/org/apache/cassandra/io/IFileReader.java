@@ -32,26 +32,9 @@ public interface IFileReader
     public String getFileName();
     public long getEOF() throws IOException;
     public long getCurrentPosition() throws IOException;
-    public boolean isHealthyFileDescriptor() throws IOException;
     public void seek(long position) throws IOException;
     public boolean isEOF() throws IOException;
 
-    /**
-     * Be extremely careful while using this API. This currently
-     * used to read the commit log header from the commit logs.
-     * Treat this as an internal API.
-     * 
-     * @param bytes read into this byte array.
-    */
-    public void readDirect(byte[] bytes) throws IOException;
-    
-    /**
-     * Read a long value from the underlying sub system.
-     * @return value read
-     * @throws IOException
-     */
-    public long readLong() throws IOException;
-        
     /**
      * This method dumps the next key/value into the DataOuputStream
      * passed in.
