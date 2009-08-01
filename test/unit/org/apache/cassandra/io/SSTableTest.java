@@ -25,7 +25,6 @@ import java.util.*;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.io.FileStruct;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 
 public class SSTableTest extends CleanupHelper
@@ -57,7 +56,7 @@ public class SSTableTest extends CleanupHelper
 
     private void verifySingle(SSTableReader sstable, byte[] bytes, String key) throws IOException
     {
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.dataFile, "r");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.path, "r");
         file.seek(sstable.getPosition(key));
         assert key.equals(file.readUTF());
         int size = file.readInt();
@@ -94,7 +93,7 @@ public class SSTableTest extends CleanupHelper
     {
         List<String> keys = new ArrayList<String>(map.keySet());
         Collections.shuffle(keys);
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.dataFile, "r");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.path, "r");
         for (String key : keys)
         {
             file.seek(sstable.getPosition(key));

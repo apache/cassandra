@@ -22,7 +22,7 @@ import org.apache.cassandra.utils.BloomFilter;
  */
 public abstract class SSTable
 {
-    protected String dataFile;
+    protected String path;
     protected IPartitioner partitioner;
     protected BloomFilter bf;
     protected List<KeyPosition> indexPositions;
@@ -34,7 +34,7 @@ public abstract class SSTable
     public SSTable(String filename, IPartitioner partitioner)
     {
         assert filename.endsWith("-Data.db");
-        this.dataFile = filename;
+        this.path = filename;
         this.partitioner = partitioner;
     }
 
@@ -47,7 +47,7 @@ public abstract class SSTable
 
     protected String indexFilename()
     {
-        return indexFilename(dataFile);
+        return indexFilename(path);
     }
 
     protected static String filterFilename(String dataFile)
@@ -59,12 +59,12 @@ public abstract class SSTable
 
     protected String filterFilename()
     {
-        return filterFilename(dataFile);
+        return filterFilename(path);
     }
 
     public String getFilename()
     {
-        return dataFile;
+        return path;
     }
 
     public static String parseTableName(String filename)

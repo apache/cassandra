@@ -215,7 +215,7 @@ public class SSTableReader extends SSTable
         }
 
         // TODO mmap the index file?
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataFile), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(path), "r");
         input.seek(start);
         int i = 0;
         try
@@ -258,7 +258,7 @@ public class SSTableReader extends SSTable
         {
             return 0;
         }
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(dataFile), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(path), "r");
         input.seek(start);
         try
         {
@@ -287,10 +287,10 @@ public class SSTableReader extends SSTable
 
     public void delete() throws IOException
     {
-        FileUtils.deleteWithConfirm(new File(dataFile));
-        FileUtils.deleteWithConfirm(new File(indexFilename(dataFile)));
-        FileUtils.deleteWithConfirm(new File(filterFilename(dataFile)));
-        openedFiles.remove(dataFile);
+        FileUtils.deleteWithConfirm(new File(path));
+        FileUtils.deleteWithConfirm(new File(indexFilename(path)));
+        FileUtils.deleteWithConfirm(new File(filterFilename(path)));
+        openedFiles.remove(path);
     }
 
     /** obviously only for testing */
@@ -305,7 +305,7 @@ public class SSTableReader extends SSTable
         openedFiles.clear();
         for (SSTableReader sstable : sstables)
         {
-            SSTableReader.open(sstable.dataFile, sstable.partitioner, 0.01);
+            SSTableReader.open(sstable.path, sstable.partitioner, 0.01);
         }
     }
 
@@ -321,7 +321,7 @@ public class SSTableReader extends SSTable
 
     public String getTableName()
     {
-        return parseTableName(dataFile);
+        return parseTableName(path);
     }
 
     public static void deleteAll() throws IOException

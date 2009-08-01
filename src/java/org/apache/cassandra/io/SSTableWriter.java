@@ -18,16 +18,16 @@ public class SSTableWriter extends SSTable
     private static Logger logger = Logger.getLogger(SSTableWriter.class);
 
     private long keysWritten;
-    private AbstractWriter dataWriter;
-    private BufferedRandomAccessFile indexRAF;
+    private BufferedRandomAccessFile dataFile;
+    private BufferedRandomAccessFile indexFile;
     private String lastWrittenKey;
     private BloomFilter bf;
 
     public SSTableWriter(String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
-        dataWriter = new AbstractWriter.BufferWriter(dataFile, 4 * 1024 * 1024);
-        indexRAF = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
+        dataFile = new BufferedRandomAccessFile(path, "rw", 4 * 1024 * 1024);
+        indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
         bf = new BloomFilter(keyCount, 15);
     }
 
@@ -42,19 +42,19 @@ public class SSTableWriter extends SSTable
         {
             logger.info("Last written key : " + lastWrittenKey);
             logger.info("Current key : " + decoratedKey);
-            logger.info("Writing into file " + dataFile);
+            logger.info("Writing into file " + path);
             throw new IOException("Keys must be written in ascending order.");
         }
-        return (lastWrittenKey == null) ? 0 : dataWriter.getCurrentPosition();
+        return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
     private void afterAppend(String decoratedKey, long position) throws IOException
     {
         bf.add(decoratedKey);
         lastWrittenKey = decoratedKey;
-        long indexPosition = indexRAF.getFilePointer();
-        indexRAF.writeUTF(decoratedKey);
-        indexRAF.writeLong(position);
+        long indexPosition = indexFile.getFilePointer();
+        indexFile.writeUTF(decoratedKey);
+        indexFile.writeLong(position);
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + position);
 
@@ -73,14 +73,19 @@ public class SSTableWriter extends SSTable
     public void append(String decoratedKey, DataOutputBuffer buffer) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        dataWriter.append(decoratedKey, buffer);
+        dataFile.writeUTF(decoratedKey);
+        int length = buffer.getLength();
+        dataFile.writeInt(length);
+        dataFile.write(buffer.getData(), 0, length);
         afterAppend(decoratedKey, currentPosition);
     }
 
     public void append(String decoratedKey, byte[] value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        dataWriter.append(decoratedKey, value);
+        dataFile.writeUTF(decoratedKey);
+        dataFile.writeInt(value.length);
+        dataFile.write(value);
         afterAppend(decoratedKey, currentPosition);
     }
 
@@ -105,20 +110,20 @@ public class SSTableWriter extends SSTable
         stream.close();
 
         // index
-        indexRAF.getChannel().force(true);
-        indexRAF.close();
+        indexFile.getChannel().force(true);
+        indexFile.close();
 
         // main data
-        dataWriter.close(); // calls force
+        dataFile.close(); // calls force
 
         rename(indexFilename());
         rename(filterFilename());
-        dataFile = rename(dataFile); // important to do this last since index & filter file names are derived from it
+        path = rename(path); // important to do this last since index & filter file names are derived from it
 
         ConcurrentLinkedHashMap<String,Long> keyCache = cacheFraction > 0
                                                         ? SSTableReader.createKeyCache((int) (cacheFraction * keysWritten))
                                                         : null;
-        return new SSTableReader(dataFile, partitioner, indexPositions, bf, keyCache);
+        return new SSTableReader(path, partitioner, indexPositions, bf, keyCache);
     }
 
 }
