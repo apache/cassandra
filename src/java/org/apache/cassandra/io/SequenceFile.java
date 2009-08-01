@@ -59,7 +59,7 @@ public class SequenceFile
         private int localDeletionTime_;
         private long markedForDeleteAt_;
 
-        ColumnGroupReader(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
+        public ColumnGroupReader(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
         {
             super(filename, 128 * 1024);
             this.cfName_ = cfName;

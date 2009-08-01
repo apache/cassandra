@@ -287,60 +287,6 @@ public class SSTableReader extends SSTable
         }
     }
 
-    public DataInputBuffer next(final String clientKey, String cfName, SortedSet<byte[]> columnNames) throws IOException
-    {
-        IFileReader dataReader = null;
-        try
-        {
-            dataReader = SequenceFile.bufferedReader(dataFile, 64 * 1024);
-            String decoratedKey = partitioner.decorateKey(clientKey);
-            long position = getPosition(decoratedKey, partitioner);
-
-            DataOutputBuffer bufOut = new DataOutputBuffer();
-            DataInputBuffer bufIn = new DataInputBuffer();
-            long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columnNames, position);
-            if (bytesRead != -1L)
-            {
-                if (bufOut.getLength() > 0)
-                {
-                    bufIn.reset(bufOut.getData(), bufOut.getLength());
-                    /* read the key even though we do not use it */
-                    bufIn.readUTF();
-                    bufIn.readInt();
-                }
-            }
-            return bufIn;
-        }
-        finally
-        {
-            if (dataReader != null)
-            {
-                dataReader.close();
-            }
-        }
-    }
-
-    /**
-     * obtain a BlockReader for the getColumnSlice call.
-     */
-    public ColumnGroupReader getColumnGroupReader(String key, String cfName, byte[] startColumn, boolean isAscending) throws IOException
-    {
-        IFileReader dataReader = SequenceFile.bufferedReader(dataFile, 64 * 1024);
-
-        try
-        {
-            /* Morph key into actual key based on the partition type. */
-            String decoratedKey = partitioner.decorateKey(key);
-            long position = getPosition(decoratedKey, partitioner);
-            AbstractType comparator = DatabaseDescriptor.getComparator(getTableName(), cfName);
-            return new ColumnGroupReader(dataFile, decoratedKey, cfName, comparator, startColumn, isAscending, position);
-        }
-        finally
-        {
-            dataReader.close();
-        }
-    }
-
     public void delete() throws IOException
     {
         FileUtils.deleteWithConfirm(new File(dataFile));
@@ -365,7 +311,7 @@ public class SSTableReader extends SSTable
         }
     }
 
-    IPartitioner getPartitioner()
+    public IPartitioner getPartitioner()
     {
         return partitioner;
     }

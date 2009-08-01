@@ -10,6 +10,7 @@ import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SequenceFile;
 import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.collect.AbstractIterator;
 
 /**
@@ -32,7 +33,12 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     {
         this.isAscending = isAscending;
         SSTableReader ssTable = SSTableReader.open(filename);
-        reader = ssTable.getColumnGroupReader(key, cfName, startColumn, isAscending);
+
+        /* Morph key into actual key based on the partition type. */
+        String decoratedKey = ssTable.getPartitioner().decorateKey(key);
+        long position = ssTable.getPosition(decoratedKey, ssTable.getPartitioner());
+        AbstractType comparator1 = DatabaseDescriptor.getComparator(ssTable.getTableName(), cfName);
+        reader = new SequenceFile.ColumnGroupReader(ssTable.getFilename(), decoratedKey, cfName, comparator1, startColumn, isAscending, position);
         this.comparator = comparator;
         this.startColumn = startColumn;
         curColumnIndex = isAscending ? 0 : -1;

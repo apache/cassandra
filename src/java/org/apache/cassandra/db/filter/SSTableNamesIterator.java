@@ -6,8 +6,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.*;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 {
@@ -20,7 +19,38 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
     {
         this.columns = columns;
         SSTableReader ssTable = SSTableReader.open(filename);
-        DataInputBuffer buffer = ssTable.next(key, cfName, columns);
+
+        IFileReader dataReader = null;
+        DataOutputBuffer bufOut = new DataOutputBuffer();
+        DataInputBuffer bufIn = new DataInputBuffer();
+
+        try
+        {
+            dataReader = SequenceFile.bufferedReader(ssTable.getFilename(), 64 * 1024);
+            String decoratedKey = ssTable.getPartitioner().decorateKey(key);
+            long position = ssTable.getPosition(decoratedKey, ssTable.getPartitioner());
+
+            long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columns, position);
+            if (bytesRead != -1L)
+            {
+                if (bufOut.getLength() > 0)
+                {
+                    bufIn.reset(bufOut.getData(), bufOut.getLength());
+                    /* read the key even though we do not use it */
+                    bufIn.readUTF();
+                    bufIn.readInt();
+                }
+            }
+        }
+        finally
+        {
+            if (dataReader != null)
+            {
+                dataReader.close();
+            }
+        }
+
+        DataInputBuffer buffer = bufIn;
         if (buffer.getLength() > 0)
         {
             cf = ColumnFamily.serializer().deserialize(buffer);
