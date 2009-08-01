@@ -417,37 +417,6 @@ public class SequenceFile
                 }
             }
         }
-
-        /**
-         * This method dumps the next key/value into the DataOuputStream
-         * passed in.
-         *
-         * @param bufOut DataOutputStream that needs to be filled.
-         * @return total number of bytes read/considered
-         */
-        public long next(DataOutputBuffer bufOut) throws IOException
-        {
-            long bytesRead = -1L;
-            if (isEOF())
-                return bytesRead;
-
-            long startPosition = file_.getFilePointer();
-            String key = file_.readUTF();
-            if (key != null)
-            {
-                /* write the key into buffer */
-                bufOut.writeUTF(key);
-                int dataSize = file_.readInt();
-                /* write data size into buffer */
-                bufOut.writeInt(dataSize);
-                /* write the data into buffer */
-                bufOut.write(file_, dataSize);
-                long endPosition = file_.getFilePointer();
-                bytesRead = endPosition - startPosition;
-            }
-
-            return bytesRead;
-        }
     }
 
     public static class Reader extends AbstractReader

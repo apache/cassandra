@@ -650,7 +650,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private PriorityQueue<FileStruct> initializePriorityQueue(List<String> files, List<Range> ranges, int minBufferSize)
+    private PriorityQueue<FileStruct> initializePriorityQueue(List<String> files, List<Range> ranges, int minBufferSize) throws IOException
     {
         PriorityQueue<FileStruct> pq = new PriorityQueue<FileStruct>();
         if (files.size() > 1 || (ranges != null && files.size() > 0))
@@ -659,31 +659,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             FileStruct fs = null;
             for (String file : files)
             {
-                try
+                fs = SSTableReader.get(file).getFileStruct();
+                fs.advance(true);
+                if (fs.isExhausted())
                 {
-                    fs = SSTableReader.get(file).getFileStruct();
-                    fs.advance();
-                    if (fs.isExhausted())
-                    {
-                        continue;
-                    }
-                    pq.add(fs);
+                    continue;
                 }
-                catch (Exception ex)
-                {
-                    logger_.warn("corrupt file?  or are you just blowing away data files manually out from under me?", ex);
-                    try
-                    {
-                        if (fs != null)
-                        {
-                            fs.close();
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        logger_.error("Unable to close file :" + file);
-                    }
-                }
+                pq.add(fs);
             }
         }
         return pq;
@@ -930,8 +912,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // If the compaction file path is null that means we have no space left for this compaction.
         if (rangeFileLocation == null)
         {
-            logger_.warn("Total bytes to be written for range compaction  ..."
-                         + expectedRangeFileSize + "   is greater than the safe limit of the disk space available.");
+            logger_.error("Total bytes to be written for range compaction  ..."
+                          + expectedRangeFileSize + "   is greater than the safe limit of the disk space available.");
             return result;
         }
         PriorityQueue<FileStruct> pq = initializePriorityQueue(files, ranges, ColumnFamilyStore.BUFSIZE);
@@ -975,41 +957,28 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     for (FileStruct filestruct : lfs)
                     {
-                        try
+                        // We want to add only 2 and resolve them right there in order to save on memory footprint
+                        if (columnFamilies.size() > 1)
                         {
-                            /* read the length although we don't need it */
-                            filestruct.getBufIn().readInt();
-                            // Skip the Index
-                            IndexHelper.skipBloomFilterAndIndex(filestruct.getBufIn());
-                            // We want to add only 2 and resolve them right there in order to save on memory footprint
-                            if (columnFamilies.size() > 1)
-                            {
-                                // Now merge the 2 column families
-                                merge(columnFamilies);
-                            }
-                            // deserialize into column families
-                            columnFamilies.add(ColumnFamily.serializer().deserialize(filestruct.getBufIn()));
+                            // Now merge the 2 column families
+                            merge(columnFamilies);
                         }
-                        catch (Exception ex)
-                        {
-                            logger_.warn(LogUtil.throwableToString(ex));
-                        }
+                        // deserialize into column families
+                        columnFamilies.add(filestruct.getColumnFamily());
                     }
                     // Now after merging all crap append to the sstable
                     columnFamily = resolveAndRemoveDeleted(columnFamilies);
                     columnFamilies.clear();
                     if (columnFamily != null)
                     {
-                        /* serialize the cf with column indexes */
                         ColumnFamily.serializerWithIndexes().serialize(columnFamily, bufOut);
                     }
                 }
                 else
                 {
+                    // TODO deserializing only to reserialize is dumb
                     FileStruct filestruct = lfs.get(0);
-                    /* read the length although we don't need it */
-                    int size = filestruct.getBufIn().readInt();
-                    bufOut.write(filestruct.getBufIn(), size);
+                    ColumnFamily.serializerWithIndexes().serialize(filestruct.getColumnFamily(), bufOut);
                 }
                 if (Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(lastkey), ranges))
                 {
@@ -1023,48 +992,30 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         String fname = new File(rangeFileLocation, mergedFileName).getAbsolutePath();
                         rangeWriter = new SSTableWriter(fname, expectedBloomFilterSize, StorageService.getPartitioner());
                     }
-                    try
-                    {
-                        rangeWriter.append(lastkey, bufOut);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger_.warn(LogUtil.throwableToString(ex));
-                    }
+                    rangeWriter.append(lastkey, bufOut);
                 }
                 totalkeysWritten++;
                 for (FileStruct filestruct : lfs)
                 {
-                    try
+                    filestruct.advance(true);
+                    if (filestruct.isExhausted())
                     {
-                        filestruct.advance();
+                        continue;
+                    }
+                    /* keep on looping until we find a key in the range */
+                    while (!Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(filestruct.getKey()), ranges))
+                    {
+                        filestruct.advance(true);
                         if (filestruct.isExhausted())
                         {
-                            continue;
+                            break;
                         }
-                        /* keep on looping until we find a key in the range */
-                        while (!Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(filestruct.getKey()), ranges))
-                        {
-                            filestruct.advance();
-                            if (filestruct.isExhausted())
-                            {
-                                break;
-                            }
-                        }
-                        if (!filestruct.isExhausted())
-                        {
-                            pq.add(filestruct);
-                        }
-                        totalkeysRead++;
                     }
-                    catch (Exception ex)
+                    if (!filestruct.isExhausted())
                     {
-                        // Ignore the exception as it might be a corrupted file
-                        // in any case we have read as far as possible from it
-                        // and it will be deleted after compaction.
-                        logger_.warn("corrupt sstable?", ex);
-                        filestruct.close();
+                        pq.add(filestruct);
                     }
+                    totalkeysRead++;
                 }
                 lfs.clear();
                 lastkey = null;
@@ -1094,11 +1045,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                           + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
         }
         return result;
-    }
-
-    private void doFill(BloomFilter bf, String decoratedKey)
-    {
-        bf.add(StorageService.getPartitioner().undecorateKey(decoratedKey));
     }
 
     /*
@@ -1176,40 +1122,27 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     for (FileStruct filestruct : lfs)
                     {
-                        try
+                        // We want to add only 2 and resolve them right there in order to save on memory footprint
+                        if (columnFamilies.size() > 1)
                         {
-                            /* read the length although we don't need it */
-                            filestruct.getBufIn().readInt();
-                            // Skip the Index
-                            IndexHelper.skipBloomFilterAndIndex(filestruct.getBufIn());
-                            // We want to add only 2 and resolve them right there in order to save on memory footprint
-                            if (columnFamilies.size() > 1)
-                            {
-                                merge(columnFamilies);
-                            }
-                            // deserialize into column families
-                            columnFamilies.add(ColumnFamily.serializer().deserialize(filestruct.getBufIn()));
+                            merge(columnFamilies);
                         }
-                        catch (Exception ex)
-                        {
-                            logger_.warn("error in filecompaction", ex);
-                        }
+                        // deserialize into column families
+                        columnFamilies.add(filestruct.getColumnFamily());
                     }
                     // Now after merging all crap append to the sstable
                     columnFamily = resolveAndRemoveDeleted(columnFamilies);
                     columnFamilies.clear();
                     if (columnFamily != null)
                     {
-                        /* serialize the cf with column indexes */
                         ColumnFamily.serializerWithIndexes().serialize(columnFamily, bufOut);
                     }
                 }
                 else
                 {
+                    // TODO deserializing only to reserialize is dumb
                     FileStruct filestruct = lfs.get(0);
-                    /* read the length although we don't need it */
-                    int size = filestruct.getBufIn().readInt();
-                    bufOut.write(filestruct.getBufIn(), size);
+                    ColumnFamily.serializerWithIndexes().serialize(filestruct.getColumnFamily(), bufOut);
                 }
 
                 if (writer == null)
@@ -1222,24 +1155,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 for (FileStruct filestruct : lfs)
                 {
-                    try
+                    filestruct.advance(true);
+                    if (filestruct.isExhausted())
                     {
-                        filestruct.advance();
-                        if (filestruct.isExhausted())
-                        {
-                            continue;
-                        }
-                        pq.add(filestruct);
-                        totalkeysRead++;
+                        continue;
                     }
-                    catch (Throwable ex)
-                    {
-                        // Ignore the exception as it might be a corrupted file
-                        // in any case we have read as far as possible from it
-                        // and it will be deleted after compaction.
-                        logger_.warn("corrupt sstable?", ex);
-                        filestruct.close();
-                    }
+                    pq.add(filestruct);
+                    totalkeysRead++;
                 }
                 lfs.clear();
                 lastkey = null;

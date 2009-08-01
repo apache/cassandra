@@ -272,7 +272,7 @@ public class CommitLog
             Set<Table> tablesRecovered = new HashSet<Table>();
 
             /* read the logs populate RowMutation and apply */
-            while (reader.getFilePointer() < reader.length())
+            while (!reader.isEOF())
             {
                 byte[] bytes;
                 try

@@ -39,13 +39,13 @@ public class OneCompactionTest
 
         Set<String> inserted = new HashSet<String>();
         for (int j = 0; j < insertsPerTable; j++) {
-            String key = "0";
+            String key = String.valueOf(j);
             RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();
-            assertEquals(table.getKeyRange(columnFamilyName, "", "", 10000).keys.size(), inserted.size());
+            assertEquals(inserted.size(), table.getKeyRange(columnFamilyName, "", "", 10000).keys.size());
         }
         Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2);
         ft.get();
@@ -62,6 +62,6 @@ public class OneCompactionTest
     @Test
     public void testCompaction2() throws IOException, ExecutionException, InterruptedException
     {
-        testCompaction("Standard2", 5);
+        testCompaction("Standard2", 2);
     }
 }

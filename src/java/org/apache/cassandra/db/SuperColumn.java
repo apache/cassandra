@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.Serializable;
+import java.io.*;
 import java.util.Collection;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +29,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
@@ -326,7 +324,7 @@ public final class SuperColumn implements IColumn
     }
 }
 
-class SuperColumnSerializer implements ICompactSerializer<IColumn>
+class SuperColumnSerializer implements ICompactSerializer2<IColumn>
 {
     private AbstractType comparator;
 
@@ -340,7 +338,7 @@ class SuperColumnSerializer implements ICompactSerializer<IColumn>
         return comparator;
     }
 
-    public void serialize(IColumn column, DataOutputStream dos) throws IOException
+    public void serialize(IColumn column, DataOutput dos) throws IOException
     {
     	SuperColumn superColumn = (SuperColumn)column;
         ColumnSerializer.writeName(column.name(), dos);
@@ -358,12 +356,11 @@ class SuperColumnSerializer implements ICompactSerializer<IColumn>
         }
     }
 
-    public IColumn deserialize(DataInputStream dis) throws IOException
+    public IColumn deserialize(DataInput dis) throws IOException
     {
         byte[] name = ColumnSerializer.readName(dis);
         SuperColumn superColumn = new SuperColumn(name, comparator);
         superColumn.markForDeleteAt(dis.readInt(), dis.readLong());
-        assert dis.available() > 0;
 
         /* read the number of columns */
         int size = dis.readInt();

@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.ICompactSerializer2;
 
 
 /*
@@ -33,9 +34,9 @@ import org.apache.cassandra.io.ICompactSerializer;
 
 public class CompactSerializerInvocationHandler<T> implements InvocationHandler
 {
-    private ICompactSerializer<T> serializer_;
+    private ICompactSerializer2<T> serializer_;
 
-    public CompactSerializerInvocationHandler(ICompactSerializer<T> serializer)
+    public CompactSerializerInvocationHandler(ICompactSerializer2<T> serializer)
     {
         serializer_ = serializer;
     }

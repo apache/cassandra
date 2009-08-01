@@ -165,6 +165,12 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
         getChannel().force(true);
     }
 
+    public boolean isEOF() throws IOException
+    {
+        assert getFilePointer() <= length();
+        return getFilePointer() == length();
+    }
+
     public void close() throws IOException
     {
         this.flush();

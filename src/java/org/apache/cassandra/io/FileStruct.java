@@ -19,12 +19,13 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
+import java.io.DataInput;
 import java.util.Iterator;
 
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.IFileReader;
 import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.ColumnFamily;
 
 import org.apache.log4j.Logger;
 import com.google.common.collect.AbstractIterator;
@@ -34,30 +35,26 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 {
     private static Logger logger = Logger.getLogger(FileStruct.class);
 
-    private String key = null; // decorated!
+    private IteratingRow row;
     private boolean exhausted = false;
-    private IFileReader reader;
-    private DataInputBuffer bufIn;
-    private DataOutputBuffer bufOut;
+    private BufferedRandomAccessFile file;
     private SSTableReader sstable;
     private FileStructIterator iterator;
 
     FileStruct(SSTableReader sstable) throws IOException
     {
-        this.reader = SequenceFile.bufferedReader(sstable.getFilename(), 1024 * 1024);
+        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", 1024 * 1024);
         this.sstable = sstable;
-        bufIn = new DataInputBuffer();
-        bufOut = new DataOutputBuffer();
     }
 
     public String getFileName()
     {
-        return reader.getFileName();
+        return file.getPath();
     }
 
     public void close() throws IOException
     {
-        reader.close();
+        file.close();
     }
 
     public boolean isExhausted()
@@ -65,20 +62,20 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
         return exhausted;
     }
 
-    public DataInputBuffer getBufIn()
-    {
-        return bufIn;
-    }
-
     public String getKey()
     {
-        return key;
+        return row.getKey();
+    }
+
+    public ColumnFamily getColumnFamily()
+    {
+        return row.getEmptyColumnFamily();
     }
 
     public int compareTo(FileStruct f)
     {
-        return sstable.getPartitioner().getDecoratedKeyComparator().compare(key, f.key);
-    }    
+        return sstable.getPartitioner().getDecoratedKeyComparator().compare(getKey(), f.getKey());
+    }
 
     public void seekTo(String seekKey)
     {
@@ -90,8 +87,8 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
                 exhausted = true;
                 return;
             }
-            reader.seek(position);
-            advance();
+            file.seek(position);
+            advance(false);
         }
         catch (IOException e)
         {
@@ -100,37 +97,40 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     }
 
     /*
-     * Read the next key from the data file, skipping block indexes.
+     * Read the next key from the data file.
      * Caller must check isExhausted after each call to see if further
      * reads are valid.
      * Do not mix with calls to the iterator interface (next/hasnext).
      * @deprecated -- prefer the iterator interface.
      */
-    public void advance() throws IOException
+    public void advance(boolean materialize) throws IOException
     {
+        // TODO r/m materialize option -- use iterableness!
         if (exhausted)
         {
             throw new IndexOutOfBoundsException();
         }
 
-        bufOut.reset();
-        if (reader.isEOF())
+        if (file.isEOF())
         {
-            reader.close();
+            file.close();
             exhausted = true;
             return;
         }
 
-        long bytesread = reader.next(bufOut);
-        if (bytesread == -1)
+        row = new IteratingRow(file);
+        if (materialize)
         {
-            reader.close();
-            exhausted = true;
-            return;
+            while (row.hasNext())
+            {
+                IColumn column = row.next();
+                row.getEmptyColumnFamily().addColumn(column);
+            }
         }
-
-        bufIn.reset(bufOut.getData(), bufOut.getLength());
-        key = bufIn.readUTF();
+        else
+        {
+            row.skipRemaining();
+        }
     }
 
     public boolean hasNext()
@@ -157,7 +157,7 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
     {
         public FileStructIterator()
         {
-            if (key == null)
+            if (row == null)
             {
                 if (!isExhausted())
                 {
@@ -170,7 +170,7 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
         {
             try
             {
-                advance();
+                advance(false);
             }
             catch (IOException e)
             {
@@ -184,7 +184,7 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
             {
                 return endOfData();
             }
-            String oldKey = key;
+            String oldKey = getKey();
             forward();
             return oldKey;
         }

@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Proxy;
 import java.util.Collection;
 import java.util.HashMap;
@@ -37,6 +35,8 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.BufferedRandomAccessFile;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -48,7 +48,7 @@ import org.apache.cassandra.db.marshal.LongType;
 public final class ColumnFamily
 {
     /* The column serializer for this Column Family. Create based on config. */
-    private static ICompactSerializer<ColumnFamily> serializer_;
+    private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();
     public static final short utfPrefix_ = 2;   
 
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
@@ -58,13 +58,12 @@ public final class ColumnFamily
 
     static
     {
-        serializer_ = new ColumnFamilySerializer();
         /* TODO: These are the various column types. Hard coded for now. */
         columnTypes_.put("Standard", "Standard");
         columnTypes_.put("Super", "Super");
     }
 
-    public static ICompactSerializer<ColumnFamily> serializer()
+    public static ColumnFamilySerializer serializer()
     {
         return serializer_;
     }
@@ -73,9 +72,9 @@ public final class ColumnFamily
      * This method returns the serializer whose methods are
      * preprocessed by a dynamic proxy.
     */
-    public static ICompactSerializer<ColumnFamily> serializerWithIndexes()
+    public static ICompactSerializer2<ColumnFamily> serializerWithIndexes()
     {
-        return (ICompactSerializer<ColumnFamily>)Proxy.newProxyInstance( ColumnFamily.class.getClassLoader(), new Class[]{ICompactSerializer.class}, new CompactSerializerInvocationHandler<ColumnFamily>(serializer_) );
+        return (ICompactSerializer2<ColumnFamily>)Proxy.newProxyInstance( ColumnFamily.class.getClassLoader(), new Class[]{ICompactSerializer2.class}, new CompactSerializerInvocationHandler<ColumnFamily>(serializer_) );
     }
 
     public static String getColumnType(String key)
@@ -95,7 +94,7 @@ public final class ColumnFamily
 
     private String name_;
 
-    private transient ICompactSerializer<IColumn> columnSerializer_;
+    private transient ICompactSerializer2<IColumn> columnSerializer_;
     private long markedForDeleteAt = Long.MIN_VALUE;
     private int localDeletionTime = Integer.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
@@ -146,7 +145,7 @@ public final class ColumnFamily
         }
     }
 
-    public ICompactSerializer<IColumn> getColumnSerializer()
+    public ICompactSerializer2<IColumn> getColumnSerializer()
     {
     	return columnSerializer_;
     }
@@ -433,7 +432,7 @@ public final class ColumnFamily
         return cf;
     }
 
-    public static class ColumnFamilySerializer implements ICompactSerializer<ColumnFamily>
+    public static class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
         /*
          * We are going to create indexes, and write out that information as well. The format
@@ -459,7 +458,7 @@ public final class ColumnFamily
          * 	<total number of columns>
          * 	<columns data>
         */
-        public void serialize(ColumnFamily columnFamily, DataOutputStream dos) throws IOException
+        public void serialize(ColumnFamily columnFamily, DataOutput dos) throws IOException
         {
             // TODO whenever we change this we need to change the code in SequenceFile to match in two places.
             // This SUCKS and is inefficient to boot.  let's fix this ASAP. 
@@ -480,13 +479,9 @@ public final class ColumnFamily
             }
         }
 
-        public ColumnFamily deserialize(DataInputStream dis) throws IOException
+        public ColumnFamily deserialize(DataInput dis) throws IOException
         {
-            ColumnFamily cf = new ColumnFamily(dis.readUTF(),
-                                               dis.readUTF(),
-                                               readComparator(dis),
-                                               readComparator(dis));
-            cf.delete(dis.readInt(), dis.readLong());
+            ColumnFamily cf = deserializeEmpty(dis);
             int size = dis.readInt();
             IColumn column;
             for (int i = 0; i < size; ++i)
@@ -497,7 +492,7 @@ public final class ColumnFamily
             return cf;
         }
 
-        private AbstractType readComparator(DataInputStream dis) throws IOException
+        private AbstractType readComparator(DataInput dis) throws IOException
         {
             String className = dis.readUTF();
             if (className.equals(""))
@@ -517,6 +512,16 @@ public final class ColumnFamily
             {
                 throw new RuntimeException(e);
             }
+        }
+
+        public ColumnFamily deserializeEmpty(DataInput input) throws IOException
+        {
+            ColumnFamily cf = new ColumnFamily(input.readUTF(),
+                                               input.readUTF(),
+                                               readComparator(input),
+                                               readComparator(input));
+            cf.delete(input.readInt(), input.readLong());
+            return cf;
         }
     }
 }

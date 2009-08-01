@@ -3,9 +3,10 @@ package org.apache.cassandra.db;
 import java.io.*;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class ColumnSerializer implements ICompactSerializer<IColumn>
+public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
     public static void writeName(byte[] name, DataOutput out) throws IOException
     {
@@ -26,7 +27,7 @@ public class ColumnSerializer implements ICompactSerializer<IColumn>
         return bytes;
     }
 
-    public void serialize(IColumn column, DataOutputStream dos) throws IOException
+    public void serialize(IColumn column, DataOutput dos) throws IOException
     {
         ColumnSerializer.writeName(column.name(), dos);
         dos.writeBoolean(column.isMarkedForDelete());
@@ -34,7 +35,7 @@ public class ColumnSerializer implements ICompactSerializer<IColumn>
         FBUtilities.writeByteArray(column.value(), dos);
     }
 
-    public Column deserialize(DataInputStream dis) throws IOException
+    public Column deserialize(DataInput dis) throws IOException
     {
         byte[] name = ColumnSerializer.readName(dis);
         boolean delete = dis.readBoolean();

@@ -36,7 +36,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         /* Morph key into actual key based on the partition type. */
         String decoratedKey = ssTable.getPartitioner().decorateKey(key);
-        long position = ssTable.getPosition(decoratedKey, ssTable.getPartitioner());
+        long position = ssTable.getPosition(decoratedKey);
         AbstractType comparator1 = DatabaseDescriptor.getComparator(ssTable.getTableName(), cfName);
         reader = new SequenceFile.ColumnGroupReader(ssTable.getFilename(), decoratedKey, cfName, comparator1, startColumn, isAscending, position);
         this.comparator = comparator;

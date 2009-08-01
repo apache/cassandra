@@ -385,7 +385,10 @@ public class FBUtilities
     {
         int length = in.readInt();
         byte[] bytes = new byte[length];
-        in.readFully(bytes);
+        if (length > 0)
+        {
+            in.readFully(bytes);
+        }
         return bytes;
     }
 }

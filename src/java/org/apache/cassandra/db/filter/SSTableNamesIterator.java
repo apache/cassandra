@@ -28,7 +28,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         {
             dataReader = SequenceFile.bufferedReader(ssTable.getFilename(), 64 * 1024);
             String decoratedKey = ssTable.getPartitioner().decorateKey(key);
-            long position = ssTable.getPosition(decoratedKey, ssTable.getPartitioner());
+            long position = ssTable.getPosition(decoratedKey);
 
             long bytesRead = dataReader.next(decoratedKey, bufOut, cfName, columns, position);
             if (bytesRead != -1L)

@@ -198,7 +198,7 @@ public class SSTableReader extends SSTable
     /**
      * returns the position in the data file to find the given key, or -1 if the key is not present
      */
-    public long getPosition(String decoratedKey, IPartitioner partitioner) throws IOException
+    public long getPosition(String decoratedKey) throws IOException
     {
         if (!bf.isPresent(decoratedKey))
             return -1;

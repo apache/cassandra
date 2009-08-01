@@ -37,16 +37,6 @@ public interface IFileReader
 
     /**
      * This method dumps the next key/value into the DataOuputStream
-     * passed in.
-     *
-     * @param bufOut DataOutputStream that needs to be filled.
-     * @return number of bytes read.
-     * @throws IOException 
-    */
-    public long next(DataOutputBuffer bufOut) throws IOException;
-
-    /**
-     * This method dumps the next key/value into the DataOuputStream
      * passed in. Always use this method to query for application
      * specific data as it will have indexes.
      *
