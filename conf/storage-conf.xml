@@ -54,13 +54,20 @@
                  The CompareWith attribute tells Cassandra how to sort the columns
                  for slicing operations.  For backwards compatibility, the default 
                  is to use AsciiType, which is probably NOT what you want.
-                 Other options are BytesType, UTF8Type, UUIDType, and LongType.
+                 Other options are BytesType, UTF8Type, LexicalUUIDType, TimeUUIDType, and LongType.
                  You can also specify the fully-qualified class name to a class
                  of your choice implementing org.apache.cassandra.db.marshal.IType.
 
                  SuperColumns have a similar CompareSubcolumnsWith attribute.
 
-                 (So to get the closest approximation to 0.3-style supercolumns,
+                 ByteType: simple sort by byte value.  No validation is performed.
+                 AsciiType: like BytesType, but validates that the input can be parsed as US-ASCII.
+                 UTF8Type: A string encoded as UTF8
+                 LongType: A 64bit long
+                 LexicalUUIDType: a 128bit UUID, compared lexically (by byte value)
+                 TimeUUIDType: a 128bit version 1 UUID, compared by timestamp
+
+                 (To get the closest approximation to 0.3-style supercolumns,
                  you would use CompareWith=UTF8Type CompareSubcolumnsWith=LongType.)
 
                  if FlushPeriodInMinutes is configured and positive, it will be

@@ -23,6 +23,10 @@ public class LongType extends AbstractType
 
     public String getString(byte[] bytes)
     {
+        if (bytes.length != 8)
+        {
+            throw new MarshalException("A long is exactly 8 bytes");
+        }
         return String.valueOf(ByteBuffer.wrap(bytes).getLong());
     }
 }

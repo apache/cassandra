@@ -3,9 +3,9 @@ package org.apache.cassandra.db.marshal;
 import java.util.UUID;
 import java.nio.ByteBuffer;
 
-public class UUIDType extends AbstractType
+public class LexicalUUIDType extends AbstractType
 {
-    private UUID getUUID(byte[] bytes)
+    static UUID getUUID(byte[] bytes)
     {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         return new UUID(bb.getLong(), bb.getLong());
@@ -27,6 +27,10 @@ public class UUIDType extends AbstractType
 
     public String getString(byte[] bytes)
     {
+        if (bytes.length != 16)
+        {
+            throw new MarshalException("UUIDs must be exactly 16 bytes");
+        }
         return getUUID(bytes).toString();
     }
 }
