@@ -68,7 +68,7 @@ class ContentStreamState extends StartState
     {        
         SocketChannel socketChannel = stream_.getStream();
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        String remoteHost = remoteAddress.getHostName();  
+        String remoteHostIp = remoteAddress.getAddress().getHostAddress();
         createFileChannel();
         if ( streamContext_ != null )
         {  
@@ -82,7 +82,7 @@ class ContentStreamState extends StartState
             {
                 /* Ask the source node to re-stream this file. */
                 streamStatus_.setAction(StreamContextManager.StreamCompletionAction.STREAM);                
-                handleStreamCompletion(remoteHost);
+                handleStreamCompletion(remoteHostIp);
                 /* Delete the orphaned file. */
                 File file = new File(streamContext_.getTargetFile());
                 file.delete();
@@ -92,7 +92,7 @@ class ContentStreamState extends StartState
             {       
                 if (logger_.isDebugEnabled())
                     logger_.debug("Removing stream context " + streamContext_);                 
-                handleStreamCompletion(remoteHost);                              
+                handleStreamCompletion(remoteHostIp);                              
                 bytesRead_ = 0L;
                 fc_.close();
                 morphState();

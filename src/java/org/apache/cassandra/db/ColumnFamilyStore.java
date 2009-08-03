@@ -344,9 +344,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     String getNextFileName()
     {
-        // Psuedo increment so that we do not generate consecutive numbers
+        // increment twice so that we do not generate consecutive numbers
         fileIndexGenerator_.incrementAndGet();
-        return table_ + "-" + columnFamily_ + "-" + fileIndexGenerator_.incrementAndGet();
+        return String.format("%s-%s-Data.db", columnFamily_, fileIndexGenerator_.incrementAndGet());
     }
 
     /*
@@ -1033,8 +1033,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rangeWriter.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
             if (fileList != null)
             {
+                fileList.add(rangeWriter.indexFilename());
+                fileList.add(rangeWriter.filterFilename());
                 fileList.add(rangeWriter.getFilename());
             }
+            result = true;
         }
 
         if (logger_.isDebugEnabled())

@@ -469,7 +469,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                         }
                         
                         /* Deserialize and handle the message */
-                        MessagingService.getDeserilizationExecutor().submit( new MessageDeserializationTask(pH.serializerType_, bytes) );                                                  
+                        MessagingService.getDeserializationExecutor().submit( new MessageDeserializationTask(pH.serializerType_, bytes) );                                                  
                         tcpReader_.resetState();
                     }
                     else
@@ -490,7 +490,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             }
             finally
             {
-                turnOnInterestOps(key_, SelectionKey.OP_READ);
+                if (key_.isValid()) //not valid if closeSocket has been called above
+                    turnOnInterestOps(key_, SelectionKey.OP_READ);
             }
         }
         

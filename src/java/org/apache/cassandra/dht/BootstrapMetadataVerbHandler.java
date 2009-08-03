@@ -125,8 +125,9 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
               logger_.debug("Forcing compaction ...");
             /* Get the counting bloom filter for each endpoint and the list of files that need to be streamed */
             List<String> fileList = new ArrayList<String>();
-            boolean bVal = table.forceCompaction(ranges, target, fileList);                
+            table.forceCompaction(ranges, target, fileList);
             doHandoff(target, fileList, tName);
+            //In Handoff, Streaming the file also deletes the file, so no cleanup needed            
         }
     }
 

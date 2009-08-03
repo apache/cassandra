@@ -601,7 +601,7 @@ public class MessagingService implements IMessagingService
         return messageSerializerExecutor_;
     }
     
-    public static ExecutorService getDeserilizationExecutor()
+    public static ExecutorService getDeserializationExecutor()
     {
         return messageDeserializerExecutor_;
     }

@@ -44,7 +44,7 @@ public final class StreamManager
     
     public static class BootstrapTerminateVerbHandler implements IVerbHandler
     {
-        private static Logger logger_ = Logger.getLogger( BootstrapInitiateDoneVerbHandler.class );
+        private static Logger logger_ = Logger.getLogger( BootstrapTerminateVerbHandler.class );
 
         public void doVerb(Message message)
         {
