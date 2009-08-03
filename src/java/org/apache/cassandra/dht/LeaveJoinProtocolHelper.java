@@ -159,15 +159,6 @@ class LeaveJoinProtocolHelper
     */
     protected static void assignWork(Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget) throws IOException
     {
-        assignWork(rangesWithSourceTarget, null);
-    }
-    
-    /**
-     * This method sends messages out to nodes instructing them 
-     * to stream the specified ranges to specified target nodes. 
-    */
-    protected static void assignWork(Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget, List<EndPoint> filters) throws IOException
-    {
         /*
          * Map whose key is the source node and the value is a map whose key is the
          * target and value is the list of ranges to be sent to it. 
@@ -199,14 +190,6 @@ class LeaveJoinProtocolHelper
         Set<EndPoint> sources = rangeInfo.keySet();
         for ( EndPoint source : sources )
         {
-            /* only send the message to the nodes that are in the filter. */
-            if ( filters != null && filters.size() > 0 && !filters.contains(source) )
-            {
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Filtering endpoint " + source + " as source ...");
-                continue;
-            }
-            
             Map<EndPoint, List<Range>> targetRangesMap = rangeInfo.get(source);
             Set<EndPoint> targets = targetRangesMap.keySet();
             List<BootstrapMetadata> bsmdList = new ArrayList<BootstrapMetadata>();

@@ -173,26 +173,27 @@ public class Table
     {                
         public void onStreamCompletion(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus) throws IOException
         {                        
-            /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */            
+            /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
             if (streamContext.getTargetFile().contains("-Data.db"))
             {
+                String tableName = streamContext.getTable();
                 File file = new File( streamContext.getTargetFile() );
                 String fileName = file.getName();
-                String [] temp = null;
-                String tableName;
-                temp = fileName.split("-");
-                tableName = temp[0];
-                /*
-                 * If the file is a Data File we need to load the indicies associated
-                 * with this file. We also need to cache the file name in the SSTables
-                 * list of the associated Column Family. Also merge the CBF into the
-                 * sampler.
-                */                
-                SSTableReader sstable = SSTableReader.open(streamContext.getTargetFile());
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Merging the counting bloom filter in the sampler ...");                
-                String[] peices = FBUtilities.strip(fileName, "-");
-                Table.open(peices[0]).getColumnFamilyStore(peices[1]).addToList(sstable);                
+                String [] temp = fileName.split("-");
+                
+                //Open the file to see if all parts are now here
+                SSTableReader sstable = null;
+                try 
+                {
+                    sstable = SSTableReader.open(streamContext.getTargetFile());
+                    //TODO add a sanity check that this sstable has all its parts and is ok
+                    Table.open(tableName).getColumnFamilyStore(temp[0]).addToList(sstable);
+                    logger_.info("Bootstrap added " + sstable.getFilename());
+                }
+                catch (IOException e)
+                {
+                    logger_.error("Not able to bootstrap with file " + streamContext.getTargetFile(), e);                    
+                }
             }
             
             EndPoint to = new EndPoint(host, DatabaseDescriptor.getStoragePort());
@@ -234,11 +235,9 @@ public class Table
                 for (StreamContextManager.StreamContext streamContext : streamContexts )
                 {                    
                     StreamContextManager.StreamStatus streamStatus = new StreamContextManager.StreamStatus(streamContext.getTargetFile(), streamContext.getExpectedBytes() );
-                    File sourceFile = new File( streamContext.getTargetFile() );
-                    String[] peices = FBUtilities.strip(sourceFile.getName(), "-");
-                    String newFileName = fileNames.get( peices[1] + "-" + peices[2] );
+                    String file = getNewFileNameFromOldContextAndNames(fileNames, streamContext);
                     
-                    String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName + "-Data.db";
+                    //String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName + "-Data.db";
                     if (logger_.isDebugEnabled())
                       logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);
@@ -258,21 +257,37 @@ public class Table
             }
         }
         
-        private Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts) throws IOException
+        String getNewFileNameFromOldContextAndNames(Map<String, String> fileNames,
+                StreamContextManager.StreamContext streamContext)
+        {
+            File sourceFile = new File( streamContext.getTargetFile() );
+            String[] piece = FBUtilities.strip(sourceFile.getName(), "-");
+            String cfName = piece[0];
+            String ssTableNum = piece[1];
+            String typeOfFile = piece[2];             
+
+            String newFileNameExpanded = fileNames.get( streamContext.getTable() + "-" + cfName + "-" + ssTableNum );
+            //Drop type (Data.db) from new FileName
+            String newFileName = newFileNameExpanded.replace("Data.db", typeOfFile);
+            String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName ;
+            return file;
+        }
+
+        Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts) throws IOException
         {
             /* 
              * Mapping for each file with unique CF-i ---> new file name. For eg.
-             * for a file with name <Table>-<CF>-<i>-Data.db there is a corresponding
-             * <Table>-<CF>-<i>-Index.db. We maintain a mapping from <CF>-<i> to a newly
+             * for a file with name <CF>-<i>-Data.db there is a corresponding
+             * <CF>-<i>-Index.db. We maintain a mapping from <CF>-<i> to a newly
              * generated file name.
             */
             Map<String, String> fileNames = new HashMap<String, String>();
-            /* Get the distinct entries from StreamContexts i.e have one entry per Data/Index file combination */
+            /* Get the distinct entries from StreamContexts i.e have one entry per Data/Index/Filter file set */
             Set<String> distinctEntries = new HashSet<String>();
             for ( StreamContextManager.StreamContext streamContext : streamContexts )
             {
-                String[] peices = FBUtilities.strip(streamContext.getTargetFile(), "-");
-                distinctEntries.add(peices[0] + "-" + peices[1] + "-" + peices[2]);
+                String[] pieces = FBUtilities.strip(new File(streamContext.getTargetFile()).getName(), "-");
+                distinctEntries.add(streamContext.getTable() + "-" + pieces[0] + "-" + pieces[1] );
             }
             
             /* Generate unique file names per entry */
@@ -462,7 +477,6 @@ public class Table
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
             {
-                /* Counting Bloom Filter for the Column Family */
                 cfStore.forceCompaction(ranges, target, 0, fileList);                
             }
         }

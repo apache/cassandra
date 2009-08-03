@@ -48,7 +48,7 @@ class ContentStreamState extends StartState
         super(stream); 
         SocketChannel socketChannel = stream.getStream();
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        String remoteHost = remoteAddress.getHostName();        
+        String remoteHost = remoteAddress.getAddress().getHostAddress();        
         streamContext_ = StreamContextManager.getStreamContext(remoteHost);   
         streamStatus_ = StreamContextManager.getStreamStatus(remoteHost);
     }

@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import org.apache.cassandra.dht.Range;
@@ -48,8 +49,9 @@ public interface StorageServiceMBean
      * 
      * @param nodes colon delimited list of endpoints that need
      *              to be bootstrapped
+     * @throws UnknownHostException 
     */
-    public void loadAll(String nodes);
+    public void loadAll(String nodes) throws UnknownHostException;
     
     /**
      * 

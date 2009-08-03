@@ -24,6 +24,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -237,6 +238,15 @@ public class NodeProbe
     public void forceTableCleanup() throws IOException
     {
         ssProxy.forceTableCleanup();
+    }
+    
+    /**
+     * Bootstrap the listed nodes with data
+     * @param nodeList a colon separated list of nodes to bootstrap
+     */
+    public void bootStrapNodes(String nodeList) throws UnknownHostException
+    {
+        ssProxy.loadAll(nodeList);
     }
     
     /**
@@ -472,7 +482,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot");
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -546,6 +556,19 @@ public class NodeProbe
         else if (cmdName.equals("clearsnapshot"))
         {
             probe.clearSnapshot();
+        }
+        else if (cmdName.equals("bootstrap"))
+        {
+            if (arguments.length == 2)
+            {
+                probe.bootStrapNodes(arguments[1]);
+            }
+            else 
+            {
+                System.err.println(cmdName + " needs a node to work with");
+                NodeProbe.printUsage();
+                System.exit(1);                
+            }
         }
         else
         {

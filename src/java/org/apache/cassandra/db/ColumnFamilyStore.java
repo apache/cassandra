@@ -1032,6 +1032,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rangeWriter.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
             if (fileList != null)
             {
+                //Retain order. The -Data.db file needs to be last because 
+                //the receiving end checks for this file before opening the SSTable
+                //and adding this to the list of SSTables.
                 fileList.add(rangeWriter.indexFilename());
                 fileList.add(rangeWriter.filterFilename());
                 fileList.add(rangeWriter.getFilename());

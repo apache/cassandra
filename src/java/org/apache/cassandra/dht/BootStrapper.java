@@ -46,19 +46,12 @@ public class BootStrapper implements Runnable
     /* tokens of the nodes being bootstrapped. */
     protected final Token[] tokens_;
     protected TokenMetadata tokenMetadata_ = null;
-    private List<EndPoint> filters_ = new ArrayList<EndPoint>();
 
     public BootStrapper(EndPoint[] target, Token... token)
     {
         targets_ = target;
         tokens_ = token;
         tokenMetadata_ = StorageService.instance().getTokenMetadata();
-    }
-    
-    public BootStrapper(EndPoint[] target, Token[] token, EndPoint[] filters)
-    {
-        this(target, token);
-        Collections.addAll(filters_, filters);
     }
 
     public void run()
@@ -122,7 +115,7 @@ public class BootStrapper implements Runnable
             /* Calculate ranges that need to be sent and from whom to where */
             Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = LeaveJoinProtocolHelper.getRangeSourceTargetInfo(oldRangeToEndPointMap, newRangeToEndPointMap);
             /* Send messages to respective folks to stream data over to the new nodes being bootstrapped */
-            LeaveJoinProtocolHelper.assignWork(rangesWithSourceTarget, filters_);                
+            LeaveJoinProtocolHelper.assignWork(rangesWithSourceTarget);                
         }
         catch ( Throwable th )
         {
