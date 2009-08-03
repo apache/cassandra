@@ -45,7 +45,7 @@ public abstract class SSTable
         return StringUtils.join(parts, "-");
     }
 
-    protected String indexFilename()
+    public String indexFilename()
     {
         return indexFilename(path);
     }
@@ -57,7 +57,7 @@ public abstract class SSTable
         return StringUtils.join(parts, "-");
     }
 
-    protected String filterFilename()
+    public String filterFilename()
     {
         return filterFilename(path);
     }
