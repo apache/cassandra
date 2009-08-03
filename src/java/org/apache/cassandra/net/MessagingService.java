@@ -456,7 +456,6 @@ public class MessagingService implements IMessagingService
     
     public void sendUdpOneWay(Message message, EndPoint to)
     {
-        EndPoint from = message.getFrom();              
         if (message.getFrom().equals(to)) {
             MessagingService.receive(message);
             return;

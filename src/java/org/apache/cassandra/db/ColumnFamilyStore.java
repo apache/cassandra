@@ -650,12 +650,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private PriorityQueue<FileStruct> initializePriorityQueue(List<String> files, List<Range> ranges, int minBufferSize) throws IOException
+    private PriorityQueue<FileStruct> initializePriorityQueue(List<String> files, List<Range> ranges) throws IOException
     {
         PriorityQueue<FileStruct> pq = new PriorityQueue<FileStruct>();
         if (files.size() > 1 || (ranges != null && files.size() > 0))
         {
-            int bufferSize = Math.min((ColumnFamilyStore.COMPACTION_MEMORY_THRESHOLD / files.size()), minBufferSize);
             FileStruct fs = null;
             for (String file : files)
             {
@@ -916,7 +915,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                           + expectedRangeFileSize + "   is greater than the safe limit of the disk space available.");
             return result;
         }
-        PriorityQueue<FileStruct> pq = initializePriorityQueue(files, ranges, ColumnFamilyStore.BUFSIZE);
+        PriorityQueue<FileStruct> pq = initializePriorityQueue(files, ranges);
         if (pq.isEmpty())
         {
             return result;
@@ -1080,7 +1079,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long totalBytesWritten = 0;
         long totalkeysRead = 0;
         long totalkeysWritten = 0;
-        PriorityQueue<FileStruct> pq = initializePriorityQueue(files, null, minBufferSize);
+        PriorityQueue<FileStruct> pq = initializePriorityQueue(files, null);
 
         if (pq.isEmpty())
         {

@@ -128,7 +128,7 @@ public class StreamContextManager
         }
     }
     
-    public static class StreamStatus
+    public static class StreamStatus implements Serializable
     {
         private static ICompactSerializer<StreamStatus> serializer_;
         
@@ -253,11 +253,11 @@ public class StreamContextManager
     }
         
     /* Maintain a stream context per host that is the source of the stream */
-    public static Map<String, List<StreamContext>> ctxBag_ = new Hashtable<String, List<StreamContext>>();  
+    public static final Map<String, List<StreamContext>> ctxBag_ = new Hashtable<String, List<StreamContext>>();  
     /* Maintain in this map the status of the streams that need to be sent back to the source */
-    public static Map<String, List<StreamStatus>> streamStatusBag_ = new Hashtable<String, List<StreamStatus>>();
+    public static final Map<String, List<StreamStatus>> streamStatusBag_ = new Hashtable<String, List<StreamStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
-    public static Map<String, IStreamComplete> streamNotificationHandlers_ = new HashMap<String, IStreamComplete>();
+    public static final Map<String, IStreamComplete> streamNotificationHandlers_ = new HashMap<String, IStreamComplete>();
     
     public synchronized static StreamContext getStreamContext(String key)
     {        

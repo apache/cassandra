@@ -102,7 +102,6 @@ public class Row
     void removeColumnFamily(ColumnFamily columnFamily)
     {
         columnFamilies_.remove(columnFamily.name());
-        int delta = (-1) * columnFamily.size();
     }
 
     public boolean isEmpty()

@@ -44,7 +44,7 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
 
     // use as a kind of magic number to send ourselves a message indicating listening state
     protected static final int sentinelPort_ = 5555;
-    public static EndPoint sentinelLocalEndPoint_;
+    protected static EndPoint sentinelLocalEndPoint_;
     
     static
     {

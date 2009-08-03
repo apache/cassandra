@@ -457,7 +457,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             else
             {
                 /* Gossip with the seed with some probability. */
-                double probability = seeds_.size() / ( liveEndpoints_.size() + unreachableEndpoints_.size() );
+                double probability = seeds_.size() / (double)( liveEndpoints_.size() + unreachableEndpoints_.size() );
                 double randDbl = random_.nextDouble();
                 if ( randDbl <= probability )
                     sendGossip(message, seeds_);

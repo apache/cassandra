@@ -76,7 +76,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String calloutDeployVerbHandler_ = "CALLOUT-DEPLOY-VERB-HANDLER";
-    public static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
+    public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
 
     public static enum ConsistencyLevel
     {

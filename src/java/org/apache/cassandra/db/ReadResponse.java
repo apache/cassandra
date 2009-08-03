@@ -22,7 +22,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -36,7 +35,7 @@ import org.apache.commons.lang.ArrayUtils;
  * The table name is needed so that we can use it to create repairs.
  * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-public class ReadResponse implements Serializable 
+public class ReadResponse
 {
 private static ICompactSerializer<ReadResponse> serializer_;
 

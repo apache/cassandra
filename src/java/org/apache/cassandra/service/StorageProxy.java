@@ -658,7 +658,7 @@ public class StorageProxy implements StorageProxyMBean
                     allKeys.remove(allKeys.size() - 1);
                     allKeys.addAll(rangeKeys);
                 }
-                else if (rangeKeys.size() > 0)
+                else if (rangeKeys != null && rangeKeys.size() > 0)
                 {
                     allKeys.addAll(rangeKeys);
                 }

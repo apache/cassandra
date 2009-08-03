@@ -66,7 +66,7 @@ class MinorCompactionManager
         return instance_;
     }
 
-    class FileCompactor2 implements Callable<Boolean>
+    static class FileCompactor2 implements Callable<Boolean>
     {
         private ColumnFamilyStore columnFamilyStore_;
         private List<Range> ranges_;
@@ -100,7 +100,7 @@ class MinorCompactionManager
         }
     }
 
-    class OnDemandCompactor implements Runnable
+    static class OnDemandCompactor implements Runnable
     {
         private ColumnFamilyStore columnFamilyStore_;
         private long skip_ = 0L;
@@ -128,7 +128,7 @@ class MinorCompactionManager
         }
     }
 
-    class CleanupCompactor implements Runnable
+    static class CleanupCompactor implements Runnable
     {
         private ColumnFamilyStore columnFamilyStore_;
 

@@ -39,7 +39,7 @@ import org.apache.cassandra.net.EndPoint;
 */
 public abstract class AbstractStrategy implements IReplicaPlacementStrategy
 {
-    protected static Logger logger_ = Logger.getLogger(AbstractStrategy.class);
+    protected static final Logger logger_ = Logger.getLogger(AbstractStrategy.class);
 
     protected TokenMetadata tokenMetadata_;
     protected IPartitioner partitioner_;
