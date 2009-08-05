@@ -127,7 +127,8 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
     public void close() throws IOException
     {
-        reader.close();
+        if (reader != null)
+            reader.close();
     }
 
     /**
