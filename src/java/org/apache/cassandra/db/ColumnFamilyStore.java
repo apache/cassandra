@@ -57,7 +57,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
     private static final int BUFSIZE = 128 * 1024 * 1024;
-    private static final int COMPACTION_MEMORY_THRESHOLD = 1 << 30;
 
     private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
     private static ExecutorService flusher_ = new DebuggableThreadPoolExecutor("MEMTABLE-FLUSHER-POOL");
@@ -902,7 +901,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long totalkeysWritten = 0;
         String rangeFileLocation;
         String mergedFileName;
-        IPartitioner p = StorageService.getPartitioner();
         // Calculate the expected compacted filesize
         long expectedRangeFileSize = getExpectedCompactedFileSize(files);
         /* in the worst case a node will be giving out half of its data so we take a chance */
@@ -1378,7 +1376,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
         if (filter.path.superColumnName != null)
         {
-            AbstractType comparator = DatabaseDescriptor.getComparator(table_, columnFamily_);
             QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
             ColumnFamily cf = getColumnFamily(nameFilter);
             if (cf != null)

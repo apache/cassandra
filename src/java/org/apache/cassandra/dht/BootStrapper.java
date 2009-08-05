@@ -19,6 +19,7 @@
 package org.apache.cassandra.dht;
 
  import java.util.ArrayList;
+ import java.util.Arrays;
  import java.util.Collections;
  import java.util.HashMap;
  import java.util.HashSet;
@@ -31,7 +32,7 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.net.EndPoint;
  import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.LogUtil;
 
 
 /**
@@ -59,7 +60,7 @@ public class BootStrapper implements Runnable
         try
         {
             if (logger_.isDebugEnabled())
-              logger_.debug("Beginning bootstrap process for " + targets_ + " ...");                                                               
+              logger_.debug("Beginning bootstrap process for " + Arrays.toString(targets_) + " ...");                                                               
             /* copy the token to endpoint map */
             Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* remove the tokens associated with the endpoints being bootstrapped */                

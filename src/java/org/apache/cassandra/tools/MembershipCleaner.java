@@ -44,7 +44,7 @@ public class MembershipCleaner
     {
         if ( args.length != 3 )
         {
-            System.out.println("Usage : java com.facebook.infrastructure.tools.MembershipCleaner " +
+            System.out.println("Usage : java org.apache.cassandra.tools.MembershipCleaner " +
                     "<ip:port to send the message> " +
                     "<node which needs to be removed> " +
                     "<file containing all nodes in the cluster>");
@@ -82,7 +82,6 @@ public class MembershipCleaner
     public static class MembershipCleanerMessage implements Serializable
     {
         private static ICompactSerializer<MembershipCleanerMessage> serializer_;
-        private static AtomicInteger idGen_ = new AtomicInteger(0);
         
         static
         {

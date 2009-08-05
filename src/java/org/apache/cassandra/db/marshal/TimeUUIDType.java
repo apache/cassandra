@@ -1,7 +1,6 @@
 package org.apache.cassandra.db.marshal;
 
 import java.util.UUID;
-import java.nio.ByteBuffer;
 
 public class TimeUUIDType extends AbstractType
 {

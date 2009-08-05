@@ -60,6 +60,7 @@ class BootstrapMetadataMessage
     
     BootstrapMetadataMessage(BootstrapMetadata[] bsMetadata)
     {
+        assert bsMetadata != null;
         bsMetadata_ = bsMetadata;
     }
 }
@@ -69,9 +70,8 @@ class BootstrapMetadataMessageSerializer implements ICompactSerializer<Bootstrap
     public void serialize(BootstrapMetadataMessage bsMetadataMessage, DataOutputStream dos) throws IOException
     {
         BootstrapMetadata[] bsMetadata = bsMetadataMessage.bsMetadata_;
-        int size = (bsMetadata == null) ? 0 : bsMetadata.length;
-        dos.writeInt(size);
-        for ( BootstrapMetadata bsmd : bsMetadata )
+        dos.writeInt(bsMetadata.length);
+        for (BootstrapMetadata bsmd : bsMetadata)
         {
             BootstrapMetadata.serializer().serialize(bsmd, dos);
         }

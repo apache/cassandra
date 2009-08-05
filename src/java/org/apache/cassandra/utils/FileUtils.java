@@ -88,13 +88,6 @@ public class FileUtils
         {
             return (int)(f.lastModified() - f2.lastModified());
         }
-
-        public boolean equals(Object o)
-        {
-            if ( !(o instanceof FileComparator) )
-                return false;
-            return true;
-        }
     }
 
     public static void createDirectory(String directory) throws IOException

@@ -1,5 +1,7 @@
 package org.apache.cassandra.db.marshal;
 
+import java.util.Arrays;
+
 public class BytesType extends AbstractType
 {
     public int compare(byte[] o1, byte[] o2)
@@ -28,6 +30,6 @@ public class BytesType extends AbstractType
 
     public String getString(byte[] bytes)
     {
-        return bytes.toString();
+        return Arrays.toString(bytes);
     }
 }

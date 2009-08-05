@@ -98,7 +98,7 @@ class ConsistencyManager implements Runnable
 		}
 	}
 	
-	class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
+	static class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
 	{
 		private List<Message> responses_ = new ArrayList<Message>();
 		private IResponseResolver<Row> readResponseResolver_;

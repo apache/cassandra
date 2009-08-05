@@ -101,13 +101,6 @@ public class CommitLog
         {
             return (int)(getCreationTime(f) - getCreationTime(f2));
         }
-
-        public boolean equals(Object o)
-        {
-            if ( !(o instanceof CommitLogFileComparator) )
-                return false;
-            return true;
-        }
     }
 
     public static void setSegmentSize(int size)

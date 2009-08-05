@@ -55,6 +55,8 @@ class BootstrapMetadata
     
     BootstrapMetadata(EndPoint target, List<Range> ranges)
     {
+        assert target_ != null;
+        assert ranges_ != null;
         target_ = target;
         ranges_ = ranges;
     }
@@ -78,13 +80,11 @@ class BootstrapMetadataSerializer implements ICompactSerializer<BootstrapMetadat
     public void serialize(BootstrapMetadata bsMetadata, DataOutputStream dos) throws IOException
     {
         CompactEndPointSerializationHelper.serialize(bsMetadata.target_, dos);
-        int size = (bsMetadata.ranges_ == null) ? 0 : bsMetadata.ranges_.size();            
-        dos.writeInt(size);
-        
-        for ( Range range : bsMetadata.ranges_ )
+        dos.writeInt(bsMetadata.ranges_.size());
+        for (Range range : bsMetadata.ranges_)
         {
             Range.serializer().serialize(range, dos);
-        }            
+        }
     }
 
     public BootstrapMetadata deserialize(DataInputStream dis) throws IOException

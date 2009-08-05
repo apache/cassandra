@@ -69,7 +69,7 @@ public class MembershipCleanerVerbHandler implements IVerbHandler
             {            
                 if (logger_.isDebugEnabled())
                   logger_.debug("Processing node " + node);
-                byte[] bytes = headers.remove(node);
+                headers.remove(node);
                 /* Send a message to this node to alter its membership state. */
                 EndPoint targetNode = new EndPoint(node, DatabaseDescriptor.getStoragePort());                
                 
