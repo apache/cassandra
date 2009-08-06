@@ -550,7 +550,14 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("maxResults must be positive");
         }
 
-        return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamily, startWith, stopAt, maxResults));
+        try
+        {
+            return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamily, startWith, stopAt, maxResults));
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     // main method moved to CassandraDaemon

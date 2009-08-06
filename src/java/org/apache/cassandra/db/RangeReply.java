@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
 import java.util.*;
 import java.io.IOException;
 
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
@@ -48,6 +50,15 @@ public class RangeReply
         }
         byte[] data = Arrays.copyOf(dob.getData(), dob.getLength());
         return originalMessage.getReply(StorageService.getLocalStorageEndPoint(), data);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "RangeReply(" +
+               "keys=[" + StringUtils.join(keys, ", ") +
+               "], completed=" + rangeCompletedLocally +
+               ')';
     }
 
     public static RangeReply read(byte[] body) throws IOException

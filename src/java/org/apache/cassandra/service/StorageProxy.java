@@ -359,14 +359,6 @@ public class StorageProxy implements StorageProxyMBean
 
     /**
      * This is a multiget version of the above method.
-     * @param tablename
-     * @param keys
-     * @param columnFamily
-     * @param start
-     * @param count
-     * @return
-     * @throws IOException
-     * @throws TimeoutException
      */
     public static Map<String, Row> strongReadProtocol(String[] keys, ReadCommand readCommand) throws IOException, TimeoutException
     {       
@@ -571,10 +563,6 @@ public class StorageProxy implements StorageProxyMBean
      * This version is used when results for multiple keys needs to be
      * retrieved.
      * 
-     * @param tablename name of the table that needs to be queried
-     * @param keys keys whose values we are interested in 
-     * @param columnFamily name of the "column" we are interested in
-     * @param columns the columns we are interested in
      * @return a mapping of key --> Row
      * @throws Exception
      */
@@ -631,64 +619,61 @@ public class StorageProxy implements StorageProxyMBean
         return row;
     }
 
-    static List<String> getKeyRange(RangeCommand command)
+    static List<String> getKeyRange(RangeCommand command) throws IOException
     {
         long startTime = System.currentTimeMillis();
         int endpointOffset = 0;
         List<String> allKeys = new ArrayList<String>();
         int maxResults = command.maxResults;
 
-        try
-        {
-            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.startWith, endpointOffset);
-            String firstEndpoint = endPoint.toString();
+        EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.startWith, endpointOffset);
+        String firstEndpoint = endPoint.toString();
 
-            do
+        do
+        {
+            Message message = command.getMessage();
+            if (logger.isDebugEnabled())
+                logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endPoint);
+            IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
+
+            // read response
+            byte[] responseBody = new byte[0];
+            try
             {
-                IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(command.getMessage(), endPoint);
+                responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            }
+            catch (TimeoutException e)
+            {
+                throw new RuntimeException(e);
+            }
+            RangeReply rangeReply = RangeReply.read(responseBody);
+            List<String> rangeKeys = rangeReply.keys;
 
-                // read response
-                byte[] responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-                RangeReply rangeReply = RangeReply.read(responseBody);
-                List<String> rangeKeys = rangeReply.keys;
+            // deal with key overlaps
+            if (allKeys.size() > 0 && rangeKeys != null && rangeKeys.size() > 0 && allKeys.get(allKeys.size() - 1).equals(rangeKeys.get(0)))
+            {
+                allKeys.remove(allKeys.size() - 1);
+                allKeys.addAll(rangeKeys);
+            }
+            else if (rangeKeys != null && rangeKeys.size() > 0)
+            {
+                allKeys.addAll(rangeKeys);
+            }
 
-                // deal with key overlaps
-                if (allKeys.size() > 0 && rangeKeys != null && rangeKeys.size() > 0 && allKeys.get(allKeys.size() - 1).equals(rangeKeys.get(0)))
-                {
-                    allKeys.remove(allKeys.size() - 1);
-                    allKeys.addAll(rangeKeys);
-                }
-                else if (rangeKeys != null && rangeKeys.size() > 0)
-                {
-                    allKeys.addAll(rangeKeys);
-                }
+            if (allKeys.size() >= maxResults || rangeReply.rangeCompletedLocally)
+            {
+                break;
+            }
 
-                if (allKeys.size() >= maxResults || rangeReply.rangeCompletedLocally)
-                {
-                    break;
-                }
+            String newStartWith = (allKeys.size() > 0) ? allKeys.get(allKeys.size() - 1) : command.startWith;
+            command = new RangeCommand(command.table, command.columnFamily, newStartWith, command.stopAt, command.maxResults - allKeys.size());
+            endPoint = StorageService.instance().findSuitableEndPoint(command.startWith, ++endpointOffset);
+        } while (!endPoint.toString().equals(firstEndpoint));
 
-                String newStartAt = (allKeys.size() > 0) ? allKeys.get(allKeys.size() - 1) : command.stopAt;
-
-                command = new RangeCommand(command.table, command.columnFamily,
-                                           newStartAt, command.stopAt,
-                                           command.maxResults - rangeKeys.size());
-
-                endPoint = StorageService.instance().findSuitableEndPoint(command.startWith, ++endpointOffset);
-            } while (!endPoint.toString().equals(firstEndpoint));
-
-            return (allKeys.size() > maxResults)
-                   ? allKeys.subList(0, maxResults)
-                   : allKeys;
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("error reading keyrange " + command, e);
-        }
-        finally
-        {
-            rangeStats.add(System.currentTimeMillis() - startTime);
-        }
+        rangeStats.add(System.currentTimeMillis() - startTime);
+        return (allKeys.size() > maxResults)
+               ? allKeys.subList(0, maxResults)
+               : allKeys;
     }
 
     public double getReadLatency()

@@ -18,6 +18,8 @@
 */
 package org.apache.cassandra.service;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.db.RangeCommand;
 import org.apache.cassandra.db.RangeReply;
 import org.apache.cassandra.db.Table;
@@ -27,16 +29,19 @@ import org.apache.cassandra.net.MessagingService;
 
 public class RangeVerbHandler implements IVerbHandler
 {
+    private static final Logger logger = Logger.getLogger(RangeVerbHandler.class);
+
     public void doVerb(Message message)
     {
-        RangeReply rangeReply;
         try
         {
             RangeCommand command = RangeCommand.read(message);
             Table table = Table.open(command.table);
 
-            rangeReply = table.getKeyRange(command.columnFamily, command.startWith, command.stopAt, command.maxResults);
+            RangeReply rangeReply = table.getKeyRange(command.columnFamily, command.startWith, command.stopAt, command.maxResults);
             Message response = rangeReply.getReply(message);
+            if (logger.isDebugEnabled())
+                logger.debug("Sending " + rangeReply + " to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
         }
         catch (Exception e)
