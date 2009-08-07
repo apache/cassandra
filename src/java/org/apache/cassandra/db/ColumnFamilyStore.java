@@ -1473,16 +1473,26 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sstableLock_.readLock().lock();
         try
         {
-            for (String filename : new ArrayList<String>(ssTables_.keySet()))
+            for (SSTableReader ssTable : new ArrayList<SSTableReader>(ssTables_.values()))
             {
-                File sourceFile = new File(filename);
-
+                // mkdir
+                File sourceFile = new File(ssTable.getFilename());
                 File dataDirectory = sourceFile.getParentFile().getParentFile();
                 String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
                 FileUtils.createDirectory(snapshotDirectoryPath);
 
+                // hard links
                 File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(new File(filename), targetLink);
+                FileUtils.createHardLink(sourceFile, targetLink);
+
+                sourceFile = new File(ssTable.indexFilename());
+                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
+
+                sourceFile = new File(ssTable.filterFilename());
+                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
+
                 if (logger_.isDebugEnabled())
                     logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +    
                         " created as " + targetLink.getAbsolutePath());
