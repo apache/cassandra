@@ -7,7 +7,6 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.collect.AbstractIterator;
 
 /**
@@ -31,10 +30,10 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         /* Morph key into actual key based on the partition type. */
         String decoratedKey = ssTable.getPartitioner().decorateKey(key);
         long position = ssTable.getPosition(decoratedKey);
-        if (position >= 0)
-            reader = new ColumnGroupReader(ssTable.getFilename(), decoratedKey, comparator, startColumn, isAscending, position);
         this.comparator = comparator;
         this.startColumn = startColumn;
+        if (position >= 0)
+            reader = new ColumnGroupReader(filename, decoratedKey, position);
         curColumnIndex = isAscending ? 0 : -1;
     }
 
@@ -127,46 +126,44 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
      *  blocks before/after it for each next call. This function assumes that
      *  the CF is sorted by name and exploits the name index.
      */
-    public static class ColumnGroupReader
+    class ColumnGroupReader
     {
-        private boolean isAscending_;
         private ColumnFamily emptyColumnFamily;
 
-        private List<IndexHelper.IndexInfo> indexList_;
-        private long columnStartPosition_;
-        private int curRangeIndex_;
-        private BufferedRandomAccessFile file_;
+        private List<IndexHelper.IndexInfo> indexes;
+        private long columnStartPosition;
+        private int curRangeIndex;
+        private BufferedRandomAccessFile file;
         private Queue<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(String filename, String key, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
+        public ColumnGroupReader(String filename, String key, long position) throws IOException
         {
-            this.file_ = new BufferedRandomAccessFile(filename, "r");
-            this.isAscending_ = isAscending;
+            this.file = new BufferedRandomAccessFile(filename, "r");
 
-            file_.seek(position);
-            String keyInDisk = file_.readUTF();
+            file.seek(position);
+            String keyInDisk = file.readUTF();
             assert keyInDisk.equals(key);
 
-            file_.readInt(); // row size
-            IndexHelper.skipBloomFilter(file_);
-            indexList_ = IndexHelper.deserializeIndex(file_);
+            file.readInt(); // row size
+            IndexHelper.skipBloomFilter(file);
+            indexes = IndexHelper.deserializeIndex(file);
 
             /* need to do two things here.
              * 1. move the file pointer to the beginning of the list of stored columns
              * 2. calculate the size of all columns */
-            emptyColumnFamily = ColumnFamily.serializer().deserializeEmpty(file_);
-            file_.readInt(); // column count
+            emptyColumnFamily = ColumnFamily.serializer().deserializeEmpty(file);
+            file.readInt(); // column count
 
-            columnStartPosition_ = file_.getFilePointer();
+            columnStartPosition = file.getFilePointer();
 
-            if (startColumn.length == 0 && !isAscending_)
+            if (startColumn.length == 0 && !isAscending)
             {
                 /* in this case, we assume that we want to scan from the largest column in descending order. */
-                curRangeIndex_ = indexList_.size() - 1;
+                curRangeIndex = indexes.size() - 1;
             }
             else
             {
-                curRangeIndex_ = IndexHelper.indexFor(startColumn, indexList_, comparator);
+                curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator);
             }
         }
 
@@ -182,27 +179,27 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         public boolean getNextBlock() throws IOException
         {
-            if (curRangeIndex_ < 0 || curRangeIndex_ >= indexList_.size())
+            if (curRangeIndex < 0 || curRangeIndex >= indexes.size())
                 return false;
 
             /* seek to the correct offset to the data, and calculate the data size */
-            IndexHelper.IndexInfo curColPostion = indexList_.get(curRangeIndex_);
-            file_.seek(columnStartPosition_ + curColPostion.offset);
-            while (file_.getFilePointer() < columnStartPosition_ + curColPostion.offset + curColPostion.width)
+            IndexHelper.IndexInfo curColPostion = indexes.get(curRangeIndex);
+            file.seek(columnStartPosition + curColPostion.offset);
+            while (file.getFilePointer() < columnStartPosition + curColPostion.offset + curColPostion.width)
             {
-                blockColumns.add(emptyColumnFamily.getColumnSerializer().deserialize(file_));
+                blockColumns.add(emptyColumnFamily.getColumnSerializer().deserialize(file));
             }
 
-            if (isAscending_)
-                curRangeIndex_++;
+            if (isAscending)
+                curRangeIndex++;
             else
-                curRangeIndex_--;
+                curRangeIndex--;
             return true;
         }
 
         public void close() throws IOException
         {
-            file_.close();
+            file.close();
         }
     }
 }
