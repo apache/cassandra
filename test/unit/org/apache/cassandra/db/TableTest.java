@@ -34,6 +34,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.BufferedRandomAccessFile;
+import org.apache.cassandra.io.IndexHelper;
 
 public class TableTest extends CleanupHelper
 {
@@ -310,8 +312,8 @@ public class TableTest extends CleanupHelper
         // tests slicing against 1000 columns in an sstable
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
-        String ROW = "row3";
-        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        String key = "row3";
+        RowMutation rm = new RowMutation("Keyspace1", key);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("v" + i), 1L));
@@ -319,19 +321,41 @@ public class TableTest extends CleanupHelper
         rm.apply();
         cfStore.forceBlockingFlush();
 
-        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        validateSliceLarge(cfStore);
+        // compact so we have a big row with more than the minimum index count
+        if (cfStore.getSSTables().size() > 1)
+        {
+            cfStore.doCompaction(cfStore.getSSTables().size());
+        }
+        SSTableReader sstable = cfStore.getSSTables().iterator().next();
+        long position = sstable.getPosition(key);
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
+        file.seek(position);
+        assert file.readUTF().equals(key);
+        file.readInt();
+        IndexHelper.skipBloomFilter(file);
+        ArrayList<IndexHelper.IndexInfo> indexes = IndexHelper.deserializeIndex(file);
+        assert indexes.size() > 2;
+        validateSliceLarge(cfStore);
+    }
+
+    private void validateSliceLarge(ColumnFamilyStore cfStore) throws IOException
+    {
+        String key = "row3";
+        ColumnFamily cf;
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1000", "col1001", "col1002");
         assertEquals(new String(cf.getColumn("col1000".getBytes()).value()), "v1000");
         assertEquals(new String(cf.getColumn("col1001".getBytes()).value()), "v1001");
         assertEquals(new String(cf.getColumn("col1002".getBytes()).value()), "v1002");
 
-        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1195".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1195".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1195", "col1196", "col1197");
         assertEquals(new String(cf.getColumn("col1195".getBytes()).value()), "v1195");
         assertEquals(new String(cf.getColumn("col1196".getBytes()).value()), "v1196");
         assertEquals(new String(cf.getColumn("col1197".getBytes()).value()), "v1197");
 
-        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1996".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1996".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
         IColumn[] columns = cf.getSortedColumns().toArray(new IColumn[0]);
         for (int i = 1000; i < 1996; i++)
         {
@@ -341,13 +365,13 @@ public class TableTest extends CleanupHelper
             assert Arrays.equals(column.value(), ("v" + i).getBytes());
         }
 
-        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1990".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1990".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1990", "col1991", "col1992");
         assertEquals(new String(cf.getColumn("col1990".getBytes()).value()), "v1990");
         assertEquals(new String(cf.getColumn("col1991".getBytes()).value()), "v1991");
         assertEquals(new String(cf.getColumn("col1992".getBytes()).value()), "v1992");
 
-        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf, "col1997", "col1998", "col1999");
         assertEquals(new String(cf.getColumn("col1999".getBytes()).value()), "v1999");
         assertEquals(new String(cf.getColumn("col1998".getBytes()).value()), "v1998");
