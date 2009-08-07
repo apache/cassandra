@@ -683,9 +683,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             EndPoint target = new EndPoint(host, DatabaseDescriptor.getStoragePort());
             /* Set up the stream manager with the files that need to streamed */
-            StreamManager.instance(target).addFilesToStream((StreamContextManager.StreamContext[]) streamContexts.toArray());
+            final StreamContextManager.StreamContext[] contexts = streamContexts.toArray(new StreamContextManager.StreamContext[streamContexts.size()]);
+            StreamManager.instance(target).addFilesToStream(contexts);
             /* Send the bootstrap initiate message */
-            BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage((StreamContextManager.StreamContext[]) streamContexts.toArray());
+            final StreamContextManager.StreamContext[] bootContexts = streamContexts.toArray(new StreamContextManager.StreamContext[streamContexts.size()]);
+            BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage(bootContexts);
             Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
             if (logger_.isDebugEnabled())
               logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
