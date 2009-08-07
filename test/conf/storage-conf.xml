@@ -20,7 +20,7 @@
    <ClusterName>Test Cluster</ClusterName>
    <CommitLogSync>true</CommitLogSync>
    <CommitLogSyncDelay>1000</CommitLogSyncDelay>
-   <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
+   <Partitioner>org.apache.cassandra.dht.CollatingOrderPreservingPartitioner</Partitioner>
    <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
    <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
    <ReplicationFactor>1</ReplicationFactor>
