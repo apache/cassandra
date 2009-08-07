@@ -5,7 +5,9 @@ import java.util.*;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 {
@@ -37,16 +39,17 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             /* Read the bloom filter summarizing the columns */
             IndexHelper.defreezeBloomFilter(file);
 
-            List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(ssTable.getTableName(), cfName, file);
+            List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
 
             cf = ColumnFamily.serializer().deserializeEmpty(file);
             file.readInt(); // column count
 
             /* get the various column ranges we have to read */
-            SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>();
+            AbstractType comparator = DatabaseDescriptor.getComparator(SSTable.parseTableName(filename), cfName);
+            SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
             for (byte[] name : columns)
             {
-                ranges.add(indexList.get(IndexHelper.indexFor(name, indexList)));
+                ranges.add(indexList.get(IndexHelper.indexFor(name, indexList, comparator)));
             }
 
             /* seek to the correct offset to the data */

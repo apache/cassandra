@@ -89,16 +89,15 @@ public class IndexHelper
      * Deserialize the index into a structure and return the number of bytes read.
      * @throws IOException
      */
-	public static ArrayList<IndexInfo> deserializeIndex(String tableName, String cfName, RandomAccessFile in) throws IOException
+	public static ArrayList<IndexInfo> deserializeIndex(RandomAccessFile in) throws IOException
 	{
         ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
 
 		int columnIndexSize = in.readInt();
         long start = in.getFilePointer();
-        AbstractType comparator = DatabaseDescriptor.getComparator(tableName, cfName);
         while (in.getFilePointer() < start + columnIndexSize)
         {
-            indexList.add(IndexInfo.deserialize(in, comparator));
+            indexList.add(IndexInfo.deserialize(in));
         }
         assert in.getFilePointer() == start + columnIndexSize;
 
@@ -121,33 +120,37 @@ public class IndexHelper
         return BloomFilter.serializer().deserialize(bufIn);
     }
 
-    public static int indexFor(byte[] name, List<IndexInfo> indexList)
+    public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator)
     {
-        IndexInfo target = new IndexInfo(name, name, 0, 0, indexList.get(0).comparator);
-        int index = Collections.binarySearch(indexList, target);
+        IndexInfo target = new IndexInfo(name, name, 0, 0);
+        int index = Collections.binarySearch(indexList, target, getComparator(comparator));
         return index < 0 ? -1 * (index + 1) : index;
     }
 
-    public static class IndexInfo implements Comparable<IndexInfo>
+    public static Comparator<IndexInfo> getComparator(final AbstractType nameComparator)
+    {
+        return new Comparator<IndexInfo>()
+        {
+            public int compare(IndexInfo o1, IndexInfo o2)
+            {
+                return nameComparator.compare(o1.lastName, o2.lastName);
+            }
+        };
+    }
+
+    public static class IndexInfo
     {
         public final long width;
         public final byte[] lastName;
-        private AbstractType comparator;
         public final byte[] firstName;
         public final long offset;
 
-        public IndexInfo(byte[] firstName, byte[] lastName, long offset, long width, AbstractType comparator)
+        public IndexInfo(byte[] firstName, byte[] lastName, long offset, long width)
         {
             this.firstName = firstName;
             this.lastName = lastName;
             this.offset = offset;
             this.width = width;
-            this.comparator = comparator;
-        }
-
-        public int compareTo(IndexInfo rhs)
-        {
-            return comparator.compare(lastName, rhs.lastName);
         }
 
         public void serialize(DataOutputStream dos) throws IOException
@@ -163,9 +166,9 @@ public class IndexHelper
             return 2 + firstName.length + 2 + lastName.length + 8 + 8;
         }
 
-        public static IndexInfo deserialize(RandomAccessFile dis, AbstractType comparator) throws IOException
+        public static IndexInfo deserialize(RandomAccessFile dis) throws IOException
         {
-            return new IndexInfo(ColumnSerializer.readName(dis), ColumnSerializer.readName(dis), dis.readLong(), dis.readLong(), comparator);
+            return new IndexInfo(ColumnSerializer.readName(dis), ColumnSerializer.readName(dis), dis.readLong(), dis.readLong());
         }
     }
 

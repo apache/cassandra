@@ -129,7 +129,7 @@ public class ColumnIndexer
             /* if we hit the column index size that we have to index after, go ahead and index it. */
             if (endPosition - startPosition >= DatabaseDescriptor.getColumnIndexSize())
             {
-                IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition, null);
+                IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition);
                 indexList.add(cIndexInfo);
                 indexSizeInBytes += cIndexInfo.serializedSize();
                 firstColumn = null;
@@ -138,7 +138,7 @@ public class ColumnIndexer
         // the last column may have fallen on an index boundary already.  if not, index it explicitly.
         if (indexList.isEmpty() || comparator.compare(indexList.get(indexList.size() - 1).lastName, column.name()) != 0)
         {
-            IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition, null);
+            IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition);
             indexList.add(cIndexInfo);
             indexSizeInBytes += cIndexInfo.serializedSize();
         }

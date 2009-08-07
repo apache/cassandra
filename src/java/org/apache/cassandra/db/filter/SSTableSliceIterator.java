@@ -3,8 +3,6 @@ package org.apache.cassandra.db.filter;
 import java.util.*;
 import java.io.IOException;
 
-import org.apache.commons.lang.ArrayUtils;
-
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -20,12 +18,11 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     protected boolean isAscending;
     private byte[] startColumn;
     private int curColumnIndex;
-    private ColumnFamily curCF = null;
     private ArrayList<IColumn> curColumns = new ArrayList<IColumn>();
     private ColumnGroupReader reader;
     private AbstractType comparator;
 
-    public SSTableSliceIterator(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending)
+    public SSTableSliceIterator(String filename, String key, AbstractType comparator, byte[] startColumn, boolean isAscending)
     throws IOException
     {
         this.isAscending = isAscending;
@@ -33,10 +30,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         /* Morph key into actual key based on the partition type. */
         String decoratedKey = ssTable.getPartitioner().decorateKey(key);
-        AbstractType comparator1 = DatabaseDescriptor.getComparator(ssTable.getTableName(), cfName);
         long position = ssTable.getPosition(decoratedKey);
         if (position >= 0)
-            reader = new ColumnGroupReader(ssTable.getFilename(), decoratedKey, cfName, comparator1, startColumn, isAscending, position);
+            reader = new ColumnGroupReader(ssTable.getFilename(), decoratedKey, comparator, startColumn, isAscending, position);
         this.comparator = comparator;
         this.startColumn = startColumn;
         curColumnIndex = isAscending ? 0 : -1;
@@ -64,8 +60,6 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
     private void getColumnsFromBuffer() throws IOException
     {
-        if (curCF == null)
-            curCF = reader.getEmptyColumnFamily().cloneMeShallow();
         curColumns.clear();
         while (true)
         {
@@ -84,7 +78,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
     public ColumnFamily getColumnFamily()
     {
-        return curCF;
+        return reader.getEmptyColumnFamily();
     }
 
     protected IColumn computeNext()
@@ -135,9 +129,6 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
      */
     public static class ColumnGroupReader
     {
-        private String key_;
-        private String cfName_;
-        private AbstractType comparator_;
         private boolean isAscending_;
         private ColumnFamily emptyColumnFamily;
 
@@ -147,27 +138,18 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private BufferedRandomAccessFile file_;
         private Queue<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
+        public ColumnGroupReader(String filename, String key, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
         {
             this.file_ = new BufferedRandomAccessFile(filename, "r");
-            this.cfName_ = cfName;
-            this.comparator_ = comparator;
-            this.key_ = key;
             this.isAscending_ = isAscending;
-            init(startColumn, position);
-        }
 
-        private void init(byte[] startColumn, long position) throws IOException
-        {
             file_.seek(position);
             String keyInDisk = file_.readUTF();
-            assert keyInDisk.equals(key_);
+            assert keyInDisk.equals(key);
 
             file_.readInt(); // row size
             IndexHelper.skipBloomFilter(file_);
-
-            /* read the index */
-            indexList_ = IndexHelper.deserializeIndex(SSTableReader.parseTableName(file_.getPath()), cfName_, file_);
+            indexList_ = IndexHelper.deserializeIndex(file_);
 
             /* need to do two things here.
              * 1. move the file pointer to the beginning of the list of stored columns
@@ -184,10 +166,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             }
             else
             {
-                int index = Collections.binarySearch(indexList_, new IndexHelper.IndexInfo(startColumn, startColumn, 0, 0, comparator_));
-                curRangeIndex_ = index < 0 ? -1 * (index + 1): index;
-                if (curRangeIndex_ < 0)
-                    curRangeIndex_ = 0;
+                curRangeIndex_ = IndexHelper.indexFor(startColumn, indexList_, comparator);
             }
         }
 
@@ -201,29 +180,24 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             return blockColumns.poll();
         }
 
-        private boolean getBlockFromCurIndex() throws IOException
+        public boolean getNextBlock() throws IOException
         {
             if (curRangeIndex_ < 0 || curRangeIndex_ >= indexList_.size())
                 return false;
-            IndexHelper.IndexInfo curColPostion = indexList_.get(curRangeIndex_);
 
             /* seek to the correct offset to the data, and calculate the data size */
+            IndexHelper.IndexInfo curColPostion = indexList_.get(curRangeIndex_);
             file_.seek(columnStartPosition_ + curColPostion.offset);
             while (file_.getFilePointer() < columnStartPosition_ + curColPostion.offset + curColPostion.width)
             {
                 blockColumns.add(emptyColumnFamily.getColumnSerializer().deserialize(file_));
             }
-            return true;
-        }
 
-        public boolean getNextBlock() throws IOException
-        {
-            boolean result = getBlockFromCurIndex();
             if (isAscending_)
                 curRangeIndex_++;
             else
                 curRangeIndex_--;
-            return result;
+            return true;
         }
 
         public void close() throws IOException

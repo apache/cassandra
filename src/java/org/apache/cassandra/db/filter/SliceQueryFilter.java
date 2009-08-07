@@ -33,7 +33,7 @@ public class SliceQueryFilter extends QueryFilter
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable, AbstractType comparator) throws IOException
     {
-        return new SSTableSliceIterator(sstable.getFilename(), key, getColumnFamilyName(), comparator, start, isAscending);
+        return new SSTableSliceIterator(sstable.getFilename(), key, comparator, start, isAscending);
     }
 
     public void filterSuperColumn(SuperColumn superColumn, int gcBefore)
