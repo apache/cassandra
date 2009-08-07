@@ -86,8 +86,11 @@
     <!-- Partitioner: any IPartitioner may be used, including your own
          as long as it is on the classpath.  Out of the box,
          Cassandra provides
-         org.apache.cassandra.dht.RandomPartitioner and
-         org.apache.cassandra.dht.OrderPreservingPartitioner.
+         org.apache.cassandra.dht.RandomPartitioner,
+         org.apache.cassandra.dht.OrderPreservingPartitioner, and
+         org.apache.cassandra.dht.CollatingOrderPreservingPartitioner.
+         (CollatingOPP colates according to EN,US rules, not naive byte ordering.
+         Use this as an example if you need locale-aware collation.)
          Range queries require using OrderPreservingPartitioner or a subclass.
 
          Achtung!  Changing this parameter requires wiping your data directories,

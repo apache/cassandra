@@ -18,6 +18,8 @@
 */
 package org.apache.cassandra.dht;
 
+import org.apache.cassandra.service.StorageService;
+
 public class StringToken extends Token<String>
 {
     public StringToken(String token)
@@ -27,6 +29,7 @@ public class StringToken extends Token<String>
 
     public int compareTo(Token<String> o)
     {
-        return OrderPreservingPartitioner.collator.compare(this.token, o.token);
+        assert StorageService.getPartitioner() instanceof OrderPreservingPartitioner;
+        return StorageService.getPartitioner().getDecoratedKeyComparator().compare(this.token, o.token);
     }
 }
