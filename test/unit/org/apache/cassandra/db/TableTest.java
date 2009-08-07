@@ -47,9 +47,8 @@ public class TableTest extends CleanupHelper
         public void run() throws Exception;
     }
 
-    private void reTest(Runner setup, ColumnFamilyStore cfs, Runner verify) throws Exception
+    private void reTest(ColumnFamilyStore cfs, Runner verify) throws Exception
     {
-        setup.run();
         verify.run();
         cfs.forceBlockingFlush();
         verify.run();
@@ -68,14 +67,12 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace2");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard3");
 
-        Runner setup = new Runner()
-        {
-            public void run() throws Exception
-            {
-                RowMutation rm = makeSimpleRowMutation();
-                rm.apply();
-            }
-        };
+        RowMutation rm = new RowMutation("Keyspace2", TEST_KEY);
+        ColumnFamily cf = ColumnFamily.create("Keyspace2", "Standard3");
+        cf.addColumn(column("col1","val1", 1L));
+        rm.add(cf);
+        rm.apply();
+
         Runner verify = new Runner()
         {
             public void run() throws Exception
@@ -89,7 +86,7 @@ public class TableTest extends CleanupHelper
                 assertColumns(cf);
             }
         };
-        reTest(setup, table.getColumnFamilyStore("Standard3"), verify);
+        reTest(table.getColumnFamilyStore("Standard3"), verify);
     }
 
     @Test
@@ -98,14 +95,14 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
 
-        Runner setup = new Runner()
-        {
-            public void run() throws Exception
-            {
-                RowMutation rm = makeSimpleRowMutation();
-                rm.apply();
-            }
-        };
+        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.addColumn(column("col1","val1", 1L));
+        cf.addColumn(column("col2","val2", 1L));
+        cf.addColumn(column("col3","val3", 1L));
+        rm.add(cf);
+        rm.apply();
+
         Runner verify = new Runner()
         {
             public void run() throws Exception
@@ -119,7 +116,7 @@ public class TableTest extends CleanupHelper
                 assertColumns(cf, "col3");
             }
         };
-        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
@@ -148,17 +145,6 @@ public class TableTest extends CleanupHelper
         
         cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "c".getBytes(), "b".getBytes(), true, 1);
         assertNull(cf);
-    }
-
-    private RowMutation makeSimpleRowMutation()
-    {
-        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY);
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
-        cf.addColumn(column("col1","val1", 1L));
-        cf.addColumn(column("col2","val2", 1L));
-        cf.addColumn(column("col3","val3", 1L));
-        rm.add(cf);
-        return rm;
     }
 
     @Test
@@ -202,26 +188,21 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final String ROW = "row1";
-        Runner setup = new Runner()
-        {
-            public void run() throws Exception
-            {
-                RowMutation rm = new RowMutation("Keyspace1", ROW);
-                ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
-                cf.addColumn(column("col1", "val1", 1L));
-                cf.addColumn(column("col3", "val3", 1L));
-                cf.addColumn(column("col4", "val4", 1L));
-                cf.addColumn(column("col5", "val5", 1L));
-                cf.addColumn(column("col7", "val7", 1L));
-                cf.addColumn(column("col9", "val9", 1L));
-                rm.add(cf);
-                rm.apply();
 
-                rm = new RowMutation("Keyspace1", ROW);
-                rm.delete(new QueryPath("Standard1", null, "col4".getBytes()), 2L);
-                rm.apply();
-            }
-        };
+        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.addColumn(column("col1", "val1", 1L));
+        cf.addColumn(column("col3", "val3", 1L));
+        cf.addColumn(column("col4", "val4", 1L));
+        cf.addColumn(column("col5", "val5", 1L));
+        cf.addColumn(column("col7", "val7", 1L));
+        cf.addColumn(column("col9", "val9", 1L));
+        rm.add(cf);
+        rm.apply();
+
+        rm = new RowMutation("Keyspace1", ROW);
+        rm.delete(new QueryPath("Standard1", null, "col4".getBytes()), 2L);
+        rm.apply();
 
         Runner verify = new Runner()
         {
@@ -253,7 +234,7 @@ public class TableTest extends CleanupHelper
             }
         };
 
-        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
@@ -263,31 +244,26 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
         final String ROW = "row2";
-        Runner setup = new Runner()
-        {
-            public void run() throws Exception
-            {
-                RowMutation rm = new RowMutation("Keyspace1", ROW);
-                ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
-                cf.addColumn(column("col1", "val1", 1L));
-                cf.addColumn(column("col2", "val2", 1L));
-                cf.addColumn(column("col3", "val3", 1L));
-                cf.addColumn(column("col4", "val4", 1L));
-                cf.addColumn(column("col5", "val5", 1L));
-                cf.addColumn(column("col6", "val6", 1L));
-                rm.add(cf);
-                rm.apply();
-                cfStore.forceBlockingFlush();
 
-                rm = new RowMutation("Keyspace1", ROW);
-                cf = ColumnFamily.create("Keyspace1", "Standard1");
-                cf.addColumn(column("col1", "valx", 2L));
-                cf.addColumn(column("col2", "valx", 2L));
-                cf.addColumn(column("col3", "valx", 2L));
-                rm.add(cf);
-                rm.apply();
-            }
-        };
+        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.addColumn(column("col1", "val1", 1L));
+        cf.addColumn(column("col2", "val2", 1L));
+        cf.addColumn(column("col3", "val3", 1L));
+        cf.addColumn(column("col4", "val4", 1L));
+        cf.addColumn(column("col5", "val5", 1L));
+        cf.addColumn(column("col6", "val6", 1L));
+        rm.add(cf);
+        rm.apply();
+        cfStore.forceBlockingFlush();
+
+        rm = new RowMutation("Keyspace1", ROW);
+        cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.addColumn(column("col1", "valx", 2L));
+        cf.addColumn(column("col2", "valx", 2L));
+        cf.addColumn(column("col3", "valx", 2L));
+        rm.add(cf);
+        rm.apply();
 
         Runner verify = new Runner()
         {
@@ -303,7 +279,7 @@ public class TableTest extends CleanupHelper
             }
         };
 
-        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
@@ -385,19 +361,14 @@ public class TableTest extends CleanupHelper
         final Table table = Table.open("Keyspace1");
         final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Super1");
         final String ROW = "row2";
-        Runner setup = new Runner()
-        {
-            public void run() throws Exception
-            {
-                RowMutation rm = new RowMutation("Keyspace1", ROW);
-                ColumnFamily cf = ColumnFamily.create("Keyspace1", "Super1");
-                SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType());
-                sc.addColumn(new Column(getBytes(1), "val1".getBytes(), 1L));
-                cf.addColumn(sc);
-                rm.add(cf);
-                rm.apply();
-            }
-        };
+
+        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Super1");
+        SuperColumn sc = new SuperColumn("sc1".getBytes(), new LongType());
+        sc.addColumn(new Column(getBytes(1), "val1".getBytes(), 1L));
+        cf.addColumn(sc);
+        rm.add(cf);
+        rm.apply();
 
         Runner verify = new Runner()
         {
@@ -409,7 +380,7 @@ public class TableTest extends CleanupHelper
             }
         };
 
-        reTest(setup, table.getColumnFamilyStore("Standard1"), verify);
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
     }
 
     public static void assertColumns(ColumnFamily cf, String... columnNames)
