@@ -190,29 +190,41 @@
     <!-- Memory, Disk, and Performance                                        -->
     <!--======================================================================-->
 
-    <!-- Add column indexes to a row after its contents reach this size -->
-    <ColumnIndexSizeInKB>256</ColumnIndexSizeInKB>
+    <!-- Buffer size to use when flushing memtables to disk.
+         (Only one memtable is ever flushed at a time.)
+         Increase (decrease) the index buffer size relative to the data buffer
+         if you have few (many) columns per key. -->
+    <FlushDataBufferSizeInMB>32</FlushDataBufferSizeInMB>
+    <FlushIndexBufferSizeInMB>8</FlushIndexBufferSizeInMB>
+
+    <!-- Add column indexes to a row after its contents reach this size.
+         Increase if your column values are large, or if you have a very large
+         number of columns.  The competing causes are, Cassandra has to
+         deserialize this much of the row to read a single column, so you
+         want it to be small - at least if you do many partial-row reads
+         - but all the index data is read for each access, so
+         you don't want to generate that wastefully either. -->
+    <ColumnIndexSizeInKB>64</ColumnIndexSizeInKB>
 
     <!--
-      The maximum amount of data to store in memory before flushing to
+      The maximum amount of data to store in memory per ColumnFamily before flushing to
       disk. Note: There is one memtable per column family, and this threshold
       is based solely on the amount of data stored, not actual heap memory
       usage (there is some overhead in indexing the columns).
     -->
-    <MemtableSizeInMB>32</MemtableSizeInMB>
-
+    <MemtableSizeInMB>64</MemtableSizeInMB>
     <!--
-      The maximum number of columns in millions to store in memory
+      The maximum number of columns in millions to store in memory per ColumnFamily
       before flushing to disk.  This is also a per-memtable setting.
       Use with MemtableSizeInMB to tune memory usage.
     -->
-    <MemtableObjectCountInMillions>0.01</MemtableObjectCountInMillions>
+    <MemtableObjectCountInMillions>0.1</MemtableObjectCountInMillions>
 
     <!-- Unlike most systems, in Cassandra writes are faster than
          reads, so you can afford more of those in parallel.
 	 A good rule of thumb is 2 concurrent reads per processor core.
-         You especially want more concurrentwrites if you are using
-         CommitLogSync + CommitLogSyncDelay. -->
+         Increase ConcurrentWrites to the number of clients writing
+         at once if you enable CommitLogSync + CommitLogSyncDelay. -->
     <ConcurrentReads>8</ConcurrentReads>
     <ConcurrentWrites>32</ConcurrentWrites>
 

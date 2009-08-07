@@ -11,6 +11,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
 public class SSTableWriter extends SSTable
@@ -26,8 +27,8 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
-        dataFile = new BufferedRandomAccessFile(path, "rw", 4 * 1024 * 1024);
-        indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", 1024 * 1024);
+        dataFile = new BufferedRandomAccessFile(path, "rw", DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024);
+        indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024);
         bf = new BloomFilter(keyCount, 15);
     }
 

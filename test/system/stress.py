@@ -30,7 +30,7 @@ class Inserter(Thread):
         self.count = 0
         client = get_client(port=9160)
         client.transport.open()
-        for i in xrange(0, 1000):
+        for i in xrange(0, 200):
             data = md5(str(i)).hexdigest()
             for j in xrange(0, 1000):
                 key = '%s.%s.%s' % (time.time(), id, j)
