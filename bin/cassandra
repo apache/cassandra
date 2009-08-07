@@ -20,6 +20,11 @@
 #   -f: start in foreground
 #   -p <filename>: log the pid to a file (useful to kill it later)
 
+if [ -x $JAVA_HOME/bin/java ]; then
+    JAVA=$JAVA_HOME/bin/java
+else
+    JAVA=`which java`
+fi
 
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     for include in /usr/share/cassandra/cassandra.in.sh \
@@ -62,11 +67,11 @@ launch_service()
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        java $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
+        $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
                 org.apache.cassandra.service.CassandraDaemon
     # Startup CassandraDaemon, background it, and write the pid.
     else
-        exec java $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
+        exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
                     org.apache.cassandra.service.CassandraDaemon <&- &
         [ ! -z $pidpath ] && printf "%d" $! > $pidpath
     fi
