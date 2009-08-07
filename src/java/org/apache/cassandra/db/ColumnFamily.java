@@ -481,8 +481,6 @@ public final class ColumnFamily
         */
         public void serialize(ColumnFamily columnFamily, DataOutput dos) throws IOException
         {
-            // TODO whenever we change this we need to change the code in SSTableSliceIterator to match.
-            // This SUCKS and is inefficient to boot.  let's fix this ASAP. 
             Collection<IColumn> columns = columnFamily.getSortedColumns();
 
             dos.writeUTF(columnFamily.name());

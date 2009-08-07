@@ -132,6 +132,8 @@ public class CassandraServer implements Cassandra.Iface
             thriftColumns.add(thrift_column);
         }
 
+        // we have to do the reversing here, since internally we pass results around in ColumnFamily
+        // objects, which always sort their columns in the "natural" order
         if (reverseOrder)
             Collections.reverse(thriftColumns);
         return thriftColumns;

@@ -14,16 +14,15 @@ import com.google.common.collect.AbstractIterator;
  */
 class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIterator
 {
-    protected boolean isAscending;
-    private byte[] startColumn;
-    private int curColumnIndex;
-    private ArrayList<IColumn> curColumns = new ArrayList<IColumn>();
+    private final boolean isAscending;
+    private final byte[] startColumn;
+    private final AbstractType comparator;
     private ColumnGroupReader reader;
-    private AbstractType comparator;
 
     public SSTableSliceIterator(String filename, String key, AbstractType comparator, byte[] startColumn, boolean isAscending)
     throws IOException
     {
+        // TODO push finishColumn down here too, so we can tell when we're done and optimize away the slice when the index + start/stop shows there's nothing to scan for
         this.isAscending = isAscending;
         SSTableReader ssTable = SSTableReader.open(filename);
 
@@ -34,45 +33,13 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         this.startColumn = startColumn;
         if (position >= 0)
             reader = new ColumnGroupReader(filename, decoratedKey, position);
-        curColumnIndex = isAscending ? 0 : -1;
     }
 
     private boolean isColumnNeeded(IColumn column)
     {
-        if (isAscending)
-        {
-            return comparator.compare(column.name(), startColumn) >= 0;
-        }
-        else
-        {
-            if (startColumn.length == 0)
-            {
-                /* assuming scanning from the largest column in descending order */
-                return true;
-            }
-            else
-            {
-                return comparator.compare(column.name(), startColumn) <= 0;
-            }
-        }
-    }
-
-    private void getColumnsFromBuffer() throws IOException
-    {
-        curColumns.clear();
-        while (true)
-        {
-            IColumn column = reader.pollColumn();
-            if (column == null)
-                break;
-            if (isColumnNeeded(column))
-                curColumns.add(column);
-        }
-
-        if (isAscending)
-            curColumnIndex = 0;
-        else
-            curColumnIndex = curColumns.size() - 1;
+        return isAscending
+               ? comparator.compare(column.name(), startColumn) >= 0
+               : startColumn.length == 0 || comparator.compare(column.name(), startColumn) <= 0;
     }
 
     public ColumnFamily getColumnFamily()
@@ -87,31 +54,11 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         while (true)
         {
-            if (isAscending)
-            {
-                if (curColumnIndex < curColumns.size())
-                {
-                    return curColumns.get(curColumnIndex++);
-                }
-            }
-            else
-            {
-                if (curColumnIndex >= 0)
-                {
-                    return curColumns.get(curColumnIndex--);
-                }
-            }
-
-            try
-            {
-                if (!reader.getNextBlock())
-                    return endOfData();
-                getColumnsFromBuffer();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            IColumn column = reader.pollColumn();
+            if (column == null)
+                return endOfData();
+            if (isColumnNeeded(column))
+                return column;
         }
     }
 
@@ -128,13 +75,14 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
      */
     class ColumnGroupReader
     {
-        private ColumnFamily emptyColumnFamily;
+        private final ColumnFamily emptyColumnFamily;
 
-        private List<IndexHelper.IndexInfo> indexes;
-        private long columnStartPosition;
+        private final List<IndexHelper.IndexInfo> indexes;
+        private final long columnStartPosition;
+        private final BufferedRandomAccessFile file;
+
         private int curRangeIndex;
-        private BufferedRandomAccessFile file;
-        private Queue<IColumn> blockColumns = new ArrayDeque<IColumn>();
+        private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
         public ColumnGroupReader(String filename, String key, long position) throws IOException
         {
@@ -148,23 +96,11 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             IndexHelper.skipBloomFilter(file);
             indexes = IndexHelper.deserializeIndex(file);
 
-            /* need to do two things here.
-             * 1. move the file pointer to the beginning of the list of stored columns
-             * 2. calculate the size of all columns */
             emptyColumnFamily = ColumnFamily.serializer().deserializeEmpty(file);
             file.readInt(); // column count
 
             columnStartPosition = file.getFilePointer();
-
-            if (startColumn.length == 0 && !isAscending)
-            {
-                /* in this case, we assume that we want to scan from the largest column in descending order. */
-                curRangeIndex = indexes.size() - 1;
-            }
-            else
-            {
-                curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator);
-            }
+            curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, isAscending);
         }
 
         public ColumnFamily getEmptyColumnFamily()
@@ -174,7 +110,20 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         public IColumn pollColumn()
         {
-            return blockColumns.poll();
+            IColumn column = blockColumns.poll();
+            if (column == null)
+            {
+                try
+                {
+                    if (getNextBlock())
+                        column = blockColumns.poll();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+            return column;
         }
 
         public boolean getNextBlock() throws IOException
@@ -187,7 +136,11 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             file.seek(columnStartPosition + curColPostion.offset);
             while (file.getFilePointer() < columnStartPosition + curColPostion.offset + curColPostion.width)
             {
-                blockColumns.add(emptyColumnFamily.getColumnSerializer().deserialize(file));
+                IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
+                if (isAscending)
+                    blockColumns.addLast(column);
+                else
+                    blockColumns.addFirst(column);
             }
 
             if (isAscending)

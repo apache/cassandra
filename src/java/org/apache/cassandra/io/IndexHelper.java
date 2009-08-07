@@ -120,8 +120,10 @@ public class IndexHelper
         return BloomFilter.serializer().deserialize(bufIn);
     }
 
-    public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator)
+    public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator, boolean ascending)
     {
+        if (name.length == 0 && !ascending)
+            return indexList.size() - 1;
         IndexInfo target = new IndexInfo(name, name, 0, 0);
         int index = Collections.binarySearch(indexList, target, getComparator(comparator));
         return index < 0 ? -1 * (index + 1) : index;
