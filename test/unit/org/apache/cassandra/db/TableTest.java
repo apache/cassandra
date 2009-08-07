@@ -315,40 +315,44 @@ public class TableTest extends CleanupHelper
         RowMutation rm = new RowMutation("Keyspace1", ROW);
         ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
-            cf.addColumn(column("col" + i, ("vvvvvvvvvvvvvvvv" + i), 1L));
+            cf.addColumn(column("col" + i, ("v" + i), 1L));
         rm.add(cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 
         cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1000", "col1001", "col1002");
-        assertEquals(new String(cf.getColumn("col1000".getBytes()).value()), "vvvvvvvvvvvvvvvv1000");
-        assertEquals(new String(cf.getColumn("col1001".getBytes()).value()), "vvvvvvvvvvvvvvvv1001");
-        assertEquals(new String(cf.getColumn("col1002".getBytes()).value()), "vvvvvvvvvvvvvvvv1002");
+        assertEquals(new String(cf.getColumn("col1000".getBytes()).value()), "v1000");
+        assertEquals(new String(cf.getColumn("col1001".getBytes()).value()), "v1001");
+        assertEquals(new String(cf.getColumn("col1002".getBytes()).value()), "v1002");
 
         cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1195".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1195", "col1196", "col1197");
-        assertEquals(new String(cf.getColumn("col1195".getBytes()).value()), "vvvvvvvvvvvvvvvv1195");
-        assertEquals(new String(cf.getColumn("col1196".getBytes()).value()), "vvvvvvvvvvvvvvvv1196");
-        assertEquals(new String(cf.getColumn("col1197".getBytes()).value()), "vvvvvvvvvvvvvvvv1197");
+        assertEquals(new String(cf.getColumn("col1195".getBytes()).value()), "v1195");
+        assertEquals(new String(cf.getColumn("col1196".getBytes()).value()), "v1196");
+        assertEquals(new String(cf.getColumn("col1197".getBytes()).value()), "v1197");
 
-        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1196".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
-        assertColumns(cf, "col1194", "col1195", "col1196");
-        assertEquals(new String(cf.getColumn("col1194".getBytes()).value()), "vvvvvvvvvvvvvvvv1194");
-        assertEquals(new String(cf.getColumn("col1195".getBytes()).value()), "vvvvvvvvvvvvvvvv1195");
-        assertEquals(new String(cf.getColumn("col1196".getBytes()).value()), "vvvvvvvvvvvvvvvv1196");
+        cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1996".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+        IColumn[] columns = cf.getSortedColumns().toArray(new IColumn[0]);
+        for (int i = 1000; i < 1996; i++)
+        {
+            String expectedName = "col" + i;
+            IColumn column = columns[i - 1000];
+            assert Arrays.equals(column.name(), expectedName.getBytes()) : cfStore.getComparator().getString(column.name()) + " is not " + expectedName;
+            assert Arrays.equals(column.value(), ("v" + i).getBytes());
+        }
 
         cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col1990".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1990", "col1991", "col1992");
-        assertEquals(new String(cf.getColumn("col1990".getBytes()).value()), "vvvvvvvvvvvvvvvv1990");
-        assertEquals(new String(cf.getColumn("col1991".getBytes()).value()), "vvvvvvvvvvvvvvvv1991");
-        assertEquals(new String(cf.getColumn("col1992".getBytes()).value()), "vvvvvvvvvvvvvvvv1992");
+        assertEquals(new String(cf.getColumn("col1990".getBytes()).value()), "v1990");
+        assertEquals(new String(cf.getColumn("col1991".getBytes()).value()), "v1991");
+        assertEquals(new String(cf.getColumn("col1992".getBytes()).value()), "v1992");
 
         cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf, "col1997", "col1998", "col1999");
-        assertEquals(new String(cf.getColumn("col1999".getBytes()).value()), "vvvvvvvvvvvvvvvv1999");
-        assertEquals(new String(cf.getColumn("col1998".getBytes()).value()), "vvvvvvvvvvvvvvvv1998");
-        assertEquals(new String(cf.getColumn("col1997".getBytes()).value()), "vvvvvvvvvvvvvvvv1997");
+        assertEquals(new String(cf.getColumn("col1999".getBytes()).value()), "v1999");
+        assertEquals(new String(cf.getColumn("col1998".getBytes()).value()), "v1998");
+        assertEquals(new String(cf.getColumn("col1997".getBytes()).value()), "v1997");
     }
 
     @Test
