@@ -35,7 +35,7 @@ public class RangeReply
 
     public RangeReply(List<String> keys, boolean rangeCompletedLocally)
     {
-        this.keys = Collections.unmodifiableList(keys);
+        this.keys = keys;
         this.rangeCompletedLocally = rangeCompletedLocally;
     }
 

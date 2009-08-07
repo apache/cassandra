@@ -33,8 +33,8 @@ import org.apache.cassandra.net.EndPoint;
  */
 public interface IReplicaPlacementStrategy
 {
-	public EndPoint[] getStorageEndPoints(Token token, int offset);
-    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys, int offset);
-    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap, int offset);
+	public EndPoint[] getStorageEndPoints(Token token);
+    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys);
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap);
     public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token);
 }

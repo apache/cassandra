@@ -45,7 +45,7 @@ public class RackAwareStrategy extends AbstractStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getStorageEndPoints(Token token,  int offset)
+    public EndPoint[] getStorageEndPoints(Token token)
     {
         int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
@@ -123,19 +123,19 @@ public class RackAwareStrategy extends AbstractStrategy
         return list.toArray(new EndPoint[list.size()]);
     }
     
-    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys, int offset)
+    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
     {
     	Map<String, EndPoint[]> results = new HashMap<String, EndPoint[]>();
 
         for ( String key : keys )
         {
-            results.put(key, getStorageEndPoints(partitioner_.getInitialToken(key), offset));
+            results.put(key, getStorageEndPoints(partitioner_.getInitialToken(key)));
         }
 
         return results;
     }
 
-    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap, int offset)
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         throw new UnsupportedOperationException("This operation is not currently supported");
     }

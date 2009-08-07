@@ -41,12 +41,12 @@ public class RackUnawareStrategy extends AbstractStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getStorageEndPoints(Token token, int offset)
+    public EndPoint[] getStorageEndPoints(Token token)
     {
-        return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap(), offset);            
+        return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());            
     }
     
-    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap, int offset)
+    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
@@ -61,9 +61,8 @@ public class RackUnawareStrategy extends AbstractStrategy
                 index = 0;
         }
         int totalNodes = tokens.size();
-        int realIndex = (index + offset) % totalNodes;
         // Add the node at the index by default
-        list.add(tokenToEndPointMap.get(tokens.get(realIndex)));
+        list.add(tokenToEndPointMap.get(tokens.get(index)));
         foundCount++;
         startIndex = (index + 1)%totalNodes;
         // If we found N number of nodes we are good. This loop will just exit. Otherwise just
@@ -80,13 +79,13 @@ public class RackUnawareStrategy extends AbstractStrategy
         return list.toArray(new EndPoint[list.size()]);
     }
             
-    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys, int offset)
+    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
     {
     	Map<String, EndPoint[]> results = new HashMap<String, EndPoint[]>();
 
         for ( String key : keys )
         {
-            results.put(key, getStorageEndPoints(partitioner_.getInitialToken(key), offset));
+            results.put(key, getStorageEndPoints(partitioner_.getInitialToken(key)));
         }
 
         return results;

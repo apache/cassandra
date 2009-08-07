@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.locator;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -122,7 +120,43 @@ public class TokenMetadata
             lock_.readLock().unlock();
         }
     }
+
+    public EndPoint getFirstEndpoint()
+    {
+        lock_.readLock().lock();
+        try
+        {
+            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap_.keySet());
+            if (tokens.isEmpty())
+                return null;
+            Collections.sort(tokens);
+            return tokenToEndPointMap_.get(tokens.get(0));
+        }
+        finally
+        {
+            lock_.readLock().unlock();
+        }
+    }
     
+
+    public EndPoint getNextEndpoint(EndPoint endPoint)
+    {
+        lock_.readLock().lock();
+        try
+        {
+            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap_.keySet());
+            if (tokens.isEmpty())
+                return null;
+            Collections.sort(tokens);
+            int i = tokens.indexOf(endPointToTokenMap_.get(endPoint)); // TODO binary search
+            return tokenToEndPointMap_.get(tokens.get((i + 1) % tokens.size()));
+        }
+        finally
+        {
+            lock_.readLock().unlock();
+        }
+    }
+
     /*
      * Returns a safe clone of tokenToEndPointMap_.
     */
