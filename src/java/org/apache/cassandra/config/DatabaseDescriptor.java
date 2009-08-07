@@ -144,9 +144,16 @@ public class DatabaseDescriptor
                 // Bool.valueOf will silently assume false for values it doesn't recognize
                 throw new ConfigurationException("Unrecognized value for CommitLogSync.  Use 'true' or 'false'.");
             }
-            commitLogSync_ = Boolean.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSync"));
+            commitLogSync_ = Boolean.valueOf(syncRaw);
 
-            commitLogSyncDelay_ = Integer.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncDelay"));
+            try
+            {
+                commitLogSyncDelay_ = Integer.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncDelay"));
+            }
+            catch (Exception e)
+            {
+                throw new ConfigurationException("Unrecognized value for CommitLogSyncDelay.  Integer expected.");
+            }
 
             /* Hashing strategy */
             String partitionerClassName = xmlUtils.getNodeValue("/Storage/Partitioner");
