@@ -38,7 +38,7 @@ public class RangeVerbHandler implements IVerbHandler
             RangeCommand command = RangeCommand.read(message);
             Table table = Table.open(command.table);
 
-            RangeReply rangeReply = table.getKeyRange(command.columnFamily, command.startWith, command.stopAt, command.maxResults);
+            RangeReply rangeReply = table.getColumnFamilyStore(command.columnFamily).getKeyRange(command.startWith, command.stopAt, command.maxResults);
             Message response = rangeReply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + rangeReply + " to " + message.getMessageId() + "@" + message.getFrom());

@@ -45,12 +45,12 @@ public class OneCompactionTest
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), table.getKeyRange(columnFamilyName, "", "", 10000).keys.size());
+            assertEquals(inserted.size(), table.getColumnFamilyStore(columnFamilyName).getKeyRange("", "", 10000).keys.size());
         }
         Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2);
         ft.get();
         assertEquals(1, store.getSSTables().size());
-        assertEquals(table.getKeyRange(columnFamilyName, "", "", 10000).keys.size(), inserted.size());
+        assertEquals(table.getColumnFamilyStore(columnFamilyName).getKeyRange("", "", 10000).keys.size(), inserted.size());
     }
 
     @Test

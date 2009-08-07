@@ -43,7 +43,9 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.Predicate;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -1455,6 +1457,117 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             sstableLock_.readLock().unlock();
+        }
+    }
+
+    /**
+     * @param startWith key to start with, inclusive.  empty string = start at beginning.
+     * @param stopAt key to stop at, inclusive.  empty string = stop only when keys are exhausted.
+     * @param maxResults
+     * @return list of keys between startWith and stopAt
+     */
+    public RangeReply getKeyRange(final String startWith, final String stopAt, int maxResults)
+    throws IOException, ExecutionException, InterruptedException
+    {
+        getReadLock().lock();
+        try
+        {
+            return getKeyRangeUnsafe(startWith, stopAt, maxResults);
+        }
+        finally
+        {
+            getReadLock().unlock();
+        }
+    }
+
+    private RangeReply getKeyRangeUnsafe(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
+    {
+        // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
+        final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
+
+        // create a CollatedIterator that will return unique keys from different sources
+        // (current memtable, historical memtables, and SSTables) in the correct order.
+        List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
+
+        // we iterate through memtables with a priority queue to avoid more sorting than necessary.
+        // this predicate throws out the keys before the start of our range.
+        Predicate p = new Predicate()
+        {
+            public boolean evaluate(Object key)
+            {
+                String st = (String)key;
+                return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
+            }
+        };
+
+        // current memtable keys.  have to go through the CFS api for locking.
+        iterators.add(IteratorUtils.filteredIterator(memtableKeyIterator(), p));
+        // historical memtables
+        for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily_))
+        {
+            iterators.add(IteratorUtils.filteredIterator(Memtable.getKeyIterator(memtable.getKeys()), p));
+        }
+
+        // sstables
+        for (SSTableReader sstable : getSSTables())
+        {
+            FileStruct fs = sstable.getFileStruct();
+            fs.seekTo(startWith);
+            iterators.add(fs);
+        }
+
+        Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
+        Iterable<String> reduced = new ReducingIterator<String>(collated) {
+            String current;
+
+            public void reduce(String current)
+            {
+                 this.current = current;
+            }
+
+            protected String getReduced()
+            {
+                return current;
+            }
+        };
+
+        try
+        {
+            // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
+            // so we set an arbitrary limit on how many we'll do at once.
+            List<String> keys = new ArrayList<String>();
+            boolean rangeCompletedLocally = false;
+            for (String current : reduced)
+            {
+                if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
+                {
+                    rangeCompletedLocally = true;
+                    break;
+                }
+                // make sure there is actually non-tombstone content associated w/ this key
+                // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
+                QueryFilter filter = new SliceQueryFilter(current, new QueryPath(columnFamily_), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1);
+                if (getColumnFamily(filter, Integer.MAX_VALUE) != null)
+                {
+                    keys.add(current);
+                }
+                if (keys.size() >= maxResults)
+                {
+                    rangeCompletedLocally = true;
+                    break;
+                }
+            }
+            return new RangeReply(keys, rangeCompletedLocally);
+        }
+        finally
+        {
+            for (Iterator iter : iterators)
+            {
+                if (iter instanceof FileStruct)
+                {
+                    ((FileStruct)iter).close();
+                }
+            }
         }
     }
 
