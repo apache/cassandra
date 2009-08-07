@@ -1,9 +1,6 @@
 package org.apache.cassandra.db.filter;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.*;
 import java.io.IOException;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -22,8 +19,6 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 {
     protected boolean isAscending;
     private byte[] startColumn;
-    private DataOutputBuffer outBuf = new DataOutputBuffer();
-    private DataInputBuffer inBuf = new DataInputBuffer();
     private int curColumnIndex;
     private ColumnFamily curCF = null;
     private ArrayList<IColumn> curColumns = new ArrayList<IColumn>();
@@ -69,15 +64,17 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
     private void getColumnsFromBuffer() throws IOException
     {
-        inBuf.reset(outBuf.getData(), outBuf.getLength());
-        ColumnFamily columnFamily = ColumnFamily.serializer().deserialize(inBuf);
-
         if (curCF == null)
-            curCF = columnFamily.cloneMeShallow();
+            curCF = reader.getEmptyColumnFamily().cloneMeShallow();
         curColumns.clear();
-        for (IColumn column : columnFamily.getSortedColumns())
+        while (true)
+        {
+            IColumn column = reader.pollColumn();
+            if (column == null)
+                break;
             if (isColumnNeeded(column))
                 curColumns.add(column);
+        }
 
         if (isAscending)
             curColumnIndex = 0;
@@ -114,7 +111,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
             try
             {
-                if (!reader.getNextBlock(outBuf))
+                if (!reader.getNextBlock())
                     return endOfData();
                 getColumnsFromBuffer();
             }
@@ -140,25 +137,22 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     {
         private String key_;
         private String cfName_;
-        private String cfType_;
         private AbstractType comparator_;
-        private String subComparatorName_;
         private boolean isAscending_;
+        private ColumnFamily emptyColumnFamily;
 
         private List<IndexHelper.ColumnIndexInfo> columnIndexList_;
         private long columnStartPosition_;
         private int curRangeIndex_;
         private int allColumnsSize_;
-        private int localDeletionTime_;
-        private long markedForDeleteAt_;
         private BufferedRandomAccessFile file_;
+        private Queue<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
         public ColumnGroupReader(String filename, String key, String cfName, AbstractType comparator, byte[] startColumn, boolean isAscending, long position) throws IOException
         {
             this.file_ = new BufferedRandomAccessFile(filename, "r");
             this.cfName_ = cfName;
             this.comparator_ = comparator;
-            this.subComparatorName_ = DatabaseDescriptor.getSubComparator(SSTableReader.parseTableName(filename), cfName).getClass().getCanonicalName();
             this.key_ = key;
             this.isAscending_ = isAscending;
             init(startColumn, position);
@@ -167,34 +161,24 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         /**
          *   Build a list of index entries ready for search.
          */
-        private List<IndexHelper.ColumnIndexInfo> getFullColumnIndexList(List<IndexHelper.ColumnIndexInfo> columnIndexList, int totalColumns)
+        private List<IndexHelper.ColumnIndexInfo> getFullColumnIndexList(List<IndexHelper.ColumnIndexInfo> columnIndexList)
         {
             if (columnIndexList.size() == 0)
             {
                 /* if there is no column index, add an index entry that covers the full space. */
-                return Arrays.asList(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, totalColumns, comparator_));
+                return Arrays.asList(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, comparator_));
             }
 
             List<IndexHelper.ColumnIndexInfo> fullColIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-            int accumulatedColumns = 0;
-            for (IndexHelper.ColumnIndexInfo colPosInfo : columnIndexList)
-                accumulatedColumns += colPosInfo.count();
-            int remainingCols = totalColumns - accumulatedColumns;
 
-            fullColIndexList.add(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, columnIndexList.get(0).count(), comparator_));
+            fullColIndexList.add(new IndexHelper.ColumnIndexInfo(ArrayUtils.EMPTY_BYTE_ARRAY, 0, comparator_));
             for (int i = 0; i < columnIndexList.size() - 1; i++)
             {
                 IndexHelper.ColumnIndexInfo colPosInfo = columnIndexList.get(i);
-                fullColIndexList.add(new IndexHelper.ColumnIndexInfo(colPosInfo.name(),
-                                                                     colPosInfo.position(),
-                                                                     columnIndexList.get(i + 1).count(),
-                                                                     comparator_));
+                fullColIndexList.add(new IndexHelper.ColumnIndexInfo(colPosInfo.name(), colPosInfo.position(), comparator_));
             }
             byte[] columnName = columnIndexList.get(columnIndexList.size() - 1).name();
-            fullColIndexList.add(new IndexHelper.ColumnIndexInfo(columnName,
-                                                                 columnIndexList.get(columnIndexList.size() - 1).position(),
-                                                                 remainingCols,
-                                                                 comparator_));
+            fullColIndexList.add(new IndexHelper.ColumnIndexInfo(columnName, columnIndexList.get(columnIndexList.size() - 1).position(), comparator_));
             return fullColIndexList;
         }
 
@@ -220,18 +204,13 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             /* need to do two things here.
              * 1. move the file pointer to the beginning of the list of stored columns
              * 2. calculate the size of all columns */
-            String cfName = file_.readUTF();
-            cfType_ = file_.readUTF();
-            String comparatorName = file_.readUTF();
-            assert comparatorName.equals(comparator_.getClass().getCanonicalName());
-            String subComparatorName = file_.readUTF(); // subcomparator
-            localDeletionTime_ = file_.readInt();
-            markedForDeleteAt_ = file_.readLong();
+            emptyColumnFamily = ColumnFamily.serializer().deserializeEmpty(file_);
             int totalNumCols = file_.readInt();
-            allColumnsSize_ = dataSize - (totalBytesRead + 4 * 2 + cfName.length() + cfType_.length() + comparatorName.length() + subComparatorName.length() + 4 + 8 + 4);
+            totalBytesRead += emptyColumnFamily.serializedSize();
+            allColumnsSize_ = dataSize - totalBytesRead;
 
             columnStartPosition_ = file_.getFilePointer();
-            columnIndexList_ = getFullColumnIndexList(colIndexList, totalNumCols);
+            columnIndexList_ = getFullColumnIndexList(colIndexList);
 
             if (startColumn.length == 0 && !isAscending_)
             {
@@ -240,12 +219,22 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             }
             else
             {
-                int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnIndexInfo(startColumn, 0, 0, comparator_));
+                int index = Collections.binarySearch(columnIndexList_, new IndexHelper.ColumnIndexInfo(startColumn, 0, comparator_));
                 curRangeIndex_ = index < 0 ? (++index) * (-1) - 1 : index;
             }
         }
 
-        private boolean getBlockFromCurIndex(DataOutputBuffer bufOut) throws IOException
+        public ColumnFamily getEmptyColumnFamily()
+        {
+            return emptyColumnFamily;
+        }
+
+        public IColumn pollColumn()
+        {
+            return blockColumns.poll();
+        }
+
+        private boolean getBlockFromCurIndex() throws IOException
         {
             if (curRangeIndex_ < 0 || curRangeIndex_ >= columnIndexList_.size())
                 return false;
@@ -257,25 +246,16 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
             /* seek to the correct offset to the data, and calculate the data size */
             file_.seek(columnStartPosition_ + start);
-            long dataSize = end - start;
-
-            bufOut.reset();
-            // write CF info
-            bufOut.writeUTF(cfName_);
-            bufOut.writeUTF(cfType_);
-            bufOut.writeUTF(comparator_.getClass().getCanonicalName());
-            bufOut.writeUTF(subComparatorName_);
-            bufOut.writeInt(localDeletionTime_);
-            bufOut.writeLong(markedForDeleteAt_);
-            // now write the columns
-            bufOut.writeInt(curColPostion.count());
-            bufOut.write(file_, (int)dataSize);
+            while (file_.getFilePointer() < columnStartPosition_ + end)
+            {
+                blockColumns.add(emptyColumnFamily.getColumnSerializer().deserialize(file_));
+            }
             return true;
         }
 
-        public boolean getNextBlock(DataOutputBuffer outBuf) throws IOException
+        public boolean getNextBlock() throws IOException
         {
-            boolean result = getBlockFromCurIndex(outBuf);
+            boolean result = getBlockFromCurIndex();
             if (isAscending_)
                 curRangeIndex_++;
             else

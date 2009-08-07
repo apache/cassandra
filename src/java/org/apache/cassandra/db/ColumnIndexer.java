@@ -103,7 +103,6 @@ public class ColumnIndexer
     private static void doIndexing(AbstractType comparator, Collection<IColumn> columns, DataOutputStream dos) throws IOException
     {
         /* we are going to write column indexes */
-        int numColumns = 0;
         int position = 0;
         int indexSizeInBytes = 0;
         int sizeSummarized = 0;
@@ -118,14 +117,13 @@ public class ColumnIndexer
         List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();        
         
         /* column offsets at the right thresholds into the index map. */
-        for ( IColumn column : columns )
+        for (IColumn column : columns)
         {
             /* if we hit the column index size that we have to index after, go ahead and index it */
-            if(position - sizeSummarized >= DatabaseDescriptor.getColumnIndexSize())
-            {      
-                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column.name(), 0, 0, comparator);
+            if (position - sizeSummarized >= DatabaseDescriptor.getColumnIndexSize())
+            {
+                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column.name(), 0, comparator);
                 cIndexInfo.position(position);
-                cIndexInfo.count(numColumns);                
                 columnIndexList.add(cIndexInfo);
                 /*
                  * we will be writing this object as a UTF8 string and two ints,
@@ -135,10 +133,8 @@ public class ColumnIndexer
                  */
                 indexSizeInBytes += cIndexInfo.size();
                 sizeSummarized = position;
-                numColumns = 0;
             }
             position += column.serializedSize();
-            ++numColumns;
         }
         /* write the column index list */
         IndexHelper.serialize(indexSizeInBytes, columnIndexList, dos);

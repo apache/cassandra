@@ -171,46 +171,21 @@ public class IndexHelper
      */
 	static ColumnRange getColumnRangeFromNameIndex(IndexHelper.ColumnIndexInfo cIndexInfo, List<IndexHelper.ColumnIndexInfo> columnIndexList, int dataSize, int totalNumCols)
 	{
-		/* find the offset for the column */
-        int size = columnIndexList.size();
-        long start = 0;
-        long end = dataSize;
-        int numColumns = 0;      
-       
-        int index = Collections.binarySearch(columnIndexList, cIndexInfo);
-        if ( index < 0 )
-        {
-            /* We are here which means that the requested column is not an index. */
-            index = (++index)*(-1);
-        }
-        else
-        {
-        	++index;
-        }
+        // TODO this looks like it can be simplified
+        int rawIndex = Collections.binarySearch(columnIndexList, cIndexInfo);
+        int index = rawIndex < 0
+                  ? -1 * (rawIndex + 1)
+                  : rawIndex + 1;
+        if (index > 0)
+            index -= 1;
+        assert index < columnIndexList.size();
 
-        /* calculate the starting offset from which we have to read */
-        start = (index == 0) ? 0 : columnIndexList.get(index - 1).position();
+        long blockStart = columnIndexList.get(index).position();
 
-        if( index < size )
-        {
-        	end = columnIndexList.get(index).position();
-            numColumns = columnIndexList.get(index).count();            
-        }
-        else
-        {
-        	end = dataSize;  
-            int totalColsIndexed = 0;
-            for( IndexHelper.ColumnIndexInfo colPosInfo : columnIndexList )
-            {
-                totalColsIndexed += colPosInfo.count();
-            }
-            numColumns = totalNumCols - totalColsIndexed;
-        }
-
-        return new ColumnRange(start, end, numColumns);
+        return new ColumnRange(blockStart, blockStart);
 	}
 
-	/**
+    /**
 	 * Returns the sub-ranges that contain the list of columns in columnNames.
 	 * @param columnNames The list of columns whose subranges need to be found
 	 * @param columnIndexList the deserialized column indexes
@@ -224,14 +199,14 @@ public class IndexHelper
 
         if (columnIndexList.size() == 0)
         {
-            columnRanges.add(new ColumnRange(0, dataSize, totalNumCols));
+            columnRanges.add(new ColumnRange(0, dataSize));
         }
         else
         {
             Map<Long, Boolean> offset = new HashMap<Long, Boolean>();
             for (byte[] name : columnNames)
             {
-                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(name, 0, 0, (AbstractType)columnNames.comparator());
+                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(name, 0, (AbstractType)columnNames.comparator());
                 ColumnRange columnRange = getColumnRangeFromNameIndex(cIndexInfo, columnIndexList, dataSize, totalNumCols);
                 if (offset.get(columnRange.coordinate().start_) == null)
                 {
@@ -289,23 +264,16 @@ public class IndexHelper
     public static class ColumnRange
     {
         private Coordinate coordinate_;
-        private int columnCount_;
-        
-        ColumnRange(long start, long end, int columnCount)
+
+        ColumnRange(long start, long end)
         {
             coordinate_ = new Coordinate(start, end);
-            columnCount_ = columnCount;
         }
         
         public Coordinate coordinate()
         {
             return coordinate_;
         }
-        
-        public int count()
-        {
-            return columnCount_;
-        }                
     }
 
     /**
@@ -315,7 +283,6 @@ public class IndexHelper
     public static class ColumnIndexInfo implements Comparable<ColumnIndexInfo>
     {
         private long position_;
-        private int columnCount_;
         private byte[] name_;
         private AbstractType comparator_;
 
@@ -324,13 +291,12 @@ public class IndexHelper
             this.comparator_ = comparator_;
         }
 
-        public ColumnIndexInfo(byte[] name, long position, int columnCount, AbstractType comparator)
+        public ColumnIndexInfo(byte[] name, long position, AbstractType comparator)
         {
             this(comparator);
-            assert name.length == 0 || !"".equals(comparator.getString(name)); // Todo r/m length == 0 hack
+            assert name.length == 0 || !"".equals(comparator.getString(name));
             name_ = name;
             position_ = position;
-            columnCount_ = columnCount;
         }
                 
         public long position()
@@ -342,16 +308,6 @@ public class IndexHelper
         {
             position_ = position;
         }
-        
-        public int count()
-        {
-            return columnCount_;
-        }
-        
-        public void count(int count)
-        {
-            columnCount_ = count;
-        }
 
         public int compareTo(ColumnIndexInfo rhs)
         {
@@ -361,22 +317,20 @@ public class IndexHelper
         public void serialize(DataOutputStream dos) throws IOException
         {
             dos.writeLong(position());
-            dos.writeInt(count());
             ColumnSerializer.writeName(name_, dos);
         }
 
         public ColumnIndexInfo deserialize(DataInputStream dis) throws IOException
         {
             long position = dis.readLong();
-            int columnCount = dis.readInt();
             byte[] name = ColumnSerializer.readName(dis);
-            return new ColumnIndexInfo(name, position, columnCount, comparator_);
+            return new ColumnIndexInfo(name, position, comparator_);
         }
 
         public int size()
         {
             // serialized size -- CS.writeName includes a 2-byte length prefix
-            return 8 + 4 + 2 + name_.length;
+            return 8 + 2 + name_.length;
         }
 
         public byte[] name()
