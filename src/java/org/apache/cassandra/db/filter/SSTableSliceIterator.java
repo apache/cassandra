@@ -101,6 +101,8 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
             columnStartPosition = file.getFilePointer();
             curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, isAscending);
+            if (!isAscending && curRangeIndex == indexes.size())
+                curRangeIndex--;
         }
 
         public ColumnFamily getEmptyColumnFamily()

@@ -84,6 +84,9 @@ public class TableTest extends CleanupHelper
 
                 cf = cfStore.getColumnFamily(new SliceQueryFilter(TEST_KEY, new QueryPath("Standard3"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 0));
                 assertColumns(cf);
+
+                cf = cfStore.getColumnFamily(new NamesQueryFilter(TEST_KEY, new QueryPath("Standard3"), "col99".getBytes()));
+                assertColumns(cf);
             }
         };
         reTest(table.getColumnFamilyStore("Standard3"), verify);
@@ -352,6 +355,12 @@ public class TableTest extends CleanupHelper
         assertEquals(new String(cf.getColumn("col1999".getBytes()).value()), "v1999");
         assertEquals(new String(cf.getColumn("col1998".getBytes()).value()), "v1998");
         assertEquals(new String(cf.getColumn("col1997".getBytes()).value()), "v1997");
+
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col9000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
+        assertColumns(cf, "col1997", "col1998", "col1999");
+
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col9000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        assertColumns(cf);
     }
 
     @Test

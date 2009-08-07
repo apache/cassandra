@@ -49,7 +49,13 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
             for (byte[] name : columns)
             {
-                ranges.add(indexList.get(IndexHelper.indexFor(name, indexList, comparator, false)));
+                int index = IndexHelper.indexFor(name, indexList, comparator, false);
+                if (index == indexList.size())
+                    continue;
+                IndexHelper.IndexInfo indexInfo = indexList.get(index);
+                if (comparator.compare(name, indexInfo.firstName) < 0)
+                   continue;
+                ranges.add(indexInfo);
             }
 
             /* seek to the correct offset to the data */

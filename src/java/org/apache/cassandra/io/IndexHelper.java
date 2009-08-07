@@ -120,6 +120,10 @@ public class IndexHelper
         return BloomFilter.serializer().deserialize(bufIn);
     }
 
+    /**
+     * the index of the IndexInfo in which @name will be found.
+     * If the index is @indexList.size(), the @name appears nowhere.
+     */
     public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator, boolean ascending)
     {
         if (name.length == 0 && !ascending)
