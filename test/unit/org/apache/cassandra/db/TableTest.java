@@ -225,7 +225,6 @@ public class TableTest extends CleanupHelper
         {
             public void run() throws Exception
             {
-                Row result;
                 ColumnFamily cf;
 
                 cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col5".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);

@@ -1,10 +1,7 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
-import java.util.SortedSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
@@ -35,35 +32,31 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             /* note the position where the key starts */
             String keyInDisk = file.readUTF();
             assert keyInDisk.equals(decoratedKey) : keyInDisk;
-            int dataSize = file.readInt();
+            file.readInt(); // data size
 
             /* Read the bloom filter summarizing the columns */
-            long preBfPos = file.getFilePointer();
             IndexHelper.defreezeBloomFilter(file);
-            long postBfPos = file.getFilePointer();
-            dataSize -= (postBfPos - preBfPos);
 
-            List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();
-            dataSize -= IndexHelper.readColumnIndexes(file, ssTable.getTableName(), cfName, columnIndexList);
+            List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(ssTable.getTableName(), cfName, file);
 
             cf = ColumnFamily.serializer().deserializeEmpty(file);
-            int totalColumns = file.readInt();
-            dataSize -= cf.serializedSize();
+            file.readInt(); // column count
 
             /* get the various column ranges we have to read */
-            List<IndexHelper.ColumnRange> columnRanges = IndexHelper.getMultiColumnRangesFromNameIndex(columns, columnIndexList, dataSize, totalColumns);
-
-            int prevPosition = 0;
-            /* now read all the columns from the ranges */
-            for (IndexHelper.ColumnRange columnRange : columnRanges)
+            SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>();
+            for (byte[] name : columns)
             {
-                /* seek to the correct offset to the data */
-                long columnBegin = file.getFilePointer();
-                Coordinate coordinate = columnRange.coordinate();
-                file.skipBytes((int)(coordinate.start_ - prevPosition));
-                // read the columns in this range
+                ranges.add(indexList.get(IndexHelper.indexFor(name, indexList)));
+            }
+
+            /* seek to the correct offset to the data */
+            long columnBegin = file.getFilePointer();
+            /* now read all the columns from the ranges */
+            for (IndexHelper.IndexInfo indexInfo : ranges)
+            {
+                file.seek(columnBegin + indexInfo.offset);
                 // TODO only completely deserialize columns we are interested in
-                while (file.getFilePointer() - columnBegin < coordinate.end_ - coordinate.start_)
+                while (file.getFilePointer() < columnBegin + indexInfo.offset + indexInfo.width)
                 {
                     final IColumn column = cf.getColumnSerializer().deserialize(file);
                     if (columns.contains(column.name()))
@@ -71,8 +64,6 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
                         cf.addColumn(column);
                     }
                 }
-
-                prevPosition = (int) coordinate.end_;
             }
         }
         finally

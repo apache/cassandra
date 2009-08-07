@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Iterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataOutputBuffer;
@@ -102,41 +103,51 @@ public class ColumnIndexer
      */
     private static void doIndexing(AbstractType comparator, Collection<IColumn> columns, DataOutputStream dos) throws IOException
     {
-        /* we are going to write column indexes */
-        int position = 0;
-        int indexSizeInBytes = 0;
-        int sizeSummarized = 0;
-        
+        assert !columns.isEmpty();
+
         /*
-         * Maintains a list of KeyPositionInfo objects for the columns in this
+         * Maintains a list of ColumnIndexInfo objects for the columns in this
          * column family. The key is the column name and the position is the
          * relative offset of that column name from the start of the list.
          * We do this so that we don't read all the columns into memory.
         */
+        List<IndexHelper.IndexInfo> indexList = new ArrayList<IndexHelper.IndexInfo>();
         
-        List<IndexHelper.ColumnIndexInfo> columnIndexList = new ArrayList<IndexHelper.ColumnIndexInfo>();        
-        
+        int endPosition = 0, startPosition = -1;
+        int indexSizeInBytes = 0;
+        IColumn column = null, firstColumn = null;
         /* column offsets at the right thresholds into the index map. */
-        for (IColumn column : columns)
+        for (Iterator<IColumn> it = columns.iterator(); it.hasNext();)
         {
-            /* if we hit the column index size that we have to index after, go ahead and index it */
-            if (position - sizeSummarized >= DatabaseDescriptor.getColumnIndexSize())
+            column = it.next();
+            if (firstColumn == null)
             {
-                IndexHelper.ColumnIndexInfo cIndexInfo = new IndexHelper.ColumnIndexInfo(column.name(), 0, comparator);
-                cIndexInfo.position(position);
-                columnIndexList.add(cIndexInfo);
-                /*
-                 * we will be writing this object as a UTF8 string and two ints,
-                 * so calculate the size accordingly. Note that we store the string
-                 * as UTF-8 encoded, so when we calculate the length, it should be
-                 * converted to UTF-8.
-                 */
-                indexSizeInBytes += cIndexInfo.size();
-                sizeSummarized = position;
+                firstColumn = column;
+                startPosition = endPosition;
             }
-            position += column.serializedSize();
+            endPosition += column.serializedSize();
+            /* if we hit the column index size that we have to index after, go ahead and index it. */
+            if (endPosition - startPosition >= DatabaseDescriptor.getColumnIndexSize())
+            {
+                IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition, null);
+                indexList.add(cIndexInfo);
+                indexSizeInBytes += cIndexInfo.serializedSize();
+                firstColumn = null;
+            }
         }
-        /* write the column index list */
-        IndexHelper.serialize(indexSizeInBytes, columnIndexList, dos);
+        // the last column may have fallen on an index boundary already.  if not, index it explicitly.
+        if (indexList.isEmpty() || comparator.compare(indexList.get(indexList.size() - 1).lastName, column.name()) != 0)
+        {
+            IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), startPosition, endPosition - startPosition, null);
+            indexList.add(cIndexInfo);
+            indexSizeInBytes += cIndexInfo.serializedSize();
+        }
+
+        assert indexSizeInBytes > 0;
+        dos.writeInt(indexSizeInBytes);
+        for (IndexHelper.IndexInfo cIndexInfo : indexList)
+        {
+            cIndexInfo.serialize(dos);
+        }
     }
 }
