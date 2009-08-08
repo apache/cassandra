@@ -68,8 +68,8 @@ public class DatabaseDescriptor
     private static int concurrentReaders_ = 8;
     private static int concurrentWriters_ = 32;
 
-    private static int flushDataBufferSizeInMB_ = 32;
-    private static int flushIndexBufferSizeInMB_ = 32;
+    private static double flushDataBufferSizeInMB_ = 32;
+    private static double flushIndexBufferSizeInMB_ = 8;
     private static List<String> tables_ = new ArrayList<String>();
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
 
@@ -230,12 +230,12 @@ public class DatabaseDescriptor
             String rawFlushData = xmlUtils.getNodeValue("/Storage/FlushDataBufferSizeInMB");
             if (rawFlushData != null)
             {
-                flushDataBufferSizeInMB_ = Integer.parseInt(rawFlushData);
+                flushDataBufferSizeInMB_ = Double.parseDouble(rawFlushData);
             }
             String rawFlushIndex = xmlUtils.getNodeValue("/Storage/FlushIndexBufferSizeInMB");
             if (rawFlushIndex != null)
             {
-                flushIndexBufferSizeInMB_ = Integer.parseInt(rawFlushIndex);
+                flushIndexBufferSizeInMB_ = Double.parseDouble(rawFlushIndex);
             }
 
             /* TCP port on which the storage system listens */
@@ -924,12 +924,12 @@ public class DatabaseDescriptor
         return commitLogSync_;
     }
 
-    public static int getFlushDataBufferSizeInMB()
+    public static double getFlushDataBufferSizeInMB()
     {
         return flushDataBufferSizeInMB_;
     }
 
-    public static int getFlushIndexBufferSizeInMB()
+    public static double getFlushIndexBufferSizeInMB()
     {
         return flushIndexBufferSizeInMB_;
     }

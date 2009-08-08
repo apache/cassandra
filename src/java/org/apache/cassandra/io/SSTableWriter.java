@@ -27,8 +27,8 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename, int keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
-        dataFile = new BufferedRandomAccessFile(path, "rw", DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024);
-        indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024);
+        dataFile = new BufferedRandomAccessFile(path, "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
+        indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", (int)(DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024));
         bf = new BloomFilter(keyCount, 15);
     }
 

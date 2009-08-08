@@ -18,6 +18,8 @@
  -->
 <Storage>
    <ClusterName>Test Cluster</ClusterName>
+   <FlushDataBufferSizeInMB>1</FlushDataBufferSizeInMB>
+   <FlushIndexBufferSizeInMB>0.1</FlushIndexBufferSizeInMB>
    <CommitLogSync>true</CommitLogSync>
    <CommitLogSyncDelay>1000</CommitLogSyncDelay>
    <Partitioner>org.apache.cassandra.dht.CollatingOrderPreservingPartitioner</Partitioner>

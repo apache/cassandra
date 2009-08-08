@@ -196,7 +196,10 @@
     <!-- Buffer size to use when flushing memtables to disk.
          (Only one memtable is ever flushed at a time.)
          Increase (decrease) the index buffer size relative to the data buffer
-         if you have few (many) columns per key. -->
+         if you have few (many) columns per key. 
+         Bigger is only better _if_ your memtables get large enough to use the space.
+         (Check in your data directory after your app has been running long enough.)
+      -->
     <FlushDataBufferSizeInMB>32</FlushDataBufferSizeInMB>
     <FlushIndexBufferSizeInMB>8</FlushIndexBufferSizeInMB>
 
