@@ -14,8 +14,9 @@ public class IdentityQueryFilter extends SliceQueryFilter
         super(key, path, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE);
     }
 
-    public void filterSuperColumn(SuperColumn superColumn, int gcBefore)
+    public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
         // no filtering done, deliberately
+        return superColumn;
     }
 }

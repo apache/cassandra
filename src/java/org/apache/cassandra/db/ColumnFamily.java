@@ -42,10 +42,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.marshal.LongType;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-public final class ColumnFamily
+
+public final class ColumnFamily implements IColumnContainer
 {
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();

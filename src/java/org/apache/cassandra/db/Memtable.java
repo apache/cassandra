@@ -281,7 +281,7 @@ public class Memtable implements Comparable<Memtable>
         int index;
         if (filter.start.length == 0 && !filter.isAscending)
         {
-            /* assuming the we scan from the largest column in descending order*/
+            /* scan from the largest column in descending order */
             index = 0;
         }
         else

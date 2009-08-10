@@ -45,6 +45,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.Predicate;
+import org.apache.commons.collections.iterators.ReverseListIterator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -1379,14 +1380,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
             ColumnFamily cf = getColumnFamily(nameFilter);
-            if (cf != null)
-            {
-                for (IColumn column : cf.getSortedColumns())
-                {
-                    filter.filterSuperColumn((SuperColumn)column, gcBefore);
-                }
-            }
-            return removeDeleted(cf, gcBefore);
+            if (cf == null)
+                return cf;
+
+            assert cf.getSortedColumns().size() == 1;
+            SuperColumn sc = (SuperColumn)cf.getSortedColumns().iterator().next();
+            SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
+            ColumnFamily cfFiltered = cf.cloneMeShallow();
+            cfFiltered.addColumn(scFiltered);
+            return cfFiltered;
         }
 
         // we are querying top-level columns, do a merging fetch with indexes.

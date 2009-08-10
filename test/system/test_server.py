@@ -167,6 +167,19 @@ class TestMutations(CassandraTester):
         _insert_super()
         _verify_super()
 
+    def test_super_subcolumn_limit(self):
+        _insert_super()
+        p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
+        column_parent = ColumnParent('Super1', 'sc2')
+        slice = [result.column
+                 for result in client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE)]
+        assert slice == [Column(_i64(5), 'value5', 0)], slice
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+        slice = [result.column
+                 for result in client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE)]
+        assert slice == [Column(_i64(6), 'value6', 0)], slice
+        
+
     def test_batch_insert(self):
         _insert_batch(False)
         time.sleep(0.1)

@@ -38,13 +38,13 @@ public abstract class QueryFilter
      * by the filter code, which should have some limit on the number of columns
      * to avoid running out of memory on large rows.
      */
-    public abstract void collectReducedColumns(ColumnFamily returnCF, Iterator<IColumn> reducedColumns, int gcBefore);
+    public abstract void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore);
 
     /**
      * subcolumns of a supercolumn are unindexed, so to pick out parts of those we operate in-memory.
-     * @param superColumn
+     * @param superColumn may be modified by filtering op.
      */
-    public abstract void filterSuperColumn(SuperColumn superColumn, int gcBefore);
+    public abstract SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore);
 
     public Comparator<IColumn> getColumnComparator(final AbstractType comparator)
     {

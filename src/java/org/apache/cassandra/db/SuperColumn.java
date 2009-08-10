@@ -33,11 +33,8 @@ import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
-public final class SuperColumn implements IColumn
+public final class SuperColumn implements IColumn, IColumnContainer
 {
 	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
 
@@ -47,7 +44,6 @@ public final class SuperColumn implements IColumn
     }
 
     private byte[] name_;
-    // TODO make subcolumn comparator configurable
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
     private int localDeletionTime = Integer.MIN_VALUE;
 	private long markedForDeleteAt = Long.MIN_VALUE;

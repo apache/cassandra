@@ -5,10 +5,7 @@ import java.util.*;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.SuperColumn;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 public class NamesQueryFilter extends QueryFilter
@@ -50,7 +47,7 @@ public class NamesQueryFilter extends QueryFilter
         return new SSTableNamesIterator(sstable.getFilename(), key, getColumnFamilyName(), columns);
     }
 
-    public void filterSuperColumn(SuperColumn superColumn, int gcBefore)
+    public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
         for (IColumn column : superColumn.getSubColumns())
         {
@@ -59,15 +56,16 @@ public class NamesQueryFilter extends QueryFilter
                 superColumn.remove(column.name());
             }
         }
+        return superColumn;
     }
 
-    public void collectReducedColumns(ColumnFamily returnCF, Iterator<IColumn> reducedColumns, int gcBefore)
+    public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
     {
         while (reducedColumns.hasNext())
         {
             IColumn column = reducedColumns.next();
             if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
-                returnCF.addColumn(column);
+                container.addColumn(column);
         }
     }
 }

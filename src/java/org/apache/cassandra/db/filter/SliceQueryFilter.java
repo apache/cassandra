@@ -2,13 +2,14 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.Arrays;
 import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.collections.comparators.ReverseComparator;
+import org.apache.commons.collections.iterators.ReverseListIterator;
 
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -37,28 +38,21 @@ public class SliceQueryFilter extends QueryFilter
         return new SSTableSliceIterator(sstable.getFilename(), key, comparator, start, isAscending);
     }
 
-    public void filterSuperColumn(SuperColumn superColumn, int gcBefore)
+    public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
-        int liveColumns = 0;
-
-        for (IColumn column : superColumn.getSubColumns())
+        SuperColumn scFiltered = superColumn.cloneMeShallow();
+        Iterator<IColumn> subcolumns;
+        if (isAscending)
         {
-            final boolean outOfRange = isAscending
-                                     ? (start.length > 0 && superColumn.getComparator().compare(column.name(), start) < 0)
-                                        || (finish.length > 0 && superColumn.getComparator().compare(column.name(), finish) > 0)
-                                     : (start.length > 0 && superColumn.getComparator().compare(column.name(), start) > 0)
-                                        || (finish.length > 0 && superColumn.getComparator().compare(column.name(), finish) < 0);
-            if (outOfRange
-                || (column.isMarkedForDelete() && column.getLocalDeletionTime() <= gcBefore)
-                || liveColumns > count)
-            {
-                superColumn.remove(column.name());
-            }
-            else if (!column.isMarkedForDelete())
-            {
-                liveColumns++;
-            }
+            subcolumns = superColumn.getSubColumns().iterator();
         }
+        else
+        {
+            List<IColumn> columnsAsList = new ArrayList<IColumn>(superColumn.getSubColumns());
+            subcolumns = new ReverseListIterator(columnsAsList);
+        }
+        collectReducedColumns(scFiltered, subcolumns, gcBefore);
+        return scFiltered;
     }
 
     @Override
@@ -67,10 +61,10 @@ public class SliceQueryFilter extends QueryFilter
         return isAscending ? super.getColumnComparator(comparator) : new ReverseComparator(super.getColumnComparator(comparator));
     }
 
-    public void collectReducedColumns(ColumnFamily returnCF, Iterator<IColumn> reducedColumns, int gcBefore)
+    public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
     {
         int liveColumns = 0;
-        AbstractType comparator = returnCF.getComparator();
+        AbstractType comparator = container.getComparator();
 
         while (reducedColumns.hasNext())
         {
@@ -86,7 +80,7 @@ public class SliceQueryFilter extends QueryFilter
                 liveColumns++;
 
             if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
-                returnCF.addColumn(column);
+                container.addColumn(column);
         }
     }
 }
