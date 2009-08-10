@@ -30,6 +30,7 @@ import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.TTransportFactory;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
@@ -107,14 +108,28 @@ public class CassandraDaemon
 
         // Protocol factory
         TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();
+        
+        // Transport factory
+        TTransportFactory inTransportFactory, outTransportFactory;
+        if (DatabaseDescriptor.isThriftFramed())
+        {
+            inTransportFactory = new TFramedTransport.Factory();
+            outTransportFactory = new TFramedTransport.Factory();
+            
+        }
+        else
+        {
+            inTransportFactory = new TTransportFactory();
+            outTransportFactory = new TTransportFactory();
+        }
 
         // ThreadPool Server
         TThreadPoolServer.Options options = new TThreadPoolServer.Options();
         options.minWorkerThreads = 64;
         serverEngine = new TThreadPoolServer(new TProcessorFactory(processor),
                                              tServerSocket,
-                                             new TTransportFactory(),
-                                             new TTransportFactory(),
+                                             inTransportFactory,
+                                             outTransportFactory,
                                              tProtocolFactory,
                                              tProtocolFactory,
                                              options);

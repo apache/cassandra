@@ -52,6 +52,7 @@ public class DatabaseDescriptor
     private static int storagePort_ = 7000;
     private static int controlPort_ = 7001;
     private static int thriftPort_ = 9160;
+    private static boolean thriftFramed_ = false;
     private static String listenAddress_; // leave null so we can fall through to getLocalHost
     private static String thriftAddress_;
     private static String clusterName_ = "Test";
@@ -262,6 +263,23 @@ public class DatabaseDescriptor
             port = xmlUtils.getNodeValue("/Storage/ThriftPort");
             if (port != null)
                 thriftPort_ = Integer.parseInt(port);
+
+            /* Framed (Thrift) transport (default to "no") */
+            String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
+            if (framedRaw != null)
+            {
+                if (framedRaw.compareToIgnoreCase("true") == 0 || 
+                        framedRaw.compareToIgnoreCase("false") == 0)
+                {
+                    thriftFramed_ = Boolean.valueOf(framedRaw);
+                }
+                else
+                {
+                    throw new ConfigurationException("Unrecognized value " + 
+                            "for ThriftFramedTransport.  Use 'true' or 'false'."); 
+                }
+            }
+            
 
             /* Number of days to keep the memtable around w/o flushing */
             String lifetime = xmlUtils.getNodeValue("/Storage/MemtableLifetimeInDays");
@@ -522,6 +540,11 @@ public class DatabaseDescriptor
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static boolean isThriftFramed()
+    {
+        return thriftFramed_;
     }
 
     private static AbstractType getComparator(Node columnFamily, String attr)

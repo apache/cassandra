@@ -187,6 +187,11 @@
     <ThriftAddress>localhost</ThriftAddress>
     <!-- Thrift RPC port (the port clients connect to). -->
     <ThriftPort>9160</ThriftPort>
+    <!-- Whether or not to use a framed transport for Thrift. If this option
+         is set to true then you must also use a framed transport on the 
+         client-side, (framed and non-framed transports are not compatible).
+    -->
+    <ThriftFramedTransport>false</ThriftFramedTransport>
 
 
     <!--======================================================================-->
