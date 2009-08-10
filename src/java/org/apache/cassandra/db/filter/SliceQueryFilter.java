@@ -3,6 +3,7 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Arrays;
+import java.util.Iterator;
 
 import org.apache.commons.collections.comparators.ReverseComparator;
 
@@ -66,13 +67,14 @@ public class SliceQueryFilter extends QueryFilter
         return isAscending ? super.getColumnComparator(comparator) : new ReverseComparator(super.getColumnComparator(comparator));
     }
 
-    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns, int gcBefore)
+    public void collectReducedColumns(ColumnFamily returnCF, Iterator<IColumn> reducedColumns, int gcBefore)
     {
         int liveColumns = 0;
         AbstractType comparator = returnCF.getComparator();
 
-        for (IColumn column : reducedColumns)
+        while (reducedColumns.hasNext())
         {
+            IColumn column = reducedColumns.next();
             if (liveColumns >= count)
                 break;
             if (finish.length > 0

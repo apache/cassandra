@@ -1,10 +1,7 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
-import java.util.SortedSet;
-import java.util.Arrays;
-import java.util.TreeSet;
-import java.util.Comparator;
+import java.util.*;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
@@ -64,10 +61,11 @@ public class NamesQueryFilter extends QueryFilter
         }
     }
 
-    public void collectColumns(ColumnFamily returnCF, ReducingIterator<IColumn> reducedColumns, int gcBefore)
+    public void collectReducedColumns(ColumnFamily returnCF, Iterator<IColumn> reducedColumns, int gcBefore)
     {
-        for (IColumn column : reducedColumns)
+        while (reducedColumns.hasNext())
         {
+            IColumn column = reducedColumns.next();
             if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
                 returnCF.addColumn(column);
         }

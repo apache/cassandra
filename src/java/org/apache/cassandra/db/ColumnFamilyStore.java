@@ -33,7 +33,6 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
@@ -1437,7 +1436,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (!collated.hasNext())
                 return null;
 
-            filter.collectColumns(returnCF, collated, gcBefore);
+            filter.collectCollatedColumns(returnCF, collated, gcBefore);
 
             return removeDeleted(returnCF, gcBefore); // collect does a first pass but doesn't try to recognize e.g. the entire CF being tombstoned
         }
