@@ -26,6 +26,11 @@ namespace py cassandra
 namespace php cassandra
 namespace perl Cassandra
 
+# Thrift.rb has a bug where top-level modules that include modules 
+# with the same name are not properly referenced, so we can't do
+# Cassandra::Cassandra::Client.
+namespace rb CassandraThrift
+
 #
 # structures
 #
