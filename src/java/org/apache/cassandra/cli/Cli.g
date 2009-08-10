@@ -85,7 +85,7 @@ stmt
 
 connectStmt
     : K_CONNECT host SLASH port -> ^(NODE_CONNECT host port)
-    | K_CONNECT ip SLASH port -> ^(NODE_CONNECT ip port)
+    | K_CONNECT ipaddr SLASH port -> ^(NODE_CONNECT ipaddr port)
     ;
 
 helpStmt
@@ -150,9 +150,9 @@ value: StringLiteral;
 
 columnOrSuperColumn: StringLiteral;
 
-host: id+=HostIdentifier -> ^(NODE_ID_LIST $id+);
+host: id+=Identifier (id+=DOT id+=Identifier)* -> ^(NODE_ID_LIST $id+);
 
-ip: id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral -> ^(NODE_ID_LIST $id+);
+ipaddr: id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral -> ^(NODE_ID_LIST $id+);
 
 port: IntegerLiteral;
 
@@ -195,9 +195,15 @@ Digit
     : '0'..'9'
     ;
 
+fragment
+Alnum
+    : Letter
+    | Digit
+    ;
+
 // syntactic Elements
 Identifier
-    : Letter ( Letter | Digit | '_')*
+    : Letter ( Alnum | '_' )*
     ;
 
 // literals
@@ -206,13 +212,9 @@ StringLiteral
     '\'' (~'\'')* '\'' ( '\'' (~'\'')* '\'' )* 
     ;
 
+
 IntegerLiteral
    : Digit+;
-
-
-HostIdentifier
-    : ( Letter | Digit ) ( Letter | Digit | DOT | '-' )* ( Letter | Digit )
-    ;
 
 //
 // syntactic elements
