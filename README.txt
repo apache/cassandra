@@ -53,32 +53,32 @@ As the banner says, you can use 'help' or '?' to see what the CLI has to
 offer, and 'quit' or 'exit' when you've had enough fun. But lets try
 something slightly more interesting...
 
-  cassandra> set Table1.Standard1['jsmith']['first'] = 'John'
-  Statement processed.
-  cassandra> set Table1.Standard1['jsmith']['last'] = 'Smith' 
-  Statement processed.
-  cassandra> set Table1.Standard1['jsmith']['age'] = '42'
-  Statement processed.
-  cassandra> get Table1.Standard1['jsmith']
-  COLUMN_TIMESTAMP = 1241129773658; COLUMN_VALUE = 42; COLUMN_KEY = age;
-  COLUMN_TIMESTAMP = 1241129537336; COLUMN_VALUE = Smith; COLUMN_KEY = last; 
-  COLUMN_TIMESTAMP = 1241129520503; COLUMN_VALUE = John; COLUMN_KEY = first; 
-  Statement processed.
+  cassandra> set Keyspace1.Standard1['jsmith']['first'] = 'John'
+  Value inserted.
+  cassandra> set Keyspace1.Standard1['jsmith']['last'] = 'Smith'
+  Value inserted.
+  cassandra> set Keyspace1.Standard1['jsmith']['age'] = '42'
+  Value inserted.
+  cassandra> get Keyspace1.Standard1['jsmith']
+    (column=age, value=42; timestamp=1249930062801)
+    (column=first, value=John; timestamp=1249930053103)
+    (column=last, value=Smith; timestamp=1249930058345)
+  Returned 3 rows.
   cassandra>
 
 If your session looks similar to what's above, congrats, your single node
 cluster is operational! But what exactly was all of that? Let's break it
 down into pieces and see.
 
-  set Table1.Standard1['jsmith']['first'] = 'John'
-       \         \         \        \          \
-        \         \         \_ key   \          \_ value
-         \         \                  \_ column
-          \_ table  \_ column family
+  set Keyspace1.Standard1['jsmith']['first'] = 'John'
+       \            \         \        \          \
+        \            \         \_ key   \          \_ value
+         \            \                  \_ column
+          \_ keyspace  \_ column family
 
 Data stored in Cassandra is associated with a column family (Standard1), 
-which in turn is associated with a table (Table1). In the example above,
-we set the value 'John' in the 'first' column for key 'jsmith'.
+which in turn is associated with a keyspace (Keyspace1). In the example
+above, we set the value 'John' in the 'first' column for key 'jsmith'.
 
 For more information on the Cassandra data model be sure to checkout 
 http://wiki.apache.org/cassandra/DataModel
