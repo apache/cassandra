@@ -76,8 +76,9 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
     return this.key;
   }
 
-  public void setKey(String key) {
+  public BatchMutation setKey(String key) {
     this.key = key;
+    return this;
   }
 
   public void unsetKey() {
@@ -95,23 +96,13 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
     }
   }
 
-  public int getCfmapSize() {
-    return (this.cfmap == null) ? 0 : this.cfmap.size();
-  }
-
-  public void putToCfmap(String key, List<Column> val) {
-    if (this.cfmap == null) {
-      this.cfmap = new HashMap<String,List<Column>>();
-    }
-    this.cfmap.put(key, val);
-  }
-
   public Map<String,List<Column>> getCfmap() {
     return this.cfmap;
   }
 
-  public void setCfmap(Map<String,List<Column>> cfmap) {
+  public BatchMutation setCfmap(Map<String,List<Column>> cfmap) {
     this.cfmap = cfmap;
+    return this;
   }
 
   public void unsetCfmap() {

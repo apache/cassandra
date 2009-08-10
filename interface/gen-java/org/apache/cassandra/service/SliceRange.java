@@ -104,8 +104,9 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     return this.start;
   }
 
-  public void setStart(byte[] start) {
+  public SliceRange setStart(byte[] start) {
     this.start = start;
+    return this;
   }
 
   public void unsetStart() {
@@ -127,8 +128,9 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     return this.finish;
   }
 
-  public void setFinish(byte[] finish) {
+  public SliceRange setFinish(byte[] finish) {
     this.finish = finish;
+    return this;
   }
 
   public void unsetFinish() {
@@ -150,9 +152,10 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     return this.is_ascending;
   }
 
-  public void setIs_ascending(boolean is_ascending) {
+  public SliceRange setIs_ascending(boolean is_ascending) {
     this.is_ascending = is_ascending;
     this.__isset.is_ascending = true;
+    return this;
   }
 
   public void unsetIs_ascending() {
@@ -172,9 +175,10 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     return this.count;
   }
 
-  public void setCount(int count) {
+  public SliceRange setCount(int count) {
     this.count = count;
     this.__isset.count = true;
+    return this;
   }
 
   public void unsetCount() {

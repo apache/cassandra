@@ -94,26 +94,6 @@
       </java> 
     </target>
 
-    <!--
-       This generates the CQL grammar files from Cql.g
-    -->
-    <target name="check-gen-cql-grammar">
-        <uptodate property="cqlUpToDate" 
-                srcfile="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g" 
-                targetfile="${build.src.gen-java}/org/apache/cassandra/cql/compiler/parse/Cql.tokens"/>
-    </target>
- 
-    <target name="gen-cql-grammar" depends="check-gen-cql-grammar" unless="cqlUpToDate">
-      <echo>Building Grammar ${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g  ....</echo>
-      <java classname="org.antlr.Tool"
-            classpath="${build.lib}/antlr-3.1.3.jar"
-            fork="true">
-         <arg value="${build.src}/org/apache/cassandra/cql/compiler/parse/Cql.g" />
-         <arg value="-fo" />
-         <arg value="${build.src.gen-java}/org/apache/cassandra/cql/compiler/parse/" />
-      </java> 
-    </target>
-
     <target name="gen-thrift-java">
       <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
@@ -134,7 +114,7 @@
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	
-    <target depends="init,gen-cli-grammar,gen-cql-grammar" name="build-project">
+    <target depends="init,gen-cli-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>

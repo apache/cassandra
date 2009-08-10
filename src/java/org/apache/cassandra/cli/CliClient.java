@@ -146,8 +146,7 @@ public class CliClient
                 }
                 catch (UnsupportedEncodingException e)
                 {
-                    css_.out.printf("Cannot display results (UTF-8 not supported).");
-                    break;
+                    throw new RuntimeException(e);
                 }
             }
             css_.out.println("Returned " + size + " rows.");
@@ -161,14 +160,16 @@ public class CliClient
             try
             {
                 cosc = thriftClient_.get(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")), ConsistencyLevel.ONE);
+                Column column = cosc.column;
+                css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
+                        new String(column.name, "UTF-8"),
+                        new String(column.value, "UTF-8"),
+                        column.timestamp);
             }
             catch (UnsupportedEncodingException e)
             {
                 throw new RuntimeException(e);
             }
-            Column column = cosc.column;
-            css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
-                            column.name, column.value, column.timestamp);
         }
     }
 

@@ -76,8 +76,9 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
     return this.column;
   }
 
-  public void setColumn(Column column) {
+  public ColumnOrSuperColumn setColumn(Column column) {
     this.column = column;
+    return this;
   }
 
   public void unsetColumn() {
@@ -99,8 +100,9 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
     return this.super_column;
   }
 
-  public void setSuper_column(SuperColumn super_column) {
+  public ColumnOrSuperColumn setSuper_column(SuperColumn super_column) {
     this.super_column = super_column;
+    return this;
   }
 
   public void unsetSuper_column() {
@@ -250,14 +252,18 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
 
     oprot.writeStructBegin(STRUCT_DESC);
     if (this.column != null) {
-      oprot.writeFieldBegin(COLUMN_FIELD_DESC);
-      this.column.write(oprot);
-      oprot.writeFieldEnd();
+      if (isSetColumn()) {
+        oprot.writeFieldBegin(COLUMN_FIELD_DESC);
+        this.column.write(oprot);
+        oprot.writeFieldEnd();
+      }
     }
     if (this.super_column != null) {
-      oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
-      this.super_column.write(oprot);
-      oprot.writeFieldEnd();
+      if (isSetSuper_column()) {
+        oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
+        this.super_column.write(oprot);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();

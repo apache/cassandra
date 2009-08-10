@@ -87,9 +87,10 @@ public class CqlResult implements TBase, java.io.Serializable, Cloneable {
     return this.error_code;
   }
 
-  public void setError_code(int error_code) {
+  public CqlResult setError_code(int error_code) {
     this.error_code = error_code;
     this.__isset.error_code = true;
+    return this;
   }
 
   public void unsetError_code() {
@@ -109,8 +110,9 @@ public class CqlResult implements TBase, java.io.Serializable, Cloneable {
     return this.error_txt;
   }
 
-  public void setError_txt(String error_txt) {
+  public CqlResult setError_txt(String error_txt) {
     this.error_txt = error_txt;
+    return this;
   }
 
   public void unsetError_txt() {
@@ -128,27 +130,13 @@ public class CqlResult implements TBase, java.io.Serializable, Cloneable {
     }
   }
 
-  public int getResult_setSize() {
-    return (this.result_set == null) ? 0 : this.result_set.size();
-  }
-
-  public java.util.Iterator<Map<String,String>> getResult_setIterator() {
-    return (this.result_set == null) ? null : this.result_set.iterator();
-  }
-
-  public void addToResult_set(Map<String,String> elem) {
-    if (this.result_set == null) {
-      this.result_set = new ArrayList<Map<String,String>>();
-    }
-    this.result_set.add(elem);
-  }
-
   public List<Map<String,String>> getResult_set() {
     return this.result_set;
   }
 
-  public void setResult_set(List<Map<String,String>> result_set) {
+  public CqlResult setResult_set(List<Map<String,String>> result_set) {
     this.result_set = result_set;
+    return this;
   }
 
   public void unsetResult_set() {

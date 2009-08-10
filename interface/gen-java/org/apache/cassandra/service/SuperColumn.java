@@ -82,8 +82,9 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     return this.name;
   }
 
-  public void setName(byte[] name) {
+  public SuperColumn setName(byte[] name) {
     this.name = name;
+    return this;
   }
 
   public void unsetName() {
@@ -101,27 +102,13 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     }
   }
 
-  public int getColumnsSize() {
-    return (this.columns == null) ? 0 : this.columns.size();
-  }
-
-  public java.util.Iterator<Column> getColumnsIterator() {
-    return (this.columns == null) ? null : this.columns.iterator();
-  }
-
-  public void addToColumns(Column elem) {
-    if (this.columns == null) {
-      this.columns = new ArrayList<Column>();
-    }
-    this.columns.add(elem);
-  }
-
   public List<Column> getColumns() {
     return this.columns;
   }
 
-  public void setColumns(List<Column> columns) {
+  public SuperColumn setColumns(List<Column> columns) {
     this.columns = columns;
+    return this;
   }
 
   public void unsetColumns() {

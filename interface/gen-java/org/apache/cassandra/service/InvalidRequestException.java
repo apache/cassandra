@@ -66,8 +66,9 @@ public class InvalidRequestException extends Exception implements TBase, java.io
     return this.why;
   }
 
-  public void setWhy(String why) {
+  public InvalidRequestException setWhy(String why) {
     this.why = why;
+    return this;
   }
 
   public void unsetWhy() {

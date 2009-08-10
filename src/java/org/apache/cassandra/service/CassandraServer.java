@@ -30,8 +30,6 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql.common.CqlResult;
-import org.apache.cassandra.cql.driver.CqlDriver;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
@@ -469,22 +467,6 @@ public class CassandraServer implements Cassandra.Iface
             columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }
         return columnFamiliesMap;
-    }
-
-    public org.apache.cassandra.service.CqlResult execute_query(String query) throws TException
-    {
-        org.apache.cassandra.service.CqlResult result = new org.apache.cassandra.service.CqlResult();
-
-        CqlResult cqlResult = CqlDriver.executeQuery(query);
-        
-        // convert CQL result type to Thrift specific return type
-        if (cqlResult != null)
-        {
-            result.error_txt = cqlResult.errorTxt;
-            result.result_set = cqlResult.resultSet;
-            result.error_code = cqlResult.errorCode;
-        }
-        return result;
     }
 
     public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException

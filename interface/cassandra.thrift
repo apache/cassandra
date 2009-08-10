@@ -169,8 +169,5 @@ service Cassandra {
   // describe specified keyspace
   map<string, map<string, string>>  describe_keyspace(1:string keyspace)
   throws (1: NotFoundException nfe),
-
-  // execute a CQL query
-  CqlResult    execute_query(1:string query)
 }
 

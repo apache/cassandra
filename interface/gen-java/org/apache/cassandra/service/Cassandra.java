@@ -32,7 +32,7 @@ public class Cassandra {
 
     public void batch_insert(String keyspace, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public void remove(String keyspace, String key, ColumnPath column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
+    public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
     public void batch_insert_super_column(String keyspace, BatchMutationSuper batch_mutation_super, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
@@ -43,8 +43,6 @@ public class Cassandra {
     public List<String> get_string_list_property(String property) throws TException;
 
     public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException;
-
-    public CqlResult execute_query(String query) throws TException;
 
   }
 
@@ -278,19 +276,19 @@ public class Cassandra {
       return;
     }
 
-    public void remove(String keyspace, String key, ColumnPath column_path_or_parent, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
+    public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
-      send_remove(keyspace, key, column_path_or_parent, timestamp, consistency_level);
+      send_remove(keyspace, key, column_path, timestamp, consistency_level);
       recv_remove();
     }
 
-    public void send_remove(String keyspace, String key, ColumnPath column_path_or_parent, long timestamp, int consistency_level) throws TException
+    public void send_remove(String keyspace, String key, ColumnPath column_path, long timestamp, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("remove", TMessageType.CALL, seqid_));
       remove_args args = new remove_args();
       args.keyspace = keyspace;
       args.key = key;
-      args.column_path_or_parent = column_path_or_parent;
+      args.column_path = column_path;
       args.timestamp = timestamp;
       args.consistency_level = consistency_level;
       args.write(oprot_);
@@ -498,39 +496,6 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_keyspace failed: unknown result");
     }
 
-    public CqlResult execute_query(String query) throws TException
-    {
-      send_execute_query(query);
-      return recv_execute_query();
-    }
-
-    public void send_execute_query(String query) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("execute_query", TMessageType.CALL, seqid_));
-      execute_query_args args = new execute_query_args();
-      args.query = query;
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
-    public CqlResult recv_execute_query() throws TException
-    {
-      TMessage msg = iprot_.readMessageBegin();
-      if (msg.type == TMessageType.EXCEPTION) {
-        TApplicationException x = TApplicationException.read(iprot_);
-        iprot_.readMessageEnd();
-        throw x;
-      }
-      execute_query_result result = new execute_query_result();
-      result.read(iprot_);
-      iprot_.readMessageEnd();
-      if (result.isSetSuccess()) {
-        return result.success;
-      }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "execute_query failed: unknown result");
-    }
-
   }
   public static class Processor implements TProcessor {
     private static final Logger LOGGER = Logger.getLogger(Processor.class.getName());
@@ -548,7 +513,6 @@ public class Cassandra {
       processMap_.put("get_string_property", new get_string_property());
       processMap_.put("get_string_list_property", new get_string_list_property());
       processMap_.put("describe_keyspace", new describe_keyspace());
-      processMap_.put("execute_query", new execute_query());
     }
 
     protected static interface ProcessFunction {
@@ -733,7 +697,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
-          iface_.remove(args.keyspace, args.key, args.column_path_or_parent, args.timestamp, args.consistency_level);
+          iface_.remove(args.keyspace, args.key, args.column_path, args.timestamp, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (UnavailableException ue) {
@@ -873,22 +837,6 @@ public class Cassandra {
 
     }
 
-    private class execute_query implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        execute_query_args args = new execute_query_args();
-        args.read(iprot);
-        iprot.readMessageEnd();
-        execute_query_result result = new execute_query_result();
-        result.success = iface_.execute_query(args.query);
-        oprot.writeMessageBegin(new TMessage("execute_query", TMessageType.REPLY, seqid));
-        result.write(oprot);
-        oprot.writeMessageEnd();
-        oprot.getTransport().flush();
-      }
-
-    }
-
   }
 
   public static class get_slice_args implements TBase, java.io.Serializable, Cloneable   {
@@ -907,6 +855,10 @@ public class Cassandra {
     public static final int COLUMN_PARENT = 3;
     public SlicePredicate predicate;
     public static final int PREDICATE = 4;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 5;
 
@@ -982,8 +934,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public get_slice_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -1005,8 +958,9 @@ public class Cassandra {
       return this.key;
     }
 
-    public void setKey(String key) {
+    public get_slice_args setKey(String key) {
       this.key = key;
+      return this;
     }
 
     public void unsetKey() {
@@ -1028,8 +982,9 @@ public class Cassandra {
       return this.column_parent;
     }
 
-    public void setColumn_parent(ColumnParent column_parent) {
+    public get_slice_args setColumn_parent(ColumnParent column_parent) {
       this.column_parent = column_parent;
+      return this;
     }
 
     public void unsetColumn_parent() {
@@ -1051,8 +1006,9 @@ public class Cassandra {
       return this.predicate;
     }
 
-    public void setPredicate(SlicePredicate predicate) {
+    public get_slice_args setPredicate(SlicePredicate predicate) {
       this.predicate = predicate;
+      return this;
     }
 
     public void unsetPredicate() {
@@ -1070,13 +1026,22 @@ public class Cassandra {
       }
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public get_slice_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -1469,27 +1434,13 @@ public class Cassandra {
       return new get_slice_result(this);
     }
 
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public java.util.Iterator<ColumnOrSuperColumn> getSuccessIterator() {
-      return (this.success == null) ? null : this.success.iterator();
-    }
-
-    public void addToSuccess(ColumnOrSuperColumn elem) {
-      if (this.success == null) {
-        this.success = new ArrayList<ColumnOrSuperColumn>();
-      }
-      this.success.add(elem);
-    }
-
     public List<ColumnOrSuperColumn> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<ColumnOrSuperColumn> success) {
+    public get_slice_result setSuccess(List<ColumnOrSuperColumn> success) {
       this.success = success;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -1511,8 +1462,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public get_slice_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -1534,8 +1486,9 @@ public class Cassandra {
       return this.nfe;
     }
 
-    public void setNfe(NotFoundException nfe) {
+    public get_slice_result setNfe(NotFoundException nfe) {
       this.nfe = nfe;
+      return this;
     }
 
     public void unsetNfe() {
@@ -1798,6 +1751,10 @@ public class Cassandra {
     public static final int KEY = 2;
     public ColumnPath column_path;
     public static final int COLUMN_PATH = 3;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 4;
 
@@ -1866,8 +1823,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public get_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -1889,8 +1847,9 @@ public class Cassandra {
       return this.key;
     }
 
-    public void setKey(String key) {
+    public get_args setKey(String key) {
       this.key = key;
+      return this;
     }
 
     public void unsetKey() {
@@ -1912,8 +1871,9 @@ public class Cassandra {
       return this.column_path;
     }
 
-    public void setColumn_path(ColumnPath column_path) {
+    public get_args setColumn_path(ColumnPath column_path) {
       this.column_path = column_path;
+      return this;
     }
 
     public void unsetColumn_path() {
@@ -1931,13 +1891,22 @@ public class Cassandra {
       }
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public get_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -2286,8 +2255,9 @@ public class Cassandra {
       return this.success;
     }
 
-    public void setSuccess(ColumnOrSuperColumn success) {
+    public get_result setSuccess(ColumnOrSuperColumn success) {
       this.success = success;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -2309,8 +2279,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public get_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -2332,8 +2303,9 @@ public class Cassandra {
       return this.nfe;
     }
 
-    public void setNfe(NotFoundException nfe) {
+    public get_result setNfe(NotFoundException nfe) {
       this.nfe = nfe;
+      return this;
     }
 
     public void unsetNfe() {
@@ -2580,6 +2552,10 @@ public class Cassandra {
     public static final int KEY = 2;
     public ColumnParent column_parent;
     public static final int COLUMN_PARENT = 3;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 5;
 
@@ -2648,8 +2624,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public get_count_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -2671,8 +2648,9 @@ public class Cassandra {
       return this.key;
     }
 
-    public void setKey(String key) {
+    public get_count_args setKey(String key) {
       this.key = key;
+      return this;
     }
 
     public void unsetKey() {
@@ -2694,8 +2672,9 @@ public class Cassandra {
       return this.column_parent;
     }
 
-    public void setColumn_parent(ColumnParent column_parent) {
+    public get_count_args setColumn_parent(ColumnParent column_parent) {
       this.column_parent = column_parent;
+      return this;
     }
 
     public void unsetColumn_parent() {
@@ -2713,13 +2692,22 @@ public class Cassandra {
       }
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public get_count_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -3059,9 +3047,10 @@ public class Cassandra {
       return this.success;
     }
 
-    public void setSuccess(int success) {
+    public get_count_result setSuccess(int success) {
       this.success = success;
       this.__isset.success = true;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -3081,8 +3070,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public get_count_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -3289,6 +3279,10 @@ public class Cassandra {
     public static final int VALUE = 4;
     public long timestamp;
     public static final int TIMESTAMP = 5;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 6;
 
@@ -3373,8 +3367,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public insert_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -3396,8 +3391,9 @@ public class Cassandra {
       return this.key;
     }
 
-    public void setKey(String key) {
+    public insert_args setKey(String key) {
       this.key = key;
+      return this;
     }
 
     public void unsetKey() {
@@ -3419,8 +3415,9 @@ public class Cassandra {
       return this.column_path;
     }
 
-    public void setColumn_path(ColumnPath column_path) {
+    public insert_args setColumn_path(ColumnPath column_path) {
       this.column_path = column_path;
+      return this;
     }
 
     public void unsetColumn_path() {
@@ -3442,8 +3439,9 @@ public class Cassandra {
       return this.value;
     }
 
-    public void setValue(byte[] value) {
+    public insert_args setValue(byte[] value) {
       this.value = value;
+      return this;
     }
 
     public void unsetValue() {
@@ -3465,9 +3463,10 @@ public class Cassandra {
       return this.timestamp;
     }
 
-    public void setTimestamp(long timestamp) {
+    public insert_args setTimestamp(long timestamp) {
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
+      return this;
     }
 
     public void unsetTimestamp() {
@@ -3483,13 +3482,22 @@ public class Cassandra {
       this.__isset.timestamp = value;
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public insert_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -3912,8 +3920,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public insert_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -3935,8 +3944,9 @@ public class Cassandra {
       return this.ue;
     }
 
-    public void setUe(UnavailableException ue) {
+    public insert_result setUe(UnavailableException ue) {
       this.ue = ue;
+      return this;
     }
 
     public void unsetUe() {
@@ -4138,6 +4148,10 @@ public class Cassandra {
     public static final int KEYSPACE = 1;
     public BatchMutation batch_mutation;
     public static final int BATCH_MUTATION = 2;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 3;
 
@@ -4199,8 +4213,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public batch_insert_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -4222,8 +4237,9 @@ public class Cassandra {
       return this.batch_mutation;
     }
 
-    public void setBatch_mutation(BatchMutation batch_mutation) {
+    public batch_insert_args setBatch_mutation(BatchMutation batch_mutation) {
       this.batch_mutation = batch_mutation;
+      return this;
     }
 
     public void unsetBatch_mutation() {
@@ -4241,13 +4257,22 @@ public class Cassandra {
       }
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public batch_insert_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -4544,8 +4569,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public batch_insert_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -4567,8 +4593,9 @@ public class Cassandra {
       return this.ue;
     }
 
-    public void setUe(UnavailableException ue) {
+    public batch_insert_result setUe(UnavailableException ue) {
       this.ue = ue;
+      return this;
     }
 
     public void unsetUe() {
@@ -4764,7 +4791,7 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("remove_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
-    private static final TField COLUMN_PATH_OR_PARENT_FIELD_DESC = new TField("column_path_or_parent", TType.STRUCT, (short)3);
+    private static final TField COLUMN_PATH_FIELD_DESC = new TField("column_path", TType.STRUCT, (short)3);
     private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)4);
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
@@ -4772,10 +4799,14 @@ public class Cassandra {
     public static final int KEYSPACE = 1;
     public String key;
     public static final int KEY = 2;
-    public ColumnPath column_path_or_parent;
-    public static final int COLUMN_PATH_OR_PARENT = 3;
+    public ColumnPath column_path;
+    public static final int COLUMN_PATH = 3;
     public long timestamp;
     public static final int TIMESTAMP = 4;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 5;
 
@@ -4790,7 +4821,7 @@ public class Cassandra {
           new FieldValueMetaData(TType.STRING)));
       put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_PATH_OR_PARENT, new FieldMetaData("column_path_or_parent", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
           new StructMetaData(TType.STRUCT, ColumnPath.class)));
       put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I64)));
@@ -4810,14 +4841,14 @@ public class Cassandra {
     public remove_args(
       String keyspace,
       String key,
-      ColumnPath column_path_or_parent,
+      ColumnPath column_path,
       long timestamp,
       int consistency_level)
     {
       this();
       this.keyspace = keyspace;
       this.key = key;
-      this.column_path_or_parent = column_path_or_parent;
+      this.column_path = column_path;
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
       this.consistency_level = consistency_level;
@@ -4834,8 +4865,8 @@ public class Cassandra {
       if (other.isSetKey()) {
         this.key = other.key;
       }
-      if (other.isSetColumn_path_or_parent()) {
-        this.column_path_or_parent = new ColumnPath(other.column_path_or_parent);
+      if (other.isSetColumn_path()) {
+        this.column_path = new ColumnPath(other.column_path);
       }
       __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
@@ -4852,8 +4883,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public remove_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -4875,8 +4907,9 @@ public class Cassandra {
       return this.key;
     }
 
-    public void setKey(String key) {
+    public remove_args setKey(String key) {
       this.key = key;
+      return this;
     }
 
     public void unsetKey() {
@@ -4894,26 +4927,27 @@ public class Cassandra {
       }
     }
 
-    public ColumnPath getColumn_path_or_parent() {
-      return this.column_path_or_parent;
+    public ColumnPath getColumn_path() {
+      return this.column_path;
     }
 
-    public void setColumn_path_or_parent(ColumnPath column_path_or_parent) {
-      this.column_path_or_parent = column_path_or_parent;
+    public remove_args setColumn_path(ColumnPath column_path) {
+      this.column_path = column_path;
+      return this;
     }
 
-    public void unsetColumn_path_or_parent() {
-      this.column_path_or_parent = null;
+    public void unsetColumn_path() {
+      this.column_path = null;
     }
 
-    // Returns true if field column_path_or_parent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumn_path_or_parent() {
-      return this.column_path_or_parent != null;
+    // Returns true if field column_path is set (has been asigned a value) and false otherwise
+    public boolean isSetColumn_path() {
+      return this.column_path != null;
     }
 
-    public void setColumn_path_or_parentIsSet(boolean value) {
+    public void setColumn_pathIsSet(boolean value) {
       if (!value) {
-        this.column_path_or_parent = null;
+        this.column_path = null;
       }
     }
 
@@ -4921,9 +4955,10 @@ public class Cassandra {
       return this.timestamp;
     }
 
-    public void setTimestamp(long timestamp) {
+    public remove_args setTimestamp(long timestamp) {
       this.timestamp = timestamp;
       this.__isset.timestamp = true;
+      return this;
     }
 
     public void unsetTimestamp() {
@@ -4939,13 +4974,22 @@ public class Cassandra {
       this.__isset.timestamp = value;
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public remove_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -4979,11 +5023,11 @@ public class Cassandra {
         }
         break;
 
-      case COLUMN_PATH_OR_PARENT:
+      case COLUMN_PATH:
         if (value == null) {
-          unsetColumn_path_or_parent();
+          unsetColumn_path();
         } else {
-          setColumn_path_or_parent((ColumnPath)value);
+          setColumn_path((ColumnPath)value);
         }
         break;
 
@@ -5016,8 +5060,8 @@ public class Cassandra {
       case KEY:
         return getKey();
 
-      case COLUMN_PATH_OR_PARENT:
-        return getColumn_path_or_parent();
+      case COLUMN_PATH:
+        return getColumn_path();
 
       case TIMESTAMP:
         return new Long(getTimestamp());
@@ -5037,8 +5081,8 @@ public class Cassandra {
         return isSetKeyspace();
       case KEY:
         return isSetKey();
-      case COLUMN_PATH_OR_PARENT:
-        return isSetColumn_path_or_parent();
+      case COLUMN_PATH:
+        return isSetColumn_path();
       case TIMESTAMP:
         return isSetTimestamp();
       case CONSISTENCY_LEVEL:
@@ -5079,12 +5123,12 @@ public class Cassandra {
           return false;
       }
 
-      boolean this_present_column_path_or_parent = true && this.isSetColumn_path_or_parent();
-      boolean that_present_column_path_or_parent = true && that.isSetColumn_path_or_parent();
-      if (this_present_column_path_or_parent || that_present_column_path_or_parent) {
-        if (!(this_present_column_path_or_parent && that_present_column_path_or_parent))
+      boolean this_present_column_path = true && this.isSetColumn_path();
+      boolean that_present_column_path = true && that.isSetColumn_path();
+      if (this_present_column_path || that_present_column_path) {
+        if (!(this_present_column_path && that_present_column_path))
           return false;
-        if (!this.column_path_or_parent.equals(that.column_path_or_parent))
+        if (!this.column_path.equals(that.column_path))
           return false;
       }
 
@@ -5139,10 +5183,10 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case COLUMN_PATH_OR_PARENT:
+          case COLUMN_PATH:
             if (field.type == TType.STRUCT) {
-              this.column_path_or_parent = new ColumnPath();
-              this.column_path_or_parent.read(iprot);
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5190,9 +5234,9 @@ public class Cassandra {
         oprot.writeString(this.key);
         oprot.writeFieldEnd();
       }
-      if (this.column_path_or_parent != null) {
-        oprot.writeFieldBegin(COLUMN_PATH_OR_PARENT_FIELD_DESC);
-        this.column_path_or_parent.write(oprot);
+      if (this.column_path != null) {
+        oprot.writeFieldBegin(COLUMN_PATH_FIELD_DESC);
+        this.column_path.write(oprot);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
@@ -5226,11 +5270,11 @@ public class Cassandra {
       }
       first = false;
       if (!first) sb.append(", ");
-      sb.append("column_path_or_parent:");
-      if (this.column_path_or_parent == null) {
+      sb.append("column_path:");
+      if (this.column_path == null) {
         sb.append("null");
       } else {
-        sb.append(this.column_path_or_parent);
+        sb.append(this.column_path);
       }
       first = false;
       if (!first) sb.append(", ");
@@ -5321,8 +5365,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public remove_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -5344,8 +5389,9 @@ public class Cassandra {
       return this.ue;
     }
 
-    public void setUe(UnavailableException ue) {
+    public remove_result setUe(UnavailableException ue) {
       this.ue = ue;
+      return this;
     }
 
     public void unsetUe() {
@@ -5547,6 +5593,10 @@ public class Cassandra {
     public static final int KEYSPACE = 1;
     public BatchMutationSuper batch_mutation_super;
     public static final int BATCH_MUTATION_SUPER = 2;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 3;
 
@@ -5608,8 +5658,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public batch_insert_super_column_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -5631,8 +5682,9 @@ public class Cassandra {
       return this.batch_mutation_super;
     }
 
-    public void setBatch_mutation_super(BatchMutationSuper batch_mutation_super) {
+    public batch_insert_super_column_args setBatch_mutation_super(BatchMutationSuper batch_mutation_super) {
       this.batch_mutation_super = batch_mutation_super;
+      return this;
     }
 
     public void unsetBatch_mutation_super() {
@@ -5650,13 +5702,22 @@ public class Cassandra {
       }
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
     public int getConsistency_level() {
       return this.consistency_level;
     }
 
-    public void setConsistency_level(int consistency_level) {
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public batch_insert_super_column_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
       this.__isset.consistency_level = true;
+      return this;
     }
 
     public void unsetConsistency_level() {
@@ -5953,8 +6014,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public batch_insert_super_column_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -5976,8 +6038,9 @@ public class Cassandra {
       return this.ue;
     }
 
-    public void setUe(UnavailableException ue) {
+    public batch_insert_super_column_result setUe(UnavailableException ue) {
       this.ue = ue;
+      return this;
     }
 
     public void unsetUe() {
@@ -6264,8 +6327,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public get_key_range_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -6287,8 +6351,9 @@ public class Cassandra {
       return this.column_family;
     }
 
-    public void setColumn_family(String column_family) {
+    public get_key_range_args setColumn_family(String column_family) {
       this.column_family = column_family;
+      return this;
     }
 
     public void unsetColumn_family() {
@@ -6310,8 +6375,9 @@ public class Cassandra {
       return this.start;
     }
 
-    public void setStart(String start) {
+    public get_key_range_args setStart(String start) {
       this.start = start;
+      return this;
     }
 
     public void unsetStart() {
@@ -6333,8 +6399,9 @@ public class Cassandra {
       return this.finish;
     }
 
-    public void setFinish(String finish) {
+    public get_key_range_args setFinish(String finish) {
       this.finish = finish;
+      return this;
     }
 
     public void unsetFinish() {
@@ -6356,9 +6423,10 @@ public class Cassandra {
       return this.count;
     }
 
-    public void setCount(int count) {
+    public get_key_range_args setCount(int count) {
       this.count = count;
       this.__isset.count = true;
+      return this;
     }
 
     public void unsetCount() {
@@ -6728,27 +6796,13 @@ public class Cassandra {
       return new get_key_range_result(this);
     }
 
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public java.util.Iterator<String> getSuccessIterator() {
-      return (this.success == null) ? null : this.success.iterator();
-    }
-
-    public void addToSuccess(String elem) {
-      if (this.success == null) {
-        this.success = new ArrayList<String>();
-      }
-      this.success.add(elem);
-    }
-
     public List<String> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<String> success) {
+    public get_key_range_result setSuccess(List<String> success) {
       this.success = success;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -6770,8 +6824,9 @@ public class Cassandra {
       return this.ire;
     }
 
-    public void setIre(InvalidRequestException ire) {
+    public get_key_range_result setIre(InvalidRequestException ire) {
       this.ire = ire;
+      return this;
     }
 
     public void unsetIre() {
@@ -7026,8 +7081,9 @@ public class Cassandra {
       return this.property;
     }
 
-    public void setProperty(String property) {
+    public get_string_property_args setProperty(String property) {
       this.property = property;
+      return this;
     }
 
     public void unsetProperty() {
@@ -7225,8 +7281,9 @@ public class Cassandra {
       return this.success;
     }
 
-    public void setSuccess(String success) {
+    public get_string_property_result setSuccess(String success) {
       this.success = success;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -7423,8 +7480,9 @@ public class Cassandra {
       return this.property;
     }
 
-    public void setProperty(String property) {
+    public get_string_list_property_args setProperty(String property) {
       this.property = property;
+      return this;
     }
 
     public void unsetProperty() {
@@ -7623,27 +7681,13 @@ public class Cassandra {
       return new get_string_list_property_result(this);
     }
 
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public java.util.Iterator<String> getSuccessIterator() {
-      return (this.success == null) ? null : this.success.iterator();
-    }
-
-    public void addToSuccess(String elem) {
-      if (this.success == null) {
-        this.success = new ArrayList<String>();
-      }
-      this.success.add(elem);
-    }
-
     public List<String> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(List<String> success) {
+    public get_string_list_property_result setSuccess(List<String> success) {
       this.success = success;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -7856,8 +7900,9 @@ public class Cassandra {
       return this.keyspace;
     }
 
-    public void setKeyspace(String keyspace) {
+    public describe_keyspace_args setKeyspace(String keyspace) {
       this.keyspace = keyspace;
+      return this;
     }
 
     public void unsetKeyspace() {
@@ -8088,23 +8133,13 @@ public class Cassandra {
       return new describe_keyspace_result(this);
     }
 
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public void putToSuccess(String key, Map<String,String> val) {
-      if (this.success == null) {
-        this.success = new HashMap<String,Map<String,String>>();
-      }
-      this.success.put(key, val);
-    }
-
     public Map<String,Map<String,String>> getSuccess() {
       return this.success;
     }
 
-    public void setSuccess(Map<String,Map<String,String>> success) {
+    public describe_keyspace_result setSuccess(Map<String,Map<String,String>> success) {
       this.success = success;
+      return this;
     }
 
     public void unsetSuccess() {
@@ -8126,8 +8161,9 @@ public class Cassandra {
       return this.nfe;
     }
 
-    public void setNfe(NotFoundException nfe) {
+    public describe_keyspace_result setNfe(NotFoundException nfe) {
       this.nfe = nfe;
+      return this;
     }
 
     public void unsetNfe() {
@@ -8343,404 +8379,6 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.nfe);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      // check that fields of type enum have valid values
-    }
-
-  }
-
-  public static class execute_query_args implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("execute_query_args");
-    private static final TField QUERY_FIELD_DESC = new TField("query", TType.STRING, (short)1);
-
-    public String query;
-    public static final int QUERY = 1;
-
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
-
-    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(QUERY, new FieldMetaData("query", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(execute_query_args.class, metaDataMap);
-    }
-
-    public execute_query_args() {
-    }
-
-    public execute_query_args(
-      String query)
-    {
-      this();
-      this.query = query;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public execute_query_args(execute_query_args other) {
-      if (other.isSetQuery()) {
-        this.query = other.query;
-      }
-    }
-
-    @Override
-    public execute_query_args clone() {
-      return new execute_query_args(this);
-    }
-
-    public String getQuery() {
-      return this.query;
-    }
-
-    public void setQuery(String query) {
-      this.query = query;
-    }
-
-    public void unsetQuery() {
-      this.query = null;
-    }
-
-    // Returns true if field query is set (has been asigned a value) and false otherwise
-    public boolean isSetQuery() {
-      return this.query != null;
-    }
-
-    public void setQueryIsSet(boolean value) {
-      if (!value) {
-        this.query = null;
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      switch (fieldID) {
-      case QUERY:
-        if (value == null) {
-          unsetQuery();
-        } else {
-          setQuery((String)value);
-        }
-        break;
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    public Object getFieldValue(int fieldID) {
-      switch (fieldID) {
-      case QUERY:
-        return getQuery();
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-    public boolean isSet(int fieldID) {
-      switch (fieldID) {
-      case QUERY:
-        return isSetQuery();
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof execute_query_args)
-        return this.equals((execute_query_args)that);
-      return false;
-    }
-
-    public boolean equals(execute_query_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_query = true && this.isSetQuery();
-      boolean that_present_query = true && that.isSetQuery();
-      if (this_present_query || that_present_query) {
-        if (!(this_present_query && that_present_query))
-          return false;
-        if (!this.query.equals(that.query))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id)
-        {
-          case QUERY:
-            if (field.type == TType.STRING) {
-              this.query = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-            break;
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.query != null) {
-        oprot.writeFieldBegin(QUERY_FIELD_DESC);
-        oprot.writeString(this.query);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("execute_query_args(");
-      boolean first = true;
-
-      sb.append("query:");
-      if (this.query == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.query);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      // check that fields of type enum have valid values
-    }
-
-  }
-
-  public static class execute_query_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("execute_query_result");
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
-
-    public CqlResult success;
-    public static final int SUCCESS = 0;
-
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
-
-    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, CqlResult.class)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(execute_query_result.class, metaDataMap);
-    }
-
-    public execute_query_result() {
-    }
-
-    public execute_query_result(
-      CqlResult success)
-    {
-      this();
-      this.success = success;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public execute_query_result(execute_query_result other) {
-      if (other.isSetSuccess()) {
-        this.success = new CqlResult(other.success);
-      }
-    }
-
-    @Override
-    public execute_query_result clone() {
-      return new execute_query_result(this);
-    }
-
-    public CqlResult getSuccess() {
-      return this.success;
-    }
-
-    public void setSuccess(CqlResult success) {
-      this.success = success;
-    }
-
-    public void unsetSuccess() {
-      this.success = null;
-    }
-
-    // Returns true if field success is set (has been asigned a value) and false otherwise
-    public boolean isSetSuccess() {
-      return this.success != null;
-    }
-
-    public void setSuccessIsSet(boolean value) {
-      if (!value) {
-        this.success = null;
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      switch (fieldID) {
-      case SUCCESS:
-        if (value == null) {
-          unsetSuccess();
-        } else {
-          setSuccess((CqlResult)value);
-        }
-        break;
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    public Object getFieldValue(int fieldID) {
-      switch (fieldID) {
-      case SUCCESS:
-        return getSuccess();
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-    public boolean isSet(int fieldID) {
-      switch (fieldID) {
-      case SUCCESS:
-        return isSetSuccess();
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof execute_query_result)
-        return this.equals((execute_query_result)that);
-      return false;
-    }
-
-    public boolean equals(execute_query_result that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_success = true && this.isSetSuccess();
-      boolean that_present_success = true && that.isSetSuccess();
-      if (this_present_success || that_present_success) {
-        if (!(this_present_success && that_present_success))
-          return false;
-        if (!this.success.equals(that.success))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id)
-        {
-          case SUCCESS:
-            if (field.type == TType.STRUCT) {
-              this.success = new CqlResult();
-              this.success.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-            break;
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      oprot.writeStructBegin(STRUCT_DESC);
-
-      if (this.isSetSuccess()) {
-        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        this.success.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("execute_query_result(");
-      boolean first = true;
-
-      sb.append("success:");
-      if (this.success == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.success);
       }
       first = false;
       sb.append(")");

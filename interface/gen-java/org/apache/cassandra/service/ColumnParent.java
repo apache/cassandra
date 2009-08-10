@@ -77,8 +77,9 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
     return this.column_family;
   }
 
-  public void setColumn_family(String column_family) {
+  public ColumnParent setColumn_family(String column_family) {
     this.column_family = column_family;
+    return this;
   }
 
   public void unsetColumn_family() {
@@ -100,8 +101,9 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
     return this.super_column;
   }
 
-  public void setSuper_column(byte[] super_column) {
+  public ColumnParent setSuper_column(byte[] super_column) {
     this.super_column = super_column;
+    return this;
   }
 
   public void unsetSuper_column() {
@@ -254,9 +256,11 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
       oprot.writeFieldEnd();
     }
     if (this.super_column != null) {
-      oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
-      oprot.writeBinary(this.super_column);
-      oprot.writeFieldEnd();
+      if (isSetSuper_column()) {
+        oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
+        oprot.writeBinary(this.super_column);
+        oprot.writeFieldEnd();
+      }
     }
     oprot.writeFieldStop();
     oprot.writeStructEnd();

@@ -89,8 +89,9 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     return this.name;
   }
 
-  public void setName(byte[] name) {
+  public Column setName(byte[] name) {
     this.name = name;
+    return this;
   }
 
   public void unsetName() {
@@ -112,8 +113,9 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     return this.value;
   }
 
-  public void setValue(byte[] value) {
+  public Column setValue(byte[] value) {
     this.value = value;
+    return this;
   }
 
   public void unsetValue() {
@@ -135,9 +137,10 @@ public class Column implements TBase, java.io.Serializable, Cloneable {
     return this.timestamp;
   }
 
-  public void setTimestamp(long timestamp) {
+  public Column setTimestamp(long timestamp) {
     this.timestamp = timestamp;
     this.__isset.timestamp = true;
+    return this;
   }
 
   public void unsetTimestamp() {
