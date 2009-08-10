@@ -8,6 +8,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.BloomFilter;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 {
@@ -15,10 +16,10 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
 
-    public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<byte[]> columns) throws IOException
+    public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<byte[]> columnNames) throws IOException
     {
-        assert columns != null;
-        this.columns = columns;
+        assert columnNames != null;
+        this.columns = columnNames;
         SSTableReader ssTable = SSTableReader.open(filename);
 
         String decoratedKey = ssTable.getPartitioner().decorateKey(key);
@@ -31,13 +32,24 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         {
             file.seek(position);
 
-            /* note the position where the key starts */
             String keyInDisk = file.readUTF();
             assert keyInDisk.equals(decoratedKey) : keyInDisk;
             file.readInt(); // data size
 
             /* Read the bloom filter summarizing the columns */
-            IndexHelper.defreezeBloomFilter(file);
+            BloomFilter bf = IndexHelper.defreezeBloomFilter(file);
+            List<byte[]> filteredColumnNames = new ArrayList<byte[]>(columnNames.size());
+            for (byte[] name : columnNames)
+            {
+                if (bf.isPresent(name))
+                {
+                    filteredColumnNames.add(name);
+                }
+            }
+            if (filteredColumnNames.isEmpty())
+            {
+                return;
+            }
 
             List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
 
@@ -47,7 +59,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             /* get the various column ranges we have to read */
             AbstractType comparator = DatabaseDescriptor.getComparator(SSTable.parseTableName(filename), cfName);
             SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
-            for (byte[] name : columns)
+            for (byte[] name : filteredColumnNames)
             {
                 int index = IndexHelper.indexFor(name, indexList, comparator, false);
                 if (index == indexList.size())
@@ -68,7 +80,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
                 while (file.getFilePointer() < columnBegin + indexInfo.offset + indexInfo.width)
                 {
                     final IColumn column = cf.getColumnSerializer().deserialize(file);
-                    if (columns.contains(column.name()))
+                    // we check vs the original Set, not the filtered List, for efficiency
+                    if (columnNames.contains(column.name()))
                     {
                         cf.addColumn(column);
                     }

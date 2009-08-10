@@ -85,6 +85,18 @@ public class BloomFilter extends Filter
         return true;
     }
 
+    public boolean isPresent(byte[] key)
+    {
+        for (int bucketIndex : getHashBuckets(key))
+        {
+            if (!filter_.get(bucketIndex))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /*
      @param key -- value whose hash is used to fill
      the filter_.
