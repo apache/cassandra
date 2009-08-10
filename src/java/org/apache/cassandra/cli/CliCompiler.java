@@ -20,7 +20,6 @@ package org.apache.cassandra.cli;
 
 import org.antlr.runtime.*;
 import org.antlr.runtime.tree.*;
-import org.apache.cassandra.cql.common.Utils;
 
 
 public class CliCompiler
@@ -104,7 +103,7 @@ public class CliCompiler
     {
         assert(astNode.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        return Utils.unescapeSQLString(astNode.getChild(2).getText());
+        return CliUtils.unescapeSQLString(astNode.getChild(2).getText());
     }
 
     public static int numColumnSpecifiers(CommonTree astNode)
@@ -117,7 +116,7 @@ public class CliCompiler
     public static String getColumn(CommonTree astNode, int pos)
     {
         // Skip over table, column family and rowKey
-        return Utils.unescapeSQLString(astNode.getChild(pos + 3).getText()); 
+        return CliUtils.unescapeSQLString(astNode.getChild(pos + 3).getText()); 
     }
  
 }

@@ -16,13 +16,7 @@
  * limitations under the License.
  */
 
-//
 // ANTLR Grammar for the Cassandra Command Line Interface (CLI).
-//
-// Note: This grammar handles all but the CQL statements. CQL
-// statements are detected separately (based on the first token)
-// and directly sent to server-side for processing.
-//
 
 grammar Cli;
 
@@ -99,11 +93,11 @@ exitStmt
     ;
 
 getStmt
-    : K_THRIFT K_GET columnFamilyExpr -> ^(NODE_THRIFT_GET columnFamilyExpr)
+    : K_GET columnFamilyExpr -> ^(NODE_THRIFT_GET columnFamilyExpr)
     ;
 
 setStmt
-    : K_THRIFT K_SET columnFamilyExpr '=' value -> ^(NODE_THRIFT_SET columnFamilyExpr value)
+    : K_SET columnFamilyExpr '=' value -> ^(NODE_THRIFT_SET columnFamilyExpr value)
     ;
 
 showStmt
@@ -180,7 +174,6 @@ K_SET:        'SET';
 K_SHOW:       'SHOW';
 K_TABLE:      'KEYSPACE';
 K_TABLES:     'KEYSPACES';
-K_THRIFT:     'THRIFT';
 K_VERSION:    'VERSION';
 
 // private syntactic rules

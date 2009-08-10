@@ -24,7 +24,6 @@ import org.apache.thrift.transport.TTransport;
 
 import jline.*;
 import java.io.*;
-import java.util.*;
 
 import org.apache.cassandra.service.Cassandra;
 
@@ -96,23 +95,6 @@ public class CliMain
         }
         return true;
     }
-    
-    private static void processServerQuery(String query)
-    {
-        if (!isConnected())
-            return;
-
-        try
-        {
-            cliClient_.executeQueryOnServer(query);
-        }
-        catch(Exception e)
-        {
-            System.err.println("Exception " + e.getMessage());
-            e.printStackTrace(System.err);
-        }
-        return;
-    }
 
     private static void processCLIStmt(String query)
     {
@@ -128,32 +110,6 @@ public class CliMain
         return;
     }
 
-    private static void processLine(String line)
-    {
-        StringTokenizer tokenizer = new StringTokenizer(line);
-        if (tokenizer.hasMoreTokens())
-        {
-            // Use first token for now to determine if this statement is
-            // a CQL statement. Technically, the line could start with
-            // a comment token followed by a CQL statement. That case
-            // isn't handled right now.
-            String token = tokenizer.nextToken().toUpperCase();
-            if (token.startsWith("GET")
-                || token.startsWith("SELECT")
-                || token.startsWith("SET")
-                || token.startsWith("DELETE")
-                || token.startsWith("EXPLAIN")) // explain plan statement
-            {
-                // these are CQL Statements that are compiled and executed on server-side
-                processServerQuery(line);
-            }
-            else 
-            {
-                // These are CLI statements processed locally
-                processCLIStmt(line);
-            }
-        }
-    } 
 
     public static void main(String args[]) throws IOException  
     {
@@ -184,7 +140,7 @@ public class CliMain
         String line;
         while ((line = reader.readLine(PROMPT+"> ")) != null)
         {
-            processLine(line);
+            processCLIStmt(line);
         }
     }
 }
