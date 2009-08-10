@@ -29,6 +29,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 
@@ -55,15 +56,17 @@ public abstract class ReadCommand
         return new Message(StorageService.getLocalStorageEndPoint(), StorageService.readStage_, StorageService.readVerbHandler_, bos.toByteArray());
     }
 
+    public final QueryPath queryPath;
     public final String table;
     public final String key;
     private boolean isDigestQuery = false;    
     protected final byte commandType;
 
-    protected ReadCommand(String table, String key, byte cmdType)
+    protected ReadCommand(String table, String key, QueryPath queryPath, byte cmdType)
     {
         this.table = table;
         this.key = key;
+        this.queryPath = queryPath;
         this.commandType = cmdType;
     }
     

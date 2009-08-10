@@ -137,14 +137,14 @@ public class CliClient
         if (columnSpecCnt == 0)
         {
             // table.cf['key']
-        	List<Column> columns = new ArrayList<Column>();
-      		columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000, ConsistencyLevel.ONE);
+            SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
+      	    List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), new SlicePredicate(null, range), ConsistencyLevel.ONE);
             int size = columns.size();
-            for (Iterator<Column> colIter = columns.iterator(); colIter.hasNext(); )
+            for (ColumnOrSuperColumn cosc : columns)
             {
-                Column column = colIter.next();
+                Column column = cosc.column;
                 css_.out.printf("  (column=%s, value=%s; timestamp=%d)\n",
-                                 column.name, column.value, column.timestamp);
+                                column.name, column.value, column.timestamp);
             }
             css_.out.println("Returned " + size + " rows.");
         }
@@ -153,15 +153,16 @@ public class CliClient
             assert columnSpecCnt == 1;
             // table.cf['key']['column']
             String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-            Column column = new Column();
+            ColumnOrSuperColumn cosc;
             try
             {
-                column = thriftClient_.get_column(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")), ConsistencyLevel.ONE);
+                cosc = thriftClient_.get(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")), ConsistencyLevel.ONE);
             }
             catch (UnsupportedEncodingException e)
             {
                 throw new RuntimeException(e);
             }
+            Column column = cosc.column;
             css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
                             column.name, column.value, column.timestamp);
         }

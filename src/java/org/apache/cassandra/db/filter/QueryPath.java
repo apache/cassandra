@@ -8,8 +8,6 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.service.ColumnParent;
 import org.apache.cassandra.service.ColumnPath;
-import org.apache.cassandra.service.ColumnPathOrParent;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.ColumnSerializer;
 
 public class QueryPath
@@ -43,11 +41,6 @@ public class QueryPath
     public QueryPath(ColumnPath column_path)
     {
         this(column_path.column_family, column_path.super_column, column_path.column);
-    }
-
-    public QueryPath(ColumnPathOrParent column_path_or_parent)
-    {
-        this(column_path_or_parent.column_family, column_path_or_parent.super_column, column_path_or_parent.column);
     }
 
     public static QueryPath column(byte[] columnName)

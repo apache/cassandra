@@ -64,14 +64,14 @@ public class ThriftValidation
             {
                 throw new InvalidRequestException("supercolumn parameter is invalid for standard CF " + column_path.column_family);
             }
+            if (column_path.column == null)
+            {
+                throw new InvalidRequestException("column parameter is not optional for standard CF " + column_path.column_family);
+            }
         }
         else if (column_path.super_column == null)
         {
             throw new InvalidRequestException("column parameter is not optional for super CF " + column_path.column_family);
-        }
-        if (column_path.column == null)
-        {
-            throw new InvalidRequestException("column parameter is not optional");
         }
     }
 
@@ -86,23 +86,10 @@ public class ThriftValidation
                 throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
             }
         }
-        else if (column_parent.super_column == null)
-        {
-            throw new InvalidRequestException("columnfamily and supercolumn are both required for super CF " + column_parent.column_family);
-        }
     }
 
-    static void validateSuperColumnPath(String tablename, SuperColumnPath super_column_path) throws InvalidRequestException
-    {
-        validateTable(tablename);
-        String cfType = validateColumnFamily(tablename, super_column_path.column_family);
-        if (cfType.equals("Standard"))
-        {
-            throw new InvalidRequestException(super_column_path.column_family + " is a standard columnfamily; only super columnfamilies are valid here");
-        }
-    }
-
-    static void validateColumnPathOrParent(String tablename, ColumnPathOrParent column_path_or_parent) throws InvalidRequestException
+    // column_path_or_parent is a ColumnPath for remove, where the "column" is optional even for a standard CF
+    static void validateColumnPathOrParent(String tablename, ColumnPath column_path_or_parent) throws InvalidRequestException
     {
         validateTable(tablename);
         String cfType = validateColumnFamily(tablename, column_path_or_parent.column_family);

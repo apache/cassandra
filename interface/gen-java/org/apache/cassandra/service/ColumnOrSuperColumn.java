@@ -18,89 +18,88 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
-  private static final TStruct STRUCT_DESC = new TStruct("SuperColumnPath");
-  private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
-  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)4);
+public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneable {
+  private static final TStruct STRUCT_DESC = new TStruct("ColumnOrSuperColumn");
+  private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRUCT, (short)1);
+  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRUCT, (short)2);
 
-  public String column_family;
-  public static final int COLUMN_FAMILY = 3;
-  public byte[] super_column;
-  public static final int SUPER_COLUMN = 4;
+  public Column column;
+  public static final int COLUMN = 1;
+  public SuperColumn super_column;
+  public static final int SUPER_COLUMN = 2;
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
   }
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
-        new FieldValueMetaData(TType.STRING)));
-    put(SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.DEFAULT, 
-        new FieldValueMetaData(TType.STRING)));
+    put(COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
+        new StructMetaData(TType.STRUCT, Column.class)));
+    put(SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
+        new StructMetaData(TType.STRUCT, SuperColumn.class)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(SuperColumnPath.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(ColumnOrSuperColumn.class, metaDataMap);
   }
 
-  public SuperColumnPath() {
+  public ColumnOrSuperColumn() {
   }
 
-  public SuperColumnPath(
-    String column_family,
-    byte[] super_column)
+  public ColumnOrSuperColumn(
+    Column column,
+    SuperColumn super_column)
   {
     this();
-    this.column_family = column_family;
+    this.column = column;
     this.super_column = super_column;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public SuperColumnPath(SuperColumnPath other) {
-    if (other.isSetColumn_family()) {
-      this.column_family = other.column_family;
+  public ColumnOrSuperColumn(ColumnOrSuperColumn other) {
+    if (other.isSetColumn()) {
+      this.column = new Column(other.column);
     }
     if (other.isSetSuper_column()) {
-      this.super_column = new byte[other.super_column.length];
-      System.arraycopy(other.super_column, 0, super_column, 0, other.super_column.length);
+      this.super_column = new SuperColumn(other.super_column);
     }
   }
 
   @Override
-  public SuperColumnPath clone() {
-    return new SuperColumnPath(this);
+  public ColumnOrSuperColumn clone() {
+    return new ColumnOrSuperColumn(this);
   }
 
-  public String getColumn_family() {
-    return this.column_family;
+  public Column getColumn() {
+    return this.column;
   }
 
-  public void setColumn_family(String column_family) {
-    this.column_family = column_family;
+  public void setColumn(Column column) {
+    this.column = column;
   }
 
-  public void unsetColumn_family() {
-    this.column_family = null;
+  public void unsetColumn() {
+    this.column = null;
   }
 
-  // Returns true if field column_family is set (has been asigned a value) and false otherwise
-  public boolean isSetColumn_family() {
-    return this.column_family != null;
+  // Returns true if field column is set (has been asigned a value) and false otherwise
+  public boolean isSetColumn() {
+    return this.column != null;
   }
 
-  public void setColumn_familyIsSet(boolean value) {
+  public void setColumnIsSet(boolean value) {
     if (!value) {
-      this.column_family = null;
+      this.column = null;
     }
   }
 
-  public byte[] getSuper_column() {
+  public SuperColumn getSuper_column() {
     return this.super_column;
   }
 
-  public void setSuper_column(byte[] super_column) {
+  public void setSuper_column(SuperColumn super_column) {
     this.super_column = super_column;
   }
 
@@ -121,11 +120,11 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
 
   public void setFieldValue(int fieldID, Object value) {
     switch (fieldID) {
-    case COLUMN_FAMILY:
+    case COLUMN:
       if (value == null) {
-        unsetColumn_family();
+        unsetColumn();
       } else {
-        setColumn_family((String)value);
+        setColumn((Column)value);
       }
       break;
 
@@ -133,7 +132,7 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
       if (value == null) {
         unsetSuper_column();
       } else {
-        setSuper_column((byte[])value);
+        setSuper_column((SuperColumn)value);
       }
       break;
 
@@ -144,8 +143,8 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
 
   public Object getFieldValue(int fieldID) {
     switch (fieldID) {
-    case COLUMN_FAMILY:
-      return getColumn_family();
+    case COLUMN:
+      return getColumn();
 
     case SUPER_COLUMN:
       return getSuper_column();
@@ -158,8 +157,8 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
   // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
   public boolean isSet(int fieldID) {
     switch (fieldID) {
-    case COLUMN_FAMILY:
-      return isSetColumn_family();
+    case COLUMN:
+      return isSetColumn();
     case SUPER_COLUMN:
       return isSetSuper_column();
     default:
@@ -171,21 +170,21 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof SuperColumnPath)
-      return this.equals((SuperColumnPath)that);
+    if (that instanceof ColumnOrSuperColumn)
+      return this.equals((ColumnOrSuperColumn)that);
     return false;
   }
 
-  public boolean equals(SuperColumnPath that) {
+  public boolean equals(ColumnOrSuperColumn that) {
     if (that == null)
       return false;
 
-    boolean this_present_column_family = true && this.isSetColumn_family();
-    boolean that_present_column_family = true && that.isSetColumn_family();
-    if (this_present_column_family || that_present_column_family) {
-      if (!(this_present_column_family && that_present_column_family))
+    boolean this_present_column = true && this.isSetColumn();
+    boolean that_present_column = true && that.isSetColumn();
+    if (this_present_column || that_present_column) {
+      if (!(this_present_column && that_present_column))
         return false;
-      if (!this.column_family.equals(that.column_family))
+      if (!this.column.equals(that.column))
         return false;
     }
 
@@ -194,7 +193,7 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
     if (this_present_super_column || that_present_super_column) {
       if (!(this_present_super_column && that_present_super_column))
         return false;
-      if (!java.util.Arrays.equals(this.super_column, that.super_column))
+      if (!this.super_column.equals(that.super_column))
         return false;
     }
 
@@ -217,16 +216,18 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
       }
       switch (field.id)
       {
-        case COLUMN_FAMILY:
-          if (field.type == TType.STRING) {
-            this.column_family = iprot.readString();
+        case COLUMN:
+          if (field.type == TType.STRUCT) {
+            this.column = new Column();
+            this.column.read(iprot);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
         case SUPER_COLUMN:
-          if (field.type == TType.STRING) {
-            this.super_column = iprot.readBinary();
+          if (field.type == TType.STRUCT) {
+            this.super_column = new SuperColumn();
+            this.super_column.read(iprot);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -248,14 +249,14 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.column_family != null) {
-      oprot.writeFieldBegin(COLUMN_FAMILY_FIELD_DESC);
-      oprot.writeString(this.column_family);
+    if (this.column != null) {
+      oprot.writeFieldBegin(COLUMN_FIELD_DESC);
+      this.column.write(oprot);
       oprot.writeFieldEnd();
     }
     if (this.super_column != null) {
       oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
-      oprot.writeBinary(this.super_column);
+      this.super_column.write(oprot);
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
@@ -264,29 +265,28 @@ public class SuperColumnPath implements TBase, java.io.Serializable, Cloneable {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("SuperColumnPath(");
+    StringBuilder sb = new StringBuilder("ColumnOrSuperColumn(");
     boolean first = true;
 
-    sb.append("column_family:");
-    if (this.column_family == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.column_family);
+    if (isSetColumn()) {
+      sb.append("column:");
+      if (this.column == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.column);
+      }
+      first = false;
     }
-    first = false;
-    if (!first) sb.append(", ");
-    sb.append("super_column:");
-    if (this.super_column == null) {
-      sb.append("null");
-    } else {
-        int __super_column_size = Math.min(this.super_column.length, 128);
-        for (int i = 0; i < __super_column_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.super_column[i]).length() > 1 ? Integer.toHexString(this.super_column[i]).substring(Integer.toHexString(this.super_column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.super_column[i]).toUpperCase());
-        }
-        if (this.super_column.length > 128) sb.append(" ...");
+    if (isSetSuper_column()) {
+      if (!first) sb.append(", ");
+      sb.append("super_column:");
+      if (this.super_column == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.super_column);
+      }
+      first = false;
     }
-    first = false;
     sb.append(")");
     return sb.toString();
   }

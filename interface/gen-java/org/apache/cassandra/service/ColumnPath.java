@@ -40,7 +40,7 @@ public class ColumnPath implements TBase, java.io.Serializable, Cloneable {
         new FieldValueMetaData(TType.STRING)));
     put(SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(COLUMN, new FieldMetaData("column", TFieldRequirementType.DEFAULT, 
+    put(COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
   }});
 
@@ -357,19 +357,21 @@ public class ColumnPath implements TBase, java.io.Serializable, Cloneable {
       }
       first = false;
     }
-    if (!first) sb.append(", ");
-    sb.append("column:");
-    if (this.column == null) {
-      sb.append("null");
-    } else {
-        int __column_size = Math.min(this.column.length, 128);
-        for (int i = 0; i < __column_size; i++) {
-          if (i != 0) sb.append(" ");
-          sb.append(Integer.toHexString(this.column[i]).length() > 1 ? Integer.toHexString(this.column[i]).substring(Integer.toHexString(this.column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.column[i]).toUpperCase());
-        }
-        if (this.column.length > 128) sb.append(" ...");
+    if (isSetColumn()) {
+      if (!first) sb.append(", ");
+      sb.append("column:");
+      if (this.column == null) {
+        sb.append("null");
+      } else {
+          int __column_size = Math.min(this.column.length, 128);
+          for (int i = 0; i < __column_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.column[i]).length() > 1 ? Integer.toHexString(this.column[i]).substring(Integer.toHexString(this.column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.column[i]).toUpperCase());
+          }
+          if (this.column.length > 128) sb.append(" ...");
+      }
+      first = false;
     }
-    first = false;
     sb.append(")");
     return sb.toString();
   }
