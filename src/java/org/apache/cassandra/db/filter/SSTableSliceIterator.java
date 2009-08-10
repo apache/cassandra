@@ -14,16 +14,16 @@ import com.google.common.collect.AbstractIterator;
  */
 class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIterator
 {
-    private final boolean isAscending;
+    private final boolean reversed;
     private final byte[] startColumn;
     private final AbstractType comparator;
     private ColumnGroupReader reader;
 
-    public SSTableSliceIterator(String filename, String key, AbstractType comparator, byte[] startColumn, boolean isAscending)
+    public SSTableSliceIterator(String filename, String key, AbstractType comparator, byte[] startColumn, boolean reversed)
     throws IOException
     {
         // TODO push finishColumn down here too, so we can tell when we're done and optimize away the slice when the index + start/stop shows there's nothing to scan for
-        this.isAscending = isAscending;
+        this.reversed = reversed;
         SSTableReader ssTable = SSTableReader.open(filename);
 
         /* Morph key into actual key based on the partition type. */
@@ -37,9 +37,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
     private boolean isColumnNeeded(IColumn column)
     {
-        return isAscending
-               ? comparator.compare(column.name(), startColumn) >= 0
-               : startColumn.length == 0 || comparator.compare(column.name(), startColumn) <= 0;
+        return reversed
+               ? startColumn.length == 0 || comparator.compare(column.name(), startColumn) <= 0
+               : comparator.compare(column.name(), startColumn) >= 0;
     }
 
     public ColumnFamily getColumnFamily()
@@ -100,8 +100,8 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             file.readInt(); // column count
 
             columnStartPosition = file.getFilePointer();
-            curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, isAscending);
-            if (!isAscending && curRangeIndex == indexes.size())
+            curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
+            if (reversed && curRangeIndex == indexes.size())
                 curRangeIndex--;
         }
 
@@ -139,16 +139,16 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             while (file.getFilePointer() < columnStartPosition + curColPostion.offset + curColPostion.width)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
-                if (isAscending)
-                    blockColumns.addLast(column);
-                else
+                if (reversed)
                     blockColumns.addFirst(column);
+                else
+                    blockColumns.addLast(column);
             }
 
-            if (isAscending)
-                curRangeIndex++;
-            else
+            if (reversed)
                 curRangeIndex--;
+            else
+                curRangeIndex++;
             return true;
         }
 

@@ -171,12 +171,7 @@ public class CassandraServer implements Cassandra.Iface
     private List<ColumnOrSuperColumn> getSlice(ReadCommand command, int consistency_level) throws InvalidRequestException
     {
         ColumnFamily cfamily = readColumnFamily(command, consistency_level);
-        boolean reverseOrder = false;
-
-        if (command instanceof SliceFromReadCommand)
-        {
-            reverseOrder = !((SliceFromReadCommand)command).isAscending;
-        }
+        boolean reverseOrder = command instanceof SliceFromReadCommand && ((SliceFromReadCommand)command).reversed;
 
         if (cfamily == null || cfamily.getColumnsMap().size() == 0)
         {

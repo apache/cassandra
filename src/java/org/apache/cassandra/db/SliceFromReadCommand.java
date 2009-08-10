@@ -28,20 +28,20 @@ import org.apache.cassandra.service.ColumnParent;
 public class SliceFromReadCommand extends ReadCommand
 {
     public final byte[] start, finish;
-    public final boolean isAscending;
+    public final boolean reversed;
     public final int count;
 
-    public SliceFromReadCommand(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean isAscending, int count)
+    public SliceFromReadCommand(String table, String key, ColumnParent column_parent, byte[] start, byte[] finish, boolean reversed, int count)
     {
-        this(table, key, new QueryPath(column_parent), start, finish, isAscending, count);
+        this(table, key, new QueryPath(column_parent), start, finish, reversed, count);
     }
 
-    public SliceFromReadCommand(String table, String key, QueryPath path, byte[] start, byte[] finish, boolean isAscending, int count)
+    public SliceFromReadCommand(String table, String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int count)
     {
         super(table, key, path, CMD_TYPE_GET_SLICE);
         this.start = start;
         this.finish = finish;
-        this.isAscending = isAscending;
+        this.reversed = reversed;
         this.count = count;
     }
 
@@ -54,7 +54,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new SliceFromReadCommand(table, key, queryPath, start, finish, isAscending, count);
+        ReadCommand readCommand = new SliceFromReadCommand(table, key, queryPath, start, finish, reversed, count);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -62,7 +62,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {
-        return table.getRow(new SliceQueryFilter(key, queryPath, start, finish, isAscending, count));
+        return table.getRow(new SliceQueryFilter(key, queryPath, start, finish, reversed, count));
     }
 
     @Override
@@ -74,7 +74,7 @@ public class SliceFromReadCommand extends ReadCommand
                ", column_parent='" + queryPath + '\'' +
                ", start='" + getComparator().getString(start) + '\'' +
                ", finish='" + getComparator().getString(finish) + '\'' +
-               ", isAscending=" + isAscending +
+               ", reversed=" + reversed +
                ", count=" + count +
                ')';
     }
@@ -92,7 +92,7 @@ class SliceFromReadCommandSerializer extends ReadCommandSerializer
         realRM.queryPath.serialize(dos);
         ColumnSerializer.writeName(realRM.start, dos);
         ColumnSerializer.writeName(realRM.finish, dos);
-        dos.writeBoolean(realRM.isAscending);
+        dos.writeBoolean(realRM.reversed);
         dos.writeInt(realRM.count);
     }
 

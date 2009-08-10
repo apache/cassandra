@@ -267,7 +267,7 @@ public class Memtable implements Comparable<Memtable>
 
         final IColumn columns[] = (cf == null ? columnFamily : cf).getSortedColumns().toArray(new IColumn[columnFamily.getSortedColumns().size()]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
-        if (!filter.isAscending)
+        if (filter.reversed)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
         if (DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard"))
@@ -279,7 +279,7 @@ public class Memtable implements Comparable<Memtable>
         // our dummy column, since the time there is arbitrary).
         Comparator<IColumn> comparator = filter.getColumnComparator(typeComparator);
         int index;
-        if (filter.start.length == 0 && !filter.isAscending)
+        if (filter.start.length == 0 && filter.reversed)
         {
             /* scan from the largest column in descending order */
             index = 0;

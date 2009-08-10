@@ -1356,9 +1356,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.mean();
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean isAscending, int limit) throws IOException
+    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit) throws IOException
     {
-        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, isAscending, limit));
+        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, reversed, limit));
     }
 
     public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
@@ -1547,7 +1547,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                QueryFilter filter = new SliceQueryFilter(current, new QueryPath(columnFamily_), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1);
+                QueryFilter filter = new SliceQueryFilter(current, new QueryPath(columnFamily_), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
                 if (getColumnFamily(filter, Integer.MAX_VALUE) != null)
                 {
                     keys.add(current);

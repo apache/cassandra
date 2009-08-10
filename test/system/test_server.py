@@ -53,7 +53,7 @@ def _insert_batch(block):
     client.batch_insert('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), consistencyLevel)
 
 def _big_slice(keyspace, key, column_parent):
-    p = SlicePredicate(slice_range=SliceRange('', '', True, 1000))
+    p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
     return client.get_slice(keyspace, key, column_parent, p, ConsistencyLevel.ONE)
 
 def _verify_batch():
@@ -81,23 +81,23 @@ def _insert_range():
     time.sleep(0.1)
 
 def _verify_range():
-    p = SlicePredicate(slice_range=SliceRange('c1', 'c2', True, 1000))
+    p = SlicePredicate(slice_range=SliceRange('c1', 'c2', False, 1000))
     result = client.get_slice('Keyspace1','key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].column.name == 'c1'
     assert result[1].column.name == 'c2'
 
-    p = SlicePredicate(slice_range=SliceRange('c3', 'c2', False, 1000))
+    p = SlicePredicate(slice_range=SliceRange('c3', 'c2', True, 1000))
     result = client.get_slice('Keyspace1','key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].column.name == 'c3'
     assert result[1].column.name == 'c2'
 
-    p = SlicePredicate(slice_range=SliceRange('a', 'z', True, 1000))
+    p = SlicePredicate(slice_range=SliceRange('a', 'z', False, 1000))
     result = client.get_slice('Keyspace1','key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
     assert len(result) == 3, result
     
-    p = SlicePredicate(slice_range=SliceRange('a', 'z', True, 2))
+    p = SlicePredicate(slice_range=SliceRange('a', 'z', False, 2))
     result = client.get_slice('Keyspace1','key1', ColumnParent('Standard1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2, result
 	 	
@@ -109,13 +109,13 @@ def _insert_super_range():
     time.sleep(0.1)
 
 def _verify_super_range():
-    p = SlicePredicate(slice_range=SliceRange('sc2', 'sc3', True, 2))
+    p = SlicePredicate(slice_range=SliceRange('sc2', 'sc3', False, 2))
     result = client.get_slice('Keyspace1', 'key1', ColumnParent('Super1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].super_column.name == 'sc2'
     assert result[1].super_column.name == 'sc3'
 
-    p = SlicePredicate(slice_range=SliceRange('sc3', 'sc2', False, 2))
+    p = SlicePredicate(slice_range=SliceRange('sc3', 'sc2', True, 2))
     result = client.get_slice('Keyspace1', 'key1', ColumnParent('Super1'), p, ConsistencyLevel.ONE)
     assert len(result) == 2
     assert result[0].super_column.name == 'sc3'
@@ -169,12 +169,12 @@ class TestMutations(CassandraTester):
 
     def test_super_subcolumn_limit(self):
         _insert_super()
-        p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
         column_parent = ColumnParent('Super1', 'sc2')
         slice = [result.column
                  for result in client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE)]
         assert slice == [Column(_i64(5), 'value5', 0)], slice
-        p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+        p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
         slice = [result.column
                  for result in client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE)]
         assert slice == [Column(_i64(6), 'value6', 0)], slice

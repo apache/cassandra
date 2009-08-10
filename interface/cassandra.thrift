@@ -93,11 +93,11 @@ exception UnavailableException {
 # service api
 #
 
-enum ConsistencyLevel { 
-    ZERO = 0, 
-    ONE = 1, 
-    QUORUM = 2, 
-    ALL = 3, 
+enum ConsistencyLevel {
+    ZERO = 0,
+    ONE = 1,
+    QUORUM = 2,
+    ALL = 3,
 }
 
 struct ColumnParent {
@@ -114,7 +114,7 @@ struct ColumnPath {
 struct SliceRange {
     1: binary          start,
     2: binary          finish,
-    3: bool            is_ascending=1,
+    3: bool            reversed=0,
     4: i32             count=100,
 }
 
@@ -152,7 +152,7 @@ service Cassandra {
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys
-  list<string>   get_key_range(1:string keyspace, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100) 
+  list<string>   get_key_range(1:string keyspace, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100)
   throws (1: InvalidRequestException ire),
 
   /////////////////////////////////////////////////////////////////////////////////////

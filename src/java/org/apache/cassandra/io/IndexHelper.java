@@ -124,9 +124,9 @@ public class IndexHelper
      * the index of the IndexInfo in which @name will be found.
      * If the index is @indexList.size(), the @name appears nowhere.
      */
-    public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator, boolean ascending)
+    public static int indexFor(byte[] name, List<IndexInfo> indexList, AbstractType comparator, boolean reversed)
     {
-        if (name.length == 0 && !ascending)
+        if (name.length == 0 && reversed)
             return indexList.size() - 1;
         IndexInfo target = new IndexInfo(name, name, 0, 0);
         int index = Collections.binarySearch(indexList, target, getComparator(comparator));

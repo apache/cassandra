@@ -82,7 +82,7 @@ public class TableTest extends CleanupHelper
                 cf = cfStore.getColumnFamily(new NamesQueryFilter(TEST_KEY, new QueryPath("Standard3"), new TreeSet<byte[]>()));
                 assertColumns(cf);
 
-                cf = cfStore.getColumnFamily(new SliceQueryFilter(TEST_KEY, new QueryPath("Standard3"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 0));
+                cf = cfStore.getColumnFamily(new SliceQueryFilter(TEST_KEY, new QueryPath("Standard3"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 0));
                 assertColumns(cf);
 
                 cf = cfStore.getColumnFamily(new NamesQueryFilter(TEST_KEY, new QueryPath("Standard3"), "col99".getBytes()));
@@ -137,16 +137,16 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
         
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "b".getBytes(), "c".getBytes(), true, 100);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "b".getBytes(), "c".getBytes(), false, 100);
         assertEquals(2, cf.getColumnCount());
         
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "b".getBytes(), "b".getBytes(), true, 100);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "b".getBytes(), "b".getBytes(), false, 100);
         assertEquals(1, cf.getColumnCount());
         
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "b".getBytes(), "c".getBytes(), true, 1);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "b".getBytes(), "c".getBytes(), false, 1);
         assertEquals(1, cf.getColumnCount());
         
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "c".getBytes(), "b".getBytes(), true, 1);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "c".getBytes(), "b".getBytes(), false, 1);
         assertNull(cf);
     }
 
@@ -176,11 +176,11 @@ public class TableTest extends CleanupHelper
         ColumnFamily cf;
 
         // key before the rows that exists
-        cf = cfStore.getColumnFamily("a", new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1);
+        cf = cfStore.getColumnFamily("a", new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
         assertColumns(cf);
 
         // key after the rows that exist
-        cf = cfStore.getColumnFamily("z", new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1);
+        cf = cfStore.getColumnFamily("z", new QueryPath("Standard2"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
         assertColumns(cf);
     }
 
@@ -213,26 +213,26 @@ public class TableTest extends CleanupHelper
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col5".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col5".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
                 assertColumns(cf, "col5", "col7");
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col4".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col4".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
                 assertColumns(cf, "col4", "col5", "col7");
                 assertColumns(ColumnFamilyStore.removeDeleted(cf, Integer.MAX_VALUE), "col5", "col7");
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col5".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col5".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
                 assertColumns(cf, "col3", "col4", "col5");
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col6".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col6".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
                 assertColumns(cf, "col3", "col4", "col5");
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
                 assertColumns(cf, "col7", "col9");
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col95".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col95".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
                 assertColumns(cf);
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col0".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 2);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col0".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 2);
                 assertColumns(cf);
             }
         };
@@ -274,7 +274,7 @@ public class TableTest extends CleanupHelper
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col2".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col2".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
                 assertColumns(cf, "col2", "col3", "col4");
                 assertEquals(new String(cf.getColumn("col2".getBytes()).value()), "valx");
                 assertEquals(new String(cf.getColumn("col3".getBytes()).value()), "valx");
@@ -322,19 +322,19 @@ public class TableTest extends CleanupHelper
     {
         String key = "row3";
         ColumnFamily cf;
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf, "col1000", "col1001", "col1002");
         assertEquals(new String(cf.getColumn("col1000".getBytes()).value()), "v1000");
         assertEquals(new String(cf.getColumn("col1001".getBytes()).value()), "v1001");
         assertEquals(new String(cf.getColumn("col1002".getBytes()).value()), "v1002");
 
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1195".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1195".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf, "col1195", "col1196", "col1197");
         assertEquals(new String(cf.getColumn("col1195".getBytes()).value()), "v1195");
         assertEquals(new String(cf.getColumn("col1196".getBytes()).value()), "v1196");
         assertEquals(new String(cf.getColumn("col1197".getBytes()).value()), "v1197");
 
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1996".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1996".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000);
         IColumn[] columns = cf.getSortedColumns().toArray(new IColumn[0]);
         for (int i = 1000; i < 1996; i++)
         {
@@ -344,22 +344,22 @@ public class TableTest extends CleanupHelper
             assert Arrays.equals(column.value(), ("v" + i).getBytes());
         }
 
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1990".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col1990".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf, "col1990", "col1991", "col1992");
         assertEquals(new String(cf.getColumn("col1990".getBytes()).value()), "v1990");
         assertEquals(new String(cf.getColumn("col1991".getBytes()).value()), "v1991");
         assertEquals(new String(cf.getColumn("col1992".getBytes()).value()), "v1992");
 
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1997", "col1998", "col1999");
         assertEquals(new String(cf.getColumn("col1999".getBytes()).value()), "v1999");
         assertEquals(new String(cf.getColumn("col1998".getBytes()).value()), "v1998");
         assertEquals(new String(cf.getColumn("col1997".getBytes()).value()), "v1997");
 
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col9000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col9000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
         assertColumns(cf, "col1997", "col1998", "col1999");
 
-        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col9000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, true, 3);
+        cf = cfStore.getColumnFamily(key, new QueryPath("Standard1"), "col9000".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, false, 3);
         assertColumns(cf);
     }
 
@@ -383,7 +383,7 @@ public class TableTest extends CleanupHelper
         {
             public void run() throws Exception
             {
-                ColumnFamily cf = cfStore.getColumnFamily(ROW, new QueryPath("Super1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 10);
+                ColumnFamily cf = cfStore.getColumnFamily(ROW, new QueryPath("Super1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10);
                 assertColumns(cf, "sc1");
                 assertEquals(new String(cf.getColumn("sc1".getBytes()).getSubColumn(getBytes(1)).value()), "val1");
             }

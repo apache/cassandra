@@ -50,7 +50,7 @@ public class TimeSortTest extends CleanupHelper
         rm.add(new QueryPath("StandardLong1", null, getBytes(0)), "b".getBytes(), 0);
         rm.apply();
 
-        ColumnFamily cf = cfStore.getColumnFamily("key0", new QueryPath("StandardLong1"), getBytes(10), ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily("key0", new QueryPath("StandardLong1"), getBytes(10), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assert columns.size() == 1;
     }
@@ -91,7 +91,7 @@ public class TimeSortTest extends CleanupHelper
         rm.apply();
 
         // verify
-        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(0), ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(0), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
         Collection<IColumn> columns = cf.getSortedColumns();
         assertEquals(12, columns.size());
         Iterator<IColumn> iter = columns.iterator();
@@ -116,7 +116,7 @@ public class TimeSortTest extends CleanupHelper
             String key = Integer.toString(i);
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000);
+                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key, new QueryPath("StandardLong1"), getBytes(j * 2), ArrayUtils.EMPTY_BYTE_ARRAY, false, 1000);
                 Collection<IColumn> columns = cf.getSortedColumns();
                 assert columns.size() == 8 - j;
                 int k = j;

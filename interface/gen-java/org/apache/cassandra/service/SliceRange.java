@@ -22,21 +22,21 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
   private static final TStruct STRUCT_DESC = new TStruct("SliceRange");
   private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)1);
   private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)2);
-  private static final TField IS_ASCENDING_FIELD_DESC = new TField("is_ascending", TType.BOOL, (short)3);
+  private static final TField REVERSED_FIELD_DESC = new TField("reversed", TType.BOOL, (short)3);
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)4);
 
   public byte[] start;
   public static final int START = 1;
   public byte[] finish;
   public static final int FINISH = 2;
-  public boolean is_ascending;
-  public static final int IS_ASCENDING = 3;
+  public boolean reversed;
+  public static final int REVERSED = 3;
   public int count;
   public static final int COUNT = 4;
 
   private final Isset __isset = new Isset();
   private static final class Isset implements java.io.Serializable {
-    public boolean is_ascending = false;
+    public boolean reversed = false;
     public boolean count = false;
   }
 
@@ -45,7 +45,7 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
         new FieldValueMetaData(TType.STRING)));
     put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
-    put(IS_ASCENDING, new FieldMetaData("is_ascending", TFieldRequirementType.DEFAULT, 
+    put(REVERSED, new FieldMetaData("reversed", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.BOOL)));
     put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.I32)));
@@ -56,7 +56,7 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
   }
 
   public SliceRange() {
-    this.is_ascending = true;
+    this.reversed = false;
 
     this.count = 100;
 
@@ -65,14 +65,14 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
   public SliceRange(
     byte[] start,
     byte[] finish,
-    boolean is_ascending,
+    boolean reversed,
     int count)
   {
     this();
     this.start = start;
     this.finish = finish;
-    this.is_ascending = is_ascending;
-    this.__isset.is_ascending = true;
+    this.reversed = reversed;
+    this.__isset.reversed = true;
     this.count = count;
     this.__isset.count = true;
   }
@@ -89,8 +89,8 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
       this.finish = new byte[other.finish.length];
       System.arraycopy(other.finish, 0, finish, 0, other.finish.length);
     }
-    __isset.is_ascending = other.__isset.is_ascending;
-    this.is_ascending = other.is_ascending;
+    __isset.reversed = other.__isset.reversed;
+    this.reversed = other.reversed;
     __isset.count = other.__isset.count;
     this.count = other.count;
   }
@@ -148,27 +148,27 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     }
   }
 
-  public boolean isIs_ascending() {
-    return this.is_ascending;
+  public boolean isReversed() {
+    return this.reversed;
   }
 
-  public SliceRange setIs_ascending(boolean is_ascending) {
-    this.is_ascending = is_ascending;
-    this.__isset.is_ascending = true;
+  public SliceRange setReversed(boolean reversed) {
+    this.reversed = reversed;
+    this.__isset.reversed = true;
     return this;
   }
 
-  public void unsetIs_ascending() {
-    this.__isset.is_ascending = false;
+  public void unsetReversed() {
+    this.__isset.reversed = false;
   }
 
-  // Returns true if field is_ascending is set (has been asigned a value) and false otherwise
-  public boolean isSetIs_ascending() {
-    return this.__isset.is_ascending;
+  // Returns true if field reversed is set (has been asigned a value) and false otherwise
+  public boolean isSetReversed() {
+    return this.__isset.reversed;
   }
 
-  public void setIs_ascendingIsSet(boolean value) {
-    this.__isset.is_ascending = value;
+  public void setReversedIsSet(boolean value) {
+    this.__isset.reversed = value;
   }
 
   public int getCount() {
@@ -212,11 +212,11 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
       }
       break;
 
-    case IS_ASCENDING:
+    case REVERSED:
       if (value == null) {
-        unsetIs_ascending();
+        unsetReversed();
       } else {
-        setIs_ascending((Boolean)value);
+        setReversed((Boolean)value);
       }
       break;
 
@@ -241,8 +241,8 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     case FINISH:
       return getFinish();
 
-    case IS_ASCENDING:
-      return new Boolean(isIs_ascending());
+    case REVERSED:
+      return new Boolean(isReversed());
 
     case COUNT:
       return new Integer(getCount());
@@ -259,8 +259,8 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
       return isSetStart();
     case FINISH:
       return isSetFinish();
-    case IS_ASCENDING:
-      return isSetIs_ascending();
+    case REVERSED:
+      return isSetReversed();
     case COUNT:
       return isSetCount();
     default:
@@ -299,12 +299,12 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
         return false;
     }
 
-    boolean this_present_is_ascending = true;
-    boolean that_present_is_ascending = true;
-    if (this_present_is_ascending || that_present_is_ascending) {
-      if (!(this_present_is_ascending && that_present_is_ascending))
+    boolean this_present_reversed = true;
+    boolean that_present_reversed = true;
+    if (this_present_reversed || that_present_reversed) {
+      if (!(this_present_reversed && that_present_reversed))
         return false;
-      if (this.is_ascending != that.is_ascending)
+      if (this.reversed != that.reversed)
         return false;
     }
 
@@ -350,10 +350,10 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
-        case IS_ASCENDING:
+        case REVERSED:
           if (field.type == TType.BOOL) {
-            this.is_ascending = iprot.readBool();
-            this.__isset.is_ascending = true;
+            this.reversed = iprot.readBool();
+            this.__isset.reversed = true;
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -393,8 +393,8 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
       oprot.writeBinary(this.finish);
       oprot.writeFieldEnd();
     }
-    oprot.writeFieldBegin(IS_ASCENDING_FIELD_DESC);
-    oprot.writeBool(this.is_ascending);
+    oprot.writeFieldBegin(REVERSED_FIELD_DESC);
+    oprot.writeBool(this.reversed);
     oprot.writeFieldEnd();
     oprot.writeFieldBegin(COUNT_FIELD_DESC);
     oprot.writeI32(this.count);
@@ -434,8 +434,8 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("is_ascending:");
-    sb.append(this.is_ascending);
+    sb.append("reversed:");
+    sb.append(this.reversed);
     first = false;
     if (!first) sb.append(", ");
     sb.append("count:");
