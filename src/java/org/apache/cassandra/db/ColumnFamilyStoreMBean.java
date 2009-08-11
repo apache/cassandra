@@ -65,11 +65,6 @@ public interface ColumnFamilyStoreMBean
     public int getReadCount();
 
     /**
-     * @return the number of read operations on this column family that hit the disk in the last minute
-     */
-    public int getReadDiskHits();
-
-    /**
      * @return average latency per read operation in the last minute
      */
     public double getReadLatency();

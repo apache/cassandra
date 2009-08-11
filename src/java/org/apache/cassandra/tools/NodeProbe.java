@@ -372,7 +372,6 @@ public class NodeProbe
                     outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
                     outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
                     outs.println("\t\tRead Count: " + cfstore.getReadCount());
-                    outs.println("\t\tRead Disk Count: " + cfstore.getReadDiskHits());
                     outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getReadLatency()) + " ms.");
                     outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
                     outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
