@@ -104,7 +104,7 @@ public class BinaryMemtable
                 if (!isFrozen_)
                 {
                     isFrozen_ = true;
-                    BinaryMemtableManager.instance().submit(cfStore.getColumnFamilyName(), this);
+                    cfStore.submitFlush(this);
                     cfStore.switchBinaryMemtable(key, buffer);
                 }
                 else

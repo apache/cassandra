@@ -466,7 +466,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceFlushBinary()
     {
-        BinaryMemtableManager.instance().submit(getColumnFamilyName(), binaryMemtable_.get());
+        submitFlush(binaryMemtable_.get());
     }
 
     /**
@@ -1244,6 +1244,25 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     throw new RuntimeException(e);
                 }
                 getMemtablesPendingFlushNotNull(memtable.getColumnFamily()).remove(memtable);
+            }
+        });
+    }
+
+    static void submitFlush(final BinaryMemtable binaryMemtable)
+    {
+        logger_.info("Enqueuing flush of " + binaryMemtable);
+        flusher_.submit(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    binaryMemtable.flush();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         });
     }
