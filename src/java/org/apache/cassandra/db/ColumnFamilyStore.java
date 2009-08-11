@@ -969,14 +969,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     columnFamilies.clear();
                     if (columnFamily != null)
                     {
-                        ColumnFamily.serializerWithIndexes().serialize(columnFamily, bufOut);
+                        ColumnFamily.serializer().serializeWithIndexes(columnFamily, bufOut);
                     }
                 }
                 else
                 {
                     // TODO deserializing only to reserialize is dumb
                     FileStruct filestruct = lfs.get(0);
-                    ColumnFamily.serializerWithIndexes().serialize(filestruct.getColumnFamily(), bufOut);
+                    ColumnFamily.serializer().serializeWithIndexes(filestruct.getColumnFamily(), bufOut);
                 }
                 if (Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(lastkey), ranges))
                 {
@@ -1139,14 +1139,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     columnFamilies.clear();
                     if (columnFamily != null)
                     {
-                        ColumnFamily.serializerWithIndexes().serialize(columnFamily, bufOut);
+                        ColumnFamily.serializer().serializeWithIndexes(columnFamily, bufOut);
                     }
                 }
                 else
                 {
                     // TODO deserializing only to reserialize is dumb
                     FileStruct filestruct = lfs.get(0);
-                    ColumnFamily.serializerWithIndexes().serialize(filestruct.getColumnFamily(), bufOut);
+                    ColumnFamily.serializer().serializeWithIndexes(filestruct.getColumnFamily(), bufOut);
                 }
 
                 if (writer == null)
@@ -1441,7 +1441,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_.values());
             for (SSTableReader sstable : sstables)
             {
-                iter = filter.getSSTableColumnIterator(sstable, getComparator());
+                iter = filter.getSSTableColumnIterator(sstable);
                 if (iter.hasNext()) // initializes iter.CF
                 {
                     returnCF.delete(iter.getColumnFamily());

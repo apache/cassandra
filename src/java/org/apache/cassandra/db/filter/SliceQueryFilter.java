@@ -13,6 +13,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class SliceQueryFilter extends QueryFilter
 {
@@ -34,9 +35,9 @@ public class SliceQueryFilter extends QueryFilter
         return memtable.getSliceIterator(this, comparator);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable, AbstractType comparator) throws IOException
+    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
     {
-        return new SSTableSliceIterator(sstable.getFilename(), key, comparator, start, reversed);
+        return new SSTableSliceIterator(sstable, key, start, reversed);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

@@ -7,6 +7,8 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -26,6 +28,7 @@ public abstract class SSTable
     protected IPartitioner partitioner;
     protected BloomFilter bf;
     protected List<KeyPosition> indexPositions;
+    protected String columnFamilyName;
 
     /* Every 128th index entry is loaded into memory so we know where to start looking for the actual key w/o seeking */
     public static final int INDEX_INTERVAL = 128;/* Required extension for temporary files created during compactions. */
@@ -34,6 +37,7 @@ public abstract class SSTable
     public SSTable(String filename, IPartitioner partitioner)
     {
         assert filename.endsWith("-Data.db");
+        columnFamilyName = new File(filename).getName().split("-")[0];
         this.path = filename;
         this.partitioner = partitioner;
     }
@@ -65,6 +69,11 @@ public abstract class SSTable
     public String getFilename()
     {
         return path;
+    }
+
+    public String getColumnFamilyName()
+    {
+        return columnFamilyName;
     }
 
     public static String parseTableName(String filename)

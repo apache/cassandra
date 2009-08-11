@@ -7,6 +7,7 @@ import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class NamesQueryFilter extends QueryFilter
 {
@@ -42,9 +43,9 @@ public class NamesQueryFilter extends QueryFilter
         return memtable.getNamesIterator(this);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable, AbstractType comparator) throws IOException
+    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
     {
-        return new SSTableNamesIterator(sstable.getFilename(), key, getColumnFamilyName(), columns);
+        return new SSTableNamesIterator(sstable, key, columns);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

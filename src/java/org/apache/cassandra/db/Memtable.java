@@ -208,10 +208,10 @@ public class Memtable implements Comparable<Memtable>
         {
             buffer.reset();
             ColumnFamily columnFamily = columnFamilies_.get(key);
-            if ( columnFamily != null )
+            if (columnFamily != null)
             {
                 /* serialize the cf with column indexes */
-                ColumnFamily.serializerWithIndexes().serialize( columnFamily, buffer );
+                ColumnFamily.serializer().serializeWithIndexes(columnFamily, buffer);
                 /* Now write the key and value to disk */
                 writer.append(partitioner.decorateKey(key), buffer);
             }

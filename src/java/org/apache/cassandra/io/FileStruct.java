@@ -121,7 +121,7 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
             return;
         }
 
-        row = new IteratingRow(file);
+        row = new IteratingRow(file, sstable);
         if (materialize)
         {
             while (row.hasNext())

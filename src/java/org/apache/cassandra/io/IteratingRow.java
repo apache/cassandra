@@ -4,6 +4,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.collect.AbstractIterator;
 
 public class IteratingRow extends AbstractIterator<IColumn>
@@ -13,7 +15,7 @@ public class IteratingRow extends AbstractIterator<IColumn>
     private final ColumnFamily emptyColumnFamily;
     private final BufferedRandomAccessFile file;
 
-    public IteratingRow(BufferedRandomAccessFile file) throws IOException
+    public IteratingRow(BufferedRandomAccessFile file, SSTableReader sstable) throws IOException
     {
         this.file = file;
 
@@ -22,7 +24,7 @@ public class IteratingRow extends AbstractIterator<IColumn>
         long dataStart = file.getFilePointer();
         finishedAt = dataStart + dataSize;
         IndexHelper.skipBloomFilterAndIndex(file);
-        emptyColumnFamily = ColumnFamily.serializer().deserializeEmpty(file);
+        emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
         file.readInt(); // column count. breaking serializer encapsulation is less fugly than adding a wrapper class to allow deserializeEmpty to return both values
     }
 

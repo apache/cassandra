@@ -159,7 +159,7 @@ public class IndexHelper
             this.width = width;
         }
 
-        public void serialize(DataOutputStream dos) throws IOException
+        public void serialize(DataOutput dos) throws IOException
         {
             ColumnSerializer.writeName(firstName, dos);
             ColumnSerializer.writeName(lastName, dos);

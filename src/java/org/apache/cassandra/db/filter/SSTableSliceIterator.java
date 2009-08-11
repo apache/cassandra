@@ -20,20 +20,19 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     private final AbstractType comparator;
     private ColumnGroupReader reader;
 
-    public SSTableSliceIterator(String filename, String key, AbstractType comparator, byte[] startColumn, boolean reversed)
+    public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, boolean reversed)
     throws IOException
     {
         // TODO push finishColumn down here too, so we can tell when we're done and optimize away the slice when the index + start/stop shows there's nothing to scan for
         this.reversed = reversed;
-        SSTableReader ssTable = SSTableReader.open(filename);
 
         /* Morph key into actual key based on the partition type. */
         String decoratedKey = ssTable.getPartitioner().decorateKey(key);
         long position = ssTable.getPosition(decoratedKey);
-        this.comparator = comparator;
+        this.comparator = ssTable.getColumnComparator();
         this.startColumn = startColumn;
         if (position >= 0)
-            reader = new ColumnGroupReader(filename, decoratedKey, position);
+            reader = new ColumnGroupReader(ssTable, decoratedKey, position);
     }
 
     private boolean isColumnNeeded(IColumn column)
@@ -85,9 +84,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(String filename, String key, long position) throws IOException
+        public ColumnGroupReader(SSTableReader ssTable, String key, long position) throws IOException
         {
-            this.file = new BufferedRandomAccessFile(filename, "r", DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
+            this.file = new BufferedRandomAccessFile(ssTable.getFilename(), "r", DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
 
             file.seek(position);
             String keyInDisk = file.readUTF();
@@ -97,7 +96,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             IndexHelper.skipBloomFilter(file);
             indexes = IndexHelper.deserializeIndex(file);
 
-            emptyColumnFamily = ColumnFamily.serializer().deserializeEmpty(file);
+            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
             file.readInt(); // column count
 
             columnStartPosition = file.getFilePointer();

@@ -16,18 +16,17 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
 
-    public SSTableNamesIterator(String filename, String key, String cfName, SortedSet<byte[]> columnNames) throws IOException
+    public SSTableNamesIterator(SSTableReader ssTable, String key, SortedSet<byte[]> columnNames) throws IOException
     {
         assert columnNames != null;
         this.columns = columnNames;
-        SSTableReader ssTable = SSTableReader.open(filename);
 
         String decoratedKey = ssTable.getPartitioner().decorateKey(key);
         long position = ssTable.getPosition(decoratedKey);
         if (position < 0)
             return;
 
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(filename, "r", DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(ssTable.getFilename(), "r", DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
         try
         {
             file.seek(position);
@@ -53,11 +52,11 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 
             List<IndexHelper.IndexInfo> indexList = IndexHelper.deserializeIndex(file);
 
-            cf = ColumnFamily.serializer().deserializeEmpty(file);
+            cf = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
             file.readInt(); // column count
 
             /* get the various column ranges we have to read */
-            AbstractType comparator = DatabaseDescriptor.getComparator(SSTable.parseTableName(filename), cfName);
+            AbstractType comparator = ssTable.getColumnComparator();
             SortedSet<IndexHelper.IndexInfo> ranges = new TreeSet<IndexHelper.IndexInfo>(IndexHelper.getComparator(comparator));
             for (byte[] name : filteredColumnNames)
             {

@@ -28,6 +28,8 @@ import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
@@ -322,6 +324,19 @@ public class SSTableReader extends SSTable
     public String getTableName()
     {
         return parseTableName(path);
+    }
+
+    public AbstractType getColumnComparator()
+    {
+        return DatabaseDescriptor.getComparator(getTableName(), getColumnFamilyName());
+    }
+
+    public ColumnFamily makeColumnFamily()
+    {
+        return new ColumnFamily(getColumnFamilyName(),
+                                DatabaseDescriptor.getColumnType(getTableName(), getColumnFamilyName()),
+                                getColumnComparator(),
+                                DatabaseDescriptor.getSubComparator(getTableName(), getColumnFamilyName()));
     }
 
     public static void deleteAll() throws IOException

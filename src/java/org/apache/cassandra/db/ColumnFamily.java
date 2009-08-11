@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
-import java.lang.reflect.Proxy;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -34,13 +32,10 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.io.BufferedRandomAccessFile;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
-import org.apache.cassandra.db.marshal.LongType;
 
 
 public final class ColumnFamily implements IColumnContainer
@@ -51,7 +46,7 @@ public final class ColumnFamily implements IColumnContainer
 
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
     private static Map<String, String> columnTypes_ = new HashMap<String, String>();
-    private String type_;
+    String type_;
     private String table_;
 
     static
@@ -64,15 +59,6 @@ public final class ColumnFamily implements IColumnContainer
     public static ColumnFamilySerializer serializer()
     {
         return serializer_;
-    }
-
-    /*
-     * This method returns the serializer whose methods are
-     * preprocessed by a dynamic proxy.
-    */
-    public static ICompactSerializer2<ColumnFamily> serializerWithIndexes()
-    {
-        return (ICompactSerializer2<ColumnFamily>)Proxy.newProxyInstance( ColumnFamily.class.getClassLoader(), new Class[]{ICompactSerializer2.class}, new CompactSerializerInvocationHandler<ColumnFamily>(serializer_) );
     }
 
     public static String getColumnType(String key)
@@ -93,8 +79,8 @@ public final class ColumnFamily implements IColumnContainer
     private String name_;
 
     private transient ICompactSerializer2<IColumn> columnSerializer_;
-    private long markedForDeleteAt = Long.MIN_VALUE;
-    private int localDeletionTime = Integer.MIN_VALUE;
+    long markedForDeleteAt = Long.MIN_VALUE;
+    int localDeletionTime = Integer.MIN_VALUE;
     private AtomicInteger size_ = new AtomicInteger(0);
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
 
@@ -409,12 +395,12 @@ public final class ColumnFamily implements IColumnContainer
         return type_;
     }
 
-    private String getComparatorName()
+    String getComparatorName()
     {
         return getComparator().getClass().getCanonicalName();
     }
 
-    private String getSubComparatorName()
+    String getSubComparatorName()
     {
         AbstractType subcolumnComparator = getSubComparator();
         return subcolumnComparator == null ? "" : subcolumnComparator.getClass().getCanonicalName();
@@ -450,95 +436,4 @@ public final class ColumnFamily implements IColumnContainer
         }
         return cf;
     }
-
-    public static class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
-    {
-        /*
-         * We are going to create indexes, and write out that information as well. The format
-         * of the data serialized is as follows.
-         *
-         * 1) Without indexes:
-         *  // written by the data
-         * 	<boolean false (index is not present)>
-         * 	<column family id>
-         * 	<is marked for delete>
-         * 	<total number of columns>
-         * 	<columns data>
-
-         * 	<boolean true (index is present)>
-         *
-         *  This part is written by the column indexer
-         * 	<size of index in bytes>
-         * 	<list of column names and their offsets relative to the first column>
-         *
-         *  <size of the cf in bytes>
-         * 	<column family id>
-         * 	<is marked for delete>
-         * 	<total number of columns>
-         * 	<columns data>
-        */
-        public void serialize(ColumnFamily columnFamily, DataOutput dos) throws IOException
-        {
-            Collection<IColumn> columns = columnFamily.getSortedColumns();
-
-            dos.writeUTF(columnFamily.name());
-            dos.writeUTF(columnFamily.type_);
-            dos.writeUTF(columnFamily.getComparatorName());
-            dos.writeUTF(columnFamily.getSubComparatorName());
-            dos.writeInt(columnFamily.localDeletionTime);
-            dos.writeLong(columnFamily.markedForDeleteAt);
-
-            dos.writeInt(columns.size());
-            for ( IColumn column : columns )
-            {
-                columnFamily.getColumnSerializer().serialize(column, dos);
-            }
-        }
-
-        public ColumnFamily deserialize(DataInput dis) throws IOException
-        {
-            ColumnFamily cf = deserializeEmpty(dis);
-            int size = dis.readInt();
-            IColumn column;
-            for (int i = 0; i < size; ++i)
-            {
-                column = cf.getColumnSerializer().deserialize(dis);
-                cf.addColumn(column);
-            }
-            return cf;
-        }
-
-        private AbstractType readComparator(DataInput dis) throws IOException
-        {
-            String className = dis.readUTF();
-            if (className.equals(""))
-            {
-                return null;
-            }
-
-            try
-            {
-                return (AbstractType)Class.forName(className).getConstructor().newInstance();
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new RuntimeException("Unable to load comparator class '" + className + "'.  probably this means you have obsolete sstables lying around", e);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public ColumnFamily deserializeEmpty(DataInput input) throws IOException
-        {
-            ColumnFamily cf = new ColumnFamily(input.readUTF(),
-                                               input.readUTF(),
-                                               readComparator(input),
-                                               readComparator(input));
-            cf.delete(input.readInt(), input.readLong());
-            return cf;
-        }
-    }
 }
-

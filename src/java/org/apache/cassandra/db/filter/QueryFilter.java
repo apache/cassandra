@@ -31,7 +31,7 @@ public abstract class QueryFilter
      * returns an iterator that returns columns from the given SSTable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ColumnIterator getSSTableColumnIterator(SSTableReader sstable, AbstractType comparator) throws IOException;
+    public abstract ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException;
 
     /**
      * collects columns from reducedColumns into returnCF.  Termination is determined

@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.DataOutput;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -45,7 +46,7 @@ public class ColumnIndexer
 	 * @param dos data output stream
 	 * @throws IOException
 	 */
-    public static void serialize(ColumnFamily columnFamily, DataOutputStream dos) throws IOException
+    public static void serialize(ColumnFamily columnFamily, DataOutput dos) throws IOException
 	{
         Collection<IColumn> columns = columnFamily.getSortedColumns();
         BloomFilter bf = createColumnBloomFilter(columns);                    
@@ -101,7 +102,7 @@ public class ColumnIndexer
      *            to be written.
      * @throws IOException
      */
-    private static void doIndexing(AbstractType comparator, Collection<IColumn> columns, DataOutputStream dos) throws IOException
+    private static void doIndexing(AbstractType comparator, Collection<IColumn> columns, DataOutput dos) throws IOException
     {
         assert !columns.isEmpty();
 
