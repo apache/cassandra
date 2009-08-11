@@ -39,6 +39,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
@@ -453,6 +454,37 @@ public class NodeProbe
     }
 
     /**
+     * Print out the size of the queues in the thread pools
+     *
+     * @param outs Output stream to generate the output on.
+     */
+    public void printThreadPoolStats(PrintStream outs)
+    {
+        ObjectName query;
+        try
+        {
+            query = new ObjectName("org.apache.cassandra.concurrent:type=*");
+            Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
+            for (ObjectName objectName : result)
+            {
+                String poolName = objectName.getKeyProperty("type");
+                DebuggableThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn,
+                                                                                      objectName,
+                                                                                      DebuggableThreadPoolExecutorMBean.class);
+                outs.println(poolName + ", pending tasks=" + threadPoolProxy.getPendingTasks());
+            }
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException("Invalid ObjectName? Please report this as a bug.", e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not retrieve list of stat mbeans.", e);
+        }
+    }
+
+    /**
      * Retrieve any non-option arguments passed on the command line.
      * 
      * @return non-option command args
@@ -481,7 +513,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap");
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap, tpstats");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -568,6 +600,10 @@ public class NodeProbe
                 NodeProbe.printUsage();
                 System.exit(1);                
             }
+        }
+        else if (cmdName.equals("tpstats"))
+        {
+            probe.printThreadPoolStats(System.out);
         }
         else
         {
