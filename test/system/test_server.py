@@ -187,17 +187,39 @@ class TestMutations(CassandraTester):
             L.append(uuid.uuid1())
             client.insert('Keyspace2', 'key1', ColumnPath('Super4', 'sc1', L[-1].bytes), 'value%s' % i, i, ConsistencyLevel.ONE)
         slice = _big_slice('Keyspace2', 'key1', ColumnParent('Super4', 'sc1'))
-        assert len(slice) == 500
+        assert len(slice) == 500, len(slice)
         for i in xrange(500):
             u = slice[i].column
             assert u.value == 'value%s' % i
             assert u.name == L[i].bytes
 
-        p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+        p = SlicePredicate(slice_range=SliceRange('', '', True, 1))
         column_parent = ColumnParent('Super4', 'sc1')
         slice = [result.column
                  for result in client.get_slice('Keyspace2', 'key1', column_parent, p, ConsistencyLevel.ONE)]
         assert slice == [Column(L[-1].bytes, 'value499', 499)], slice
+
+        p = SlicePredicate(slice_range=SliceRange('', L[2].bytes, False, 1000))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result.column
+                 for result in client.get_slice('Keyspace2', 'key1', column_parent, p, ConsistencyLevel.ONE)]
+        assert slice == [Column(L[0].bytes, 'value0', 0),
+                         Column(L[1].bytes, 'value1', 1),
+                         Column(L[2].bytes, 'value2', 2)], slice
+
+        p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', True, 1000))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result.column
+                 for result in client.get_slice('Keyspace2', 'key1', column_parent, p, ConsistencyLevel.ONE)]
+        assert slice == [Column(L[2].bytes, 'value2', 2),
+                         Column(L[1].bytes, 'value1', 1),
+                         Column(L[0].bytes, 'value0', 0)], slice
+
+        p = SlicePredicate(slice_range=SliceRange(L[2].bytes, '', False, 1))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result.column
+                 for result in client.get_slice('Keyspace2', 'key1', column_parent, p, ConsistencyLevel.ONE)]
+        assert slice == [Column(L[2].bytes, 'value2', 2)], slice
         
     def test_batch_insert(self):
         _insert_batch(False)

@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
+import org.apache.commons.collections.IteratorUtils;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.*;
@@ -51,6 +52,19 @@ public class SliceQueryFilter extends QueryFilter
         {
             subcolumns = superColumn.getSubColumns().iterator();
         }
+
+        // iterate until we get to the "real" start column
+        Comparator<byte[]> comparator = reversed ? superColumn.getComparator().getReverseComparator() : superColumn.getComparator();
+        while (subcolumns.hasNext())
+        {
+            IColumn column = subcolumns.next();
+            if (comparator.compare(column.name(), start) >= 0)
+            {
+                subcolumns = IteratorUtils.chainedIterator(IteratorUtils.singletonIterator(column), subcolumns);
+                break;
+            }
+        }
+        // subcolumns is either empty now, or has been redefined in the loop above.  either is ok.
         collectReducedColumns(scFiltered, subcolumns, gcBefore);
         return scFiltered;
     }

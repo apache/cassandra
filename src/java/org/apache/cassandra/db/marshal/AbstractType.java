@@ -24,6 +24,26 @@ public abstract class AbstractType implements Comparator<byte[]>
         getString(bytes);
     }
 
+    public Comparator<byte[]> getReverseComparator()
+    {
+        return new Comparator<byte[]>()
+        {
+            public int compare(byte[] o1, byte[] o2)
+            {
+                if (o1.length == 0)
+                {
+                    return o2.length == 0 ? 0 : -1;
+                }
+                if (o2.length == 0)
+                {
+                    return 1;
+                }
+
+                return -AbstractType.this.compare(o1, o2);
+            }
+        };
+    }
+
     /** convenience method */
     public String getString(Collection<byte[]> names)
     {
