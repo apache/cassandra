@@ -27,7 +27,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         if (position < 0)
             return;
 
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(filename, "r");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(filename, "r", DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
         try
         {
             file.seek(position);

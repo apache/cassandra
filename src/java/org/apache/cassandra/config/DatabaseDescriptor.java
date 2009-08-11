@@ -71,6 +71,7 @@ public class DatabaseDescriptor
 
     private static double flushDataBufferSizeInMB_ = 32;
     private static double flushIndexBufferSizeInMB_ = 8;
+    private static int slicedReadBufferSizeInKB_ = 64;
     private static List<String> tables_ = new ArrayList<String>();
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
 
@@ -237,6 +238,12 @@ public class DatabaseDescriptor
             if (rawFlushIndex != null)
             {
                 flushIndexBufferSizeInMB_ = Double.parseDouble(rawFlushIndex);
+            }
+
+            String rawSlicedBuffer = xmlUtils.getNodeValue("/Storage/SlicedBufferSizeInKB");
+            if (rawSlicedBuffer != null)
+            {
+                slicedReadBufferSizeInKB_ = Integer.parseInt(rawSlicedBuffer);
             }
 
             /* TCP port on which the storage system listens */
@@ -955,5 +962,15 @@ public class DatabaseDescriptor
     public static double getFlushIndexBufferSizeInMB()
     {
         return flushIndexBufferSizeInMB_;
+    }
+
+    public static int getIndexedReadBufferSizeInKB()
+    {
+        return columnIndexSizeInKB_;
+    }
+
+    public static int getSlicedReadBufferSizeInKB()
+    {
+        return slicedReadBufferSizeInKB_;
     }
 }

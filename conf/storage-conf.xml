@@ -198,6 +198,12 @@
     <!-- Memory, Disk, and Performance                                        -->
     <!--======================================================================-->
 
+    <!-- Buffer size to use when performing contiguous column slices. 
+         Increase this to the size of the column slices you typically 
+         perform. (Name-based queries are performed with a buffer size
+         of ColumnIndexSizeInKB.) -->
+    <SlicedBufferSizeInKB>64</SlicedBufferSizeInKB>
+
     <!-- Buffer size to use when flushing memtables to disk.
          (Only one memtable is ever flushed at a time.)
          Increase (decrease) the index buffer size relative to the data buffer

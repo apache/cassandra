@@ -19,10 +19,12 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
+import java.io.File;
 import java.util.Iterator;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.log4j.Logger;
 import com.google.common.collect.AbstractIterator;
@@ -40,7 +42,11 @@ public class FileStruct implements Comparable<FileStruct>, Iterator<String>
 
     FileStruct(SSTableReader sstable) throws IOException
     {
-        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", 1024 * 1024);
+        // TODO this is used for both compactions and key ranges.  the buffer sizes we want
+        // to use for these ops are very different.  here we are leaning towards the key-range
+        // use case since that is more common.  What we really want is to split those
+        // two uses of this class up.
+        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", 256 * 1024);
         this.sstable = sstable;
     }
 

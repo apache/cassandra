@@ -7,6 +7,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.collect.AbstractIterator;
 
 /**
@@ -86,7 +87,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         public ColumnGroupReader(String filename, String key, long position) throws IOException
         {
-            this.file = new BufferedRandomAccessFile(filename, "r");
+            this.file = new BufferedRandomAccessFile(filename, "r", DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
 
             file.seek(position);
             String keyInDisk = file.readUTF();
