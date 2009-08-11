@@ -55,6 +55,7 @@
        <ColumnFamily Name="Standard1"/>
        <ColumnFamily Name="Standard3"/>
        <ColumnFamily ColumnType="Super" Name="Super3"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
      </Keyspace>
    </Keyspaces>
    <Seeds>

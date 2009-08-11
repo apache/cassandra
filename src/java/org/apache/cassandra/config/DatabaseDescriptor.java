@@ -906,7 +906,7 @@ public class DatabaseDescriptor
     public static AbstractType getSubComparator(String tableName, String cfName)
     {
         assert tableName != null;
-        return getCFMetaData(tableName, cfName).comparator;
+        return getCFMetaData(tableName, cfName).subcolumnComparator;
     }
 
     public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()

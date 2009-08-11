@@ -179,7 +179,26 @@ class TestMutations(CassandraTester):
                  for result in client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE)]
         assert slice == [Column(_i64(6), 'value6', 0)], slice
         
+    def test_time_uuid(self):
+        import uuid
+        L = []
+        # 100 isn't enough to fail reliably if the comparator is borked
+        for i in xrange(500):
+            L.append(uuid.uuid1())
+            client.insert('Keyspace2', 'key1', ColumnPath('Super4', 'sc1', L[-1].bytes), 'value%s' % i, i, ConsistencyLevel.ONE)
+        slice = _big_slice('Keyspace2', 'key1', ColumnParent('Super4', 'sc1'))
+        assert len(slice) == 500
+        for i in xrange(500):
+            u = slice[i].column
+            assert u.value == 'value%s' % i
+            assert u.name == L[i].bytes
 
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+        column_parent = ColumnParent('Super4', 'sc1')
+        slice = [result.column
+                 for result in client.get_slice('Keyspace2', 'key1', column_parent, p, ConsistencyLevel.ONE)]
+        assert slice == [Column(L[-1].bytes, 'value499', 499)], slice
+        
     def test_batch_insert(self):
         _insert_batch(False)
         time.sleep(0.1)
