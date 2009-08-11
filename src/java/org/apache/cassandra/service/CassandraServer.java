@@ -210,7 +210,7 @@ public class CassandraServer implements Cassandra.Iface
             SliceRange range = predicate.slice_range;
             if (range.count < 0)
                 throw new InvalidRequestException("get_slice requires non-negative count");
-            return getSlice(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.is_ascending, range.count), consistency_level);
+            return getSlice(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count), consistency_level);
         }
     }
 
