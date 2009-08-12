@@ -75,7 +75,7 @@ public class DatabaseDescriptor
     private static List<String> tables_ = new ArrayList<String>();
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
 
-    // Default descriptive names for use in CQL. The user can override
+    // Default descriptive names for introspection. The user can override
     // these choices in the config file. These are not case sensitive.
     // Hence, these are stored in UPPER case for easy comparison.
     private static String d_rowKey_           = "ROW_KEY";

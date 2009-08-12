@@ -63,12 +63,6 @@ struct BatchMutationSuper {
 
 typedef list<map<string, string>>   ResultSet
 
-struct CqlResult {
-   1: i32                           error_code, // 0 - success
-   2: string                        error_txt,
-   3: ResultSet                     result_set,
-}
-
 #
 # Exceptions
 #

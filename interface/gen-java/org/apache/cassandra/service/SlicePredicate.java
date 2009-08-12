@@ -228,13 +228,13 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable {
         case COLUMN_NAMES:
           if (field.type == TType.LIST) {
             {
-              TList _list31 = iprot.readListBegin();
-              this.column_names = new ArrayList<byte[]>(_list31.size);
-              for (int _i32 = 0; _i32 < _list31.size; ++_i32)
+              TList _list22 = iprot.readListBegin();
+              this.column_names = new ArrayList<byte[]>(_list22.size);
+              for (int _i23 = 0; _i23 < _list22.size; ++_i23)
               {
-                byte[] _elem33;
-                _elem33 = iprot.readBinary();
-                this.column_names.add(_elem33);
+                byte[] _elem24;
+                _elem24 = iprot.readBinary();
+                this.column_names.add(_elem24);
               }
               iprot.readListEnd();
             }
@@ -272,8 +272,8 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable {
         oprot.writeFieldBegin(COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.column_names.size()));
-          for (byte[] _iter34 : this.column_names)          {
-            oprot.writeBinary(_iter34);
+          for (byte[] _iter25 : this.column_names)          {
+            oprot.writeBinary(_iter25);
           }
           oprot.writeListEnd();
         }

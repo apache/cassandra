@@ -29,8 +29,6 @@ public class CFMetaData
     public AbstractType subcolumnComparator; // like comparator, for supercolumns
 
     // The user chosen names (n_) for various parts of data in a column family.
-    // CQL queries, for instance, will refer to/extract data within a column
-    // family using these logical names.
     public String n_rowKey;               
     public String n_superColumnMap;     // only used if this is a super column family
     public String n_superColumnKey;     // only used if this is a super column family
