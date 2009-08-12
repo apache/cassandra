@@ -637,7 +637,7 @@ public class StorageProxy implements StorageProxyMBean
             IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
 
             // read response
-            byte[] responseBody = new byte[0];
+            byte[] responseBody;
             try
             {
                 responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
@@ -649,6 +649,7 @@ public class StorageProxy implements StorageProxyMBean
             RangeReply rangeReply = RangeReply.read(responseBody);
             List<String> rangeKeys = rangeReply.keys;
 
+            // combine keys from most recent response with the others seen so far
             if (rangeKeys.size() > 0)
             {
                 if (allKeys.size() > 0)
@@ -693,15 +694,14 @@ public class StorageProxy implements StorageProxyMBean
                 break;
             }
 
-            // the first endpoint contains the range from the last endpoint, up to and including its own token.
-            // so it will include both the smallest keys, and the largest.  if that is what we just scanned,
-            // leave startWith unchanged.  Otherwise, start with the largest key found.
-            String newStartWith = endPoint.equals(wrapEndpoint)
-                                ? rawCommand.startWith
-                                : allKeys.size() > 0 ? allKeys.get(allKeys.size() - 1) : command.startWith;
+            // set up the next query --
+            // it's tempting to try to optimize this by starting with the last key seen for the next node,
+            // but that won't work when you have a replication factor of more than one--any node, not just
+            // the one holding the keys where the range wraps, could include both the smallest keys, and the largest,
+            // so starting with the largest in our scan of the next node means we'd never see keys from the middle.
             endPoint = tokenMetadata.getNextEndpoint(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
             int maxResults = endPoint == wrapEndpoint ? rawCommand.maxResults : rawCommand.maxResults - allKeys.size();
-            command = new RangeCommand(command.table, command.columnFamily, newStartWith, command.stopAt, maxResults);
+            command = new RangeCommand(command.table, command.columnFamily, command.startWith, command.stopAt, maxResults);
         } while (!endPoint.equals(startEndpoint));
 
         rangeStats.add(System.currentTimeMillis() - startTime);
