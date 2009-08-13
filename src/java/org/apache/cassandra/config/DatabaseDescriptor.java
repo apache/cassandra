@@ -513,10 +513,12 @@ public class DatabaseDescriptor
             }
 
             // Hardcoded system tables
+            tables_.add(Table.SYSTEM_TABLE);
             Map<String, CFMetaData> systemMetadata = new HashMap<String, CFMetaData>();
 
             CFMetaData data = new CFMetaData();
-            data.comparator = new AsciiType();
+            data.columnType = "Standard";
+            data.comparator = new UTF8Type();
             systemMetadata.put(SystemTable.LOCATION_CF, data);
 
             data = new CFMetaData();
@@ -524,8 +526,8 @@ public class DatabaseDescriptor
             data.comparator = new UTF8Type();
             data.subcolumnComparator = new BytesType();
             systemMetadata.put(HintedHandOffManager.HINTS_CF, data);
-
-            tableToCFMetaDataMap_.put("system", systemMetadata);
+            tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
+            tableKeysCachedFractions_.put(Table.SYSTEM_TABLE, 0.01);
 
             /* make sure we have a directory for each table */
             createTableDirectories();

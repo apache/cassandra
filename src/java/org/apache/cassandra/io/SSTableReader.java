@@ -333,10 +333,7 @@ public class SSTableReader extends SSTable
 
     public ColumnFamily makeColumnFamily()
     {
-        return new ColumnFamily(getColumnFamilyName(),
-                                DatabaseDescriptor.getColumnType(getTableName(), getColumnFamilyName()),
-                                getColumnComparator(),
-                                DatabaseDescriptor.getSubComparator(getTableName(), getColumnFamilyName()));
+        return ColumnFamily.create(getTableName(), getColumnFamilyName());
     }
 
     public static void deleteAll() throws IOException
