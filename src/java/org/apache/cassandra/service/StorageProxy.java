@@ -481,7 +481,7 @@ public class StorageProxy implements StorageProxyMBean
         return messages;
     }
     
-    private static MultiQuorumResponseHandler dispatchMessages(Map<String, ReadCommand[]> readMessages, Map<String, Message[]> messages) throws IOException
+    private static MultiQuorumResponseHandler dispatchMessagesMulti(Map<String, ReadCommand[]> readMessages, Map<String, Message[]> messages) throws IOException
     {
         Set<String> keys = messages.keySet();
         /* This maps the keys to the original data read messages */
@@ -541,7 +541,7 @@ public class StorageProxy implements StorageProxyMBean
         /* Construct the messages to be sent to the replicas */
         Map<String, Message[]> replicaMessages = constructReplicaMessages(readMessages);
         /* Dispatch the messages to the different replicas */
-        MultiQuorumResponseHandler cb = dispatchMessages(readMessages, replicaMessages);
+        MultiQuorumResponseHandler cb = dispatchMessagesMulti(readMessages, replicaMessages);
         try
         {
             Row[] rows2 = cb.get();
