@@ -1,0 +1,69 @@
+0.4 dev
+ * On-disk data format has changed to allow billions of keys/rows per
+   node instead of only millions
+ * Multi-keyspace support
+ * Added option to fsync before acknowledging writes
+ * Scan all sstables for all queries to avoid situations where
+   different types of operation on the same ColumnFamily could
+   disagree on what data was present
+ * Configurable LRU cache for key lookups
+ * Thrift API has changed a _lot_:
+    - removed time-sorted CFs; instead, user-defined comparators
+      may be defined on the column names, which are now byte arrays.
+      Default comparators are provided for UTF8, Bytes, Ascii, Long (i64),
+      and UUID types.
+    - removed colon-delimited strings in thrift api in favor of explicit
+      structs such as ColumnPath, ColumnParent, etc.  Also normalized
+      thrift struct and argument naming.
+    - Added columnFamily argument to get_key_range.
+    - Change signature of get_slice and get_slice_super to accept
+      starting and ending columns as well as an offset.  (This allows use
+      of indexes.)  Added "ascending" flag to allow reasonably-efficient
+      reverse scans as well.  Removed get_slice_by_range as redundant.
+    - Similarly, changed signature of get_slice_super.
+    - get_key_range operates on one CF at a time
+    - changed `block` boolean on insert methods to ConsistencyLevel enum,
+      with options of NONE, ONE, QUORUM, and ALL.
+    - added similar consistency_level parameter to read methods
+    - column-name-set slice with no names given now returns zero columns
+      instead of all of them.  ("all" can run your server out of memory.
+      use a range-based slice with a high max column count instead.)
+ * Removed the web interface. Node information can now be obtained by 
+   using the newly introduced nodeprobe utility.
+ * More JMX stats
+ * Remove magic values from internals (e.g. special key to indicate
+   when to flush memtables)
+ * Rename configuration "table" to "keyspace"
+ * Moved to crash-only design; no more shutdown (just kill the process)
+ * Lots of bug fixes
+
+Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/IssueNavigator.jspa?reset=true&&pid=12310865&fixfor=12313862&resolution=1&sorter/field=issuekey&sorter/order=DESC
+
+
+0.3.0 RC3
+ * Fix potential deadlock under load in TCPConnection.
+   (CASSANDRA-220)
+
+
+0.3.0 RC2
+ * Fix possible data loss when server is stopped after replaying
+   log but before new inserts force memtable flush.
+   (CASSANDRA-204)
+ * Added BUGS file
+
+
+0.3.0 RC1
+ * Range queries on keys, including user-defined key collation
+ * Remove support
+ * Workarounds for a weird bug in JDK select/register that seems
+   particularly common on VM environments. Cassandra should deploy
+   fine on EC2 now
+ * Much improved infrastructure: the beginnings of a decent test suite
+   ("ant test" for unit tests; "nosetests" for system tests), code
+   coverage reporting, etc.
+ * Expanded node status reporting via JMX
+ * Improved error reporting/logging on both server and client
+ * Reduced memory footprint in default configuration
+ * Combined blocking and non-blocking versions of insert APIs
+ * Added FlushPeriodInMinutes configuration parameter to force
+   flushing of infrequently-updated ColumnFamilies
