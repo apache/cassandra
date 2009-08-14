@@ -489,8 +489,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         /* update the token on disk */
         SystemTable.updateToken(token);
-        /* Update the storageMetadata cache */
-        storageMetadata_.setStorageId(token);
         /* Update the token maps */
         /* Get the old token. This needs to be removed. */
         tokenMetadata_.update(token, StorageService.tcpAddr_);

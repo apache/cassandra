@@ -43,6 +43,7 @@ public class SystemTable
     private static final String LOCATION_KEY = "L"; // only one row in Location CF
     private static final byte[] TOKEN = utf8("Token");
     private static final byte[] GENERATION = utf8("Generation");
+    private static StorageMetadata metadata_;
 
     private static byte[] utf8(String str)
     {
@@ -57,10 +58,11 @@ public class SystemTable
     }
 
     /*
-     * This method is used to update the SystemTable with the new token.
+     * This method is used to update the SystemTable on disk with the new token.
     */
-    public static void updateToken(Token token) throws IOException
+    public static synchronized void updateToken(Token token) throws IOException
     {
+        assert metadata_ != null;
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         /* Retrieve the "LocationInfo" column family */
@@ -76,6 +78,7 @@ public class SystemTable
         cf.addColumn(tokenColumn);
         rm.add(cf);
         rm.apply();
+        metadata_.setStorageId(token);
     }
 
     /*
@@ -85,8 +88,11 @@ public class SystemTable
      * columns namely "Token" and "Generation". This is the token that
      * gets gossiped around and the generation info is used for FD.
     */
-    public static StorageMetadata initMetadata() throws IOException
+    public static synchronized StorageMetadata initMetadata() throws IOException
     {
+        if (metadata_ != null)  // guard to protect against being called twice
+            return metadata_;
+
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
         QueryFilter filter = new IdentityQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_CF));
@@ -104,7 +110,8 @@ public class SystemTable
             cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)) );
             rm.add(cf);
             rm.apply();
-            return new StorageMetadata(token, generation);
+            metadata_ = new StorageMetadata(token, generation);
+            return metadata_;
         }
 
         /* we crashed and came back up need to bump generation # */
@@ -120,7 +127,8 @@ public class SystemTable
         cf.addColumn(generation2);
         rm.add(cf);
         rm.apply();
-        return new StorageMetadata(token, gen);
+        metadata_ = new StorageMetadata(token, gen);
+        return metadata_;
     }
 
     public static class StorageMetadata

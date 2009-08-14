@@ -21,16 +21,28 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 
 import org.junit.Test;
+import org.junit.Assert;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.service.StorageService;
 
 public class SystemTableTest extends CleanupHelper
 {
+
     @Test
-    public void testMain() throws IOException
+    public void testOnlyOnceCreationOfStorageMetadata() throws IOException
     {
-        SystemTable.initMetadata();
+        SystemTable.StorageMetadata storageMetadata1 = SystemTable.initMetadata();
+        SystemTable.StorageMetadata storageMetadata2 = SystemTable.initMetadata();
+        Assert.assertTrue("smd should not change after calling initMetadata twice", storageMetadata1 == storageMetadata2);
+    }
+
+    @Test
+    public void testTokenGetsUpdated() throws IOException
+    {
+        SystemTable.StorageMetadata storageMetadata1 = SystemTable.initMetadata();
         SystemTable.updateToken(StorageService.getPartitioner().getInitialToken("503545744:0"));
+        SystemTable.StorageMetadata storageMetadata2 = SystemTable.initMetadata();
+        Assert.assertTrue("smd should still be a singleton after updateToken", storageMetadata1 == storageMetadata2);
     }
 }
