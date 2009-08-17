@@ -18,25 +18,24 @@
 
 package org.apache.cassandra.config;
 
-import java.util.*;
-import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-
-import javax.xml.transform.TransformerException;
-
-import org.apache.log4j.Logger;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
+import org.apache.log4j.Logger;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import javax.xml.transform.TransformerException;
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
 
 
 /**
@@ -46,6 +45,12 @@ import org.w3c.dom.NodeList;
 public class DatabaseDescriptor
 {
     private static Logger logger_ = Logger.getLogger(DatabaseDescriptor.class);
+
+    // don't capitalize these; we need them to match what's in the config file for CLS.valueOf to parse
+    public static enum CommitLogSync {
+        periodic,
+        batch
+    };
 
     public static final String random_ = "RANDOM";
     public static final String ophf_ = "OPHF";
@@ -127,9 +132,9 @@ public class DatabaseDescriptor
     /* initial token in the ring */
     private static String initialToken_ = null;
 
-    private static boolean commitLogSync_;
-
-    private static int commitLogSyncDelay_;
+    private static CommitLogSync commitLogSync_;
+    private static double commitLogSyncBatchMS_;
+    private static int commitLogSyncPeriodMS_;
 
     static
     {
@@ -144,20 +149,50 @@ public class DatabaseDescriptor
             clusterName_ = xmlUtils.getNodeValue("/Storage/ClusterName");
 
             String syncRaw = xmlUtils.getNodeValue("/Storage/CommitLogSync");
-            if (!"false".equals(syncRaw) && !"true".equals(syncRaw))
-            {
-                // Bool.valueOf will silently assume false for values it doesn't recognize
-                throw new ConfigurationException("Unrecognized value for CommitLogSync.  Use 'true' or 'false'.");
-            }
-            commitLogSync_ = Boolean.valueOf(syncRaw);
-
             try
             {
-                commitLogSyncDelay_ = Integer.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncDelay"));
+                commitLogSync_ = CommitLogSync.valueOf(syncRaw);
             }
-            catch (Exception e)
+            catch (IllegalArgumentException e)
             {
-                throw new ConfigurationException("Unrecognized value for CommitLogSyncDelay.  Integer expected.");
+                throw new ConfigurationException("CommitLogSync must be either 'periodic' or 'batch'");
+            }
+            if (commitLogSync_ == null)
+            {
+                throw new ConfigurationException("Missing required directive CommitLogSync");
+            }
+            else if (commitLogSync_ == CommitLogSync.batch)
+            {
+                try
+                {
+                    commitLogSyncBatchMS_ = Double.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncBatchWindowInMS"));
+                }
+                catch (Exception e)
+                {
+                    throw new ConfigurationException("Unrecognized value for CommitLogSyncBatchWindowInMS.  Double expected.");
+                }
+                if (xmlUtils.getNodeValue("/Storage/CommitLogSyncPeriodInMS") != null)
+                {
+                    throw new ConfigurationException("Batch sync specified, but CommitLogSyncPeriodInMS found.  Only specify CommitLogSyncBatchWindowInMS when using batch sync.");
+                }
+                logger_.debug("Syncing log with a batch window of " + commitLogSyncBatchMS_);
+            }
+            else
+            {
+                assert commitLogSync_ == CommitLogSync.periodic;
+                try
+                {
+                    commitLogSyncBatchMS_ = Double.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncPeriodInMS"));
+                }
+                catch (Exception e)
+                {
+                    throw new ConfigurationException("Unrecognized value for CommitLogSyncPeriodInMS.  Integer expected.");
+                }
+                if (xmlUtils.getNodeValue("/Storage/CommitLogSyncBatchWindowInMS") != null)
+                {
+                    throw new ConfigurationException("Periodic sync specified, but CommitLogSyncBatchWindowInMS found.  Only specify CommitLogSyncPeriodInMS when using periodic sync.");
+                }
+                logger_.debug("Syncing log with a period of " + commitLogSyncPeriodMS_);
             }
 
             /* Hashing strategy */
@@ -946,12 +981,16 @@ public class DatabaseDescriptor
         return thriftAddress_;
     }
 
-    public static int getCommitLogSyncDelay()
+    public static double getCommitLogSyncBatchWindow()
     {
-        return commitLogSyncDelay_;
+        return commitLogSyncBatchMS_;
     }
 
-    public static boolean isCommitLogSyncEnabled()
+    public static int getCommitLogSyncPeriod() {
+        return commitLogSyncPeriodMS_;
+    }
+
+    public static CommitLogSync getCommitLogSync()
     {
         return commitLogSync_;
     }

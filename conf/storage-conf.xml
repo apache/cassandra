@@ -245,25 +245,36 @@
     <ConcurrentReads>8</ConcurrentReads>
     <ConcurrentWrites>32</ConcurrentWrites>
 
-    <!-- Turn on CommitLogSync to improve durability.
-         When enabled, Cassandra won't ack writes until the commit log
-         has been synced to disk.  This is less necessary in Cassandra
+    <!-- CommitLogSync may be either "periodic" or "batch."
+         When in batch mode, Cassandra won't ack writes until the commit log
+         has been fsynced to disk.  It will wait up to CommitLogSyncBatchWindowInMS
+         milliseconds for other writes, before performing the sync.
+
+         This is less necessary in Cassandra
          than in traditional databases since replication reduces the
          odds of losing data from a failure after writing the log
-         entry but before it actually reaches the disk.
+         entry but before it actually reaches the disk.  So the other
+         option is "timed," where wirtes may be acked immediately
+         and the CommitLog is simply synced every CommitLogSyncPeriodInMS
+         milliseconds.
     -->
-    <CommitLogSync>false</CommitLogSync>
+    <CommitLogSync>periodic</CommitLogSync>
+    <!-- Interval at which to perform syncs of the CommitLog in periodic
+         mode.  Usually the default of 1000ms is fine; increase it
+         only if the CommitLog PendingTasks backlog in jmx shows that
+         you are frequently scheduling a second sync while the first
+         has not yet been processed.
+    -->
+    <CommitLogSyncPeriodInMS>1000</CommitLogSyncPeriodInMS>
     <!-- Delay (in microseconds) during which additional commit log
-         entries may be written before fsync.  This will increase
+         entries may be written before fsync in batch mode.  This will increase
          latency slightly, but can vastly improve throughput where
          there are many writers.  Set to zero to disable
          (each entry will be synced individually).
-	 Reasonable values range from a minimal 100 to even 10000
-         if throughput matters more than latency.  (10000us = 10ms
-         write latency isn't even that bad by traditional db
-         standards.)
+	 Reasonable values range from a minimal 0.1 to 10 or even more
+         if throughput matters more than latency.
     -->
-    <CommitLogSyncDelay>1000</CommitLogSyncDelay>
+    <!-- <CommitLogSyncBatchWindowInMS>1</CommitLogSyncBatchWindowInMS> -->
          
 
     <!-- Time to wait before garbage-collection deletion markers.

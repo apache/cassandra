@@ -21,12 +21,12 @@ package org.apache.cassandra.db;
  */
 
 
-import java.util.concurrent.*;
-import java.util.List;
-import java.util.ArrayList;
-import java.io.IOException;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 
 public class CommitLogExecutorService extends AbstractExecutorService
 {
@@ -41,11 +41,11 @@ public class CommitLogExecutorService extends AbstractExecutorService
             {
                 try
                 {
-                    if (DatabaseDescriptor.isCommitLogSyncEnabled())
+                    if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch)
                     {
                         while (true)
                         {
-                            processWithSyncDelay();
+                            processWithSyncBatch();
                         }
                     }
                     else
@@ -72,7 +72,7 @@ public class CommitLogExecutorService extends AbstractExecutorService
 
     private ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
     private ArrayList taskValues = new ArrayList(); // TODO not sure how to generify this
-    private void processWithSyncDelay() throws Exception
+    private void processWithSyncBatch() throws Exception
     {
         CheaterFutureTask firstTask = queue.take();
         if (!(firstTask.getRawCallable() instanceof CommitLog.LogRecordAdder))
@@ -86,7 +86,7 @@ public class CommitLogExecutorService extends AbstractExecutorService
         //  so we have to break it into firstTask / extra tasks)
         incompleteTasks.clear();
         taskValues.clear();
-        long end = System.nanoTime() + 1000 * DatabaseDescriptor.getCommitLogSyncDelay();
+        long end = System.nanoTime() + (long)(1000000 * DatabaseDescriptor.getCommitLogSyncBatchWindow());
 
         // it doesn't seem worth bothering future-izing the exception
         // since if a commitlog op throws, we're probably screwed anyway

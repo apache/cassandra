@@ -18,20 +18,21 @@
 
 package org.apache.cassandra.db;
 
-import java.io.*;
-import java.util.*;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.BufferedRandomAccessFile;
+import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
-
 import org.apache.log4j.Logger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.ExecutorService;
+
+import java.io.*;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /*
  * Commit Log tracks every write operation into the system. The aim
@@ -169,12 +170,46 @@ public class CommitLog
     */
     CommitLog(boolean recoveryMode) throws IOException
     {
-        if ( !recoveryMode )
+        if (!recoveryMode)
         {
             executor = new CommitLogExecutorService();
-            setNextFileName();            
+            setNextFileName();
             logWriter_ = CommitLog.createWriter(logFile_);
             writeCommitLogHeader();
+
+            if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
+            {
+                final Runnable syncer = new Runnable()
+                {
+                    public void run()
+                    {
+                        try
+                        {
+                            sync();
+                        }
+                        catch (IOException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                };
+
+                new Thread(new Runnable()
+                {
+                    public void run()
+                    {
+                        executor.submit(syncer);
+                        try
+                        {
+                            Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }).start();
+            }
         }
     }
 

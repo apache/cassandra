@@ -20,8 +20,8 @@
    <ClusterName>Test Cluster</ClusterName>
    <FlushDataBufferSizeInMB>1</FlushDataBufferSizeInMB>
    <FlushIndexBufferSizeInMB>0.1</FlushIndexBufferSizeInMB>
-   <CommitLogSync>true</CommitLogSync>
-   <CommitLogSyncDelay>1000</CommitLogSyncDelay>
+   <CommitLogSync>batch</CommitLogSync>
+   <CommitLogSyncBatchWindowInMS>1.0</CommitLogSyncBatchWindowInMS>
    <Partitioner>org.apache.cassandra.dht.CollatingOrderPreservingPartitioner</Partitioner>
    <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
    <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>

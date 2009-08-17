@@ -50,6 +50,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
      * "Rd", "Wr", "RdClass", and "WrClass" interfaces.
      */
     private boolean dirty_; // true iff unflushed bytes exist
+    private boolean syncNeeded_; // dirty_ can be cleared by e.g. seek, so track sync separately
     private long curr_; // current position in file
     private long lo_, hi_; // bounds on characters in "buff"
     private byte[] buff_; // local buffer
@@ -161,8 +162,12 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
 
     public void sync() throws IOException
     {
-        flush();
-        getChannel().force(true);
+        if (syncNeeded_)
+        {
+            flush();
+            getChannel().force(true);
+            syncNeeded_ = false;
+        }
     }
 
     public boolean isEOF() throws IOException
@@ -343,6 +348,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
         this.buff_[(int) (this.curr_ - this.lo_)] = (byte) b;
         this.curr_++;
         this.dirty_ = true;
+        syncNeeded_ = true;
     }
     
     public void write(byte[] b) throws IOException
@@ -358,7 +364,8 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
             off += n;
             len -= n;
             this.dirty_ = true;
-        }        
+            syncNeeded_ = true;
+        }
     }
     
     /*
