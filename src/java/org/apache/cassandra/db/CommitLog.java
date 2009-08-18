@@ -24,6 +24,7 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
 import java.io.*;
@@ -198,14 +199,17 @@ public class CommitLog
                 {
                     public void run()
                     {
-                        executor.submit(syncer);
-                        try
+                        while (true)
                         {
-                            Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
-                        }
-                        catch (InterruptedException e)
-                        {
-                            throw new RuntimeException(e);
+                            executor.submit(syncer);
+                            try
+                            {
+                                Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
+                            }
+                            catch (InterruptedException e)
+                            {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
                 }).start();
