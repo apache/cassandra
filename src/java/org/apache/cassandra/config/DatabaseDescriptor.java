@@ -182,7 +182,7 @@ public class DatabaseDescriptor
                 assert commitLogSync_ == CommitLogSync.periodic;
                 try
                 {
-                    commitLogSyncBatchMS_ = Double.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncPeriodInMS"));
+                    commitLogSyncPeriodMS_ = Integer.valueOf(xmlUtils.getNodeValue("/Storage/CommitLogSyncPeriodInMS"));
                 }
                 catch (Exception e)
                 {
