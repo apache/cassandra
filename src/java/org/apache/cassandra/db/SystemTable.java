@@ -80,13 +80,14 @@ public class SystemTable
         rm.apply();
         metadata_.setStorageId(token);
     }
-
+    
     /*
      * This method reads the system table and retrieves the metadata
      * associated with this storage instance. Currently we store the
      * metadata in a Column Family called LocatioInfo which has two
      * columns namely "Token" and "Generation". This is the token that
      * gets gossiped around and the generation info is used for FD.
+     * We also store whether we're in bootstrap mode in a third column
     */
     public static synchronized StorageMetadata initMetadata() throws IOException
     {
@@ -120,7 +121,7 @@ public class SystemTable
 
         IColumn generation = cf.getColumn(GENERATION);
         int gen = BasicUtilities.byteArrayToInt(generation.value()) + 1;
-
+        
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.LOCATION_CF);
         Column generation2 = new Column(GENERATION, BasicUtilities.intToByteArray(gen), generation.timestamp() + 1);

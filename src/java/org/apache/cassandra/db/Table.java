@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.FileStruct;
+import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -185,7 +186,8 @@ public class Table
                 SSTableReader sstable = null;
                 try 
                 {
-                    sstable = SSTableReader.open(streamContext.getTargetFile());
+                    sstable = SSTableWriter.renameAndOpen(streamContext.getTargetFile());
+                    
                     //TODO add a sanity check that this sstable has all its parts and is ok
                     Table.open(tableName).getColumnFamilyStore(temp[0]).addToList(sstable);
                     logger_.info("Bootstrap added " + sstable.getFilename());
@@ -202,7 +204,10 @@ public class Table
             /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
             StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
             Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
-            MessagingService.getMessagingInstance().sendOneWay(message, to);           
+            MessagingService.getMessagingInstance().sendOneWay(message, to);
+            /* If we're done with everything for this host, remove from bootstrap sources */
+            if (StreamContextManager.isDone(to.getHost()))
+                StorageService.instance().removeBootstrapSource(to);
         }
     }
 
@@ -302,7 +307,7 @@ public class Table
                 ColumnFamilyStore cfStore = columnFamilyStores.get(peices[1]);
                 if (logger_.isDebugEnabled())
                   logger_.debug("Generating file name for " + distinctEntry + " ...");
-                fileNames.put(distinctEntry, cfStore.getNextFileName());
+                fileNames.put(distinctEntry, cfStore.getTempSSTableFileName());
             }
             
             return fileNames;

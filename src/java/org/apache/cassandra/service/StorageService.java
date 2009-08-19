@@ -57,7 +57,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
     private final static String nodeId_ = "NODE-IDENTIFIER";
-    private final static String loadAll_ = "LOAD-ALL";
+    private final static String BOOTSTRAP_MODE = "BOOTSTRAP-MODE";
     /* Gossip load after every 5 mins. */
     private static final long threshold_ = 5 * 60 * 1000L;
     
@@ -133,6 +133,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public static StorageService instance()
     {
+        String bs = System.getProperty("bootstrap");
+        boolean bootstrap = bs != null && bs.contains("true");
+        
         if ( instance_ == null )
         {
             StorageService.createLock_.lock();
@@ -142,7 +145,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 {
                     try
                     {
-                        instance_ = new StorageService();
+                        instance_ = new StorageService(bootstrap);
                     }
                     catch ( Throwable th )
                     {
@@ -184,7 +187,35 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private StorageLoadBalancer storageLoadBalancer_;
     /* We use this interface to determine where replicas need to be placed */
     private IReplicaPlacementStrategy nodePicker_;
+    /* Are we starting this node in bootstrap mode? */
+    private boolean isBootstrapMode;
+    private Set<EndPoint> bootstrapSet;
+  
+    public synchronized void addBootstrapSource(EndPoint s)
+    {
+        if (logger_.isDebugEnabled())
+            logger_.debug("Added " + s.getHost() + " as a bootstrap source");
+        bootstrapSet.add(s);
+    }
     
+    public synchronized boolean removeBootstrapSource(EndPoint s)
+    {
+        bootstrapSet.remove(s);
+
+        if (logger_.isDebugEnabled())
+            logger_.debug("Removed " + s.getHost() + " as a bootstrap source");
+        if (bootstrapSet.isEmpty())
+        {
+            isBootstrapMode = false;
+            tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_, false);
+
+            logger_.info("Bootstrap completed! Now serving reads.");
+            /* Tell others you're not bootstrapping anymore */
+            Gossiper.instance().deleteApplicationState(BOOTSTRAP_MODE);
+        }
+        return isBootstrapMode;
+    }
+
     /*
      * Registers with Management Server
      */
@@ -202,8 +233,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    public StorageService()
+    public StorageService(boolean isBootstrapMode)
     {
+        this.isBootstrapMode = isBootstrapMode;
+        bootstrapSet = new HashSet<EndPoint>();
         init();
         storageLoadBalancer_ = new StorageLoadBalancer(this);
         endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
@@ -273,9 +306,20 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
          */
         Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
         /* Make sure this token gets gossiped around. */
-        tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_);
+        tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_, isBootstrapMode);
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getStorageId()));
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
+        if (isBootstrapMode)
+        {
+            logger_.info("Starting in bootstrap mode");
+            doBootstrap(StorageService.getLocalStorageEndPoint());
+            Gossiper.instance().addApplicationState(BOOTSTRAP_MODE, new ApplicationState(""));
+        }
+    }
+    
+    public boolean isBootstrapMode()
+    {
+        return isBootstrapMode;
     }
 
     public TokenMetadata getTokenMetadata()
@@ -283,7 +327,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return tokenMetadata_.cloneMe();
     }
 
-    /* TODO: remove later */
+    /* TODO: used for testing */
     public void updateTokenMetadata(Token token, EndPoint endpoint)
     {
         tokenMetadata_.update(token, endpoint);
@@ -395,6 +439,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         EndPoint ep = new EndPoint(endpoint.getHost(), DatabaseDescriptor.getStoragePort());
         /* node identifier for this endpoint on the identifier space */
         ApplicationState nodeIdState = epState.getApplicationState(StorageService.nodeId_);
+        /* Check if this has a bootstrapping state message */
+        boolean bootstrapState = epState.getApplicationState(StorageService.BOOTSTRAP_MODE) != null;
+        if (bootstrapState)
+        {
+            if (logger_.isDebugEnabled())
+                logger_.debug(ep.getHost() + " is in bootstrap state.");
+        }
         if (nodeIdState != null)
         {
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
@@ -414,7 +465,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 {
                     if (logger_.isDebugEnabled())
                       logger_.debug("Relocation for endpoint " + ep);
-                    tokenMetadata_.update(newToken, ep);                    
+                    tokenMetadata_.update(newToken, ep, bootstrapState);                    
                 }
                 else
                 {
@@ -432,7 +483,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 /*
                  * This is a new node and we just update the token map.
                 */
-                tokenMetadata_.update(newToken, ep);
+                tokenMetadata_.update(newToken, ep, bootstrapState);
             }
         }
         else
@@ -446,17 +497,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 if (logger_.isDebugEnabled())
                   logger_.debug("EndPoint " + ep + " just recovered from a partition. Sending hinted data.");
                 deliverHints(ep);
-            }
-        }
-
-        /* Check if a bootstrap is in order */
-        ApplicationState loadAllState = epState.getApplicationState(StorageService.loadAll_);
-        if ( loadAllState != null )
-        {
-            String nodes = loadAllState.getState();
-            if ( nodes != null )
-            {
-                doBootstrap(ep);
             }
         }
     }
@@ -965,7 +1005,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return nodePicker_.getStorageEndPoints(token, tokenToEndPointMap);
     }
-
+    
     /**
      * This function finds the most suitable endpoint given a key.
      * It checks for locality and alive test.
@@ -983,7 +1023,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		int j = 0;
 		for ( ; j < endpoints.length; ++j )
 		{
-			if ( StorageService.instance().isInSameDataCenter(endpoints[j]) && FailureDetector.instance().isAlive(endpoints[j]) )
+			if ( StorageService.instance().isInSameDataCenter(endpoints[j]) && FailureDetector.instance().isAlive(endpoints[j]))
 			{
 				return endpoints[j];
 			}
@@ -994,7 +1034,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		j = 0;
 		for ( ; j < endpoints.length; ++j )
 		{
-			if ( FailureDetector.instance().isAlive(endpoints[j]) )
+			if ( FailureDetector.instance().isAlive(endpoints[j]))
 			{
 				if (logger_.isDebugEnabled())
 				  logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
@@ -1004,6 +1044,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		return null;
 	}
 	
+	/*
+	 * TODO:
+	 * This is used by the incomplete multiget implementation. Need to rewrite
+	 * this to use findSuitableEndPoint above instead of copy/paste 
+	 */
 	public Map<String, EndPoint> findSuitableEndPoints(String[] keys) throws IOException
 	{
 		Map<String, EndPoint> suitableEndPoints = new HashMap<String, EndPoint>();

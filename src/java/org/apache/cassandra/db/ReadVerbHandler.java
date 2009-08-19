@@ -29,6 +29,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.UnavailableException;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
@@ -72,6 +73,11 @@ public class ReadVerbHandler implements IVerbHandler
 
         try
         {
+            if (StorageService.instance().isBootstrapMode())
+            {
+                /* Don't service reads! */
+                throw new RuntimeException("Cannot service reads while bootstrapping!");
+            }
             ReadCommand readCommand = ReadCommand.serializer().deserialize(readCtx.bufIn_);
             Table table = Table.open(readCommand.table);
             Row row = null;

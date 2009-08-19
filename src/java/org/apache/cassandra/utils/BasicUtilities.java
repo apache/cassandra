@@ -63,4 +63,14 @@ public class BasicUtilities
 	{
         return ByteBuffer.wrap(arg).getShort();
     }
+	
+	public static byte[] booleanToByteArray(boolean b)
+	{
+	    return b ? shortToByteArray((short)1) : shortToByteArray((short)0);
+	}
+	
+	public static boolean byteArrayToBoolean(byte[] arg)
+	{
+	    return (byteArrayToShort(arg) == (short) 1) ? true : false;
+	}
 }

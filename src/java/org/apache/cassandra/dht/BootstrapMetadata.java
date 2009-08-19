@@ -55,8 +55,6 @@ class BootstrapMetadata
     
     BootstrapMetadata(EndPoint target, List<Range> ranges)
     {
-        assert target_ != null;
-        assert ranges_ != null;
         target_ = target;
         ranges_ = ranges;
     }

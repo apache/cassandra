@@ -31,6 +31,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.StreamContextManager;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StreamManager;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
@@ -47,6 +48,10 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Received a BootstrapMetadataMessage from " + message.getFrom());
+        
+        /* Cannot bootstrap another node if I'm in bootstrap mode myself! */
+        assert !StorageService.instance().isBootstrapMode();
+        
         byte[] body = message.getMessageBody();
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(body, body.length);

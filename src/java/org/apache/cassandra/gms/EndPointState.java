@@ -87,6 +87,11 @@ public class EndPointState
     {        
         applicationState_.put(key, appState);        
     }
+    
+    void deleteApplicationState(String key)
+    {
+        applicationState_.remove(key);
+    }
 
     /* getters and setters */
     long getUpdateTimestamp()

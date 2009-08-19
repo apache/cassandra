@@ -315,7 +315,8 @@ public class StorageProxy implements StorageProxyMBean
         if (consistency_level == ConsistencyLevel.ONE)
         {
             boolean foundLocal = Arrays.asList(endpoints).contains(StorageService.getLocalStorageEndPoint());
-            if (foundLocal)
+            //TODO: Throw InvalidRequest if we're in bootstrap mode?
+            if (foundLocal && !StorageService.instance().isBootstrapMode())
             {
                 row = weakReadLocal(command);
             }

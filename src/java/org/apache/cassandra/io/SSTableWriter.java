@@ -21,8 +21,8 @@ package org.apache.cassandra.io;
  */
 
 
-import java.io.IOException;
 import java.io.File;
+import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.DataOutputStream;
 import java.util.Comparator;
@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
@@ -111,13 +112,6 @@ public class SSTableWriter extends SSTable
         afterAppend(decoratedKey, currentPosition);
     }
 
-    private static String rename(String tmpFilename)
-    {
-        String filename = tmpFilename.replace("-" + TEMPFILE_MARKER, "");
-        new File(tmpFilename).renameTo(new File(filename));
-        return filename;
-    }
-
     /**
      * Renames temporary SSTable files to valid data, index, and bloom filter files
      */
@@ -146,6 +140,21 @@ public class SSTableWriter extends SSTable
                                                         ? SSTableReader.createKeyCache((int) (cacheFraction * keysWritten))
                                                         : null;
         return new SSTableReader(path, partitioner, indexPositions, bf, keyCache);
+    }
+
+    static String rename(String tmpFilename)
+    {
+        String filename = tmpFilename.replace("-" + SSTable.TEMPFILE_MARKER, "");
+        new File(tmpFilename).renameTo(new File(filename));
+        return filename;
+    }
+
+    public static SSTableReader renameAndOpen(String dataFileName) throws IOException
+    {
+        SSTableWriter.rename(indexFilename(dataFileName));
+        SSTableWriter.rename(filterFilename(dataFileName));
+        dataFileName = SSTableWriter.rename(dataFileName);
+        return SSTableReader.open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
     }
 
 }

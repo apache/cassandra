@@ -30,7 +30,8 @@ package org.apache.cassandra.dht;
 
  import org.apache.cassandra.net.EndPoint;
  import org.apache.cassandra.net.Message;
- import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService;
 
 
 class LeaveJoinProtocolHelper
@@ -159,6 +160,72 @@ class LeaveJoinProtocolHelper
     */
     protected static void assignWork(Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget) throws IOException
     {
+        Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo = getWorkMap(rangesWithSourceTarget);
+        sendMessagesToBootstrapSources(rangeInfo);
+    }
+    
+    // TODO: Once we're sure we don't need global bootstrap -- clean this code up 
+    // so it is easier to understand what messages are being sent. Local bootstrap should
+    // look much simpler
+    protected static void assignWorkForLocalBootstrap(Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget) throws IOException
+    {
+        Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo = getWorkMap(rangesWithSourceTarget);
+        Map<EndPoint, Map<EndPoint, List<Range>>> filteredRanges = filterRangesForTargetEndPoint(rangeInfo,
+                                                                                                 StorageService.getLocalStorageEndPoint());
+        sendMessagesToBootstrapSources(filteredRanges);
+    }
+
+    
+    /**
+     * This method takes the Src -> (Tgt-> List of ranges) maps and retains those entries 
+     * that are relevant to bootstrapping the target endpoint
+     */
+    protected static Map<EndPoint, Map<EndPoint, List<Range>>>
+    filterRangesForTargetEndPoint(Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo, EndPoint targetEndPoint)
+    {
+        Map<EndPoint, Map<EndPoint, List<Range>>> filteredMap = new HashMap<EndPoint, Map<EndPoint,List<Range>>>();
+        for (Map.Entry<EndPoint, Map<EndPoint, List<Range>>> e: rangeInfo.entrySet())
+        {
+            EndPoint source = e.getKey();
+            Map<EndPoint, List<Range>> targets = e.getValue();
+            Map<EndPoint, List<Range>> filteredTargets = new HashMap<EndPoint, List<Range>>();
+            if (targets.get(targetEndPoint) != null)
+                filteredTargets.put(targetEndPoint, targets.get(targetEndPoint));
+            if (filteredTargets.size() > 0)
+            filteredMap.put(source, filteredTargets);
+        }
+        return filteredMap;
+    }
+
+    private static void sendMessagesToBootstrapSources(Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo) throws IOException
+    {
+        Set<EndPoint> sources = rangeInfo.keySet();
+        for ( EndPoint source : sources )
+        {
+            Map<EndPoint, List<Range>> targetRangesMap = rangeInfo.get(source);
+            Set<EndPoint> targets = targetRangesMap.keySet();
+            List<BootstrapMetadata> bsmdList = new ArrayList<BootstrapMetadata>();
+            
+            for ( EndPoint target : targets )
+            {
+                List<Range> rangeForTarget = targetRangesMap.get(target);
+                BootstrapMetadata bsMetadata = new BootstrapMetadata(target, rangeForTarget);
+                bsmdList.add(bsMetadata);
+            }
+            
+            BootstrapMetadataMessage bsMetadataMessage = new BootstrapMetadataMessage(bsmdList.toArray( new BootstrapMetadata[0] ) );
+            /* Send this message to the source to do his shit. */
+            Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(bsMetadataMessage); 
+            if (logger_.isDebugEnabled())
+              logger_.debug("Sending the BootstrapMetadataMessage to " + source);
+            MessagingService.getMessagingInstance().sendOneWay(message, source);
+            StorageService.instance().addBootstrapSource(source);
+        }
+    }
+
+    static Map<EndPoint, Map<EndPoint, List<Range>>> getWorkMap(
+            Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget)
+    {
         /*
          * Map whose key is the source node and the value is a map whose key is the
          * target and value is the list of ranges to be sent to it. 
@@ -186,27 +253,6 @@ class LeaveJoinProtocolHelper
                 rangesToGive.add(range);
             }
         }
-        
-        Set<EndPoint> sources = rangeInfo.keySet();
-        for ( EndPoint source : sources )
-        {
-            Map<EndPoint, List<Range>> targetRangesMap = rangeInfo.get(source);
-            Set<EndPoint> targets = targetRangesMap.keySet();
-            List<BootstrapMetadata> bsmdList = new ArrayList<BootstrapMetadata>();
-            
-            for ( EndPoint target : targets )
-            {
-                List<Range> rangeForTarget = targetRangesMap.get(target);
-                BootstrapMetadata bsMetadata = new BootstrapMetadata(target, rangeForTarget);
-                bsmdList.add(bsMetadata);
-            }
-            
-            BootstrapMetadataMessage bsMetadataMessage = new BootstrapMetadataMessage(bsmdList.toArray( new BootstrapMetadata[0] ) );
-            /* Send this message to the source to do his shit. */
-            Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(bsMetadataMessage); 
-            if (logger_.isDebugEnabled())
-              logger_.debug("Sending the BootstrapMetadataMessage to " + source);
-            MessagingService.getMessagingInstance().sendOneWay(message, source);
-        }
+        return rangeInfo;
     }
 }

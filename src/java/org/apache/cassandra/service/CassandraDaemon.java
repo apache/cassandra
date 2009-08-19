@@ -163,6 +163,7 @@ public class CassandraDaemon
     
     public static void main(String[] args)
     {
+     
         CassandraDaemon daemon = new CassandraDaemon();
         String pidFile = System.getProperty("cassandra-pidfile");
         

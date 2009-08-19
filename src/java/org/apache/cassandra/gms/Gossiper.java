@@ -920,6 +920,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             epState.addApplicationState(key, appState);
         }
     }
+    
+    public synchronized void deleteApplicationState(String key)
+    {
+        EndPointState epState = endPointStateMap_.get(localEndPoint_);
+        epState.deleteApplicationState(key);
+    }
 
     public void stop()
     {

@@ -85,7 +85,7 @@ public class SSTableReader extends SSTable
     {
         return open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
     }
-
+    
     public static synchronized SSTableReader open(String dataFileName, IPartitioner partitioner, double cacheFraction) throws IOException
     {
         SSTableReader sstable = openedFiles.get(dataFileName);

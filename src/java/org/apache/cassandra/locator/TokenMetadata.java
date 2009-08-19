@@ -36,6 +36,8 @@ public class TokenMetadata
     private Map<Token, EndPoint> tokenToEndPointMap_ = new HashMap<Token, EndPoint>();
     /* Maintains a reverse index of endpoint to token in the cluster. */
     private Map<EndPoint, Token> endPointToTokenMap_ = new HashMap<EndPoint, Token>();
+    /* Bootstrapping nodes and their tokens */
+    private Map<EndPoint, Token> bootstrapNodes = Collections.synchronizedMap(new HashMap<EndPoint, Token>());
     
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
@@ -43,8 +45,8 @@ public class TokenMetadata
     public TokenMetadata()
     {
     }
-
-    private TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap)
+    
+    private TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap, Map<EndPoint, Token> bootstrapNodes)
     {
         tokenToEndPointMap_ = tokenToEndPointMap;
         endPointToTokenMap_ = endPointToTokenMap;
@@ -52,22 +54,35 @@ public class TokenMetadata
     
     public TokenMetadata cloneMe()
     {
-        return new TokenMetadata(cloneTokenEndPointMap(), cloneEndPointTokenMap());
+        return new TokenMetadata(cloneTokenEndPointMap(), cloneEndPointTokenMap(), cloneBootstrapNodes());
     }
     
+    public void update(Token token, EndPoint endpoint)
+    {
+        this.update(token, endpoint, false);
+    }
     /**
      * Update the two maps in an safe mode. 
     */
-    public void update(Token token, EndPoint endpoint)
+    public void update(Token token, EndPoint endpoint, boolean bootstrapState)
     {
         lock_.writeLock().lock();
         try
-        {            
-            Token oldToken = endPointToTokenMap_.get(endpoint);
-            if ( oldToken != null )
-                tokenToEndPointMap_.remove(oldToken);
-            tokenToEndPointMap_.put(token, endpoint);
-            endPointToTokenMap_.put(endpoint, token);
+        {
+            if (bootstrapState)
+            {
+                bootstrapNodes.put(endpoint, token);
+                this.remove(endpoint);
+            }
+            else
+            {
+                bootstrapNodes.remove(endpoint); // If this happened to be there 
+                Token oldToken = endPointToTokenMap_.get(endpoint);
+                if ( oldToken != null )
+                    tokenToEndPointMap_.remove(oldToken);
+                tokenToEndPointMap_.put(token, endpoint);
+                endPointToTokenMap_.put(endpoint, token);
+            }
         }
         finally
         {
@@ -155,6 +170,20 @@ public class TokenMetadata
         {
             lock_.readLock().unlock();
         }
+    }
+    
+    public Map<EndPoint, Token> cloneBootstrapNodes()
+    {
+        lock_.readLock().lock();
+        try
+        {            
+            return new HashMap<EndPoint, Token>( bootstrapNodes );
+        }
+        finally
+        {
+            lock_.readLock().unlock();
+        }
+        
     }
 
     /*

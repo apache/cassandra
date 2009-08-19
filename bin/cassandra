@@ -57,10 +57,15 @@ launch_service()
 {
     pidpath=$1
     foreground=$2
+    bootstrap=$3
     cassandra_parms="-Dcassandra -Dstorage-config=$CASSANDRA_CONF"
 
     if [ "x$pidpath" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
+    fi
+    
+    if [ "x$bootstrap" != "x" ]; then
+        cassandra_parms="$cassandra_parms -Dbootstrap=$bootstrap"
     fi
 
     # The cassandra-foreground option will tell CassandraDaemon not
@@ -80,7 +85,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt fhp: "$@"`
+args=`getopt fhp:b "$@"`
 eval set -- "$args"
 
 while true; do
@@ -93,8 +98,12 @@ while true; do
             foreground="yes"
             shift
         ;;
+        -b)
+            bootstrap="true"
+            shift
+        ;;
         -h)
-            echo "Usage: $0 [-f] [-h] [-p pidfile]"
+            echo "Usage: $0 [-f] [-h] [-p pidfile] [-b]"
             exit 0
         ;;
         --)
@@ -109,7 +118,7 @@ while true; do
 done
 
 # Start up the service
-launch_service "$pidfile" "$foreground"
+launch_service "$pidfile" "$foreground" "$bootstrap"
 
 exit $?
 
