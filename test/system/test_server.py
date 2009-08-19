@@ -149,7 +149,7 @@ class TestMutations(CassandraTester):
         assert _big_slice('Keyspace1', 'key1', ColumnParent('Super1')) == []
 
     def test_missing_super(self):
-        _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', 'c1'), ConsistencyLevel.ONE))
+        _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))
 
     def test_count(self):
         _insert_simple()

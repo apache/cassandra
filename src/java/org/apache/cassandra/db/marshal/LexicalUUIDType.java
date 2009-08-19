@@ -48,6 +48,10 @@ public class LexicalUUIDType extends AbstractType
 
     public String getString(byte[] bytes)
     {
+        if (bytes.length == 0)
+        {
+            return "";
+        }
         if (bytes.length != 16)
         {
             throw new MarshalException("UUIDs must be exactly 16 bytes");

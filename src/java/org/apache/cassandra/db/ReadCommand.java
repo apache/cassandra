@@ -88,7 +88,9 @@ public abstract class ReadCommand
 
     protected AbstractType getComparator()
     {
-        return DatabaseDescriptor.getComparator(table, getColumnFamilyName());
+        return queryPath.superColumnName == null
+               ? DatabaseDescriptor.getComparator(table, getColumnFamilyName())
+               : DatabaseDescriptor.getSubComparator(table, getColumnFamilyName());
     }
 }
 
