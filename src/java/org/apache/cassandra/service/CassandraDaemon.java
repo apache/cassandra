@@ -36,7 +36,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.RecoveryManager;
-import org.apache.cassandra.db.CalloutManager;
 
 /**
  * This class supports two methods for creating a Cassandra node daemon, 
@@ -77,8 +76,6 @@ public class CassandraDaemon
         });
 
         // initialize stuff
-        CalloutManager.instance().onStart();
-
         Set<String> tables = DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
         for (String table : tables)
         {

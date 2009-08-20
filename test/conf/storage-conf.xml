@@ -37,7 +37,6 @@
    <DataFileDirectories>
      <DataFileDirectory>build/test/cassandra/data</DataFileDirectory>
    </DataFileDirectories>
-   <CalloutLocation>build/test/cassandra/callouts</CalloutLocation>
    <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
    <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
    <MemtableSizeInMB>1</MemtableSizeInMB>

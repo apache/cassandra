@@ -113,8 +113,6 @@ public class DatabaseDescriptor
      * high throughput on reads but at the cost of consistency.
     */
     private static boolean doConsistencyCheck_ = true;
-    /* Callout directories */
-    private static String calloutLocation_;
     /* Job Jar Location */
     private static String jobJarFileLocation_;
     /* Address where to run the job tracker */
@@ -222,9 +220,6 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName);
             }
             
-            /* Callout location */
-            calloutLocation_ = xmlUtils.getNodeValue("/Storage/CalloutLocation");
-
             /* JobTracker address */
             jobTrackerHost_ = xmlUtils.getNodeValue("/Storage/JobTrackerHost");
 
@@ -671,11 +666,6 @@ public class DatabaseDescriptor
     public static Class getReplicaPlacementStrategyClass()
     {
         return replicaPlacementStrategyClass_;
-    }
-    
-    public static String getCalloutLocation()
-    {
-        return calloutLocation_;
     }
     
     public static String getJobTrackerAddress()

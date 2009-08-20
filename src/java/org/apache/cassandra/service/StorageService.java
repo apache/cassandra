@@ -76,7 +76,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String dataFileVerbHandler_ = "DATA-FILE-VERB-HANDLER";
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
-    public final static String calloutDeployVerbHandler_ = "CALLOUT-DEPLOY-VERB-HANDLER";
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
 
     public static enum ConsistencyLevel
@@ -252,7 +251,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.dataFileVerbHandler_, new DataFileVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.calloutDeployVerbHandler_, new CalloutDeployVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.rangeVerbHandler_, new RangeVerbHandler());
         
         /* register the stage for the mutations */
