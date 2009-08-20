@@ -269,10 +269,16 @@ public class NodeProbe
         
         // Print range-to-endpoint mapping
         int counter = 0;
+        outs.print(String.format("%-46s ", "Starting Token"));
+        outs.print(String.format("%-44s ", "Ending Token"));
+        outs.print(String.format("%-4s ", "Size"));
+        outs.print(String.format("%-15s", "Address"));
+        outs.println("Ring");
         for (Range range : rangeMap.keySet()) {
             List<EndPoint> endpoints = rangeMap.get(range);
             
             outs.print(String.format("%-46s ", range.left()));
+            outs.print(String.format("%-46s ", range.right()));
             outs.print(String.format("%2d ", endpoints.size()));
             outs.print(String.format("%-15s", endpoints.get(0).getHost()));
             
