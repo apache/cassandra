@@ -26,7 +26,6 @@ package org.apache.cassandra.utils;
  * This class's static methods are meant to facilitate the use of the Bloom
  * Filter class by helping to choose correct values of 'bits per element' and
  * 'number of hash functions, k'.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class BloomCalculations {
 

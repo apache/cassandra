@@ -27,8 +27,6 @@ import org.apache.cassandra.net.EndPoint;
  * it notifies all interested parties of this change. It is upto to the registered
  * instance to decide what he does with this change. Not all modules maybe interested 
  * in all state changes.
- *  
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IEndPointStateChangeSubscriber

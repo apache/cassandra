@@ -20,9 +20,6 @@ package org.apache.cassandra.utils;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 public class SafeMessageDigest
 {

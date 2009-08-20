@@ -32,7 +32,6 @@ import org.apache.log4j.Logger;
  * This class is an implementation of the <i>IStage</i> interface. In particular
  * it is for a stage that has a thread pool with multiple threads. For details 
  * please refer to the <i>IStage</i> documentation.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class MultiThreadedStage implements IStage 

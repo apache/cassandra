@@ -30,7 +30,6 @@ import org.apache.cassandra.net.*;
  * This class is an implementation of the <i>IStage</i> interface. In particular
  * it is for a stage that has a thread pool with a single thread. For details 
  * please refer to the <i>IStage</i> documentation.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class SingleThreadedStage implements IStage 

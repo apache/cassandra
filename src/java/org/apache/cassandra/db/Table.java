@@ -48,10 +48,6 @@ import org.apache.cassandra.db.filter.*;
 
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
-*/
-
 public class Table 
 {
     public static final String SYSTEM_TABLE = "system";

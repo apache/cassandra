@@ -21,8 +21,6 @@ package org.apache.cassandra.gms;
 /**
  * This is implemented by the Gossiper module to publish change events to interested parties.
  * Interested parties register/unregister interest by invoking the methods of this interface.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IEndPointStateChangePublisher

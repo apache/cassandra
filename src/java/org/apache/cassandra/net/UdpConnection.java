@@ -37,10 +37,6 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.utils.*;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class UdpConnection extends SelectionKeyHandler
 {
     private static Logger logger_ = Logger.getLogger(UdpConnection.class);

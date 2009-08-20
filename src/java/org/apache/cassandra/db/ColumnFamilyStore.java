@@ -48,11 +48,6 @@ import org.apache.commons.collections.Predicate;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
-
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);

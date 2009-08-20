@@ -28,8 +28,6 @@ import java.util.concurrent.ExecutorService;
  * This class manages all stages that exist within a process. The application registers
  * and de-registers stages with this abstraction. Any component that has the <i>ID</i> 
  * associated with a stage can obtain a handle to actual stage.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class StageManager

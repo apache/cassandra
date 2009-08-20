@@ -24,7 +24,6 @@ import java.util.*;
 /**
  * An implementation of the Map interface which uses an open addressed hash
  * table to store its contents
- * @author Avinash Lakshman
  */
 public class FastHashMap<K, V> extends FastObjectHash<K> implements Map<K, V>, Serializable
 {

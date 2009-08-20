@@ -22,8 +22,6 @@ import java.util.Arrays;
 
 /**
  * An open addressed hashing implementation for Object types.
- * 
- * @author Avinash Lakshman
  */
 abstract public class FastObjectHash<T> extends FastHash
 {

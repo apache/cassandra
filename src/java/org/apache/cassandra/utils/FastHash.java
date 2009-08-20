@@ -23,9 +23,6 @@ import java.util.Random;
 
 /**
  * Base class for hashtables that use open addressing to resolve collisions.
- * 
- * @author Avinash Lakshman
- * 
  */
 
 abstract public class FastHash implements Cloneable

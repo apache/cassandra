@@ -33,8 +33,6 @@ import org.apache.cassandra.service.StorageService;
  * A representation of the range that a node is responsible for on the DHT ring.
  *
  * A Range is responsible for the tokens between [left, right).
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class Range implements Comparable<Range>, Serializable

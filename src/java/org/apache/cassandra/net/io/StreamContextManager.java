@@ -30,10 +30,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class StreamContextManager
 {
     private static Logger logger_ = Logger.getLogger(StreamContextManager.class);

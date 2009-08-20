@@ -22,7 +22,6 @@ package org.apache.cassandra.net;
  * IVerbHandler provides the method that all verb handlers need to implement.
  * The concrete implementation of this interface would provide the functionality
  * for a given verb.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IVerbHandler

@@ -17,9 +17,6 @@
  */
 
 package org.apache.cassandra.service;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 public class DigestMismatchException extends Exception
 {

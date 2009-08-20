@@ -31,8 +31,6 @@ import org.apache.cassandra.net.EndPoint;
 /**
  * This message gets sent out as a result of the receipt of a GossipDigestSynMessage by an
  * endpoint. This is the 2 stage of the 3 way messaging in the Gossip protocol.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 class GossipDigestAckMessage

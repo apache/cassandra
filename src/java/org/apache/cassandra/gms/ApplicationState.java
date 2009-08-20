@@ -35,8 +35,6 @@ import org.apache.cassandra.io.ICompactSerializer;
  * 
  *      ApplicationState loadState = new ApplicationState(<string representation of load>);
  *      Gossiper.instance().addApplicationState("LOAD STATE", loadState);
- *  
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class ApplicationState

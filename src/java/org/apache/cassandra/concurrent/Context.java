@@ -23,7 +23,6 @@ import java.util.Map;
 
 /**
  * Context object adding a collection of key/value pairs into ThreadLocalContext.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class Context

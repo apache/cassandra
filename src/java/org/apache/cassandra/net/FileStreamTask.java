@@ -25,10 +25,6 @@ import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 class FileStreamTask implements Runnable
 {
     private static Logger logger_ = Logger.getLogger( FileStreamTask.class );

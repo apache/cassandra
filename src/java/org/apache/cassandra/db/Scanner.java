@@ -33,7 +33,6 @@ import java.io.IOException;
  *     Column column = scanner.next();
  *     // Do something with the column
  * }
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class Scanner implements IScanner<IColumn>

@@ -31,10 +31,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class EndPoint implements Serializable, Comparable<EndPoint>
 {
     // logging and profiling.

@@ -24,8 +24,6 @@ import org.apache.cassandra.net.EndPoint;
  * Implemented by the Gossiper to either convict/suspect an endpoint
  * based on the PHI calculated by the Failure Detector on the inter-arrival
  * times of the heart beats.
- *  
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IFailureDetectionEventListener

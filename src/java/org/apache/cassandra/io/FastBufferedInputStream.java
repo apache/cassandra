@@ -32,8 +32,6 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * the <code>reset</code> operation causes all the bytes read since the most
  * recent <code>mark</code> operation to be reread before new bytes are taken
  * from the contained input stream.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class FastBufferedInputStream extends FilterInputStream
 {

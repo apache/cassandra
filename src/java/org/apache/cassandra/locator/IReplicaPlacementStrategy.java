@@ -29,7 +29,6 @@ import org.apache.cassandra.net.EndPoint;
  * This interface has two implementations. One which
  * does not respect rack or datacenter awareness and
  * the other which does.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public interface IReplicaPlacementStrategy
 {

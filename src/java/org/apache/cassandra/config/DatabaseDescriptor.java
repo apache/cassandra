@@ -37,11 +37,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
-
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class DatabaseDescriptor
 {
     private static Logger logger_ = Logger.getLogger(DatabaseDescriptor.class);

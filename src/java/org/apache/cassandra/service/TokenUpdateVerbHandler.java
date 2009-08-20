@@ -27,10 +27,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.LogUtil;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class TokenUpdateVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = Logger.getLogger(TokenUpdateVerbHandler.class);

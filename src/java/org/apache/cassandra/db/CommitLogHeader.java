@@ -26,10 +26,6 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.utils.BitSetSerializer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 class CommitLogHeader
 {
     private static CommitLogHeaderSerializer serializer = new CommitLogHeaderSerializer();

@@ -25,7 +25,6 @@ import java.io.DataInputStream;
 
 /**
  * Allows for the controlled serialization/deserialization of a given type.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface ICompactSerializer<T>

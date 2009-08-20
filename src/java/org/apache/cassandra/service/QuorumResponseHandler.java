@@ -32,10 +32,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     private static Logger logger_ = Logger.getLogger( QuorumResponseHandler.class );

@@ -29,8 +29,6 @@ import org.apache.log4j.Logger;
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndPointState
  * instance. Any state for a given endpoint can be retrieved from this instance.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class EndPointState

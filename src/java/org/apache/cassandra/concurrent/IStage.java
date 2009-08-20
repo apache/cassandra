@@ -25,7 +25,6 @@ import java.util.concurrent.*;
  * For reference to the paper look over here 
  * <a href="http://www.eecs.harvard.edu/~mdw/papers/seda-sosp01.pdf">SEDA: An Architecture for WellConditioned,
    Scalable Internet Services</a>.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IStage 

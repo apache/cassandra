@@ -27,12 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.GuidGenerator;
 
-
-
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class Header implements java.io.Serializable
 {
     static final long serialVersionUID = -3194851946523170022L;

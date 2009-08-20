@@ -24,9 +24,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.locks.*;
 
 import org.apache.log4j.Logger;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 class TcpConnectionManager
 {

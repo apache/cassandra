@@ -41,8 +41,6 @@ import org.apache.log4j.Logger;
  * sends node A a GossipDigestAckMessage. On receipt of this message node A sends node B a
  * GossipDigestAck2Message which completes a round of Gossip. This module as and when it hears one
  * of the three above mentioned messages updates the Failure Detector with the liveness information.
- *
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class Gossiper implements IFailureDetectionEventListener, IEndPointStateChangePublisher

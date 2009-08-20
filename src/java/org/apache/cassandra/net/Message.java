@@ -31,9 +31,6 @@ import java.util.*;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.log4j.Logger;
 import org.apache.cassandra.utils.*;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 public class Message implements java.io.Serializable
 {    

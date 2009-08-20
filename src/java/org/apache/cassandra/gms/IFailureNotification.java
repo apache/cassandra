@@ -20,10 +20,6 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.net.EndPoint;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public interface IFailureNotification
 {   
     public void suspect(EndPoint ep);

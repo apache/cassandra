@@ -20,11 +20,6 @@ package org.apache.cassandra.net;
 
 import org.apache.log4j.Logger;
 
-
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class MessageDeliveryTask implements Runnable
 {
     private Message message_;

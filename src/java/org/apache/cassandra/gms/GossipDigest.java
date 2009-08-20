@@ -30,7 +30,6 @@ import org.apache.cassandra.net.*;
 /**
  * Contains information about a specified list of EndPoints and the largest version 
  * of the state they have generated as known by the local endpoint.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class GossipDigest implements Comparable<GossipDigest>

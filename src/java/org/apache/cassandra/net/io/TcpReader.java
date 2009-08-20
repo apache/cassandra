@@ -25,10 +25,6 @@ import java.util.*;
 import org.apache.cassandra.net.ProtocolHeader;
 import org.apache.cassandra.net.TcpConnection;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class TcpReader
 {
     public static enum TcpReaderState

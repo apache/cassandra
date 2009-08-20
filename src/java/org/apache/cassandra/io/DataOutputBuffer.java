@@ -27,8 +27,6 @@ import java.io.IOException;
 /**
  * An implementation of the DataOutputStream interface. This class is completely thread
  * unsafe.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class DataOutputBuffer extends DataOutputStream
 {

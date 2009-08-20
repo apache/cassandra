@@ -24,10 +24,6 @@ import java.nio.channels.SocketChannel;
 import java.io.IOException;
 import org.apache.cassandra.net.MessagingService;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class ProtocolState extends StartState
 {
     private ByteBuffer buffer_;

@@ -30,10 +30,6 @@ import java.io.*;
 import org.w3c.dom.*;
 import org.xml.sax.*;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class XMLUtils
 {
 	private Document document_;

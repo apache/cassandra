@@ -40,8 +40,6 @@ import org.apache.log4j.Logger;
  * This FailureDetector is an implementation of the paper titled
  * "The Phi Accrual Failure Detector" by Hayashibara. 
  * Check the paper and the <i>IFailureDetector</i> interface for details.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {

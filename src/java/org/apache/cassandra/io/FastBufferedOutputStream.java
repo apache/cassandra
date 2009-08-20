@@ -25,8 +25,6 @@ import java.io.*;
  * stream, an application can write bytes to the underlying output stream
  * without necessarily causing a call to the underlying system for each byte
  * written.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class FastBufferedOutputStream extends FilterOutputStream
 {

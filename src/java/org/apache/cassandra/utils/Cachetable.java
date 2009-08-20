@@ -21,9 +21,6 @@ package org.apache.cassandra.utils;
 import java.util.*;
 
 import org.apache.log4j.Logger;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 public class Cachetable<K,V> implements ICachetable<K,V>
 {

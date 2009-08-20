@@ -45,9 +45,6 @@ import org.apache.cassandra.db.CalloutManager;
  * jsvc wrapper, see the 
  * <a href="http://commons.apache.org/daemon/jsvc.html">Commons Daemon</a>
  * documentation).
- * 
- * @author Eric Evans <eevans@racklabs.com>
- * 
  */
 
 public class CassandraDaemon

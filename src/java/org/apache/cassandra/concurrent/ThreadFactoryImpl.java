@@ -26,7 +26,6 @@ import org.apache.cassandra.utils.*;
  * This class is an implementation of the <i>ThreadFactory</i> interface. This 
  * is useful to give Java threads meaningful names which is useful when using 
  * a tool like JConsole.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class ThreadFactoryImpl implements ThreadFactory

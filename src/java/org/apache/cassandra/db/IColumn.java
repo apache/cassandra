@@ -22,10 +22,6 @@ import java.util.Collection;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public interface IColumn
 {
     public static short UtfPrefix_ = 2;

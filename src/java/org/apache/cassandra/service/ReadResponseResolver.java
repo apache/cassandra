@@ -42,7 +42,6 @@ import org.apache.log4j.Logger;
  * when at least a few of the servers (few is specified in Quorum)
  * have sent the response . The resolve function then schedules read repair 
  * and resolution of read data from the various servers.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class ReadResponseResolver implements IResponseResolver<Row>
 {

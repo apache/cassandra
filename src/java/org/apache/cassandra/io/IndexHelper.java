@@ -29,7 +29,6 @@ import org.apache.cassandra.utils.BloomFilter;
 
 /**
  * Provides helper to serialize, deserialize and use column indexes.
- * Author : Karthik Ranganathan ( kranganathan@facebook.com )
  */
 
 public class IndexHelper

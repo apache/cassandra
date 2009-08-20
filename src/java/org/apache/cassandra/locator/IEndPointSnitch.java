@@ -27,7 +27,6 @@ import org.apache.cassandra.net.EndPoint;
  * This interface helps determine location of node in the data center relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
  * data center.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IEndPointSnitch

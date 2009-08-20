@@ -39,7 +39,6 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 
-
 /*
  * This class manages the read repairs . This is a singleton class
  * it basically uses the cache table construct to schedule writes that have to be 
@@ -48,7 +47,6 @@ import org.apache.log4j.Logger;
  * expirationTimeInMillis and calls a global hook function on pending entries 
  * This function basically sends the message to the appropriate servers to update them
  * with the latest changes.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 class ReadRepairManager
 {

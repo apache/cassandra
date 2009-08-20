@@ -294,7 +294,6 @@ import org.apache.log4j.Logger;
  * </pre>
  * 
  * @since 1.5
- * @author Doug Lea
  */
 public class ContinuationsExecutor extends AbstractExecutorService
 {

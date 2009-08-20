@@ -25,8 +25,6 @@ import org.apache.cassandra.net.EndPoint;
  * to query liveness information of a node in the cluster. It 
  * also exposes methods which help an application register callbacks
  * for notifications of liveness information of nodes.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IFailureDetector

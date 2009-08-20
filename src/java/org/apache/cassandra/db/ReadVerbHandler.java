@@ -33,10 +33,6 @@ import org.apache.cassandra.service.UnavailableException;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class ReadVerbHandler implements IVerbHandler
 {
     protected static class ReadContext

@@ -29,10 +29,6 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.*;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class RowMutationVerbHandler implements IVerbHandler
 {
     protected static class RowMutationContext

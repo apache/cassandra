@@ -37,10 +37,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class MultiQuorumResponseHandler implements IAsyncCallback
 { 
     private static Logger logger_ = Logger.getLogger( QuorumResponseHandler.class );
@@ -59,8 +55,6 @@ public class MultiQuorumResponseHandler implements IAsyncCallback
     /**
      * This is used to handle the responses from the individual messages
      * that are sent out to the replicas.
-     * @author alakshman
-     *
     */
     private class SingleQuorumResponseHandler implements IAsyncCallback
     {

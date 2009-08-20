@@ -26,11 +26,6 @@ import org.apache.cassandra.utils.FileUtils;
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
-
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class RecoveryManager
 {
     private static RecoveryManager instance_;

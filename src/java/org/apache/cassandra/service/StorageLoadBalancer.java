@@ -53,8 +53,6 @@ import org.apache.cassandra.net.MessagingService;
  * load information i.e number of requests processed w.r.t distinct
  * keys at an Endpoint. Monitor load information for a 5 minute
  * interval and then do load balancing operations if necessary.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 {

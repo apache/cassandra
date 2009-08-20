@@ -34,8 +34,6 @@ import org.apache.cassandra.utils.*;
 /**
  * This is the first message that gets sent out as a start of the Gossip protocol in a 
  * round. 
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 class GossipDigestSynMessage

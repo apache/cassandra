@@ -20,10 +20,6 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 
 public class BasicUtilities
 {        

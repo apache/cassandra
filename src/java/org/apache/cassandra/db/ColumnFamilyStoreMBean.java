@@ -20,9 +20,6 @@ package org.apache.cassandra.db;
 
 /**
  * The MBean interface for ColumnFamilyStore
- * 
- * @author Eric Evans
- *
  */
 public interface ColumnFamilyStoreMBean
 {

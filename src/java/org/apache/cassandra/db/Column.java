@@ -30,8 +30,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
  * Column is immutable, which prevents all kinds of confusion in a multithreaded environment.
  * (TODO: look at making SuperColumn immutable too.  This is trickier but is probably doable
  *  with something like PCollections -- http://code.google.com
- *
- * Author : Avinash Lakshman ( alakshman@facebook.com ) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public final class Column implements IColumn

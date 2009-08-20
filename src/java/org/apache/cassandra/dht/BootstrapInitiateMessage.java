@@ -31,10 +31,6 @@ import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.net.io.*;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class BootstrapInitiateMessage implements Serializable
 {
     private static ICompactSerializer<BootstrapInitiateMessage> serializer_;

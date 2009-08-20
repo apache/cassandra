@@ -21,10 +21,7 @@ package org.apache.cassandra.concurrent;
 /**
  * Use this implementation over Java's ThreadLocal or InheritableThreadLocal when 
  * you need to add multiple key/value pairs into ThreadLocalContext for a given thread.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
-
 
 public class ThreadLocalContext
 {

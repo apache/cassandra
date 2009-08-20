@@ -28,8 +28,6 @@ import org.apache.cassandra.utils.*;
  * This is a wrapper class for the <i>ScheduledThreadPoolExecutor</i>. It provides an implementation
  * for the <i>afterExecute()</i> found in the <i>ThreadPoolExecutor</i> class to log any unexpected 
  * Runtime Exceptions.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public final class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor
 {

@@ -24,9 +24,6 @@ import java.nio.channels.SocketChannel;
 import java.io.IOException;
 
 import org.apache.cassandra.utils.FBUtilities;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 class ContentLengthState extends StartState
 {

@@ -27,10 +27,6 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class LoadVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = Logger.getLogger(LoadVerbHandler.class);    

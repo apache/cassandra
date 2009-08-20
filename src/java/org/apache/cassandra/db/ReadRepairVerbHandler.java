@@ -30,10 +30,6 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.net.*;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class ReadRepairVerbHandler implements IVerbHandler
 {
     private static Logger logger_ = Logger.getLogger(ReadRepairVerbHandler.class);    

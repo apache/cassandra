@@ -30,8 +30,6 @@ import org.apache.cassandra.net.*;
 /**
  * This message gets sent out as a result of the receipt of a GossipDigestAckMessage. This the 
  * last stage of the 3 way messaging of the Gossip protocol.
- *  
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 class GossipDigestAck2Message

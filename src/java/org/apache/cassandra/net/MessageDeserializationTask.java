@@ -29,10 +29,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 class MessageDeserializationTask implements Runnable
 {
     private static Logger logger_ = Logger.getLogger(MessageDeserializationTask.class); 

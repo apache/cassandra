@@ -39,10 +39,6 @@ import org.apache.cassandra.net.io.TcpReader;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class TcpConnection extends SelectionKeyHandler implements Comparable
 {
     // logging and profiling.

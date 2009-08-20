@@ -21,9 +21,6 @@ package org.apache.cassandra.net;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 public class CompactEndPointSerializationHelper
 {

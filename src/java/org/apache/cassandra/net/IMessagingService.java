@@ -29,7 +29,6 @@ import org.apache.cassandra.concurrent.IStage;
  * An IMessagingService provides the methods for sending messages to remote
  * endpoints. IMessagingService enables the sending of request-response style
  * messages and fire-forget style messages.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public interface IMessagingService

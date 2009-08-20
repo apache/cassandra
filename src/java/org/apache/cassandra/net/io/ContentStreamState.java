@@ -27,11 +27,6 @@ import java.io.*;
 import org.apache.cassandra.db.Table;
 import org.apache.log4j.Logger;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
-
 class ContentStreamState extends StartState
 {       
     private static Logger logger_ = Logger.getLogger(ContentStreamState.class);

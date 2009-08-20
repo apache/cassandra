@@ -26,8 +26,6 @@ import java.util.BitSet;
  * Implementation of a PureRandomNumber generator. Use this class cautiously. Not
  * for general purpose use. Currently this is used by the Gossiper to choose a random
  * endpoint to Gossip to.
- *
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 class PureRandom extends Random

@@ -50,7 +50,6 @@ import org.apache.log4j.Logger;
  * on the identifier space. This token gets gossiped around.
  * This class will also maintain histograms of the load information
  * of other nodes in the cluster.
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public final class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
 {

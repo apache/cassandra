@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.net;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public interface IAsyncCallback 
 {
 	/**

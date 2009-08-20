@@ -37,10 +37,6 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class FBUtilities
 {
     private static Logger logger_ = Logger.getLogger(FBUtilities.class);

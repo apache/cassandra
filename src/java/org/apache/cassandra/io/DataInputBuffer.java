@@ -24,8 +24,6 @@ import java.io.*;
 /**
  * An implementation of the DataInputStream interface. This instance is completely thread 
  * unsafe.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public final class DataInputBuffer extends DataInputStream

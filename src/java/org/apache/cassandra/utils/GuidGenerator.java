@@ -23,9 +23,6 @@ import org.apache.log4j.Logger;
 import java.util.*;
 import java.net.*;
 import java.security.*;
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
 
 public class GuidGenerator {
     private static Logger logger_ = Logger.getLogger(GuidGenerator.class);

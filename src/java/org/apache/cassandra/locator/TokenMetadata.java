@@ -25,11 +25,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 
-
-/**
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
- */
-
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */

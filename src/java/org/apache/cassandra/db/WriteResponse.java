@@ -36,7 +36,6 @@ import org.apache.cassandra.service.StorageService;
  * This message is sent back the row mutation verb handler 
  * and basically specifies if the write succeeded or not for a particular 
  * key in a table
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 public class WriteResponse 
 {
