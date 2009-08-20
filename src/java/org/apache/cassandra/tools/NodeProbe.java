@@ -39,7 +39,7 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutorMBean;
+import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
@@ -468,9 +468,7 @@ public class NodeProbe
             for (ObjectName objectName : result)
             {
                 String poolName = objectName.getKeyProperty("type");
-                DebuggableThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn,
-                                                                                      objectName,
-                                                                                      DebuggableThreadPoolExecutorMBean.class);
+                IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, IExecutorMBean.class);
                 outs.println(poolName + ", pending tasks=" + threadPoolProxy.getPendingTasks());
             }
         }

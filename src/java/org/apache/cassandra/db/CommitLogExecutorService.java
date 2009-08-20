@@ -21,14 +21,17 @@ package org.apache.cassandra.db;
  */
 
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
-public class CommitLogExecutorService extends AbstractExecutorService
+import org.apache.cassandra.config.DatabaseDescriptor;
+
+public class CommitLogExecutorService extends AbstractExecutorService implements CommitLogExecutorServiceMBean
 {
     BlockingQueue<CheaterFutureTask> queue;
 
@@ -63,6 +66,20 @@ public class CommitLogExecutorService extends AbstractExecutorService
             }
         };
         new Thread(runnable).start();
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.concurrent:type=COMMITLOG"));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public long getPendingTasks() {
+        return queue.size();
     }
 
     private void process() throws InterruptedException

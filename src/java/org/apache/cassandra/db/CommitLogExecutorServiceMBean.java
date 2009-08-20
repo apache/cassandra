@@ -16,8 +16,10 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.concurrent;
+package org.apache.cassandra.db;
 
-public interface DebuggableThreadPoolExecutorMBean extends IExecutorMBean
+import org.apache.cassandra.concurrent.IExecutorMBean;
+
+public interface CommitLogExecutorServiceMBean extends IExecutorMBean
 {
 }

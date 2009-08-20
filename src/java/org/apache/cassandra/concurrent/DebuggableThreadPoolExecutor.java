@@ -18,20 +18,17 @@
 
 package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.*;
 import java.lang.management.ManagementFactory;
-
-import org.apache.log4j.Logger;
-
+import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+
+import org.apache.log4j.Logger;
 
 /**
  * This is a wrapper class for the <i>ScheduledThreadPoolExecutor</i>. It provides an implementation
  * for the <i>afterExecute()</i> found in the <i>ThreadPoolExecutor</i> class to log any unexpected 
  * Runtime Exceptions.
- * 
- * Author : Avinash Lakshman ( alakshman@facebook.com) & Prashant Malik ( pmalik@facebook.com )
  */
 
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements DebuggableThreadPoolExecutorMBean
@@ -53,24 +50,12 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
+
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
             objName = new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id_);
             mbs.registerMBean(this, objName);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-    
-    public void unregisterMBean()
-    {
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.unregisterMBean(objName);
         }
         catch (Exception e)
         {
