@@ -21,18 +21,19 @@ package org.apache.cassandra.service;
  */
 
 
+import java.util.List;
+import java.util.Comparator;
+import java.util.Arrays;
+
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class ThriftValidation
 {
-    static void validateKeyCommand(String key, String tablename, String... columnFamilyNames) throws InvalidRequestException
-    {
-        validateKey(key);
-        validateCommand(tablename, columnFamilyNames);
-    }
-
     static void validateKey(String key) throws InvalidRequestException
     {
         if (key.isEmpty())
@@ -90,9 +91,18 @@ public class ThriftValidation
                 throw new InvalidRequestException("column parameter is not optional for standard CF " + column_path.column_family);
             }
         }
-        else if (column_path.super_column == null)
+        else
         {
-            throw new InvalidRequestException("column parameter is not optional for super CF " + column_path.column_family);
+            if (column_path.super_column == null)
+                throw new InvalidRequestException("column parameter is not optional for super CF " + column_path.column_family);
+        }
+        if (column_path.column != null)
+        {
+            validateColumns(tablename, column_path.column_family, column_path.super_column, Arrays.asList(column_path.column));
+        }
+        if (column_path.super_column != null)
+        {
+            validateColumns(tablename, column_path.column_family, null, Arrays.asList(column_path.super_column));
         }
     }
 
@@ -107,6 +117,10 @@ public class ThriftValidation
                 throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
             }
         }
+        if (column_parent.super_column != null)
+        {
+            validateColumns(tablename, column_parent.column_family, null, Arrays.asList(column_parent.super_column));
+        }
     }
 
     // column_path_or_parent is a ColumnPath for remove, where the "column" is optional even for a standard CF
@@ -120,6 +134,61 @@ public class ThriftValidation
             {
                 throw new InvalidRequestException("supercolumn may not be specified for standard CF " + column_path_or_parent.column_family);
             }
+        }
+        if (column_path_or_parent.column != null)
+        {
+            validateColumns(tablename, column_path_or_parent.column_family, column_path_or_parent.super_column, Arrays.asList(column_path_or_parent.column));
+        }
+        if (column_path_or_parent.super_column != null)
+        {
+            validateColumns(tablename, column_path_or_parent.column_family, null, Arrays.asList(column_path_or_parent.super_column));
+        }
+    }
+
+    private static void validateColumns(String keyspace, String columnFamilyName, byte[] superColumnName, Iterable<byte[]> column_names)
+    throws InvalidRequestException
+    {
+        AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamilyName, superColumnName);
+        for (byte[] name : column_names)
+        {
+            try
+            {
+                comparator.validate(name);
+            }
+            catch (MarshalException e)
+            {
+                throw new InvalidRequestException(e.getMessage());
+            }
+        }
+    }
+
+    public static void validateColumns(String keyspace, ColumnParent column_parent, Iterable<byte[]> column_names) throws InvalidRequestException
+    {
+        validateColumns(keyspace, column_parent.column_family, column_parent.super_column, column_names);
+    }
+
+    public static void validateRange(String keyspace, ColumnParent column_parent, SliceRange range) throws InvalidRequestException
+    {
+        AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, column_parent.column_family, column_parent.super_column);
+        try
+        {
+            comparator.validate(range.start);
+            comparator.validate(range.finish);
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
+
+        if (range.count < 0)
+            throw new InvalidRequestException("get_slice requires non-negative count");
+
+        Comparator<byte[]> orderedComparator = range.isReversed() ? comparator.getReverseComparator() : comparator;
+        if (range.start.length > 0
+            && range.finish.length > 0
+            && orderedComparator.compare(range.start, range.finish) > 0)
+        {
+            throw new InvalidRequestException("range finish must come after start in the order of traversal");
         }
     }
 }

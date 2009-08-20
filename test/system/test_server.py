@@ -231,12 +231,38 @@ class TestMutations(CassandraTester):
         _verify_batch()
 
     def test_bad_calls(self):
+        # supercolumn in a non-super CF
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', 'x', 'y'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
-
+        # get doesn't specify column name
         _expect_exception(lambda: client.get('Keyspace1', 'key1', ColumnPath('Standard1'), ConsistencyLevel.ONE), InvalidRequestException)
+        # supercolumn in a non-super CF
         _expect_exception(lambda: client.get('Keyspace1', 'key1', ColumnPath('Standard1', 'x', 'y'), ConsistencyLevel.ONE), InvalidRequestException)
+        # get doesn't specify supercolumn name
         _expect_exception(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1'), ConsistencyLevel.ONE), InvalidRequestException)
+        # invalid CF
         _expect_exception(lambda: client.get_key_range('Keyspace1', 'S', '', '', 1000), InvalidRequestException)
+        # 'x' is not a valid Long
+        _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', 'x'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
+        # start is not a valid Long
+        p = SlicePredicate(slice_range=SliceRange('x', '', False, 1))
+        column_parent = ColumnParent('StandardLong1')
+        _expect_exception(lambda: client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE),
+                          InvalidRequestException)
+        # start > finish
+        p = SlicePredicate(slice_range=SliceRange(_i64(10), _i64(0), False, 1))
+        column_parent = ColumnParent('StandardLong1')
+        _expect_exception(lambda: client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE),
+                          InvalidRequestException)
+        # start is not a valid Long, supercolumn version
+        p = SlicePredicate(slice_range=SliceRange('x', '', False, 1))
+        column_parent = ColumnParent('Super1', 'sc1')
+        _expect_exception(lambda: client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE),
+                          InvalidRequestException)
+        # start > finish, supercolumn version
+        p = SlicePredicate(slice_range=SliceRange(_i64(10), _i64(0), False, 1))
+        column_parent = ColumnParent('Super1', 'sc1')
+        _expect_exception(lambda: client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE),
+                          InvalidRequestException)
 
     def test_batch_insert_super(self):
          cfmap = {'Super1': _SUPER_COLUMNS,

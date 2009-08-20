@@ -43,12 +43,6 @@ public class SliceByNamesReadCommand extends ReadCommand
     }
 
     @Override
-    public String getColumnFamilyName()
-    {
-        return queryPath.columnFamilyName;
-    }
-
-    @Override
     public ReadCommand copy()
     {
         ReadCommand readCommand= new SliceByNamesReadCommand(table, key, queryPath, columnNames);

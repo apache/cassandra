@@ -199,13 +199,13 @@ public class CassandraServer implements Cassandra.Iface
 
         if (predicate.column_names != null)
         {
+            ThriftValidation.validateColumns(keyspace, column_parent, predicate.column_names);
             return getSlice(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names), consistency_level);
         }
         else
         {
             SliceRange range = predicate.slice_range;
-            if (range.count < 0)
-                throw new InvalidRequestException("get_slice requires non-negative count");
+            ThriftValidation.validateRange(keyspace, column_parent, range);
             return getSlice(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count), consistency_level);
         }
     }
@@ -319,11 +319,16 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
-        RowMutation rm = RowMutation.getRowMutation(table, batch_mutation);
-        Set<String> cfNames = rm.columnFamilyNames();
-        ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        doInsert(consistency_level, rm);
+        for (String cfName : batch_mutation.cfmap.keySet())
+        {
+            for (Column c : batch_mutation.cfmap.get(cfName))
+            {
+                ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, null, c.name));
+            }
+        }
+
+        doInsert(consistency_level, RowMutation.getRowMutation(table, batch_mutation));
     }
 
     public void remove(String table, String key, ColumnPath column_path, long timestamp, int consistency_level)
@@ -356,11 +361,19 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert_SuperColumn");
-        RowMutation rm = RowMutation.getRowMutation(table, batch_mutation_super);
-        Set<String> cfNames = rm.columnFamilyNames();
-        ThriftValidation.validateKeyCommand(rm.key(), rm.table(), cfNames.toArray(new String[cfNames.size()]));
 
-        doInsert(consistency_level, rm);
+        for (String cfName : batch_mutation_super.cfmap.keySet())
+        {
+            for (SuperColumn sc : batch_mutation_super.cfmap.get(cfName))
+            {
+                for (Column c : sc.columns)
+                {
+                    ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, sc.name, c.name));
+                }
+            }
+        }
+
+        doInsert(consistency_level, RowMutation.getRowMutation(table, batch_mutation_super));
     }
 
     public String get_string_property(String propertyName)

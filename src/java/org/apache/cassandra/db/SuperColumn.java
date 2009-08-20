@@ -163,14 +163,6 @@ public final class SuperColumn implements IColumn, IColumnContainer
     {
     	if (!(column instanceof Column))
     		throw new UnsupportedOperationException("A super column can only contain simple columns.");
-        try
-        {
-            getComparator().validate(column.name());
-        }
-        catch (Exception e)
-        {
-            throw new MarshalException("Invalid column name in supercolumn for " + getComparator().getClass().getName());
-        }
     	IColumn oldColumn = columns_.get(column.name());
     	if ( oldColumn == null )
         {

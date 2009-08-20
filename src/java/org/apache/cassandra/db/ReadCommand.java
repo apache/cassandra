@@ -30,7 +30,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 
 public abstract class ReadCommand
@@ -80,7 +79,10 @@ public abstract class ReadCommand
         this.isDigestQuery = isDigestQuery;
     }
 
-    public abstract String getColumnFamilyName();
+    public String getColumnFamilyName()
+    {
+        return queryPath.columnFamilyName;
+    }
     
     public abstract ReadCommand copy();
 
@@ -88,9 +90,7 @@ public abstract class ReadCommand
 
     protected AbstractType getComparator()
     {
-        return queryPath.superColumnName == null
-               ? DatabaseDescriptor.getComparator(table, getColumnFamilyName())
-               : DatabaseDescriptor.getSubComparator(table, getColumnFamilyName());
+        return ColumnFamily.getComparatorFor(table, getColumnFamilyName(), queryPath.superColumnName);
     }
 }
 

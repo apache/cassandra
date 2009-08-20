@@ -168,27 +168,11 @@ public final class ColumnFamily implements IColumnContainer
 		IColumn column;
         if (path.superColumnName == null)
         {
-            try
-            {
-                getComparator().validate(path.columnName);
-            }
-            catch (Exception e)
-            {
-                throw new MarshalException("Invalid column name in " + path.columnFamilyName + " for " + getComparator().getClass().getName());
-            }
             column = new Column(path.columnName, value, timestamp, deleted);
         }
         else
         {
             assert isSuper();
-            try
-            {
-                getComparator().validate(path.superColumnName);
-            }
-            catch (Exception e)
-            {
-                throw new MarshalException("Invalid supercolumn name in " + path.columnFamilyName + " for " + getComparator().getClass().getName());
-            }
             column = new SuperColumn(path.superColumnName, getSubComparator());
             column.addColumn(new Column(path.columnName, value, timestamp, deleted)); // checks subcolumn name
         }
@@ -435,5 +419,12 @@ public final class ColumnFamily implements IColumnContainer
             cf.delete(cf2);
         }
         return cf;
+    }
+
+    public static AbstractType getComparatorFor(String table, String columnFamilyName, byte[] superColumnName)
+    {
+        return superColumnName == null
+               ? DatabaseDescriptor.getComparator(table, columnFamilyName)
+               : DatabaseDescriptor.getSubComparator(table, columnFamilyName);
     }
 }
