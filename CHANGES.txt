@@ -7,6 +7,7 @@
    different types of operation on the same ColumnFamily could
    disagree on what data was present
  * Configurable LRU cache for key lookups
+ * Snapshot support via JMX
  * Thrift API has changed a _lot_:
     - removed time-sorted CFs; instead, user-defined comparators
       may be defined on the column names, which are now byte arrays.
