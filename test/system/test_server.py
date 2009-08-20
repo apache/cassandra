@@ -26,7 +26,7 @@ from ttypes import *
 
 
 def _i64(n):
-    return struct.pack('<q', n) # little endian, to match cassandra.db.marshal.LongType
+    return struct.pack('>q', n) # big endian = network order
 
 _SIMPLE_COLUMNS = [Column('c1', 'value1', 0),
                    Column('c2', 'value2', 0)]
@@ -178,6 +178,20 @@ class TestMutations(CassandraTester):
         slice = [result.column
                  for result in client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE)]
         assert slice == [Column(_i64(6), 'value6', 0)], slice
+        
+    def test_long_order(self):
+        def long_xrange(start, stop, step):
+            i = start
+            while i < stop:
+                yield i
+                i += step
+        L = []
+        for i in long_xrange(0, 104294967296, 429496729):
+            name = _i64(i)
+            client.insert('Keyspace1', 'key1', ColumnPath('StandardLong1', column=name), 'v', 0, ConsistencyLevel.ONE)
+            L.append(name)
+        slice = [result.column.name for result in _big_slice('Keyspace1', 'key1', ColumnParent('StandardLong1'))]
+        assert slice == L, slice
         
     def test_time_uuid(self):
         import uuid

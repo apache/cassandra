@@ -37,8 +37,8 @@ public class LongType extends AbstractType
             return 1;
         }
 
-        long L1 = ByteBuffer.wrap(o1).order(ByteOrder.LITTLE_ENDIAN).getLong();
-        long L2 = ByteBuffer.wrap(o2).order(ByteOrder.LITTLE_ENDIAN).getLong();
+        long L1 = ByteBuffer.wrap(o1).getLong();
+        long L2 = ByteBuffer.wrap(o2).getLong();
         return Long.valueOf(L1).compareTo(Long.valueOf(L2));
     }
 
