@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -207,7 +206,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (bootstrapSet.isEmpty())
         {
             isBootstrapMode = false;
-            tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_, false);
+            tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, false);
 
             logger_.info("Bootstrap completed! Now serving reads.");
             /* Tell others you're not bootstrapping anymore */
@@ -306,8 +305,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
          */
         Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
         /* Make sure this token gets gossiped around. */
-        tokenMetadata_.update(storageMetadata_.getStorageId(), StorageService.tcpAddr_, isBootstrapMode);
-        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getStorageId()));
+        tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
+        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
         if (isBootstrapMode)
         {

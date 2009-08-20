@@ -38,12 +38,12 @@ import org.apache.cassandra.db.filter.NamesQueryFilter;
 
 public class SystemTable
 {
-    private static Logger logger_ = Logger.getLogger(SystemTable.class);
+    private static Logger logger = Logger.getLogger(SystemTable.class);
     public static final String LOCATION_CF = "LocationInfo";
     private static final String LOCATION_KEY = "L"; // only one row in Location CF
     private static final byte[] TOKEN = utf8("Token");
     private static final byte[] GENERATION = utf8("Generation");
-    private static StorageMetadata metadata_;
+    private static StorageMetadata metadata;
 
     private static byte[] utf8(String str)
     {
@@ -62,7 +62,7 @@ public class SystemTable
     */
     public static synchronized void updateToken(Token token) throws IOException
     {
-        assert metadata_ != null;
+        assert metadata != null;
         IPartitioner p = StorageService.getPartitioner();
         Table table = Table.open(Table.SYSTEM_TABLE);
         /* Retrieve the "LocationInfo" column family */
@@ -72,13 +72,13 @@ public class SystemTable
         /* create the "Token" whose value is the new token. */
         IColumn tokenColumn = new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
         /* replace the old "Token" column with this new one. */
-        if (logger_.isDebugEnabled())
-          logger_.debug("Replacing old token " + p.getTokenFactory().fromByteArray(cf.getColumn(SystemTable.TOKEN).value()) + " with " + token);
+        if (logger.isDebugEnabled())
+          logger.debug("Replacing old token " + p.getTokenFactory().fromByteArray(cf.getColumn(SystemTable.TOKEN).value()) + " with " + token);
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf.addColumn(tokenColumn);
         rm.add(cf);
         rm.apply();
-        metadata_.setStorageId(token);
+        metadata.setToken(token);
     }
     
     /*
@@ -91,8 +91,8 @@ public class SystemTable
     */
     public static synchronized StorageMetadata initMetadata() throws IOException
     {
-        if (metadata_ != null)  // guard to protect against being called twice
-            return metadata_;
+        if (metadata != null)  // guard to protect against being called twice
+            return metadata;
 
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
@@ -111,8 +111,8 @@ public class SystemTable
             cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)) );
             rm.add(cf);
             rm.apply();
-            metadata_ = new StorageMetadata(token, generation);
-            return metadata_;
+            metadata = new StorageMetadata(token, generation);
+            return metadata;
         }
 
         /* we crashed and came back up need to bump generation # */
@@ -128,34 +128,34 @@ public class SystemTable
         cf.addColumn(generation2);
         rm.add(cf);
         rm.apply();
-        metadata_ = new StorageMetadata(token, gen);
-        return metadata_;
+        metadata = new StorageMetadata(token, gen);
+        return metadata;
     }
 
     public static class StorageMetadata
     {
-        private Token myToken;
-        private int generation_;
+        private Token token;
+        private int generation;
 
         StorageMetadata(Token storageId, int generation)
         {
-            myToken = storageId;
-            generation_ = generation;
+            token = storageId;
+            this.generation = generation;
         }
 
-        public Token getStorageId()
+        public Token getToken()
         {
-            return myToken;
+            return token;
         }
 
-        public void setStorageId(Token storageId)
+        public void setToken(Token storageId)
         {
-            myToken = storageId;
+            token = storageId;
         }
 
         public int getGeneration()
         {
-            return generation_;
+            return generation;
         }
     }
 }
