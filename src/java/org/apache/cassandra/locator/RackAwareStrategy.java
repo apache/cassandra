@@ -129,7 +129,7 @@ public class RackAwareStrategy extends AbstractStrategy
 
         for ( String key : keys )
         {
-            results.put(key, getStorageEndPoints(partitioner_.getInitialToken(key)));
+            results.put(key, getStorageEndPoints(partitioner_.getToken(key)));
         }
 
         return results;

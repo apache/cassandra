@@ -116,7 +116,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         return tokenFactory;
     }
 
-    public Token getInitialToken(String key)
+    public Token getToken(String key)
     {
         return new StringToken(key);
     }

@@ -103,6 +103,7 @@ public class SystemTable
         if (cf == null)
         {
             Token token = p.getDefaultToken();
+            logger.info("Saved Token not found. Using " + token);
             int generation = 1;
 
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
@@ -118,6 +119,7 @@ public class SystemTable
         /* we crashed and came back up need to bump generation # */
         IColumn tokenColumn = cf.getColumn(TOKEN);
         Token token = p.getTokenFactory().fromByteArray(tokenColumn.value());
+        logger.info("Saved Token found: " + token);
 
         IColumn generation = cf.getColumn(GENERATION);
         int gen = BasicUtilities.byteArrayToInt(generation.value()) + 1;

@@ -35,6 +35,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.commons.lang.StringUtils;
+
 /*
  * Commit Log tracks every write operation into the system. The aim
  * of the commit log is to be able to successfully recover data that was
@@ -322,6 +324,11 @@ public class CommitLog
 
                 /* read the commit log entry */
                 Row row = Row.serializer().deserialize(bufIn);
+                if (logger_.isDebugEnabled())
+                    logger_.debug(String.format("replaying mutation for %s.%s: %s",
+                                                row.getTable(),
+                                                row.key(),
+                                                "{" + StringUtils.join(row.getColumnFamilies(), ", ") + "}"));
                 Table table = Table.open(row.getTable());
                 tablesRecovered.add(table);
                 Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());

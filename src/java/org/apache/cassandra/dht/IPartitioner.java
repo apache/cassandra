@@ -38,10 +38,15 @@ public interface IPartitioner
     public Comparator<String> getReverseDecoratedKeyComparator();
 
     /**
-     * @return the token to use for this node if none was saved
+     * @return a Token that can be used to route a given key
      */
-    public Token getInitialToken(String key);
+    public Token getToken(String key);
 
+    /**
+     * @return the default Token to represent this node if none was saved.
+     * Uses the one given in the InitialToken configuration directive,
+     * or picks one automatically if that was not given.
+     */
     public Token getDefaultToken();
 
     public Token.TokenFactory getTokenFactory();

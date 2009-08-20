@@ -625,12 +625,14 @@ public class Table
 
     public void flush(boolean fRecovery) throws IOException
     {
-        Set<String> cfNames = columnFamilyStores_.keySet();
-        for ( String cfName : cfNames )
+        for (String cfName : columnFamilyStores_.keySet())
         {
-            if (fRecovery) {
+            if (fRecovery)
+            {
                 columnFamilyStores_.get(cfName).flushMemtableOnRecovery();
-            } else {
+            }
+            else
+            {
                 columnFamilyStores_.get(cfName).forceFlush();
             }
         }

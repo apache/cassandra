@@ -45,7 +45,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.Predicate;
-import org.apache.commons.collections.iterators.ReverseListIterator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -978,7 +977,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     FileStruct filestruct = lfs.get(0);
                     ColumnFamily.serializer().serializeWithIndexes(filestruct.getColumnFamily(), bufOut);
                 }
-                if (Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(lastkey), ranges))
+                if (Range.isTokenInRanges(StorageService.getPartitioner().getToken(lastkey), ranges))
                 {
                     if (rangeWriter == null)
                     {
@@ -1001,7 +1000,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         continue;
                     }
                     /* keep on looping until we find a key in the range */
-                    while (!Range.isTokenInRanges(StorageService.getPartitioner().getInitialToken(filestruct.getKey()), ranges))
+                    while (!Range.isTokenInRanges(StorageService.getPartitioner().getToken(filestruct.getKey()), ranges))
                     {
                         filestruct.advance(true);
                         if (filestruct.isExhausted())

@@ -51,12 +51,9 @@ public class XMLUtils
     }
 
 	public String getNodeValue(String xql) throws XPathExpressionException
-	{        
-        XPathExpression expr = xpath_.compile(xql);
-        String value = expr.evaluate(document_);
-        if ( value != null && value.equals("") )
-            value = null;
-        return value;	
+	{
+        String value = xpath_.compile(xql).evaluate(document_);
+        return "".equals(value) ? null : value;
     }
         
 	public String[] getNodeValues(String xql) throws XPathExpressionException
