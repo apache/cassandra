@@ -27,6 +27,7 @@ public interface IColumn
     public static short UtfPrefix_ = 2;
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
+    public long mostRecentChangeAt();
     public byte[] name();
     public int size();
     public int serializedSize();

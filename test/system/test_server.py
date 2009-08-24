@@ -235,6 +235,23 @@ class TestMutations(CassandraTester):
                  for result in client.get_slice('Keyspace2', 'key1', column_parent, p, ConsistencyLevel.ONE)]
         assert slice == [Column(L[2].bytes, 'value2', 2)], slice
         
+    def test_long_remove(self):
+        column_parent = ColumnParent('StandardLong1')
+        sp = SlicePredicate(slice_range=SliceRange('', '', False, 1))
+
+        for i in xrange(10):
+            path = ColumnPath('StandardLong1', column=_i64(i))
+
+            client.insert('Keyspace1', 'key1', path, 'value1', 10 * i, ConsistencyLevel.ONE)
+            client.remove('Keyspace1', 'key1', ColumnPath('StandardLong1'), 10 * i + 1, ConsistencyLevel.ONE)
+            slice = client.get_slice('Keyspace1', 'key1', column_parent, sp, ConsistencyLevel.ONE)
+            assert slice == [], slice
+            # resurrect
+            client.insert('Keyspace1', 'key1', path, 'value2', 10 * i + 2, ConsistencyLevel.ONE)
+            slice = [result.column
+                     for result in client.get_slice('Keyspace1', 'key1', column_parent, sp, ConsistencyLevel.ONE)]
+            assert slice == [Column(_i64(i), 'value2', 10 * i + 2)], (slice, i)
+        
     def test_batch_insert(self):
         _insert_batch(False)
         time.sleep(0.1)

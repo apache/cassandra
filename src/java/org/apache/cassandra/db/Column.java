@@ -125,6 +125,11 @@ public final class Column implements IColumn
         return timestamp;
     }
 
+    public long mostRecentChangeAt()
+    {
+        return timestamp;
+    }
+
     public int size()
     {
         /*

@@ -139,11 +139,23 @@ public final class SuperColumn implements IColumn, IColumnContainer
     public long timestamp(byte[] columnName)
     {
     	IColumn column = columns_.get(columnName);
-    	if ( column instanceof SuperColumn )
-    		throw new UnsupportedOperationException("A super column cannot hold other super columns.");
+    	assert column instanceof Column;
     	if ( column != null )
     		return column.timestamp();
     	throw new IllegalArgumentException("Timestamp was requested for a column that does not exist.");
+    }
+
+    public long mostRecentChangeAt()
+    {
+        long max = Long.MIN_VALUE;
+        for (IColumn column : columns_.values())
+        {
+            if (column.mostRecentChangeAt() > max)
+            {
+                max = column.mostRecentChangeAt();
+            }
+        }
+        return max;
     }
 
     public byte[] value()

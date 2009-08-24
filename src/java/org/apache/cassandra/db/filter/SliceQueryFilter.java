@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.Logger;
 import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.apache.commons.collections.IteratorUtils;
@@ -38,6 +39,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class SliceQueryFilter extends QueryFilter
 {
+    private static Logger logger = Logger.getLogger(SliceQueryFilter.class);
+
     public final byte[] start, finish;
     public final boolean reversed;
     public final int count;
@@ -104,19 +107,35 @@ public class SliceQueryFilter extends QueryFilter
 
         while (reducedColumns.hasNext())
         {
-            IColumn column = reducedColumns.next();
             if (liveColumns >= count)
                 break;
+
+            IColumn column = reducedColumns.next();
+            if (logger.isDebugEnabled())
+                logger.debug("collecting " + column.getString(comparator));
+
             if (finish.length > 0
                 && ((!reversed && comparator.compare(column.name(), finish) > 0))
                     || (reversed && comparator.compare(column.name(), finish) < 0))
                 break;
 
-            if (!column.isMarkedForDelete())
+            // only count live columns towards the `count` criteria
+            if (!column.isMarkedForDelete()
+                && (!container.isMarkedForDelete()
+                    || column.mostRecentChangeAt() > container.getMarkedForDeleteAt()))
+            {
                 liveColumns++;
+            }
 
-            if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
+            // but we need to add all non-gc-able columns to the result for read repair:
+            // the column itself must be not gc-able, (1)
+            // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
+            // (since otherwise, the only thing repair cares about is the container tombstone)
+            if ((!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore) // (1)
+                && (!container.isMarkedForDelete() || column.mostRecentChangeAt() > container.getMarkedForDeleteAt())) // (2)
+            {
                 container.addColumn(column);
+            }
         }
     }
 }
