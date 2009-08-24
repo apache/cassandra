@@ -41,10 +41,11 @@ public class TokenMetadata
     {
     }
     
-    private TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap, Map<EndPoint, Token> bootstrapNodes)
+    public TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap, Map<EndPoint, Token> bootstrapNodes)
     {
         tokenToEndPointMap_ = tokenToEndPointMap;
         endPointToTokenMap_ = endPointToTokenMap;
+        this.bootstrapNodes = bootstrapNodes;
     }
     
     public TokenMetadata cloneMe()

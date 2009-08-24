@@ -1100,4 +1100,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		}
 		return suitableEndPoints;
 	}
+	
+	Map<Token, EndPoint> getLiveEndPointMap()
+	{
+	    return tokenMetadata_.cloneTokenEndPointMap();
+	}
 }

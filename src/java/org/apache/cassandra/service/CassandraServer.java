@@ -33,13 +33,18 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.thrift.TException;
+
+import flexjson.JSONSerializer;
 
 public class CassandraServer implements Cassandra.Iface
 {
+    public static String TOKEN_MAP = "token map";
 	private static Logger logger = Logger.getLogger(CassandraServer.class);
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
@@ -403,6 +408,14 @@ public class CassandraServer implements Cassandra.Iface
             {
                 return "file not found!";
             }
+        }
+        else if (propertyName.equals(TOKEN_MAP))
+        {
+            HashMap<String, String> tokenToHostMap = new HashMap<String,String>();
+            Map<Token, EndPoint> endpointMap = storageService.getLiveEndPointMap();
+            for (Map.Entry<Token, EndPoint> e : endpointMap.entrySet())
+                tokenToHostMap.put(e.getKey().toString(), e.getValue().getHost());
+            return new JSONSerializer().serialize(tokenToHostMap);
         }
         else if (propertyName.equals("version"))
         {

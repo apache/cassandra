@@ -51,7 +51,7 @@ public abstract class Token<T extends Comparable> implements Comparable<Token<T>
 
     public String toString()
     {
-        return "Token(" + token + ")";
+        return token.toString();
     }
 
     public boolean equals(Object obj)
