@@ -247,16 +247,6 @@ public class CommitLog
     }
 
     /*
-     * Write the serialized commit log header into the specified commit log.
-    */
-    private static void writeCommitLogHeader(String commitLogFileName, byte[] bytes) throws IOException
-    {
-        RandomAccessFile logWriter = CommitLog.createWriter(commitLogFileName);
-        writeCommitLogHeader(logWriter, bytes);
-        logWriter.close();
-    }
-
-    /*
      * This is invoked on startup via the ctor. It basically
      * writes a header with all bits set to zero.
     */
@@ -509,7 +499,7 @@ public class CommitLog
                  * perform & operation and then turn on with the new position.
                 */
                 commitLogHeader.turnOn(id, cLogCtx.position);
-                writeCommitLogHeader(cLogCtx.file, commitLogHeader.toByteArray());
+                seekAndWriteCommitLogHeader(commitLogHeader.toByteArray());
                 break;
             }
             else
@@ -525,7 +515,9 @@ public class CommitLog
                 }
                 else
                 {
-                    writeCommitLogHeader(oldFile, oldCommitLogHeader.toByteArray());
+                    RandomAccessFile logWriter = CommitLog.createWriter(oldFile);
+                    writeCommitLogHeader(logWriter, oldCommitLogHeader.toByteArray());
+                    logWriter.close();
                 }
             }
         }
