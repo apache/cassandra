@@ -302,8 +302,11 @@ public class CommitLog
                 byte[] bytes;
                 try
                 {
-                    bytes = new byte[(int) reader.readLong()];
-                    reader.read(bytes);
+                    bytes = new byte[(int) reader.readLong()]; // readlong can throw EOFException too
+                    if (reader.read(bytes) < bytes.length)
+                    {
+                        throw new EOFException();
+                    }
                 }
                 catch (EOFException e)
                 {
