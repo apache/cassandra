@@ -247,16 +247,6 @@ public class CommitLog
     }
 
     /*
-     * Write the serialized commit log header into the specified commit log.
-    */
-    private static void writeCommitLogHeader(String commitLogFileName, byte[] bytes) throws IOException
-    {
-        RandomAccessFile logWriter = CommitLog.createWriter(commitLogFileName);
-        writeCommitLogHeader(logWriter, bytes);
-        logWriter.close();
-    }
-
-    /*
      * This is invoked on startup via the ctor. It basically
      * writes a header with all bits set to zero.
     */
@@ -495,9 +485,9 @@ public class CommitLog
          * encounter the file in the context in our list of old commit log files
          * then we update the header and write it back to the commit log.
         */
-        for(String oldFile : oldFiles)
+        for (String oldFile : oldFiles)
         {
-            if(oldFile.equals(cLogCtx.file))
+            if (oldFile.equals(cLogCtx.file))
             {
                 /*
                  * We need to turn on again. This is because we always keep
@@ -506,23 +496,25 @@ public class CommitLog
                  * perform & operation and then turn on with the new position.
                 */
                 commitLogHeader.turnOn(id, cLogCtx.position);
-                writeCommitLogHeader(cLogCtx.file, commitLogHeader.toByteArray());
+                writeCommitLogHeader(logWriter_, commitLogHeader.toByteArray());
                 break;
             }
             else
             {
                 CommitLogHeader oldCommitLogHeader = clHeaders_.get(oldFile);
                 oldCommitLogHeader.and(commitLogHeader);
-                if(oldCommitLogHeader.isSafeToDelete())
+                if (oldCommitLogHeader.isSafeToDelete())
                 {
-                	if (logger_.isDebugEnabled())
-                	  logger_.debug("Deleting commit log:"+ oldFile);
+                    if (logger_.isDebugEnabled())
+                      logger_.debug("Deleting commit log:" + oldFile);
                     FileUtils.deleteAsync(oldFile);
                     listOfDeletedFiles.add(oldFile);
                 }
                 else
                 {
-                    writeCommitLogHeader(oldFile, oldCommitLogHeader.toByteArray());
+                    RandomAccessFile logWriter = CommitLog.createWriter(oldFile);
+                    writeCommitLogHeader(logWriter, oldCommitLogHeader.toByteArray());
+                    logWriter.close();
                 }
             }
         }
