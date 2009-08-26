@@ -18,6 +18,9 @@
 */
 package org.apache.cassandra.locator;
 
+import static org.junit.Assert.*;
+
+import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -79,11 +82,57 @@ public class RackUnawareStrategyTest
         for (int i = 0; i < keyTokens.length; i++)
         {
             EndPoint[] endPoints = strategy.getStorageEndPoints(keyTokens[i]);
-            assert endPoints.length == 3;
+            assertEquals(3, endPoints.length);
             for (int j = 0; j < endPoints.length; j++)
             {
-                assert endPoints[j] == hosts.get((i + j + 1) % hosts.size());
+                assertEquals(endPoints[j], hosts.get((i + j + 1) % hosts.size()));
             }
+        }
+    }
+    
+    @Test
+    public void testGetStorageEndPointsDuringBootstrap()
+    {
+        TokenMetadata tmd = new TokenMetadata();
+        IPartitioner partitioner = new RandomPartitioner();
+        IReplicaPlacementStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+
+        Token[] endPointTokens = new Token[5]; 
+        Token[] keyTokens = new Token[5];
+        
+        for (int i = 0; i < 5; i++) 
+        {
+            endPointTokens[i] = new BigIntegerToken(String.valueOf(10 * i));
+            keyTokens[i] = new BigIntegerToken(String.valueOf(10 * i + 5));
+        }
+        
+        List<EndPoint> hosts = new ArrayList<EndPoint>();
+        for (int i = 0; i < endPointTokens.length; i++)
+        {
+            EndPoint ep = new EndPoint("127.0.0." + String.valueOf(i + 1), 7001);
+            tmd.update(endPointTokens[i], ep);
+            hosts.add(ep);
+        }
+        
+        //Add bootstrap node id=6
+        Token bsToken = new BigIntegerToken(String.valueOf(25));
+        EndPoint bootstrapEndPoint = new EndPoint("127.0.0.6", 7001);
+        tmd.update(bsToken, bootstrapEndPoint, true);
+        
+        for (int i = 0; i < keyTokens.length; i++)
+        {
+            EndPoint[] endPoints = strategy.getStorageEndPointsForWrite(keyTokens[i]);
+            assertTrue(endPoints.length >=3);
+            List<EndPoint> endPointsList = Arrays.asList(endPoints);
+
+            for (int j = 0; j < 3; j++)
+            {
+                //Check that the old nodes are definitely included
+                assertTrue(endPointsList.contains(hosts.get((i + j + 1) % hosts.size())));   
+            }
+            // for 5, 15, 25 this should include bootstrap node
+            if (i < 3)
+                assertTrue(endPointsList.contains(bootstrapEndPoint));
         }
     }
 }

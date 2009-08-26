@@ -102,9 +102,14 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
      */
     public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token)
     {
+        EndPoint[] topN = getStorageEndPointsForWrite( token );
+        return getHintedMapForEndpoints(topN);
+    }
+    
+    private Map<EndPoint, EndPoint> getHintedMapForEndpoints(EndPoint[] topN)
+    {
         List<EndPoint> liveList = new ArrayList<EndPoint>();
         Map<EndPoint, EndPoint> map = new HashMap<EndPoint, EndPoint>();
-        EndPoint[] topN = getStorageEndPoints( token );
 
         for( int i = 0 ; i < topN.length ; i++)
         {

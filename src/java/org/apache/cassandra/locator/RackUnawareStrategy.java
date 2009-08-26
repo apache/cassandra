@@ -46,12 +46,47 @@ public class RackUnawareStrategy extends AbstractStrategy
         return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());            
     }
     
+    public EndPoint[] getStorageEndPointsForWrite(Token token)
+    {
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, EndPoint> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
+        List<Token> tokenList = getStorageTokens(token, tokenToEndPointMap, bootstrapTokensToEndpointMap);
+        List<EndPoint> list = new ArrayList<EndPoint>();
+        for (Token t: tokenList)
+        {
+            EndPoint e = tokenToEndPointMap.get(t);
+            if (e == null) 
+                e = bootstrapTokensToEndpointMap.get(t); 
+            assert e != null;
+            list.add(e);
+        }
+        retrofitPorts(list);
+        return list.toArray(new EndPoint[list.size()]);            
+    }
+    
     public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
-        int startIndex;
+        List<Token> tokenList = getStorageTokens(token, tokenToEndPointMap, null);
         List<EndPoint> list = new ArrayList<EndPoint>();
+        for (Token t: tokenList)
+            list.add(tokenToEndPointMap.get(t));
+        retrofitPorts(list);
+        return list.toArray(new EndPoint[list.size()]);
+    }
+
+    private List<Token> getStorageTokens(Token token, Map<Token, EndPoint> tokenToEndPointMap, Map<Token, EndPoint> bootStrapTokenToEndPointMap)
+    {
+        int startIndex;
+        List<Token> tokenList = new ArrayList<Token>();
         int foundCount = 0;
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        List<Token> bsTokens = null;
+        
+        if (bootStrapTokenToEndPointMap != null)
+        {
+            bsTokens = new ArrayList<Token>(bootStrapTokenToEndPointMap.keySet());
+            tokens.addAll(bsTokens);
+        }
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
@@ -61,22 +96,24 @@ public class RackUnawareStrategy extends AbstractStrategy
                 index = 0;
         }
         int totalNodes = tokens.size();
-        // Add the node at the index by default
-        list.add(tokenToEndPointMap.get(tokens.get(index)));
-        foundCount++;
+        // Add the token at the index by default
+        tokenList.add((Token)tokens.get(index));
+        if (bsTokens == null || !bsTokens.contains(tokens.get(index)))
+            foundCount++;
         startIndex = (index + 1)%totalNodes;
         // If we found N number of nodes we are good. This loop will just exit. Otherwise just
         // loop through the list and add until we have N nodes.
         for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i+1)%totalNodes)
         {
-            if( ! list.contains(tokenToEndPointMap.get(tokens.get(i))))
+            if(!tokenList.contains(tokens.get(i)))
             {
-                list.add(tokenToEndPointMap.get(tokens.get(i)));
-                foundCount++;
+                tokenList.add((Token)tokens.get(i));
+                //Don't count bootstrapping tokens towards the count
+                if (bsTokens==null || !bsTokens.contains(tokens.get(i)))
+                    foundCount++;
             }
         }
-        retrofitPorts(list);
-        return list.toArray(new EndPoint[list.size()]);
+        return tokenList;
     }
             
     public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
@@ -87,7 +124,6 @@ public class RackUnawareStrategy extends AbstractStrategy
         {
             results.put(key, getStorageEndPoints(partitioner_.getToken(key)));
         }
-
         return results;
     }
 }

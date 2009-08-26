@@ -139,4 +139,15 @@ public class RackAwareStrategy extends AbstractStrategy
     {
         throw new UnsupportedOperationException("This operation is not currently supported");
     }
+
+    public EndPoint[] getStorageEndPointsForWrite(Token token)
+    {
+        throw new UnsupportedOperationException("Rack-aware bootstrapping not supported");
+    }
+
+    
+    public Map<EndPoint, EndPoint> getHintedStorageEndPointsForWrite(Token token)
+    {
+        throw new UnsupportedOperationException("Rack-aware bootstrapping not supported");
+    }
 }
