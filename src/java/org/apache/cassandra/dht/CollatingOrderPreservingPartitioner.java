@@ -19,17 +19,25 @@
 package org.apache.cassandra.dht;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
 import java.text.Collator;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Random;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class CollatingOrderPreservingPartitioner extends OrderPreservingPartitioner
+public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesToken>
 {
     static final Collator collator = Collator.getInstance(new Locale("en", "US"));
 
+    public static final BytesToken MINIMUM = new BytesToken(new byte[0]);
+
+    /**
+     * Comparators for decorated keys.
+     */
     private static final Comparator<String> comparator = new Comparator<String>() {
         public int compare(String o1, String o2)
         {
@@ -43,6 +51,16 @@ public class CollatingOrderPreservingPartitioner extends OrderPreservingPartitio
         }
     };
 
+    public String decorateKey(String key)
+    {
+        return key;
+    }
+
+    public String undecorateKey(String decoratedKey)
+    {
+        return decoratedKey;
+    }
+
     public Comparator<String> getDecoratedKeyComparator()
     {
         return comparator;
@@ -51,5 +69,61 @@ public class CollatingOrderPreservingPartitioner extends OrderPreservingPartitio
     public Comparator<String> getReverseDecoratedKeyComparator()
     {
         return reverseComparator;
+    }
+
+    public BytesToken getMinimumToken()
+    {
+        return MINIMUM;
+    }
+
+    public BytesToken getDefaultToken()
+    {
+        String initialToken = DatabaseDescriptor.getInitialToken();
+        if (initialToken != null)
+            // assume that the user specified the intial Token as a String key
+            return getToken(initialToken);
+
+        // generate random token
+        Random r = new Random();
+        byte[] buffer = new byte[16];
+        r.nextBytes(buffer);
+        return new BytesToken(buffer);
+    }
+
+    private final Token.TokenFactory<byte[]> tokenFactory = new Token.TokenFactory<byte[]>() {
+        public byte[] toByteArray(Token<byte[]> bytesToken)
+        {
+            return bytesToken.token;
+        }
+
+        public Token<byte[]> fromByteArray(byte[] bytes)
+        {
+            return new BytesToken(bytes);
+        }
+
+        public String toString(Token<byte[]> bytesToken)
+        {
+            return FBUtilities.bytesToHex(bytesToken.token);
+        }
+
+        public Token<byte[]> fromString(String string)
+        {
+            return new BytesToken(FBUtilities.hexToBytes(string));
+        }
+    };
+
+    public Token.TokenFactory<byte[]> getTokenFactory()
+    {
+        return tokenFactory;
+    }
+
+    public boolean preservesOrder()
+    {
+        return true;
+    }
+
+    public BytesToken getToken(String key)
+    {
+        return new BytesToken(collator.getCollationKey(key).toByteArray());
     }
 }

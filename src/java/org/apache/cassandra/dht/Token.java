@@ -26,7 +26,7 @@ import java.io.Serializable;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 
-public abstract class Token<T extends Comparable> implements Comparable<Token<T>>, Serializable
+public abstract class Token<T> implements Comparable<Token<T>>, Serializable
 {
     private static final TokenSerializer serializer = new TokenSerializer();
     public static TokenSerializer serializer()
@@ -44,10 +44,7 @@ public abstract class Token<T extends Comparable> implements Comparable<Token<T>
     /**
      * This determines the comparison for node destination purposes.
      */
-    public int compareTo(Token<T> o)
-    {
-        return token.compareTo(o.token);
-    }
+    abstract public int compareTo(Token<T> o);
 
     public String toString()
     {
@@ -67,7 +64,7 @@ public abstract class Token<T extends Comparable> implements Comparable<Token<T>
         return token.hashCode();
     }
 
-    public static abstract class TokenFactory<T extends Comparable>
+    public static abstract class TokenFactory<T>
     {
         public abstract byte[] toByteArray(Token<T> token);
         public abstract Token<T> fromByteArray(byte[] bytes);

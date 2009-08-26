@@ -19,13 +19,19 @@
 package org.apache.cassandra.dht;
 
 import java.io.UnsupportedEncodingException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class OrderPreservingPartitioner implements IPartitioner
+public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 {
+    public static final StringToken MINIMUM = new StringToken("");
+
+    /**
+     * Comparators for decorated keys.
+     */
     private static final Comparator<String> comparator = new Comparator<String>() {
         public int compare(String o1, String o2)
         {
@@ -57,6 +63,11 @@ public class OrderPreservingPartitioner implements IPartitioner
     public Comparator<String> getReverseDecoratedKeyComparator()
     {
         return reverseComparator;
+    }
+
+    public StringToken getMinimumToken()
+    {
+        return MINIMUM;
     }
 
     public StringToken getDefaultToken()
@@ -116,7 +127,12 @@ public class OrderPreservingPartitioner implements IPartitioner
         return tokenFactory;
     }
 
-    public Token getToken(String key)
+    public boolean preservesOrder()
+    {
+        return true;
+    }
+
+    public StringToken getToken(String key)
     {
         return new StringToken(key);
     }

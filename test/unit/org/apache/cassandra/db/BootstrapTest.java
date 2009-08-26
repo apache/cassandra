@@ -38,7 +38,6 @@ import org.junit.Test;
 public class BootstrapTest
 {
     /**
-     * 
      * Writes out a bunch of keys into an SSTable, then runs anticompaction on a range.
      * Checks to see if anticompaction returns true.
      */

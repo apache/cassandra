@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -41,6 +42,8 @@ public class FBUtilities
 {
     private static Logger logger_ = Logger.getLogger(FBUtilities.class);
 
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
+    
     private static InetAddress localInetAddress_;
 
     public static String getTimestamp()
@@ -386,5 +389,27 @@ public class FBUtilities
             in.readFully(bytes);
         }
         return bytes;
+    }
+    
+    public static byte[] hexToBytes(String str)
+    {
+        assert str.length() % 2 == 0;
+        byte[] bytes = new byte[str.length()/2];
+        for (int i = 0; i < bytes.length; i++)
+        {
+            bytes[i] = (byte)Integer.parseInt(str.substring(i, i+2), 16);
+        }
+        return bytes;
+    }
+
+    public static String bytesToHex(byte[] buf)
+    {
+        char[] chars = new char[2*buf.length];
+        for (int i = 0; i < buf.length; i++)
+        {
+            chars[i*2] = HEX_CHARS[(buf[i] & 0xF0) >>> 4];
+            chars[i*2+1] = HEX_CHARS[buf[i] & 0x0F];
+        }
+        return new String(chars);
     }
 }

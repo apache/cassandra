@@ -36,7 +36,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.thrift.TException;
 
@@ -481,7 +481,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_key_range");
         ThriftValidation.validateCommand(tablename, columnFamily);
-        if (!(StorageService.getPartitioner() instanceof OrderPreservingPartitioner))
+        if (!StorageService.getPartitioner().preservesOrder())
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
         }

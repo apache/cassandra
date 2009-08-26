@@ -18,18 +18,26 @@
 */
 package org.apache.cassandra.dht;
 
-import org.apache.cassandra.service.StorageService;
+import java.math.BigInteger;
 
-public class StringToken extends Token<String>
+import org.apache.cassandra.utils.FBUtilities;
+
+public class BytesToken extends Token<byte[]>
 {
-    public StringToken(String token)
+    public BytesToken(byte... token)
     {
         super(token);
     }
+    
+    @Override
+    public String toString()
+    {
+        return "Token(bytes[" + FBUtilities.bytesToHex(token) + "])";
+    }
 
     @Override
-    public int compareTo(Token<String> o)
+    public int compareTo(Token<byte[]> o)
     {
-        return token.compareTo(o.token);
+        return FBUtilities.compareByteArrays(token, o.token);
     }
 }

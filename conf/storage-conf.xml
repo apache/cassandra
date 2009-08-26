@@ -100,8 +100,8 @@
    ~ org.apache.cassandra.dht.CollatingOrderPreservingPartitioner.
    ~ (CollatingOPP colates according to EN,US rules, not naive byte
    ~ ordering.  Use this as an example if you need locale-aware collation.)
-   ~ Range queries require using OrderPreservingPartitioner or a subclass.
-
+   ~ Range queries require using an order-preserving partitioner.
+   ~
    ~ Achtung!  Changing this parameter requires wiping your data
    ~ directories, since the partitioner can modify the sstable on-disk
    ~ format.
@@ -109,7 +109,7 @@
   <Partitioner>org.apache.cassandra.dht.RandomPartitioner</Partitioner>
 
   <!--
-   ~ If you are using the OrderPreservingPartitioner and you know your key
+   ~ If you are using an order-preserving partitioner and you know your key
    ~ distribution, you can specify the token for this node to use. (Keys
    ~ are sent to the node with the "closest" token, so distributing your
    ~ tokens equally along the key distribution space will spread keys

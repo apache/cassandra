@@ -20,11 +20,11 @@ package org.apache.cassandra.dht;
 
 import java.util.Comparator;
 
-public interface IPartitioner
+public interface IPartitioner<T extends Token>
 {
     /**
-     * transform key to on-disk format s.t. keys are stored in node comparison order.
-     * this lets bootstrap rip out parts of the sstable sequentially instead of doing random seeks.
+     * Transform key to on-disk format s.t. keys are stored in node comparison order.
+     * This lets bootstrap rip out parts of the sstable sequentially instead of doing random seeks.
      *
      * @param key the raw, client-facing key
      * @return decorated on-disk version of key
@@ -37,17 +37,28 @@ public interface IPartitioner
 
     public Comparator<String> getReverseDecoratedKeyComparator();
 
+	/**
+	 * @return The minimum possible Token in the range that is being partitioned.
+	 */
+	public T getMinimumToken();
+
     /**
      * @return a Token that can be used to route a given key
      */
-    public Token getToken(String key);
+    public T getToken(String key);
 
     /**
      * @return the default Token to represent this node if none was saved.
      * Uses the one given in the InitialToken configuration directive,
      * or picks one automatically if that was not given.
      */
-    public Token getDefaultToken();
+    public T getDefaultToken();
 
     public Token.TokenFactory getTokenFactory();
+    
+    /**
+     * @return True if the implementing class preserves key order in the Tokens
+     * it generates.
+     */
+    public boolean preservesOrder();
 }

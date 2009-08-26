@@ -29,8 +29,10 @@ import org.apache.cassandra.utils.GuidGenerator;
 /**
  * This class generates a BigIntegerToken using MD5 hash.
  */
-public class RandomPartitioner implements IPartitioner
+public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 {
+    public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
+
     private static final Comparator<String> comparator = new Comparator<String>()
     {
         public int compare(String o1, String o2)
@@ -79,6 +81,11 @@ public class RandomPartitioner implements IPartitioner
         return rcomparator;
     }
 
+	public BigIntegerToken getMinimumToken()
+    {
+        return MINIMUM;
+    }
+
     public BigIntegerToken getDefaultToken()
     {
         String initialToken = DatabaseDescriptor.getInitialToken();
@@ -120,7 +127,12 @@ public class RandomPartitioner implements IPartitioner
         return tokenFactory;
     }
 
-    public Token getToken(String key)
+    public boolean preservesOrder()
+    {
+        return false;
+    }
+
+    public BigIntegerToken getToken(String key)
     {
         return new BigIntegerToken(FBUtilities.hash(key));
     }

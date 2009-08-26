@@ -18,18 +18,29 @@
 */
 package org.apache.cassandra.dht;
 
-import org.apache.cassandra.service.StorageService;
+import java.math.BigInteger;
 
-public class StringToken extends Token<String>
-{
-    public StringToken(String token)
+import org.junit.Before;
+import org.junit.Test;
+
+import org.apache.cassandra.utils.FBUtilities;
+
+public class OrderPreservingPartitionerTest extends PartitionerTestCase<StringToken> {
+    @Override
+    public IPartitioner<StringToken> getPartitioner()
     {
-        super(token);
+        return new OrderPreservingPartitioner();
     }
 
     @Override
-    public int compareTo(Token<String> o)
+    public StringToken tok(String string)
     {
-        return token.compareTo(o.token);
+        return new StringToken(string);
+    }
+
+    @Override
+    public String tos(StringToken token)
+    {
+        return FBUtilities.bytesToHex(token.token.getBytes());
     }
 }
