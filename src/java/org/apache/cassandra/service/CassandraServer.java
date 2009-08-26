@@ -327,9 +327,19 @@ public class CassandraServer implements Cassandra.Iface
 
         for (String cfName : batch_mutation.cfmap.keySet())
         {
-            for (Column c : batch_mutation.cfmap.get(cfName))
+            for (ColumnOrSuperColumn cosc : batch_mutation.cfmap.get(cfName))
             {
-                ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, null, c.name));
+                if (cosc.column != null)
+                {
+                    ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, null, cosc.column.name));
+                }
+                if (cosc.super_column != null)
+                {
+                    for (Column c : cosc.super_column.columns)
+                    {
+                        ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, cosc.super_column.name, c.name));
+                    }
+                }
             }
         }
 
@@ -359,26 +369,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             StorageProxy.insert(rm);
         }
-    }
-
-    public void batch_insert_super_column(String table, BatchMutationSuper batch_mutation_super, int consistency_level)
-    throws InvalidRequestException, UnavailableException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("batch_insert_SuperColumn");
-
-        for (String cfName : batch_mutation_super.cfmap.keySet())
-        {
-            for (SuperColumn sc : batch_mutation_super.cfmap.get(cfName))
-            {
-                for (Column c : sc.columns)
-                {
-                    ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, sc.name, c.name));
-                }
-            }
-        }
-
-        doInsert(consistency_level, RowMutation.getRowMutation(table, batch_mutation_super));
     }
 
     public String get_string_property(String propertyName)

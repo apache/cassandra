@@ -32,7 +32,7 @@ namespace perl Cassandra
 namespace rb CassandraThrift
 
 #
-# structures
+# data structures
 #
 
 struct Column {
@@ -41,27 +41,16 @@ struct Column {
    3: i64                           timestamp,
 }
 
-typedef map<string, list<Column>>   column_family_map
-
-struct BatchMutation {
-   1: string                        key,
-   2: column_family_map             cfmap,
-}
-
 struct SuperColumn {
    1: binary                        name,
    2: list<Column>                  columns,
 }
 
-typedef map<string, list<SuperColumn>> SuperColumnFamilyMap
-
-struct BatchMutationSuper {
-   1: string                        key,
-   2: SuperColumnFamilyMap          cfmap,
+struct ColumnOrSuperColumn {
+    1: optional Column column,
+    2: optional SuperColumn super_column,
 }
 
-
-typedef list<map<string, string>>   ResultSet
 
 #
 # Exceptions
@@ -117,9 +106,11 @@ struct SlicePredicate {
     2: optional SliceRange   slice_range,
 }
 
-struct ColumnOrSuperColumn {
-    1: optional Column column,
-    2: optional SuperColumn super_column,
+typedef map<string, list<ColumnOrSuperColumn>> column_family_map
+
+struct BatchMutation {
+   1: string                        key,
+   2: column_family_map             cfmap,
 }
 
 
@@ -140,9 +131,6 @@ service Cassandra {
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   void           remove(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:i64 timestamp, 5:ConsistencyLevel consistency_level=0)
-  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
-
-  void     batch_insert_super_column(1:string keyspace, 2:BatchMutationSuper batch_mutation_super, 3:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys

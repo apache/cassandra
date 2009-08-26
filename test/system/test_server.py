@@ -43,8 +43,8 @@ def _insert_simple(block=True):
     client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='c2'), 'value2', 0, consistencyLevel)
 
 def _insert_batch(block):
-    cfmap = {'Standard1': _SIMPLE_COLUMNS,
-             'Standard2': _SIMPLE_COLUMNS}
+    cfmap = {'Standard1': [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS],
+             'Standard2': [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS]}
     if block:
         consistencyLevel = ConsistencyLevel.ONE
     else:
@@ -296,17 +296,17 @@ class TestMutations(CassandraTester):
                           InvalidRequestException)
 
     def test_batch_insert_super(self):
-         cfmap = {'Super1': _SUPER_COLUMNS,
-                  'Super2': _SUPER_COLUMNS}
-         client.batch_insert_super_column('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), ConsistencyLevel.ZERO)
+         cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
+                  'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
+         client.batch_insert('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), ConsistencyLevel.ZERO)
          time.sleep(0.1)
          _verify_super('Super1')
          _verify_super('Super2')
 
     def test_batch_insert_super_blocking(self):
-         cfmap = {'Super1': _SUPER_COLUMNS,
-                  'Super2': _SUPER_COLUMNS}
-         client.batch_insert_super_column('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), ConsistencyLevel.ONE)
+         cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
+                  'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
+         client.batch_insert('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), ConsistencyLevel.ONE)
          _verify_super('Super1')
          _verify_super('Super2')
 

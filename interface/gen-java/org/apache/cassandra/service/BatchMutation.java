@@ -46,7 +46,7 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
 
   public String key;
   public static final int KEY = 1;
-  public Map<String,List<Column>> cfmap;
+  public Map<String,List<ColumnOrSuperColumn>> cfmap;
   public static final int CFMAP = 2;
 
   private final Isset __isset = new Isset();
@@ -69,7 +69,7 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
 
   public BatchMutation(
     String key,
-    Map<String,List<Column>> cfmap)
+    Map<String,List<ColumnOrSuperColumn>> cfmap)
   {
     this();
     this.key = key;
@@ -117,11 +117,11 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
     }
   }
 
-  public Map<String,List<Column>> getCfmap() {
+  public Map<String,List<ColumnOrSuperColumn>> getCfmap() {
     return this.cfmap;
   }
 
-  public BatchMutation setCfmap(Map<String,List<Column>> cfmap) {
+  public BatchMutation setCfmap(Map<String,List<ColumnOrSuperColumn>> cfmap) {
     this.cfmap = cfmap;
     return this;
   }
@@ -155,7 +155,7 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
       if (value == null) {
         unsetCfmap();
       } else {
-        setCfmap((Map<String,List<Column>>)value);
+        setCfmap((Map<String,List<ColumnOrSuperColumn>>)value);
       }
       break;
 
@@ -249,26 +249,26 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
         case CFMAP:
           if (field.type == TType.MAP) {
             {
-              TMap _map0 = iprot.readMapBegin();
-              this.cfmap = new HashMap<String,List<Column>>(2*_map0.size);
-              for (int _i1 = 0; _i1 < _map0.size; ++_i1)
+              TMap _map8 = iprot.readMapBegin();
+              this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map8.size);
+              for (int _i9 = 0; _i9 < _map8.size; ++_i9)
               {
-                String _key2;
-                List<Column> _val3;
-                _key2 = iprot.readString();
+                String _key10;
+                List<ColumnOrSuperColumn> _val11;
+                _key10 = iprot.readString();
                 {
-                  TList _list4 = iprot.readListBegin();
-                  _val3 = new ArrayList<Column>(_list4.size);
-                  for (int _i5 = 0; _i5 < _list4.size; ++_i5)
+                  TList _list12 = iprot.readListBegin();
+                  _val11 = new ArrayList<ColumnOrSuperColumn>(_list12.size);
+                  for (int _i13 = 0; _i13 < _list12.size; ++_i13)
                   {
-                    Column _elem6;
-                    _elem6 = new Column();
-                    _elem6.read(iprot);
-                    _val3.add(_elem6);
+                    ColumnOrSuperColumn _elem14;
+                    _elem14 = new ColumnOrSuperColumn();
+                    _elem14.read(iprot);
+                    _val11.add(_elem14);
                   }
                   iprot.readListEnd();
                 }
-                this.cfmap.put(_key2, _val3);
+                this.cfmap.put(_key10, _val11);
               }
               iprot.readMapEnd();
             }
@@ -302,12 +302,12 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
       oprot.writeFieldBegin(CFMAP_FIELD_DESC);
       {
         oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.cfmap.size()));
-        for (Map.Entry<String, List<Column>> _iter7 : this.cfmap.entrySet())        {
-          oprot.writeString(_iter7.getKey());
+        for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter15 : this.cfmap.entrySet())        {
+          oprot.writeString(_iter15.getKey());
           {
-            oprot.writeListBegin(new TList(TType.STRUCT, _iter7.getValue().size()));
-            for (Column _iter8 : _iter7.getValue())            {
-              _iter8.write(oprot);
+            oprot.writeListBegin(new TList(TType.STRUCT, _iter15.getValue().size()));
+            for (ColumnOrSuperColumn _iter16 : _iter15.getValue())            {
+              _iter16.write(oprot);
             }
             oprot.writeListEnd();
           }

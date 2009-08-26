@@ -37,10 +37,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.BatchMutationSuper;
-import org.apache.cassandra.service.BatchMutation;
-import org.apache.cassandra.service.InvalidRequestException;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
@@ -243,34 +240,23 @@ public class RowMutation implements Serializable
     public static RowMutation getRowMutation(String table, BatchMutation batchMutation)
     {
         RowMutation rm = new RowMutation(table, batchMutation.key.trim());
-        for (String cfname : batchMutation.cfmap.keySet())
+        for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : batchMutation.cfmap.entrySet())
         {
-            List<org.apache.cassandra.service.Column> list = batchMutation.cfmap.get(cfname);
-            for (org.apache.cassandra.service.Column column : list)
+            String cfName = entry.getKey();
+            for (ColumnOrSuperColumn cosc : entry.getValue())
             {
-                rm.add(new QueryPath(cfname, null, column.name), column.value, column.timestamp);
-            }
-        }
-        return rm;
-    }
-
-    public static RowMutation getRowMutation(String table, BatchMutationSuper batchMutationSuper) throws InvalidRequestException
-    {
-        RowMutation rm = new RowMutation(table, batchMutationSuper.key.trim());
-        for (String cfName : batchMutationSuper.cfmap.keySet())
-        {
-            for (org.apache.cassandra.service.SuperColumn super_column : batchMutationSuper.cfmap.get(cfName))
-            {
-                for (org.apache.cassandra.service.Column column : super_column.columns)
+                if (cosc.column == null)
                 {
-                    try
+                    assert cosc.super_column != null;
+                    for (org.apache.cassandra.service.Column column : cosc.super_column.columns)
                     {
-                        rm.add(new QueryPath(cfName, super_column.name, column.name), column.value, column.timestamp);
+                        rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp);
                     }
-                    catch (MarshalException e)
-                    {
-                        throw new InvalidRequestException(e.getMessage());
-                    }
+                }
+                else
+                {
+                    assert cosc.super_column == null;
+                    rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp);
                 }
             }
         }

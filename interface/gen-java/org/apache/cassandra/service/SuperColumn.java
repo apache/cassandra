@@ -255,14 +255,14 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
         case COLUMNS:
           if (field.type == TType.LIST) {
             {
-              TList _list9 = iprot.readListBegin();
-              this.columns = new ArrayList<Column>(_list9.size);
-              for (int _i10 = 0; _i10 < _list9.size; ++_i10)
+              TList _list0 = iprot.readListBegin();
+              this.columns = new ArrayList<Column>(_list0.size);
+              for (int _i1 = 0; _i1 < _list0.size; ++_i1)
               {
-                Column _elem11;
-                _elem11 = new Column();
-                _elem11.read(iprot);
-                this.columns.add(_elem11);
+                Column _elem2;
+                _elem2 = new Column();
+                _elem2.read(iprot);
+                this.columns.add(_elem2);
               }
               iprot.readListEnd();
             }
@@ -296,8 +296,8 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
-        for (Column _iter12 : this.columns)        {
-          _iter12.write(oprot);
+        for (Column _iter3 : this.columns)        {
+          _iter3.write(oprot);
         }
         oprot.writeListEnd();
       }

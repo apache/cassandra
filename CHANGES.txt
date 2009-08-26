@@ -17,11 +17,13 @@
       structs such as ColumnPath, ColumnParent, etc.  Also normalized
       thrift struct and argument naming.
     - Added columnFamily argument to get_key_range.
-    - Change signature of get_slice and get_slice_super to accept
-      starting and ending columns as well as an offset.  (This allows use
-      of indexes.)  Added "ascending" flag to allow reasonably-efficient
-      reverse scans as well.  Removed get_slice_by_range as redundant.
-    - Similarly, changed signature of get_slice_super.
+    - Change signature of get_slice to accept starting and ending
+      columns as well as an offset.  (This allows use of indexes.)
+      Added "ascending" flag to allow reasonably-efficient reverse
+      scans as well.  Removed get_slice_by_range as redundant.
+    - Merged _super get methods with the normal ones; return values
+      are now of ColumnOrSuperColumn.
+    - Similarly, merged batch_insert_super into batch_insert.
     - get_key_range operates on one CF at a time
     - changed `block` boolean on insert methods to ConsistencyLevel enum,
       with options of NONE, ONE, QUORUM, and ALL.
