@@ -71,6 +71,84 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
         return reverseComparator;
     }
 
+    /**
+     * @return A new byte array that will compare (via compareByteArrays)
+     * approximately halfway between the parameters.
+     */
+    private static byte[] midpoint(byte[] lbytes, byte[] rbytes)
+    {
+        // pad the arrays to equal length, for convenience
+        int inlength;
+        int comparison = FBUtilities.compareByteArrays(lbytes, rbytes);
+        if (comparison < 0)
+        {
+            inlength = Math.max(lbytes.length, rbytes.length);
+            if (lbytes.length < inlength)
+                lbytes = Arrays.copyOf(lbytes, inlength);
+            else if (rbytes.length < inlength)
+                rbytes = Arrays.copyOf(rbytes, inlength);
+        }
+        else
+        {
+            // wrapping range must involve the minimum token
+            assert FBUtilities.isEqualBits(MINIMUM.token, rbytes);
+
+            inlength = Math.max(lbytes.length, 1);
+            if (lbytes.length < inlength)
+                lbytes = Arrays.copyOf(lbytes, inlength);
+            rbytes = new byte[inlength];
+            Arrays.fill(rbytes, (byte)0xFF);
+        }
+
+        // if the lsbits of the two inputs are not equal we have to extend
+        // the result array to make room for a carried bit during the right shift
+        int outlength = (((int)lbytes[inlength-1] & 0x01) == ((int)rbytes[inlength-1] & 0x01))
+                        ? inlength
+                        : inlength+1;
+        byte[] result = new byte[outlength];
+        boolean carrying = false;
+
+        // perform the addition
+        for (int i = inlength-1; i >= 0; i--)
+        {
+            // initialize the lsbit if we're carrying
+            int sum = carrying ? 1 : 0;
+
+            // remove the sign bit, and sum left and right
+            sum += (lbytes[i] & 0xFF) + (rbytes[i] & 0xFF);
+            
+            // see if we'll need to carry
+            carrying = sum > 0xFF;
+
+            // set to the sum (truncating the msbit)
+            result[i] = (byte)sum;
+        }
+        // the carried bit from addition will be shifted in as the msbit
+
+        // perform the division (as a right shift)
+        for (int i = 0; i < inlength; i++)
+        {
+            // initialize the msbit if we're carrying
+            byte shifted = (byte)(carrying ? 0x80 : 0x00);
+
+            // check the lsbit to see if we'll need to continue carrying
+            carrying = (result[i] & 0x01) == 0x01;
+
+            // OR the right shifted value into the result byte
+            result[i] = (byte)(shifted | ((result[i] & 0xFF) >>> 1));
+        }
+
+        if (carrying)
+            // the last byte in the result array
+            result[inlength] |= 0x80;
+        return result;
+    }
+
+    public BytesToken midpoint(BytesToken ltoken, BytesToken rtoken)
+    {
+        return new BytesToken(midpoint(ltoken.token, rtoken.token));
+    }
+
     public BytesToken getMinimumToken()
     {
         return MINIMUM;

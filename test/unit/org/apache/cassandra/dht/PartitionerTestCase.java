@@ -50,6 +50,38 @@ public abstract class PartitionerTestCase<T extends Token> {
         assert tok("asdz").compareTo(tok("asdf")) > 0;
     }
 
+    public void assertMidpoint(T left, T right, int depth)
+    {
+        T mid = this.part.midpoint(left, right);
+        assert new Range(left, right).contains(mid)
+                : "For " + tos(left) + "," + tos(right) + ": range did not contain mid:" + tos(mid);
+        if (depth > 0)
+            assertMidpoint(left, mid, depth-1);
+        if (depth > 0)
+            assertMidpoint(mid, right, depth-1);
+    }
+
+    @Test
+    public void testMidpoint()
+    {
+        assertMidpoint(tok("a"), tok("b"), 16);
+        assertMidpoint(tok("a"), tok("bbb"), 16);
+    }
+
+    @Test
+    public void testMidpointMinimum()
+    {
+        assertMidpoint(tok(""), tok("a"), 16);
+        assertMidpoint(tok(""), tok("aaa"), 16);
+    }
+
+    @Test
+    public void testMidpointWrapping()
+    {
+        assertMidpoint(tok(""), tok(""), 16);
+        assertMidpoint(tok("a"), tok(""), 16);
+    }
+    
     @Test
     public void testTokenFactoryBytes()
     {
