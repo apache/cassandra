@@ -283,22 +283,23 @@ public class CommitLog
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
             CommitLogHeader clHeader = readCommitLogHeader(reader);
-            /* seek to the lowest position */
+            /* seek to the lowest position where any CF has non-flushed data */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
-            /*
-             * If lowPos == 0 then we need to skip the processing of this
-             * file.
-            */
             if (lowPos == 0)
                 break;
-            else
-                reader.seek(lowPos);
+
+            reader.seek(lowPos);
+            if (logger_.isDebugEnabled())
+                logger_.debug("Replaying " + file + " starting at " + lowPos);
 
             Set<Table> tablesRecovered = new HashSet<Table>();
 
             /* read the logs populate RowMutation and apply */
             while (!reader.isEOF())
             {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Reading mutation at " + reader.getFilePointer());
+
                 byte[] bytes;
                 try
                 {
