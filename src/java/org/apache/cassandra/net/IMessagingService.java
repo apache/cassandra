@@ -119,19 +119,6 @@ public interface IMessagingService
      * array is sent to the ith element in the <code>to</code> array.This method assumes
      * there is a one-one mapping between the <code>messages</code> array and
      * the <code>to</code> array. Otherwise an  IllegalArgumentException will be thrown.
-     * This method also informs the MessagingService to wait for at least
-     * <code>howManyResults</code> responses to determine success of failure.
-     * @param messages messages to be sent.
-     * @param to endpoints to which the message needs to be sent
-     * @return an reference to IAsyncResult
-     */
-    public IAsyncResult sendRR(Message[] messages, EndPoint[] to);
-    
-    /**
-     * Send a message to a given endpoint. The ith element in the <code>messages</code>
-     * array is sent to the ith element in the <code>to</code> array.This method assumes
-     * there is a one-one mapping between the <code>messages</code> array and
-     * the <code>to</code> array. Otherwise an  IllegalArgumentException will be thrown.
      * The idea is that multi-groups of messages are grouped as one logical message
      * whose results are harnessed via the <i>IAsyncResult</i>
      * @param messages groups of grouped messages.

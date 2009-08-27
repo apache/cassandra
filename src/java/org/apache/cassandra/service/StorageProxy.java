@@ -238,171 +238,101 @@ public class StorageProxy implements StorageProxyMBean
         insertBlocking(rm, ConsistencyLevel.QUORUM);
     }
     
-    private static Map<String, Message> constructMessages(Map<String, ReadCommand> readMessages) throws IOException
-    {
-        Map<String, Message> messages = new HashMap<String, Message>();
-        Set<String> keys = readMessages.keySet();        
-        for ( String key : keys )
-        {
-            Message message = readMessages.get(key).makeReadMessage();
-            messages.put(key, message);
-        }        
-        return messages;
-    }
-    
-    private static IAsyncResult dispatchMessages(Map<String, EndPoint> endPoints, Map<String, Message> messages)
-    {
-        Set<String> keys = endPoints.keySet();
-        EndPoint[] eps = new EndPoint[keys.size()];
-        Message[] msgs  = new Message[keys.size()];
-        
-        int i = 0;
-        for ( String key : keys )
-        {
-            eps[i] = endPoints.get(key);
-            msgs[i] = messages.get(key);
-            ++i;
-        }
-        
-        IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(msgs, eps);
-        return iar;
-    }
-    
-    /**
-     * This is an implementation for the multiget version. 
-     * @param readMessages map of key --> ReadMessage to be sent
-     * @return map of key --> Row
-     * @throws IOException
-     * @throws TimeoutException
-     */
-    public static Map<String, Row> doReadProtocol(Map<String, ReadCommand> readMessages) throws IOException,TimeoutException
-    {
-        Map<String, Row> rows = new HashMap<String, Row>();
-        Set<String> keys = readMessages.keySet();
-        /* Find all the suitable endpoints for the keys */
-        Map<String, EndPoint> endPoints = StorageService.instance().findSuitableEndPoints(keys.toArray( new String[0] ));
-        /* Construct the messages to be sent out */
-        Map<String, Message> messages = constructMessages(readMessages);
-        /* Dispatch the messages to the respective endpoints */
-        IAsyncResult iar = dispatchMessages(endPoints, messages);        
-        List<byte[]> results = iar.multiget(2*DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-        
-        for ( byte[] body : results )
-        {
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length);
-            ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
-            Row row = response.row();
-            rows.put(row.key(), row);
-        }        
-        return rows;
-    }
 
     /**
      * Read the data from one replica.  If there is no reply, read the data from another.  In the event we get
      * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
-     * @param command the read to perform
+     * @param commands a set of commands to perform reads
      * @return the row associated with command.key
      * @throws Exception
      */
-    private static Row weakReadRemote(ReadCommand command) throws IOException
+    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException
     {
-        EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
-        assert endPoint != null;
-        Message message = command.makeReadMessage();
         if (logger.isDebugEnabled())
-            logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-        message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-        IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
-        byte[] body;
-        try
+            logger.debug("weakreadlocal reading " + StringUtils.join(commands, ", "));
+
+        List<Row> rows = new ArrayList<Row>();
+        List<IAsyncResult> iars = new ArrayList<IAsyncResult>();
+        int commandIndex = 0;
+
+        for (ReadCommand command: commands)
         {
-            body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
+            assert endPoint != null;
+            Message message = command.makeReadMessage();
+
+            if (logger.isDebugEnabled())
+                logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
+            message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
+            iars.add(MessagingService.getMessagingInstance().sendRR(message, endPoint));
         }
-        catch (TimeoutException e)
+
+        for (IAsyncResult iar: iars)
         {
-            throw new RuntimeException("error reading key " + command.key, e);
-            // TODO retry to a different endpoint?
+            byte[] body;
+            try
+            {
+                body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            }
+            catch (TimeoutException e)
+            {
+                throw new RuntimeException("error reading key " + commands.get(commandIndex).key, e);
+                // TODO retry to a different endpoint?
+            }
+            DataInputBuffer bufIn = new DataInputBuffer();
+            bufIn.reset(body, body.length);
+            ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
+            if (response.row() != null)
+                rows.add(response.row());
+            commandIndex++;
         }
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(body, body.length);
-        ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
-        return response.row();
+        return rows;
     }
 
     /**
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
-    public static Row readProtocol(ReadCommand command, int consistency_level)
+    public static List<Row> readProtocol(List<ReadCommand> commands, int consistency_level)
     throws IOException, TimeoutException, InvalidRequestException
     {
         long startTime = System.currentTimeMillis();
 
-        Row row;
-        EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
+        List<Row> rows = new ArrayList<Row>();
 
         if (consistency_level == ConsistencyLevel.ONE)
         {
-            boolean foundLocal = Arrays.asList(endpoints).contains(StorageService.getLocalStorageEndPoint());
-            //TODO: Throw InvalidRequest if we're in bootstrap mode?
-            if (foundLocal && !StorageService.instance().isBootstrapMode())
+            List<ReadCommand> localCommands = new ArrayList<ReadCommand>();
+            List<ReadCommand> remoteCommands = new ArrayList<ReadCommand>();
+
+            for (ReadCommand command: commands)
             {
-                row = weakReadLocal(command);
+                EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
+                boolean foundLocal = Arrays.asList(endpoints).contains(StorageService.getLocalStorageEndPoint());
+                //TODO: Throw InvalidRequest if we're in bootstrap mode?
+                if (foundLocal && !StorageService.instance().isBootstrapMode())
+                {
+                    localCommands.add(command);
+                }
+                else
+                {
+                    remoteCommands.add(command);
+                }
             }
-            else
-            {
-                row = weakReadRemote(command);
-            }
+            if (localCommands.size() > 0)
+                rows.addAll(weakReadLocal(localCommands));
+
+            if (remoteCommands.size() > 0)
+                rows.addAll(weakReadRemote(remoteCommands));
         }
         else
         {
             assert consistency_level == ConsistencyLevel.QUORUM;
-            row = strongRead(command);
+            rows = strongRead(commands);
         }
 
         readStats.add(System.currentTimeMillis() - startTime);
 
-        return row;
-    }
-
-    public static Map<String, Row> readProtocol(String[] keys, ReadCommand readCommand, StorageService.ConsistencyLevel consistencyLevel) throws Exception
-    {
-        Map<String, Row> rows = new HashMap<String, Row>();        
-        switch ( consistencyLevel )
-        {
-            case WEAK:
-                rows = weakReadProtocol(keys, readCommand);
-                break;
-                
-            case STRONG:
-                rows = strongReadProtocol(keys, readCommand);
-                break;
-                
-            default:
-                rows = weakReadProtocol(keys, readCommand);
-                break;
-        }
-        return rows;
-    }
-
-    /**
-     * This is a multiget version of the above method.
-     */
-    public static Map<String, Row> strongReadProtocol(String[] keys, ReadCommand readCommand) throws IOException, TimeoutException
-    {       
-        Map<String, Row> rows;
-        // TODO: throw a thrift exception if we do not have N nodes
-        Map<String, ReadCommand[]> readMessages = new HashMap<String, ReadCommand[]>();
-        for (String key : keys )
-        {
-            ReadCommand[] readParameters = new ReadCommand[2];
-            readParameters[0] = readCommand.copy();
-            readParameters[1] = readCommand.copy();
-            readParameters[1].setDigestQuery(true);
-            readMessages.put(key, readParameters);
-        }        
-        rows = doStrongReadProtocol(readMessages);         
         return rows;
     }
 
@@ -418,80 +348,100 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static Row strongRead(ReadCommand command) throws IOException, TimeoutException, InvalidRequestException
+    private static List<Row> strongRead(List<ReadCommand> commands) throws IOException, TimeoutException, InvalidRequestException
     {
-        // TODO: throw a thrift exception if we do not have N nodes
-        assert !command.isDigestQuery();
-        ReadCommand readMessageDigestOnly = command.copy();
-        readMessageDigestOnly.setDigestQuery(true);
+        List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
+        List<EndPoint[]> commandEndPoints = new ArrayList<EndPoint[]>();
+        List<Row> rows = new ArrayList<Row>();
 
-        Row row = null;
-        Message message = command.makeReadMessage();
-        Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
+        int commandIndex = 0;
 
-        IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
-        QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
-                DatabaseDescriptor.getQuorum(),
-                readResponseResolver);
-        EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-        List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getNStorageEndPoint(command.key)));
-        /* Remove the local storage endpoint from the list. */
-        endpointList.remove(dataPoint);
-        EndPoint[] endPoints = new EndPoint[endpointList.size() + 1];
-        Message messages[] = new Message[endpointList.size() + 1];
-
-        /*
-         * First message is sent to the node that will actually get
-         * the data for us. The other two replicas are only sent a
-         * digest query.
-        */
-        endPoints[0] = dataPoint;
-        messages[0] = message;
-        if (logger.isDebugEnabled())
-            logger.debug("strongread reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
-        for (int i = 1; i < endPoints.length; i++)
+        for (ReadCommand command: commands)
         {
-            EndPoint digestPoint = endpointList.get(i - 1);
-            endPoints[i] = digestPoint;
-            messages[i] = messageDigestOnly;
+            // TODO: throw a thrift exception if we do not have N nodes
+            assert !command.isDigestQuery();
+            ReadCommand readMessageDigestOnly = command.copy();
+            readMessageDigestOnly.setDigestQuery(true);
+
+            Message message = command.makeReadMessage();
+            Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
+
+            IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
+                    DatabaseDescriptor.getQuorum(),
+                    readResponseResolver);
+            EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
+            List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getNStorageEndPoint(command.key)));
+            /* Remove the local storage endpoint from the list. */
+            endpointList.remove(dataPoint);
+            EndPoint[] endPoints = new EndPoint[endpointList.size() + 1];
+            Message messages[] = new Message[endpointList.size() + 1];
+
+            /*
+             * First message is sent to the node that will actually get
+             * the data for us. The other two replicas are only sent a
+             * digest query.
+            */
+            endPoints[0] = dataPoint;
+            messages[0] = message;
             if (logger.isDebugEnabled())
-                logger.debug("strongread reading digest for " + command + " from " + messageDigestOnly.getMessageId() + "@" + digestPoint);
-        }
-
-        try
-        {
-            MessagingService.getMessagingInstance().sendRR(messages, endPoints, quorumResponseHandler);
-
-            long startTime2 = System.currentTimeMillis();
-            row = quorumResponseHandler.get();
-            if (logger.isDebugEnabled())
-                logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
-        }
-        catch (DigestMismatchException ex)
-        {
-            if ( DatabaseDescriptor.getConsistencyCheck())
+                logger.debug("strongread reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
+            for (int i = 1; i < endPoints.length; i++)
             {
-                IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver();
-                QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
-                        DatabaseDescriptor.getQuorum(),
-                        readResponseResolverRepair);
-                logger.info("DigestMismatchException: " + command.key);
-                Message messageRepair = command.makeReadMessage();
-                MessagingService.getMessagingInstance().sendRR(messageRepair, endPoints,
-                                                               quorumResponseHandlerRepair);
-                try
+                EndPoint digestPoint = endpointList.get(i - 1);
+                endPoints[i] = digestPoint;
+                messages[i] = messageDigestOnly;
+                if (logger.isDebugEnabled())
+                    logger.debug("strongread reading digest for " + command + " from " + messageDigestOnly.getMessageId() + "@" + digestPoint);
+            }
+            MessagingService.getMessagingInstance().sendRR(messages, endPoints, quorumResponseHandler);
+            quorumResponseHandlers.add(quorumResponseHandler);
+            commandEndPoints.add(endPoints);
+        }
+
+        for (QuorumResponseHandler<Row> quorumResponseHandler: quorumResponseHandlers)
+        {
+            Row row = null;
+            ReadCommand command = commands.get(commandIndex);
+            try
+            {
+                long startTime2 = System.currentTimeMillis();
+                row = quorumResponseHandler.get();
+                if (row != null)
+                    rows.add(row);
+
+                if (logger.isDebugEnabled())
+                    logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
+            }
+            catch (DigestMismatchException ex)
+            {
+                if ( DatabaseDescriptor.getConsistencyCheck())
                 {
-                    row = quorumResponseHandlerRepair.get();
-                }
-                catch (DigestMismatchException e)
-                {
-                    // TODO should this be a thrift exception?
-                    throw new RuntimeException("digest mismatch reading key " + command.key, e);
+                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver();
+                    QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
+                            DatabaseDescriptor.getQuorum(),
+                            readResponseResolverRepair);
+                    logger.info("DigestMismatchException: " + command.key);
+                    Message messageRepair = command.makeReadMessage();
+                    MessagingService.getMessagingInstance().sendRR(messageRepair, commandEndPoints.get(commandIndex),
+                            quorumResponseHandlerRepair);
+                    try
+                    {
+                        row = quorumResponseHandlerRepair.get();
+                        if (row != null)
+                            rows.add(row);
+                    }
+                    catch (DigestMismatchException e)
+                    {
+                        // TODO should this be a thrift exception?
+                        throw new RuntimeException("digest mismatch reading key " + command.key, e);
+                    }
                 }
             }
+            commandIndex++;
         }
 
-        return row;
+        return rows;
     }
 
     private static Map<String, Message[]> constructReplicaMessages(Map<String, ReadCommand[]> readMessages) throws IOException
@@ -557,69 +507,6 @@ public class StorageProxy implements StorageProxyMBean
         MessagingService.getMessagingInstance().sendRR(msgList, epList, quorumResponseHandlers);
         return quorumResponseHandlers;
     }
-    
-    /**
-    *  This method performs the read from the replicas for a bunch of keys.
-    *  @param readMessages map of key --> readMessage[] of two entries where 
-    *         the first entry is the readMessage for the data and the second
-    *         is the entry for the digest 
-    *  @return map containing key ---> Row
-    *  @throws IOException, TimeoutException
-   */
-    private static Map<String, Row> doStrongReadProtocol(Map<String, ReadCommand[]> readMessages) throws IOException
-    {        
-        Map<String, Row> rows = new HashMap<String, Row>();
-        /* Construct the messages to be sent to the replicas */
-        Map<String, Message[]> replicaMessages = constructReplicaMessages(readMessages);
-        /* Dispatch the messages to the different replicas */
-        MultiQuorumResponseHandler cb = dispatchMessagesMulti(readMessages, replicaMessages);
-        try
-        {
-            Row[] rows2 = cb.get();
-            for ( Row row : rows2 )
-            {
-                rows.put(row.key(), row);
-            }
-        }
-        catch (TimeoutException e)
-        {
-            throw new RuntimeException("timeout reading keys " + StringUtils.join(rows.keySet(), ", "), e);
-        }
-        return rows;
-    }
-
-    /**
-     * This version is used when results for multiple keys needs to be
-     * retrieved.
-     * 
-     * @return a mapping of key --> Row
-     * @throws Exception
-     */
-    public static Map<String, Row> weakReadProtocol(String[] keys, ReadCommand readCommand) throws Exception
-    {
-        Row row = null;
-        Map<String, ReadCommand> readMessages = new HashMap<String, ReadCommand>();
-        for ( String key : keys )
-        {
-            ReadCommand readCmd = readCommand.copy();
-            readMessages.put(key, readCmd);
-        }
-        /* Performs the multiget in parallel */
-        Map<String, Row> rows = doReadProtocol(readMessages);
-        /*
-         * Do the consistency checks for the keys that are being queried
-         * in the background.
-        */
-        for ( String key : keys )
-        {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(key);
-            /* Remove the local storage endpoint from the list. */
-            endpoints.remove( StorageService.getLocalStorageEndPoint() );
-            if ( endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                StorageService.instance().doConsistencyCheck(row, endpoints, readMessages.get(key));
-        }
-        return rows;
-    }
 
     /*
     * This function executes the read protocol locally and should be used only if consistency is not a concern.
@@ -627,25 +514,33 @@ public class StorageProxy implements StorageProxyMBean
     * one of the other replicas (in the same data center if possible) till we get the data. In the event we get
     * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
     */
-    private static Row weakReadLocal(ReadCommand command) throws IOException
+    private static List<Row> weakReadLocal(List<ReadCommand> commands) throws IOException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("weakreadlocal reading " + command);
-        List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(command.key);
-        /* Remove the local storage endpoint from the list. */
-        endpoints.remove(StorageService.getLocalStorageEndPoint());
-        // TODO: throw a thrift exception if we do not have N nodes
+        List<Row> rows = new ArrayList<Row>();
+        for (ReadCommand command: commands)
+        {
+            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(command.key);
+            /* Remove the local storage endpoint from the list. */
+            endpoints.remove(StorageService.getLocalStorageEndPoint());
+            // TODO: throw a thrift exception if we do not have N nodes
 
-        Table table = Table.open(command.table);
-        Row row = command.getRow(table);
+            if (logger.isDebugEnabled())
+                logger.debug("weakreadlocal reading " + command);
 
-        /*
-           * Do the consistency checks in the background and return the
-           * non NULL row.
-           */
-        if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-            StorageService.instance().doConsistencyCheck(row, endpoints, command);
-        return row;
+            Table table = Table.open(command.table);
+            Row row = command.getRow(table);
+            if (row != null)
+                rows.add(row);
+            /*
+            * Do the consistency checks in the background and return the
+            * non NULL row.
+            */
+            if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
+                StorageService.instance().doConsistencyCheck(row, endpoints, command);
+
+        }
+
+        return rows;
     }
 
     static List<String> getKeyRange(RangeCommand rawCommand) throws IOException

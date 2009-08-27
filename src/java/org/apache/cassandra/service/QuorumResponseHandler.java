@@ -41,6 +41,7 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     private List<Message> responses_ = new ArrayList<Message>();
     private IResponseResolver<T> responseResolver_;
     private AtomicBoolean done_ = new AtomicBoolean(false);
+    private long startTime_;
 
     public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver) throws InvalidRequestException
     {
@@ -51,6 +52,7 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
         condition_ = lock_.newCondition();
         responseCount_ = responseCount;
         responseResolver_ =  responseResolver;
+        startTime_ = System.currentTimeMillis();
     }
     
     public T get() throws TimeoutException, DigestMismatchException
@@ -62,8 +64,12 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             try
             {
             	if ( !done_.get() )
-                {            		
-            		bVal = condition_.await(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                {
+                    long timeout = System.currentTimeMillis() - startTime_ + DatabaseDescriptor.getRpcTimeout();
+                    if(timeout > 0)
+                        bVal = condition_.await(timeout, TimeUnit.MILLISECONDS);
+                    else
+                        bVal = false;
                 }
             }
             catch ( InterruptedException ex )

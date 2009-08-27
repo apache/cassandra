@@ -379,25 +379,6 @@ public class MessagingService implements IMessagingService
         return groupId;
     } 
     
-    public IAsyncResult sendRR(Message[] messages, EndPoint[] to)
-    {
-        if ( messages.length != to.length )
-        {
-            throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
-        }
-        
-        IAsyncResult iar = new MultiAsyncResult(messages.length);
-        String groupId = GuidGenerator.guid();
-        taskCompletionMap_.put(groupId, iar);
-        for ( int i = 0; i < messages.length; ++i )
-        {
-            messages[i].setMessageId(groupId);
-            sendOneWay(messages[i], to[i]);
-        }
-        
-        return iar;
-    }
-    
     public String sendRR(Message[][] messages, EndPoint[][] to, IAsyncCallback cb)
     {
         if ( messages.length != to.length )

@@ -36,10 +36,12 @@ class AsyncResult implements IAsyncResult
     private AtomicBoolean done_ = new AtomicBoolean(false);
     private Lock lock_ = new ReentrantLock();
     private Condition condition_;
+    private long startTime_;
 
     public AsyncResult()
     {        
         condition_ = lock_.newCondition();
+        startTime_ = System.currentTimeMillis();
     }    
     
     public byte[] get()
@@ -77,8 +79,12 @@ class AsyncResult implements IAsyncResult
             try
             {
                 if ( !done_.get() )
-                {                    
-                    bVal = condition_.await(timeout, tu);
+                {
+                    long overall_timeout = System.currentTimeMillis() - startTime_ + timeout;
+                    if(overall_timeout > 0)
+                        bVal = condition_.await(overall_timeout, TimeUnit.MILLISECONDS);
+                    else
+                        bVal = false;
                 }
             }
             catch ( InterruptedException ex )
@@ -97,17 +103,7 @@ class AsyncResult implements IAsyncResult
         }
         return result_;
     }
-    
-    public List<byte[]> multiget()
-    {
-        throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
-    }
-    
-    public List<byte[]> multiget(long timeout, TimeUnit tu) throws TimeoutException
-    {
-        throw new UnsupportedOperationException("This operation is not supported in the AsyncResult abstraction.");
-    }
-    
+      
     public void result(Message response)
     {        
         try

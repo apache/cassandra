@@ -35,14 +35,22 @@ _SUPER_COLUMNS = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]
                                                    Column(_i64(6), 'value6', 0)])]
 
 def _insert_simple(block=True):
+   return _insert_multi(['key1'], block)
+
+def _insert_batch(block):
+   return _insert_multi_batch(['key1'], block)
+
+def _insert_multi(keys, block=True):
     if block:
         consistencyLevel = ConsistencyLevel.ONE
     else:
         consistencyLevel = ConsistencyLevel.ZERO
-    client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 0, consistencyLevel)
-    client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='c2'), 'value2', 0, consistencyLevel)
 
-def _insert_batch(block):
+    for key in keys:
+        client.insert('Keyspace1', key, ColumnPath('Standard1', column='c1'), 'value1', 0, consistencyLevel)
+        client.insert('Keyspace1', key, ColumnPath('Standard1', column='c2'), 'value2', 0, consistencyLevel)
+
+def _insert_multi_batch(keys, block):
     cfmap = {'Standard1': [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS],
              'Standard2': [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS]}
     if block:
@@ -50,11 +58,16 @@ def _insert_batch(block):
     else:
         consistencyLevel = ConsistencyLevel.ZERO
 
-    client.batch_insert('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), consistencyLevel)
+    for key in keys:
+        client.batch_insert('Keyspace1', BatchMutation(key=key, cfmap=cfmap), consistencyLevel)
 
 def _big_slice(keyspace, key, column_parent):
     p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
     return client.get_slice(keyspace, key, column_parent, p, ConsistencyLevel.ONE)
+
+def _big_multislice(keyspace, keys, column_parent):
+    p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
+    return client.multiget_slice(keyspace, keys, column_parent, p, ConsistencyLevel.ONE)
 
 def _verify_batch():
     _verify_simple()
@@ -492,3 +505,59 @@ class TestMutations(CassandraTester):
         result = client.get_slice('Keyspace1', 'key1', ColumnParent('Super1', 'sc1'), p, ConsistencyLevel.ONE) 
         assert len(result) == 1
         assert result[0].column.name == _i64(4)
+
+    def test_multiget(self):
+        """Insert multiple keys and retrieve them using the multiget interface"""
+
+        """Generate a list of 10 keys and insert them"""
+        num_keys = 10
+        keys = ['key'+str(i) for i in range(1, num_keys+1)]
+        _insert_multi(keys)
+
+        """Retrieve all 10 keys"""
+        rows = client.multiget('Keyspace1', keys, ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE)
+        keys1 = rows.keys().sort()
+        keys2 = keys.sort()
+
+        """Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted"""
+        for key in keys:
+            assert rows.has_key(key) == True
+            assert rows[key] == ColumnOrSuperColumn(column=Column(timestamp=0, name='c1', value='value1'))
+
+    def test_multiget_slice(self):
+        """Insert multiple keys and retrieve them using the multiget_slice interface"""
+
+        """Generate a list of 10 keys and insert them"""
+        num_keys = 10
+        keys = ['key'+str(i) for i in range(1, num_keys+1)]
+        _insert_multi(keys)
+
+        """Retrieve all 10 key slices"""
+        rows = _big_multislice('Keyspace1', keys, ColumnParent('Standard1'))
+        keys1 = rows.keys().sort()
+        keys2 = keys.sort()
+
+        columns = [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS]
+        """Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted"""
+        for key in keys:
+            assert rows.has_key(key) == True
+            assert columns == rows[key]
+
+    def test_multiget_count(self):
+        """Insert multiple keys and retrieve them using the multiget_count interface"""
+
+        """Generate a list of 10 keys and insert them"""
+        num_keys = 10
+        keys = ['key'+str(i) for i in range(1, num_keys+1)]
+        _insert_multi(keys)
+
+        """Retrieve all 10 key slices"""
+        rows = client.multiget_count('Keyspace1', keys, ColumnParent('Standard1'), ConsistencyLevel.ONE)
+        keys1 = rows.keys().sort()
+        keys2 = keys.sort()
+
+        columns = [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS]
+        """Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted"""
+        for key in keys:
+            assert rows.has_key(key) == True
+            assert rows[key] == 2

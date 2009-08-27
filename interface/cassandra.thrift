@@ -117,10 +117,19 @@ service Cassandra {
   list<ColumnOrSuperColumn> get_slice(1:string keyspace, 2:string key, 3:ColumnParent column_parent, 4:SlicePredicate predicate, 5:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
+  map<string,list<ColumnOrSuperColumn>> multiget_slice(1:string keyspace, 2:list<string> keys, 3:ColumnParent column_parent, 4:SlicePredicate predicate, 5:ConsistencyLevel consistency_level=1)
+  throws (1: InvalidRequestException ire),
+
   ColumnOrSuperColumn get(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
+  map<string,ColumnOrSuperColumn> multiget(1:string keyspace, 2:list<string> keys, 3:ColumnPath column_path, 4:ConsistencyLevel consistency_level=1)
+  throws (1: InvalidRequestException ire),
+
   i32 get_count(1:string keyspace, 2:string key, 3:ColumnParent column_parent, 5:ConsistencyLevel consistency_level=1)
+  throws (1: InvalidRequestException ire),
+
+  map<string,i32> multiget_count(1:string keyspace, 2:list<string> keys, 3:ColumnParent column_parent, 5:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
   void     insert(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:ConsistencyLevel consistency_level=0)

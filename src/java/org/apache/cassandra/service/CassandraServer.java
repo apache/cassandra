@@ -36,7 +36,6 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.thrift.TException;
 
@@ -73,10 +72,17 @@ public class CassandraServer implements Cassandra.Iface
 		storageService.start();
 	}
 
-    protected ColumnFamily readColumnFamily(ReadCommand command, int consistency_level) throws InvalidRequestException
+    protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level) throws InvalidRequestException
     {
-        String cfName = command.getColumnFamilyName();
-        ThriftValidation.validateKey(command.key);
+        // TODO - Support multiple column families per row, right now row only contains 1 column family
+        String cfName = commands.get(0).getColumnFamilyName();
+
+        Map<String, ColumnFamily> columnFamilyKeyMap = new HashMap<String,ColumnFamily>();
+
+        for (ReadCommand command: commands)
+        {
+            ThriftValidation.validateKey(command.key);
+        }
 
         if (consistency_level == ConsistencyLevel.ZERO)
         {
@@ -87,10 +93,10 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("Consistency level all is not yet supported on read operations");
         }
 
-        Row row;
+        List<Row> rows;
         try
         {
-            row = StorageProxy.readProtocol(command, consistency_level);
+            rows = StorageProxy.readProtocol(commands, consistency_level);
         }
         catch (IOException e)
         {
@@ -101,11 +107,11 @@ public class CassandraServer implements Cassandra.Iface
             throw new RuntimeException(e);
         }
 
-        if (row == null)
+        for (Row row: rows)
         {
-            return null;
+            columnFamilyKeyMap.put(row.key(), row.getColumnFamily(cfName));
         }
-        return row.getColumnFamily(cfName);
+        return columnFamilyKeyMap;
 	}
 
     public List<Column> thriftifySubColumns(Collection<IColumn> columns)
@@ -169,50 +175,78 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    private List<ColumnOrSuperColumn> getSlice(ReadCommand command, int consistency_level) throws InvalidRequestException
+    private Map<String, List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, int consistency_level) throws InvalidRequestException
     {
-        ColumnFamily cfamily = readColumnFamily(command, consistency_level);
-        boolean reverseOrder = command instanceof SliceFromReadCommand && ((SliceFromReadCommand)command).reversed;
+        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+        Map<String, List<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<String, List<ColumnOrSuperColumn>>();
+        for (ReadCommand command: commands)
+        {
+            ColumnFamily cfamily = cfamilies.get(command.key);
+            boolean reverseOrder = command instanceof SliceFromReadCommand && ((SliceFromReadCommand)command).reversed;
 
-        if (cfamily == null || cfamily.getColumnsMap().size() == 0)
-        {
-            return EMPTY_COLUMNS;
-        }
-        if (command.queryPath.superColumnName != null)
-        {
-            IColumn column = cfamily.getColumnsMap().values().iterator().next();
-            Collection<IColumn> subcolumns = column.getSubColumns();
-            if (subcolumns == null || subcolumns.isEmpty())
+            if (cfamily == null || cfamily.getColumnsMap().size() == 0)
             {
-                return EMPTY_COLUMNS;
+                columnFamiliesMap.put(command.key, EMPTY_COLUMNS);
+                continue;
             }
-            return thriftifyColumns(subcolumns, reverseOrder);
+            if (command.queryPath.superColumnName != null)
+            {
+                IColumn column = cfamily.getColumnsMap().values().iterator().next();
+                Collection<IColumn> subcolumns = column.getSubColumns();
+                if (subcolumns == null || subcolumns.isEmpty())
+                {
+                    columnFamiliesMap.put(command.key, EMPTY_COLUMNS);
+                    continue;
+                }
+                columnFamiliesMap.put(command.key, thriftifyColumns(subcolumns, reverseOrder));
+                continue;
+            }
+            if (cfamily.isSuper())
+                columnFamiliesMap.put(command.key, thriftifySuperColumns(cfamily.getSortedColumns(), reverseOrder));
+            else
+                columnFamiliesMap.put(command.key, thriftifyColumns(cfamily.getSortedColumns(), reverseOrder));
         }
-        if (cfamily.isSuper())
-        {
-            return thriftifySuperColumns(cfamily.getSortedColumns(), reverseOrder);
-        }
-        return thriftifyColumns(cfamily.getSortedColumns(), reverseOrder);
+
+        return columnFamiliesMap;
     }
 
     public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
     throws InvalidRequestException, NotFoundException
     {
         if (logger.isDebugEnabled())
-            logger.debug("get_slice_from");
+            logger.debug("get_slice");
+        return multigetSliceInternal(keyspace, Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
+    }
+    
+    public Map<String, List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
+    throws InvalidRequestException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("multiget_slice");
+        return multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
+    }
+
+    private Map<String, List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
+    throws InvalidRequestException
+    {
         ThriftValidation.validateColumnParent(keyspace, column_parent);
+        List<ReadCommand> commands = new ArrayList<ReadCommand>();
+        SliceRange range = predicate.slice_range;
 
         if (predicate.column_names != null)
         {
+            for (String key: keys)
+                commands.add(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names));
             ThriftValidation.validateColumns(keyspace, column_parent, predicate.column_names);
-            return getSlice(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names), consistency_level);
         }
         else
         {
-            SliceRange range = predicate.slice_range;
+            for (String key: keys)
+                commands.add(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count));
             ThriftValidation.validateRange(keyspace, column_parent, range);
-            return getSlice(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count), consistency_level);
         }
+
+        return getSlice(commands, consistency_level);
     }
 
     public ColumnOrSuperColumn get(String table, String key, ColumnPath column_path, int consistency_level)
@@ -220,50 +254,127 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get");
+        ColumnOrSuperColumn column = multiget(table, Arrays.asList(key), column_path, consistency_level).get(key);
+        if (!column.isSetColumn() && !column.isSetSuper_column())
+        {
+            throw new NotFoundException();
+        }
+        return column;
+    }
+
+    /** no values will be mapped to keys with no data */
+    private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, int consistency_level)
+    throws InvalidRequestException
+    {
+        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+        Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
+
+        for (ReadCommand command: commands)
+        {
+            ColumnFamily cfamily = cfamilies.get(command.key);
+            if (cfamily == null)
+                continue;
+
+            Collection<IColumn> columns = null;
+            if (command.queryPath.superColumnName != null)
+            {
+                IColumn column = cfamily.getColumn(command.queryPath.superColumnName);
+                if (column != null)
+                {
+                    columns = column.getSubColumns();
+                }
+            }
+            else
+            {
+                columns = cfamily.getSortedColumns();
+            }
+
+            if (columns != null && columns.size() != 0)
+            {
+                columnFamiliesMap.put(command.key, columns);
+            }
+        }
+        return columnFamiliesMap;
+    }
+
+    /** always returns a ColumnOrSuperColumn for each key, even if there is no data for it */
+    public Map<String, ColumnOrSuperColumn> multiget(String table, List<String> keys, ColumnPath column_path, int consistency_level)
+    throws InvalidRequestException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("multiget");
+        return multigetInternal(table, keys, column_path, consistency_level);
+    }
+
+    private Map<String, ColumnOrSuperColumn> multigetInternal(String table, List<String> keys, ColumnPath column_path, int consistency_level)
+    throws InvalidRequestException
+    {
         ThriftValidation.validateColumnPath(table, column_path);
 
         QueryPath path = new QueryPath(column_path.column_family, column_path.super_column);
         List<byte[]> nameAsList = Arrays.asList(column_path.column == null ? column_path.super_column : column_path.column);
-        ColumnFamily cfamily = readColumnFamily(new SliceByNamesReadCommand(table, key, path, nameAsList), consistency_level);
-        if (cfamily == null)
+        List<ReadCommand> commands = new ArrayList<ReadCommand>();
+        for (String key: keys)
         {
-            throw new NotFoundException();
+            commands.add(new SliceByNamesReadCommand(table, key, path, nameAsList));
         }
-        Collection<IColumn> columns = null;
-        if (column_path.super_column != null && column_path.column != null)
+
+        Map<String, ColumnOrSuperColumn> columnFamiliesMap = new HashMap<String, ColumnOrSuperColumn>();
+        Map<String, Collection<IColumn>> columnsMap = multigetColumns(commands, consistency_level);
+
+        for (ReadCommand command: commands)
         {
-            IColumn column = cfamily.getColumn(column_path.super_column);
-            if (column != null)
+            ColumnOrSuperColumn columnorsupercolumn;
+
+            Collection<IColumn> columns = columnsMap.get(command.key);
+            if (columns == null)
             {
-                columns = column.getSubColumns();
+               columnorsupercolumn = new ColumnOrSuperColumn();
             }
-        }
-        else
-        {
-            columns = cfamily.getSortedColumns();
-        }
-        if (columns == null || columns.size() == 0)
-        {
-            throw new NotFoundException();
+            else
+            {
+                assert columns.size() == 1;
+                IColumn column = columns.iterator().next();
+
+
+                if (column.isMarkedForDelete())
+                {
+                    columnorsupercolumn = new ColumnOrSuperColumn();
+                }
+                else
+                {
+                    columnorsupercolumn = column instanceof org.apache.cassandra.db.Column
+                                          ? new ColumnOrSuperColumn(new Column(column.name(), column.value(), column.timestamp()), null)
+                                          : new ColumnOrSuperColumn(null, new SuperColumn(column.name(), thriftifySubColumns(column.getSubColumns())));
+                }
+
+            }
+            columnFamiliesMap.put(command.key, columnorsupercolumn);
         }
 
-        assert columns.size() == 1;
-        IColumn column = columns.iterator().next();
-        if (column.isMarkedForDelete())
-        {
-            throw new NotFoundException();
-        }
-
-        return column instanceof org.apache.cassandra.db.Column
-               ? new ColumnOrSuperColumn(new Column(column.name(), column.value(), column.timestamp()), null)
-               : new ColumnOrSuperColumn(null, new SuperColumn(column.name(), thriftifySubColumns(column.getSubColumns())));
+        return columnFamiliesMap;
     }
 
     public int get_count(String table, String key, ColumnParent column_parent, int consistency_level)
     throws InvalidRequestException
     {
         if (logger.isDebugEnabled())
-            logger.debug("get_column_count");
+            logger.debug("get_count");
+        return multigetCountInternal(table, Arrays.asList(key), column_parent, consistency_level).get(key);
+    }
+
+    public Map<String, Integer> multiget_count(String table, List<String> keys, ColumnParent column_parent, int consistency_level)
+    throws InvalidRequestException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("multiget_count");
+        return multigetCountInternal(table, keys, column_parent, consistency_level);
+
+    }
+
+    private Map<String, Integer> multigetCountInternal(String table, List<String> keys, ColumnParent column_parent, int consistency_level)
+    throws InvalidRequestException
+    {
         // validateColumnParent assumes we require simple columns; g_c_c is the only
         // one of the columnParent-taking apis that can also work at the SC level.
         // so we roll a one-off validator here.
@@ -273,31 +384,29 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
         }
 
-        ColumnFamily cfamily;
-        cfamily = readColumnFamily(new SliceFromReadCommand(table, key, column_parent, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE), consistency_level);
-        if (cfamily == null)
+        List<ReadCommand> commands = new ArrayList<ReadCommand>();
+        for (String key: keys)
         {
-            return 0;
+            commands.add(new SliceFromReadCommand(table, key, column_parent, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE));
         }
-        Collection<IColumn> columns = null;
-        if (column_parent.super_column != null)
+
+        Map<String, Integer> columnFamiliesMap = new HashMap<String, Integer>();
+        Map<String, Collection<IColumn>> columnsMap = multigetColumns(commands, consistency_level);
+
+        for (ReadCommand command: commands)
         {
-            IColumn column = cfamily.getColumn(column_parent.super_column);
-            if (column != null)
+            Collection<IColumn> columns = columnsMap.get(command.key);
+            if(columns == null)
             {
-                columns = column.getSubColumns();
+               columnFamiliesMap.put(command.key, 0);
+            }
+            else
+            {
+               columnFamiliesMap.put(command.key, columns.size());
             }
         }
-        else
-        {
-            columns = cfamily.getSortedColumns();
-        }
-        if (columns == null || columns.size() == 0)
-        {
-            return 0;
-        }
-        return columns.size();
-	}
+        return columnFamiliesMap;
+    }
 
     public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level)
     throws InvalidRequestException, UnavailableException
