@@ -542,22 +542,3 @@ class TestMutations(CassandraTester):
         for key in keys:
             assert rows.has_key(key) == True
             assert columns == rows[key]
-
-    def test_multiget_count(self):
-        """Insert multiple keys and retrieve them using the multiget_count interface"""
-
-        """Generate a list of 10 keys and insert them"""
-        num_keys = 10
-        keys = ['key'+str(i) for i in range(1, num_keys+1)]
-        _insert_multi(keys)
-
-        """Retrieve all 10 key slices"""
-        rows = client.multiget_count('Keyspace1', keys, ColumnParent('Standard1'), ConsistencyLevel.ONE)
-        keys1 = rows.keys().sort()
-        keys2 = keys.sort()
-
-        columns = [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS]
-        """Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted"""
-        for key in keys:
-            assert rows.has_key(key) == True
-            assert rows[key] == 2

@@ -363,15 +363,6 @@ public class CassandraServer implements Cassandra.Iface
         return multigetCountInternal(table, Arrays.asList(key), column_parent, consistency_level).get(key);
     }
 
-    public Map<String, Integer> multiget_count(String table, List<String> keys, ColumnParent column_parent, int consistency_level)
-    throws InvalidRequestException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("multiget_count");
-        return multigetCountInternal(table, keys, column_parent, consistency_level);
-
-    }
-
     private Map<String, Integer> multigetCountInternal(String table, List<String> keys, ColumnParent column_parent, int consistency_level)
     throws InvalidRequestException
     {

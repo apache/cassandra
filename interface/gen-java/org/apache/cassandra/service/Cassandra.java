@@ -55,8 +55,6 @@ public class Cassandra {
 
     public int get_count(String keyspace, String key, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException;
 
-    public Map<String,Integer> multiget_count(String keyspace, List<String> keys, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException;
-
     public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
     public void batch_insert(String keyspace, BatchMutation batch_mutation, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
@@ -301,45 +299,6 @@ public class Cassandra {
         throw result.ire;
       }
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get_count failed: unknown result");
-    }
-
-    public Map<String,Integer> multiget_count(String keyspace, List<String> keys, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, TException
-    {
-      send_multiget_count(keyspace, keys, column_parent, consistency_level);
-      return recv_multiget_count();
-    }
-
-    public void send_multiget_count(String keyspace, List<String> keys, ColumnParent column_parent, int consistency_level) throws TException
-    {
-      oprot_.writeMessageBegin(new TMessage("multiget_count", TMessageType.CALL, seqid_));
-      multiget_count_args args = new multiget_count_args();
-      args.keyspace = keyspace;
-      args.keys = keys;
-      args.column_parent = column_parent;
-      args.consistency_level = consistency_level;
-      args.write(oprot_);
-      oprot_.writeMessageEnd();
-      oprot_.getTransport().flush();
-    }
-
-    public Map<String,Integer> recv_multiget_count() throws InvalidRequestException, TException
-    {
-      TMessage msg = iprot_.readMessageBegin();
-      if (msg.type == TMessageType.EXCEPTION) {
-        TApplicationException x = TApplicationException.read(iprot_);
-        iprot_.readMessageEnd();
-        throw x;
-      }
-      multiget_count_result result = new multiget_count_result();
-      result.read(iprot_);
-      iprot_.readMessageEnd();
-      if (result.isSetSuccess()) {
-        return result.success;
-      }
-      if (result.ire != null) {
-        throw result.ire;
-      }
-      throw new TApplicationException(TApplicationException.MISSING_RESULT, "multiget_count failed: unknown result");
     }
 
     public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException
@@ -614,7 +573,6 @@ public class Cassandra {
       processMap_.put("get", new get());
       processMap_.put("multiget", new multiget());
       processMap_.put("get_count", new get_count());
-      processMap_.put("multiget_count", new multiget_count());
       processMap_.put("insert", new insert());
       processMap_.put("batch_insert", new batch_insert());
       processMap_.put("remove", new remove());
@@ -787,34 +745,6 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("get_count", TMessageType.REPLY, seqid));
-        result.write(oprot);
-        oprot.writeMessageEnd();
-        oprot.getTransport().flush();
-      }
-
-    }
-
-    private class multiget_count implements ProcessFunction {
-      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
-      {
-        multiget_count_args args = new multiget_count_args();
-        args.read(iprot);
-        iprot.readMessageEnd();
-        multiget_count_result result = new multiget_count_result();
-        try {
-          result.success = iface_.multiget_count(args.keyspace, args.keys, args.column_parent, args.consistency_level);
-        } catch (InvalidRequestException ire) {
-          result.ire = ire;
-        } catch (Throwable th) {
-          LOGGER.error("Internal error processing multiget_count", th);
-          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing multiget_count");
-          oprot.writeMessageBegin(new TMessage("multiget_count", TMessageType.EXCEPTION, seqid));
-          x.write(oprot);
-          oprot.writeMessageEnd();
-          oprot.getTransport().flush();
-          return;
-        }
-        oprot.writeMessageBegin(new TMessage("multiget_count", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -5506,844 +5436,6 @@ public class Cassandra {
 
   }
 
-  public static class multiget_count_args implements TBase, java.io.Serializable, Cloneable, Comparable<multiget_count_args>   {
-    private static final TStruct STRUCT_DESC = new TStruct("multiget_count_args");
-    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
-    private static final TField KEYS_FIELD_DESC = new TField("keys", TType.LIST, (short)2);
-    private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
-
-    public String keyspace;
-    public static final int KEYSPACE = 1;
-    public List<String> keys;
-    public static final int KEYS = 2;
-    public ColumnParent column_parent;
-    public static final int COLUMN_PARENT = 3;
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public int consistency_level;
-    public static final int CONSISTENCY_LEVEL = 5;
-
-    // isset id assignments
-    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
-    private BitSet __isset_bit_vector = new BitSet(1);
-
-    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRING)));
-      put(KEYS, new FieldMetaData("keys", TFieldRequirementType.DEFAULT, 
-          new ListMetaData(TType.LIST, 
-              new FieldValueMetaData(TType.STRING))));
-      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
-          new StructMetaData(TType.STRUCT, ColumnParent.class)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.I32)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(multiget_count_args.class, metaDataMap);
-    }
-
-    public multiget_count_args() {
-      this.consistency_level = 1;
-
-    }
-
-    public multiget_count_args(
-      String keyspace,
-      List<String> keys,
-      ColumnParent column_parent,
-      int consistency_level)
-    {
-      this();
-      this.keyspace = keyspace;
-      this.keys = keys;
-      this.column_parent = column_parent;
-      this.consistency_level = consistency_level;
-      setConsistency_levelIsSet(true);
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public multiget_count_args(multiget_count_args other) {
-      __isset_bit_vector.clear();
-      __isset_bit_vector.or(other.__isset_bit_vector);
-      if (other.isSetKeyspace()) {
-        this.keyspace = other.keyspace;
-      }
-      if (other.isSetKeys()) {
-        List<String> __this__keys = new ArrayList<String>();
-        for (String other_element : other.keys) {
-          __this__keys.add(other_element);
-        }
-        this.keys = __this__keys;
-      }
-      if (other.isSetColumn_parent()) {
-        this.column_parent = new ColumnParent(other.column_parent);
-      }
-      this.consistency_level = other.consistency_level;
-    }
-
-    @Override
-    public multiget_count_args clone() {
-      return new multiget_count_args(this);
-    }
-
-    public String getKeyspace() {
-      return this.keyspace;
-    }
-
-    public multiget_count_args setKeyspace(String keyspace) {
-      this.keyspace = keyspace;
-      return this;
-    }
-
-    public void unsetKeyspace() {
-      this.keyspace = null;
-    }
-
-    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
-    public boolean isSetKeyspace() {
-      return this.keyspace != null;
-    }
-
-    public void setKeyspaceIsSet(boolean value) {
-      if (!value) {
-        this.keyspace = null;
-      }
-    }
-
-    public List<String> getKeys() {
-      return this.keys;
-    }
-
-    public multiget_count_args setKeys(List<String> keys) {
-      this.keys = keys;
-      return this;
-    }
-
-    public void unsetKeys() {
-      this.keys = null;
-    }
-
-    // Returns true if field keys is set (has been asigned a value) and false otherwise
-    public boolean isSetKeys() {
-      return this.keys != null;
-    }
-
-    public void setKeysIsSet(boolean value) {
-      if (!value) {
-        this.keys = null;
-      }
-    }
-
-    public ColumnParent getColumn_parent() {
-      return this.column_parent;
-    }
-
-    public multiget_count_args setColumn_parent(ColumnParent column_parent) {
-      this.column_parent = column_parent;
-      return this;
-    }
-
-    public void unsetColumn_parent() {
-      this.column_parent = null;
-    }
-
-    // Returns true if field column_parent is set (has been asigned a value) and false otherwise
-    public boolean isSetColumn_parent() {
-      return this.column_parent != null;
-    }
-
-    public void setColumn_parentIsSet(boolean value) {
-      if (!value) {
-        this.column_parent = null;
-      }
-    }
-
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public int getConsistency_level() {
-      return this.consistency_level;
-    }
-
-    /**
-     * 
-     * @see ConsistencyLevel
-     */
-    public multiget_count_args setConsistency_level(int consistency_level) {
-      this.consistency_level = consistency_level;
-      setConsistency_levelIsSet(true);
-      return this;
-    }
-
-    public void unsetConsistency_level() {
-      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
-    }
-
-    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
-    public boolean isSetConsistency_level() {
-      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
-    }
-
-    public void setConsistency_levelIsSet(boolean value) {
-      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      switch (fieldID) {
-      case KEYSPACE:
-        if (value == null) {
-          unsetKeyspace();
-        } else {
-          setKeyspace((String)value);
-        }
-        break;
-
-      case KEYS:
-        if (value == null) {
-          unsetKeys();
-        } else {
-          setKeys((List<String>)value);
-        }
-        break;
-
-      case COLUMN_PARENT:
-        if (value == null) {
-          unsetColumn_parent();
-        } else {
-          setColumn_parent((ColumnParent)value);
-        }
-        break;
-
-      case CONSISTENCY_LEVEL:
-        if (value == null) {
-          unsetConsistency_level();
-        } else {
-          setConsistency_level((Integer)value);
-        }
-        break;
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    public Object getFieldValue(int fieldID) {
-      switch (fieldID) {
-      case KEYSPACE:
-        return getKeyspace();
-
-      case KEYS:
-        return getKeys();
-
-      case COLUMN_PARENT:
-        return getColumn_parent();
-
-      case CONSISTENCY_LEVEL:
-        return getConsistency_level();
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-    public boolean isSet(int fieldID) {
-      switch (fieldID) {
-      case KEYSPACE:
-        return isSetKeyspace();
-      case KEYS:
-        return isSetKeys();
-      case COLUMN_PARENT:
-        return isSetColumn_parent();
-      case CONSISTENCY_LEVEL:
-        return isSetConsistency_level();
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof multiget_count_args)
-        return this.equals((multiget_count_args)that);
-      return false;
-    }
-
-    public boolean equals(multiget_count_args that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_keyspace = true && this.isSetKeyspace();
-      boolean that_present_keyspace = true && that.isSetKeyspace();
-      if (this_present_keyspace || that_present_keyspace) {
-        if (!(this_present_keyspace && that_present_keyspace))
-          return false;
-        if (!this.keyspace.equals(that.keyspace))
-          return false;
-      }
-
-      boolean this_present_keys = true && this.isSetKeys();
-      boolean that_present_keys = true && that.isSetKeys();
-      if (this_present_keys || that_present_keys) {
-        if (!(this_present_keys && that_present_keys))
-          return false;
-        if (!this.keys.equals(that.keys))
-          return false;
-      }
-
-      boolean this_present_column_parent = true && this.isSetColumn_parent();
-      boolean that_present_column_parent = true && that.isSetColumn_parent();
-      if (this_present_column_parent || that_present_column_parent) {
-        if (!(this_present_column_parent && that_present_column_parent))
-          return false;
-        if (!this.column_parent.equals(that.column_parent))
-          return false;
-      }
-
-      boolean this_present_consistency_level = true;
-      boolean that_present_consistency_level = true;
-      if (this_present_consistency_level || that_present_consistency_level) {
-        if (!(this_present_consistency_level && that_present_consistency_level))
-          return false;
-        if (this.consistency_level != that.consistency_level)
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public int compareTo(multiget_count_args other) {
-      if (!getClass().equals(other.getClass())) {
-        return getClass().getName().compareTo(other.getClass().getName());
-      }
-
-      int lastComparison = 0;
-      multiget_count_args typedOther = (multiget_count_args)other;
-
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(isSetKeys());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id)
-        {
-          case KEYSPACE:
-            if (field.type == TType.STRING) {
-              this.keyspace = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case KEYS:
-            if (field.type == TType.LIST) {
-              {
-                TList _list43 = iprot.readListBegin();
-                this.keys = new ArrayList<String>(_list43.size);
-                for (int _i44 = 0; _i44 < _list43.size; ++_i44)
-                {
-                  String _elem45;
-                  _elem45 = iprot.readString();
-                  this.keys.add(_elem45);
-                }
-                iprot.readListEnd();
-              }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case COLUMN_PARENT:
-            if (field.type == TType.STRUCT) {
-              this.column_parent = new ColumnParent();
-              this.column_parent.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case CONSISTENCY_LEVEL:
-            if (field.type == TType.I32) {
-              this.consistency_level = iprot.readI32();
-              setConsistency_levelIsSet(true);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-            break;
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      validate();
-
-      oprot.writeStructBegin(STRUCT_DESC);
-      if (this.keyspace != null) {
-        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
-        oprot.writeString(this.keyspace);
-        oprot.writeFieldEnd();
-      }
-      if (this.keys != null) {
-        oprot.writeFieldBegin(KEYS_FIELD_DESC);
-        {
-          oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (String _iter46 : this.keys)          {
-            oprot.writeString(_iter46);
-          }
-          oprot.writeListEnd();
-        }
-        oprot.writeFieldEnd();
-      }
-      if (this.column_parent != null) {
-        oprot.writeFieldBegin(COLUMN_PARENT_FIELD_DESC);
-        this.column_parent.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
-      oprot.writeI32(this.consistency_level);
-      oprot.writeFieldEnd();
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("multiget_count_args(");
-      boolean first = true;
-
-      sb.append("keyspace:");
-      if (this.keyspace == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.keyspace);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("keys:");
-      if (this.keys == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.keys);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("column_parent:");
-      if (this.column_parent == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.column_parent);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("consistency_level:");
-      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
-      if (consistency_level_name != null) {
-        sb.append(consistency_level_name);
-        sb.append(" (");
-      }
-      sb.append(this.consistency_level);
-      if (consistency_level_name != null) {
-        sb.append(")");
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (keys == null) {
-        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
-      }
-      if (column_parent == null) {
-        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
-      // check that fields of type enum have valid values
-      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
-        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
-      }
-    }
-
-  }
-
-  public static class multiget_count_result implements TBase, java.io.Serializable, Cloneable   {
-    private static final TStruct STRUCT_DESC = new TStruct("multiget_count_result");
-    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.MAP, (short)0);
-    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
-
-    public Map<String,Integer> success;
-    public static final int SUCCESS = 0;
-    public InvalidRequestException ire;
-    public static final int IRE = 1;
-
-    // isset id assignments
-
-    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
-          new MapMetaData(TType.MAP, 
-              new FieldValueMetaData(TType.STRING), 
-              new FieldValueMetaData(TType.I32))));
-      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-    }});
-
-    static {
-      FieldMetaData.addStructMetaDataMap(multiget_count_result.class, metaDataMap);
-    }
-
-    public multiget_count_result() {
-    }
-
-    public multiget_count_result(
-      Map<String,Integer> success,
-      InvalidRequestException ire)
-    {
-      this();
-      this.success = success;
-      this.ire = ire;
-    }
-
-    /**
-     * Performs a deep copy on <i>other</i>.
-     */
-    public multiget_count_result(multiget_count_result other) {
-      if (other.isSetSuccess()) {
-        Map<String,Integer> __this__success = new HashMap<String,Integer>();
-        for (Map.Entry<String, Integer> other_element : other.success.entrySet()) {
-
-          String other_element_key = other_element.getKey();
-          Integer other_element_value = other_element.getValue();
-
-          String __this__success_copy_key = other_element_key;
-
-          Integer __this__success_copy_value = other_element_value;
-
-          __this__success.put(__this__success_copy_key, __this__success_copy_value);
-        }
-        this.success = __this__success;
-      }
-      if (other.isSetIre()) {
-        this.ire = new InvalidRequestException(other.ire);
-      }
-    }
-
-    @Override
-    public multiget_count_result clone() {
-      return new multiget_count_result(this);
-    }
-
-    public Map<String,Integer> getSuccess() {
-      return this.success;
-    }
-
-    public multiget_count_result setSuccess(Map<String,Integer> success) {
-      this.success = success;
-      return this;
-    }
-
-    public void unsetSuccess() {
-      this.success = null;
-    }
-
-    // Returns true if field success is set (has been asigned a value) and false otherwise
-    public boolean isSetSuccess() {
-      return this.success != null;
-    }
-
-    public void setSuccessIsSet(boolean value) {
-      if (!value) {
-        this.success = null;
-      }
-    }
-
-    public InvalidRequestException getIre() {
-      return this.ire;
-    }
-
-    public multiget_count_result setIre(InvalidRequestException ire) {
-      this.ire = ire;
-      return this;
-    }
-
-    public void unsetIre() {
-      this.ire = null;
-    }
-
-    // Returns true if field ire is set (has been asigned a value) and false otherwise
-    public boolean isSetIre() {
-      return this.ire != null;
-    }
-
-    public void setIreIsSet(boolean value) {
-      if (!value) {
-        this.ire = null;
-      }
-    }
-
-    public void setFieldValue(int fieldID, Object value) {
-      switch (fieldID) {
-      case SUCCESS:
-        if (value == null) {
-          unsetSuccess();
-        } else {
-          setSuccess((Map<String,Integer>)value);
-        }
-        break;
-
-      case IRE:
-        if (value == null) {
-          unsetIre();
-        } else {
-          setIre((InvalidRequestException)value);
-        }
-        break;
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    public Object getFieldValue(int fieldID) {
-      switch (fieldID) {
-      case SUCCESS:
-        return getSuccess();
-
-      case IRE:
-        return getIre();
-
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-    public boolean isSet(int fieldID) {
-      switch (fieldID) {
-      case SUCCESS:
-        return isSetSuccess();
-      case IRE:
-        return isSetIre();
-      default:
-        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
-      }
-    }
-
-    @Override
-    public boolean equals(Object that) {
-      if (that == null)
-        return false;
-      if (that instanceof multiget_count_result)
-        return this.equals((multiget_count_result)that);
-      return false;
-    }
-
-    public boolean equals(multiget_count_result that) {
-      if (that == null)
-        return false;
-
-      boolean this_present_success = true && this.isSetSuccess();
-      boolean that_present_success = true && that.isSetSuccess();
-      if (this_present_success || that_present_success) {
-        if (!(this_present_success && that_present_success))
-          return false;
-        if (!this.success.equals(that.success))
-          return false;
-      }
-
-      boolean this_present_ire = true && this.isSetIre();
-      boolean that_present_ire = true && that.isSetIre();
-      if (this_present_ire || that_present_ire) {
-        if (!(this_present_ire && that_present_ire))
-          return false;
-        if (!this.ire.equals(that.ire))
-          return false;
-      }
-
-      return true;
-    }
-
-    @Override
-    public int hashCode() {
-      return 0;
-    }
-
-    public void read(TProtocol iprot) throws TException {
-      TField field;
-      iprot.readStructBegin();
-      while (true)
-      {
-        field = iprot.readFieldBegin();
-        if (field.type == TType.STOP) { 
-          break;
-        }
-        switch (field.id)
-        {
-          case SUCCESS:
-            if (field.type == TType.MAP) {
-              {
-                TMap _map47 = iprot.readMapBegin();
-                this.success = new HashMap<String,Integer>(2*_map47.size);
-                for (int _i48 = 0; _i48 < _map47.size; ++_i48)
-                {
-                  String _key49;
-                  int _val50;
-                  _key49 = iprot.readString();
-                  _val50 = iprot.readI32();
-                  this.success.put(_key49, _val50);
-                }
-                iprot.readMapEnd();
-              }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case IRE:
-            if (field.type == TType.STRUCT) {
-              this.ire = new InvalidRequestException();
-              this.ire.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          default:
-            TProtocolUtil.skip(iprot, field.type);
-            break;
-        }
-        iprot.readFieldEnd();
-      }
-      iprot.readStructEnd();
-
-
-      // check for required fields of primitive type, which can't be checked in the validate method
-      validate();
-    }
-
-    public void write(TProtocol oprot) throws TException {
-      oprot.writeStructBegin(STRUCT_DESC);
-
-      if (this.isSetSuccess()) {
-        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-        {
-          oprot.writeMapBegin(new TMap(TType.STRING, TType.I32, this.success.size()));
-          for (Map.Entry<String, Integer> _iter51 : this.success.entrySet())          {
-            oprot.writeString(_iter51.getKey());
-            oprot.writeI32(_iter51.getValue());
-          }
-          oprot.writeMapEnd();
-        }
-        oprot.writeFieldEnd();
-      } else if (this.isSetIre()) {
-        oprot.writeFieldBegin(IRE_FIELD_DESC);
-        this.ire.write(oprot);
-        oprot.writeFieldEnd();
-      }
-      oprot.writeFieldStop();
-      oprot.writeStructEnd();
-    }
-
-    @Override
-    public String toString() {
-      StringBuilder sb = new StringBuilder("multiget_count_result(");
-      boolean first = true;
-
-      sb.append("success:");
-      if (this.success == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.success);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("ire:");
-      if (this.ire == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.ire);
-      }
-      first = false;
-      sb.append(")");
-      return sb.toString();
-    }
-
-    public void validate() throws TException {
-      // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
-      // check that fields of type enum have valid values
-    }
-
-  }
-
   public static class insert_args implements TBase, java.io.Serializable, Cloneable, Comparable<insert_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("insert_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
@@ -9720,13 +8812,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list52 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list52.size);
-                for (int _i53 = 0; _i53 < _list52.size; ++_i53)
+                TList _list43 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list43.size);
+                for (int _i44 = 0; _i44 < _list43.size; ++_i44)
                 {
-                  String _elem54;
-                  _elem54 = iprot.readString();
-                  this.success.add(_elem54);
+                  String _elem45;
+                  _elem45 = iprot.readString();
+                  this.success.add(_elem45);
                 }
                 iprot.readListEnd();
               }
@@ -9762,8 +8854,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter55 : this.success)          {
-            oprot.writeString(_iter55);
+          for (String _iter46 : this.success)          {
+            oprot.writeString(_iter46);
           }
           oprot.writeListEnd();
         }
@@ -10642,13 +9734,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list56 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list56.size);
-                for (int _i57 = 0; _i57 < _list56.size; ++_i57)
+                TList _list47 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list47.size);
+                for (int _i48 = 0; _i48 < _list47.size; ++_i48)
                 {
-                  String _elem58;
-                  _elem58 = iprot.readString();
-                  this.success.add(_elem58);
+                  String _elem49;
+                  _elem49 = iprot.readString();
+                  this.success.add(_elem49);
                 }
                 iprot.readListEnd();
               }
@@ -10676,8 +9768,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter59 : this.success)          {
-            oprot.writeString(_iter59);
+          for (String _iter50 : this.success)          {
+            oprot.writeString(_iter50);
           }
           oprot.writeListEnd();
         }
@@ -11161,27 +10253,27 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.MAP) {
               {
-                TMap _map60 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map60.size);
-                for (int _i61 = 0; _i61 < _map60.size; ++_i61)
+                TMap _map51 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map51.size);
+                for (int _i52 = 0; _i52 < _map51.size; ++_i52)
                 {
-                  String _key62;
-                  Map<String,String> _val63;
-                  _key62 = iprot.readString();
+                  String _key53;
+                  Map<String,String> _val54;
+                  _key53 = iprot.readString();
                   {
-                    TMap _map64 = iprot.readMapBegin();
-                    _val63 = new HashMap<String,String>(2*_map64.size);
-                    for (int _i65 = 0; _i65 < _map64.size; ++_i65)
+                    TMap _map55 = iprot.readMapBegin();
+                    _val54 = new HashMap<String,String>(2*_map55.size);
+                    for (int _i56 = 0; _i56 < _map55.size; ++_i56)
                     {
-                      String _key66;
-                      String _val67;
-                      _key66 = iprot.readString();
-                      _val67 = iprot.readString();
-                      _val63.put(_key66, _val67);
+                      String _key57;
+                      String _val58;
+                      _key57 = iprot.readString();
+                      _val58 = iprot.readString();
+                      _val54.put(_key57, _val58);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key62, _val63);
+                  this.success.put(_key53, _val54);
                 }
                 iprot.readMapEnd();
               }
@@ -11217,13 +10309,13 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter68 : this.success.entrySet())          {
-            oprot.writeString(_iter68.getKey());
+          for (Map.Entry<String, Map<String,String>> _iter59 : this.success.entrySet())          {
+            oprot.writeString(_iter59.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter68.getValue().size()));
-              for (Map.Entry<String, String> _iter69 : _iter68.getValue().entrySet())              {
-                oprot.writeString(_iter69.getKey());
-                oprot.writeString(_iter69.getValue());
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter59.getValue().size()));
+              for (Map.Entry<String, String> _iter60 : _iter59.getValue().entrySet())              {
+                oprot.writeString(_iter60.getKey());
+                oprot.writeString(_iter60.getValue());
               }
               oprot.writeMapEnd();
             }

@@ -129,9 +129,6 @@ service Cassandra {
   i32 get_count(1:string keyspace, 2:string key, 3:ColumnParent column_parent, 5:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
-  map<string,i32> multiget_count(1:string keyspace, 2:list<string> keys, 3:ColumnParent column_parent, 5:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire),
-
   void     insert(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
