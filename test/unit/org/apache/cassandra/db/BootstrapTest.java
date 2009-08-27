@@ -31,6 +31,8 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.StringToken;
+import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.junit.Test;
@@ -45,7 +47,6 @@ public class BootstrapTest
     {
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
-
        
         for (int j = 0; j < insertsPerTable; j++) 
         {
@@ -58,7 +59,7 @@ public class BootstrapTest
         store.forceBlockingFlush();
         List<String> fileList = new ArrayList<String>();
         List<Range> ranges  = new ArrayList<Range>();
-        Range r = new Range(new StringToken("0"), new StringToken("zzzzzz"));
+        Range r = new Range(CollatingOrderPreservingPartitioner.MINIMUM, new BytesToken("zzzzzz".getBytes()));
         ranges.add(r);
 
         boolean result = store.doAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150), fileList);
