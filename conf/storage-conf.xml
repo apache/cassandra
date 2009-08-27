@@ -64,7 +64,7 @@
        ~ 
        ~ SuperColumns have a similar CompareSubcolumnsWith attribute.
        ~ 
-       ~ ByteType: Simple sort by byte value.  No validation is performed.
+       ~ BytesType: Simple sort by byte value.  No validation is performed.
        ~ AsciiType: Like BytesType, but validates that the input can be 
        ~            parsed as US-ASCII.
        ~ UTF8Type: A string encoded as UTF8
