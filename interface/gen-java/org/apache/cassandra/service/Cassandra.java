@@ -33,7 +33,9 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
@@ -479,7 +481,7 @@ public class Cassandra {
 
   }
   public static class Processor implements TProcessor {
-    private static final Logger LOGGER = Logger.getLogger(Processor.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(Processor.class.getName());
     public Processor(Iface iface)
     {
       iface_ = iface;
@@ -589,7 +591,7 @@ public class Cassandra {
         get_count_result result = new get_count_result();
         try {
           result.success = iface_.get_count(args.keyspace, args.key, args.column_parent, args.consistency_level);
-          result.__isset.success = true;
+          result.setSuccessIsSet(true);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -789,7 +791,7 @@ public class Cassandra {
 
   }
 
-  public static class get_slice_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_slice_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_slice_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
@@ -812,10 +814,9 @@ public class Cassandra {
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 5;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean consistency_level = false;
-    }
+    // isset id assignments
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -852,13 +853,15 @@ public class Cassandra {
       this.column_parent = column_parent;
       this.predicate = predicate;
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_slice_args(get_slice_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -871,7 +874,6 @@ public class Cassandra {
       if (other.isSetPredicate()) {
         this.predicate = new SlicePredicate(other.predicate);
       }
-      __isset.consistency_level = other.__isset.consistency_level;
       this.consistency_level = other.consistency_level;
     }
 
@@ -990,21 +992,21 @@ public class Cassandra {
      */
     public get_slice_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
       return this;
     }
 
     public void unsetConsistency_level() {
-      this.__isset.consistency_level = false;
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
     public boolean isSetConsistency_level() {
-      return this.__isset.consistency_level;
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     public void setConsistency_levelIsSet(boolean value) {
-      this.__isset.consistency_level = value;
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -1160,6 +1162,57 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_slice_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_slice_args typedOther = (get_slice_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -1204,7 +1257,7 @@ public class Cassandra {
           case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
               this.consistency_level = iprot.readI32();
-              this.__isset.consistency_level = true;
+              setConsistency_levelIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -1219,6 +1272,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -1307,6 +1363,19 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      if (predicate == null) {
+        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
+      }
+      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -1315,7 +1384,7 @@ public class Cassandra {
 
   }
 
-  public static class get_slice_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_slice_result implements TBase, java.io.Serializable, Cloneable, Comparable<get_slice_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
@@ -1328,9 +1397,7 @@ public class Cassandra {
     public NotFoundException nfe;
     public static final int NFE = 2;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -1565,6 +1632,41 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_slice_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_slice_result typedOther = (get_slice_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetNfe()).compareTo(isSetNfe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(nfe, typedOther.nfe);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -1683,12 +1785,21 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (success == null) {
+        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
+      }
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
+      if (nfe == null) {
+        throw new TProtocolException("Required field 'nfe' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
@@ -1708,10 +1819,9 @@ public class Cassandra {
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 4;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean consistency_level = false;
-    }
+    // isset id assignments
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -1744,13 +1854,15 @@ public class Cassandra {
       this.key = key;
       this.column_path = column_path;
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_args(get_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -1760,7 +1872,6 @@ public class Cassandra {
       if (other.isSetColumn_path()) {
         this.column_path = new ColumnPath(other.column_path);
       }
-      __isset.consistency_level = other.__isset.consistency_level;
       this.consistency_level = other.consistency_level;
     }
 
@@ -1855,21 +1966,21 @@ public class Cassandra {
      */
     public get_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
       return this;
     }
 
     public void unsetConsistency_level() {
-      this.__isset.consistency_level = false;
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
     public boolean isSetConsistency_level() {
-      return this.__isset.consistency_level;
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     public void setConsistency_levelIsSet(boolean value) {
-      this.__isset.consistency_level = value;
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -2003,6 +2114,49 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_args typedOther = (get_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -2039,7 +2193,7 @@ public class Cassandra {
           case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
               this.consistency_level = iprot.readI32();
-              this.__isset.consistency_level = true;
+              setConsistency_levelIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2054,6 +2208,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -2129,6 +2286,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -2137,7 +2304,7 @@ public class Cassandra {
 
   }
 
-  public static class get_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_result implements TBase, java.io.Serializable, Cloneable, Comparable<get_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRUCT, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
@@ -2150,9 +2317,7 @@ public class Cassandra {
     public NotFoundException nfe;
     public static final int NFE = 2;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -2382,6 +2547,41 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_result typedOther = (get_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetNfe()).compareTo(isSetNfe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(nfe, typedOther.nfe);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -2484,12 +2684,21 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (success == null) {
+        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
+      }
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
+      if (nfe == null) {
+        throw new TProtocolException("Required field 'nfe' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_count_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_count_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_count_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_count_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
@@ -2509,10 +2718,9 @@ public class Cassandra {
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 5;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean consistency_level = false;
-    }
+    // isset id assignments
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -2545,13 +2753,15 @@ public class Cassandra {
       this.key = key;
       this.column_parent = column_parent;
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_count_args(get_count_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -2561,7 +2771,6 @@ public class Cassandra {
       if (other.isSetColumn_parent()) {
         this.column_parent = new ColumnParent(other.column_parent);
       }
-      __isset.consistency_level = other.__isset.consistency_level;
       this.consistency_level = other.consistency_level;
     }
 
@@ -2656,21 +2865,21 @@ public class Cassandra {
      */
     public get_count_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
       return this;
     }
 
     public void unsetConsistency_level() {
-      this.__isset.consistency_level = false;
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
     public boolean isSetConsistency_level() {
-      return this.__isset.consistency_level;
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     public void setConsistency_levelIsSet(boolean value) {
-      this.__isset.consistency_level = value;
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -2804,6 +3013,49 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_count_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_count_args typedOther = (get_count_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -2840,7 +3092,7 @@ public class Cassandra {
           case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
               this.consistency_level = iprot.readI32();
-              this.__isset.consistency_level = true;
+              setConsistency_levelIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -2855,6 +3107,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -2930,6 +3185,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -2938,7 +3203,7 @@ public class Cassandra {
 
   }
 
-  public static class get_count_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_count_result implements TBase, java.io.Serializable, Cloneable, Comparable<get_count_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_count_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.I32, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
@@ -2948,10 +3213,9 @@ public class Cassandra {
     public InvalidRequestException ire;
     public static final int IRE = 1;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean success = false;
-    }
+    // isset id assignments
+    private static final int __SUCCESS_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -2973,7 +3237,7 @@ public class Cassandra {
     {
       this();
       this.success = success;
-      this.__isset.success = true;
+      setSuccessIsSet(true);
       this.ire = ire;
     }
 
@@ -2981,7 +3245,8 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public get_count_result(get_count_result other) {
-      __isset.success = other.__isset.success;
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       this.success = other.success;
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
@@ -2999,21 +3264,21 @@ public class Cassandra {
 
     public get_count_result setSuccess(int success) {
       this.success = success;
-      this.__isset.success = true;
+      setSuccessIsSet(true);
       return this;
     }
 
     public void unsetSuccess() {
-      this.__isset.success = false;
+      __isset_bit_vector.clear(__SUCCESS_ISSET_ID);
     }
 
     // Returns true if field success is set (has been asigned a value) and false otherwise
     public boolean isSetSuccess() {
-      return this.__isset.success;
+      return __isset_bit_vector.get(__SUCCESS_ISSET_ID);
     }
 
     public void setSuccessIsSet(boolean value) {
-      this.__isset.success = value;
+      __isset_bit_vector.set(__SUCCESS_ISSET_ID, value);
     }
 
     public InvalidRequestException getIre() {
@@ -3127,6 +3392,33 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_count_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_count_result typedOther = (get_count_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -3141,7 +3433,7 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.I32) {
               this.success = iprot.readI32();
-              this.__isset.success = true;
+              setSuccessIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3164,6 +3456,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetSuccess()) {
+        throw new TProtocolException("Required field 'success' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -3205,12 +3500,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      // 'success' is only checked in read() because it's a primitive and you chose the non-beans generator.
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class insert_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class insert_args implements TBase, java.io.Serializable, Cloneable, Comparable<insert_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("insert_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
@@ -3236,11 +3535,10 @@ public class Cassandra {
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 6;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean timestamp = false;
-      public boolean consistency_level = false;
-    }
+    // isset id assignments
+    private static final int __TIMESTAMP_ISSET_ID = 0;
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 1;
+    private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -3280,15 +3578,17 @@ public class Cassandra {
       this.column_path = column_path;
       this.value = value;
       this.timestamp = timestamp;
-      this.__isset.timestamp = true;
+      setTimestampIsSet(true);
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public insert_args(insert_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -3302,9 +3602,7 @@ public class Cassandra {
         this.value = new byte[other.value.length];
         System.arraycopy(other.value, 0, value, 0, other.value.length);
       }
-      __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
-      __isset.consistency_level = other.__isset.consistency_level;
       this.consistency_level = other.consistency_level;
     }
 
@@ -3415,21 +3713,21 @@ public class Cassandra {
 
     public insert_args setTimestamp(long timestamp) {
       this.timestamp = timestamp;
-      this.__isset.timestamp = true;
+      setTimestampIsSet(true);
       return this;
     }
 
     public void unsetTimestamp() {
-      this.__isset.timestamp = false;
+      __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
     }
 
     // Returns true if field timestamp is set (has been asigned a value) and false otherwise
     public boolean isSetTimestamp() {
-      return this.__isset.timestamp;
+      return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
     }
 
     public void setTimestampIsSet(boolean value) {
-      this.__isset.timestamp = value;
+      __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
     }
 
     /**
@@ -3446,21 +3744,21 @@ public class Cassandra {
      */
     public insert_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
       return this;
     }
 
     public void unsetConsistency_level() {
-      this.__isset.consistency_level = false;
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
     public boolean isSetConsistency_level() {
-      return this.__isset.consistency_level;
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     public void setConsistency_levelIsSet(boolean value) {
-      this.__isset.consistency_level = value;
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -3638,6 +3936,65 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(insert_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      insert_args typedOther = (insert_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetValue()).compareTo(isSetValue());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(value, typedOther.value);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(isSetTimestamp());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -3681,7 +4038,7 @@ public class Cassandra {
           case TIMESTAMP:
             if (field.type == TType.I64) {
               this.timestamp = iprot.readI64();
-              this.__isset.timestamp = true;
+              setTimestampIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3689,7 +4046,7 @@ public class Cassandra {
           case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
               this.consistency_level = iprot.readI32();
-              this.__isset.consistency_level = true;
+              setConsistency_levelIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -3704,6 +4061,12 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetTimestamp()) {
+        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+      }
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -3804,6 +4167,20 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      if (value == null) {
+        throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
+      }
+      // 'timestamp' is only checked in read() because it's a primitive and you chose the non-beans generator.
+      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -3812,7 +4189,7 @@ public class Cassandra {
 
   }
 
-  public static class insert_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class insert_result implements TBase, java.io.Serializable, Cloneable, Comparable<insert_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("insert_result");
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
@@ -3822,9 +4199,7 @@ public class Cassandra {
     public UnavailableException ue;
     public static final int UE = 2;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
@@ -4001,6 +4376,33 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(insert_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      insert_result typedOther = (insert_result)other;
+
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -4083,6 +4485,12 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
+      if (ue == null) {
+        throw new TProtocolException("Required field 'ue' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
@@ -4105,10 +4513,9 @@ public class Cassandra {
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 3;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean consistency_level = false;
-    }
+    // isset id assignments
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -4137,20 +4544,21 @@ public class Cassandra {
       this.keyspace = keyspace;
       this.batch_mutation = batch_mutation;
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public batch_insert_args(batch_insert_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
       if (other.isSetBatch_mutation()) {
         this.batch_mutation = new BatchMutation(other.batch_mutation);
       }
-      __isset.consistency_level = other.__isset.consistency_level;
       this.consistency_level = other.consistency_level;
     }
 
@@ -4221,21 +4629,21 @@ public class Cassandra {
      */
     public batch_insert_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
       return this;
     }
 
     public void unsetConsistency_level() {
-      this.__isset.consistency_level = false;
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
     public boolean isSetConsistency_level() {
-      return this.__isset.consistency_level;
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     public void setConsistency_levelIsSet(boolean value) {
-      this.__isset.consistency_level = value;
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -4376,7 +4784,7 @@ public class Cassandra {
           case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
               this.consistency_level = iprot.readI32();
-              this.__isset.consistency_level = true;
+              setConsistency_levelIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -4391,6 +4799,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -4453,6 +4864,13 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (batch_mutation == null) {
+        throw new TProtocolException("Required field 'batch_mutation' was not present! Struct: " + toString());
+      }
+      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -4461,7 +4879,7 @@ public class Cassandra {
 
   }
 
-  public static class batch_insert_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class batch_insert_result implements TBase, java.io.Serializable, Cloneable, Comparable<batch_insert_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("batch_insert_result");
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
@@ -4471,9 +4889,7 @@ public class Cassandra {
     public UnavailableException ue;
     public static final int UE = 2;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
@@ -4650,6 +5066,33 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(batch_insert_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      batch_insert_result typedOther = (batch_insert_result)other;
+
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -4732,12 +5175,18 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
+      if (ue == null) {
+        throw new TProtocolException("Required field 'ue' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class remove_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class remove_args implements TBase, java.io.Serializable, Cloneable, Comparable<remove_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("remove_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
@@ -4760,11 +5209,10 @@ public class Cassandra {
     public int consistency_level;
     public static final int CONSISTENCY_LEVEL = 5;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean timestamp = false;
-      public boolean consistency_level = false;
-    }
+    // isset id assignments
+    private static final int __TIMESTAMP_ISSET_ID = 0;
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 1;
+    private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -4800,15 +5248,17 @@ public class Cassandra {
       this.key = key;
       this.column_path = column_path;
       this.timestamp = timestamp;
-      this.__isset.timestamp = true;
+      setTimestampIsSet(true);
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public remove_args(remove_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -4818,9 +5268,7 @@ public class Cassandra {
       if (other.isSetColumn_path()) {
         this.column_path = new ColumnPath(other.column_path);
       }
-      __isset.timestamp = other.__isset.timestamp;
       this.timestamp = other.timestamp;
-      __isset.consistency_level = other.__isset.consistency_level;
       this.consistency_level = other.consistency_level;
     }
 
@@ -4907,21 +5355,21 @@ public class Cassandra {
 
     public remove_args setTimestamp(long timestamp) {
       this.timestamp = timestamp;
-      this.__isset.timestamp = true;
+      setTimestampIsSet(true);
       return this;
     }
 
     public void unsetTimestamp() {
-      this.__isset.timestamp = false;
+      __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
     }
 
     // Returns true if field timestamp is set (has been asigned a value) and false otherwise
     public boolean isSetTimestamp() {
-      return this.__isset.timestamp;
+      return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
     }
 
     public void setTimestampIsSet(boolean value) {
-      this.__isset.timestamp = value;
+      __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
     }
 
     /**
@@ -4938,21 +5386,21 @@ public class Cassandra {
      */
     public remove_args setConsistency_level(int consistency_level) {
       this.consistency_level = consistency_level;
-      this.__isset.consistency_level = true;
+      setConsistency_levelIsSet(true);
       return this;
     }
 
     public void unsetConsistency_level() {
-      this.__isset.consistency_level = false;
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
     public boolean isSetConsistency_level() {
-      return this.__isset.consistency_level;
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
     }
 
     public void setConsistency_levelIsSet(boolean value) {
-      this.__isset.consistency_level = value;
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -5108,6 +5556,57 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(remove_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      remove_args typedOther = (remove_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(isSetTimestamp());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -5144,7 +5643,7 @@ public class Cassandra {
           case TIMESTAMP:
             if (field.type == TType.I64) {
               this.timestamp = iprot.readI64();
-              this.__isset.timestamp = true;
+              setTimestampIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5152,7 +5651,7 @@ public class Cassandra {
           case CONSISTENCY_LEVEL:
             if (field.type == TType.I32) {
               this.consistency_level = iprot.readI32();
-              this.__isset.consistency_level = true;
+              setConsistency_levelIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5167,6 +5666,12 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetTimestamp()) {
+        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+      }
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -5249,6 +5754,17 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      // 'timestamp' is only checked in read() because it's a primitive and you chose the non-beans generator.
+      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -5257,7 +5773,7 @@ public class Cassandra {
 
   }
 
-  public static class remove_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class remove_result implements TBase, java.io.Serializable, Cloneable, Comparable<remove_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("remove_result");
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
@@ -5267,9 +5783,7 @@ public class Cassandra {
     public UnavailableException ue;
     public static final int UE = 2;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
@@ -5446,6 +5960,33 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(remove_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      remove_result typedOther = (remove_result)other;
+
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -5528,12 +6069,18 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
+      if (ue == null) {
+        throw new TProtocolException("Required field 'ue' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_key_range_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_key_range_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_key_range_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_key_range_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)2);
@@ -5552,10 +6099,9 @@ public class Cassandra {
     public int count;
     public static final int COUNT = 5;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-      public boolean count = false;
-    }
+    // isset id assignments
+    private static final int __COUNT_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -5596,13 +6142,15 @@ public class Cassandra {
       this.start = start;
       this.finish = finish;
       this.count = count;
-      this.__isset.count = true;
+      setCountIsSet(true);
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public get_key_range_args(get_key_range_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
       if (other.isSetKeyspace()) {
         this.keyspace = other.keyspace;
       }
@@ -5615,7 +6163,6 @@ public class Cassandra {
       if (other.isSetFinish()) {
         this.finish = other.finish;
       }
-      __isset.count = other.__isset.count;
       this.count = other.count;
     }
 
@@ -5726,21 +6273,21 @@ public class Cassandra {
 
     public get_key_range_args setCount(int count) {
       this.count = count;
-      this.__isset.count = true;
+      setCountIsSet(true);
       return this;
     }
 
     public void unsetCount() {
-      this.__isset.count = false;
+      __isset_bit_vector.clear(__COUNT_ISSET_ID);
     }
 
     // Returns true if field count is set (has been asigned a value) and false otherwise
     public boolean isSetCount() {
-      return this.__isset.count;
+      return __isset_bit_vector.get(__COUNT_ISSET_ID);
     }
 
     public void setCountIsSet(boolean value) {
-      this.__isset.count = value;
+      __isset_bit_vector.set(__COUNT_ISSET_ID, value);
     }
 
     public void setFieldValue(int fieldID, Object value) {
@@ -5896,6 +6443,57 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_key_range_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_key_range_args typedOther = (get_key_range_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_family()).compareTo(isSetColumn_family());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(column_family, typedOther.column_family);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetStart()).compareTo(isSetStart());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(start, typedOther.start);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetFinish()).compareTo(isSetFinish());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(finish, typedOther.finish);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetCount()).compareTo(isSetCount());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -5938,7 +6536,7 @@ public class Cassandra {
           case COUNT:
             if (field.type == TType.I32) {
               this.count = iprot.readI32();
-              this.__isset.count = true;
+              setCountIsSet(true);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -5953,6 +6551,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetCount()) {
+        throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -6033,12 +6634,25 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (column_family == null) {
+        throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+      }
+      if (start == null) {
+        throw new TProtocolException("Required field 'start' was not present! Struct: " + toString());
+      }
+      if (finish == null) {
+        throw new TProtocolException("Required field 'finish' was not present! Struct: " + toString());
+      }
+      // 'count' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_key_range_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_key_range_result implements TBase, java.io.Serializable, Cloneable, Comparable<get_key_range_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_key_range_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
@@ -6048,9 +6662,7 @@ public class Cassandra {
     public InvalidRequestException ire;
     public static final int IRE = 1;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -6232,6 +6844,33 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_key_range_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_key_range_result typedOther = (get_key_range_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -6329,21 +6968,25 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (success == null) {
+        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
+      }
+      if (ire == null) {
+        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_string_property_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_string_property_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_string_property_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_string_property_args");
     private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
 
     public String property;
     public static final int PROPERTY = 1;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.DEFAULT, 
@@ -6467,6 +7110,25 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_string_property_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_string_property_args typedOther = (get_string_property_args)other;
+
+      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(isSetProperty());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(property, typedOther.property);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -6529,21 +7191,22 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (property == null) {
+        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_string_property_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_string_property_result implements TBase, java.io.Serializable, Cloneable, Comparable<get_string_property_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_string_property_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.STRING, (short)0);
 
     public String success;
     public static final int SUCCESS = 0;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -6667,6 +7330,25 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_string_property_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_string_property_result typedOther = (get_string_property_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -6728,21 +7410,22 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (success == null) {
+        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_string_list_property_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_string_list_property_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_string_list_property_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_string_list_property_args");
     private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
 
     public String property;
     public static final int PROPERTY = 1;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.DEFAULT, 
@@ -6866,6 +7549,25 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_string_list_property_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_string_list_property_args typedOther = (get_string_list_property_args)other;
+
+      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(isSetProperty());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(property, typedOther.property);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -6928,21 +7630,22 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (property == null) {
+        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class get_string_list_property_result implements TBase, java.io.Serializable, Cloneable   {
+  public static class get_string_list_property_result implements TBase, java.io.Serializable, Cloneable, Comparable<get_string_list_property_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_string_list_property_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
 
     public List<String> success;
     public static final int SUCCESS = 0;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -7071,6 +7774,25 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(get_string_list_property_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      get_string_list_property_result typedOther = (get_string_list_property_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -7148,21 +7870,22 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (success == null) {
+        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
   }
 
-  public static class describe_keyspace_args implements TBase, java.io.Serializable, Cloneable   {
+  public static class describe_keyspace_args implements TBase, java.io.Serializable, Cloneable, Comparable<describe_keyspace_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("describe_keyspace_args");
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
 
     public String keyspace;
     public static final int KEYSPACE = 1;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -7286,6 +8009,25 @@ public class Cassandra {
       return 0;
     }
 
+    public int compareTo(describe_keyspace_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      describe_keyspace_args typedOther = (describe_keyspace_args)other;
+
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
     public void read(TProtocol iprot) throws TException {
       TField field;
       iprot.readStructBegin();
@@ -7348,6 +8090,9 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
@@ -7363,9 +8108,7 @@ public class Cassandra {
     public NotFoundException nfe;
     public static final int NFE = 1;
 
-    private final Isset __isset = new Isset();
-    private static final class Isset implements java.io.Serializable {
-    }
+    // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
@@ -7688,6 +8431,12 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (success == null) {
+        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
+      }
+      if (nfe == null) {
+        throw new TProtocolException("Required field 'nfe' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 

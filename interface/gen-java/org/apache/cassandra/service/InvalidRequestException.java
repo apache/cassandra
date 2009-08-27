@@ -33,22 +33,22 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class InvalidRequestException extends Exception implements TBase, java.io.Serializable, Cloneable {
+public class InvalidRequestException extends Exception implements TBase, java.io.Serializable, Cloneable, Comparable<InvalidRequestException> {
   private static final TStruct STRUCT_DESC = new TStruct("InvalidRequestException");
   private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
 
   public String why;
   public static final int WHY = 1;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-  }
+  // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(WHY, new FieldMetaData("why", TFieldRequirementType.DEFAULT, 
@@ -172,6 +172,25 @@ public class InvalidRequestException extends Exception implements TBase, java.io
     return 0;
   }
 
+  public int compareTo(InvalidRequestException other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    InvalidRequestException typedOther = (InvalidRequestException)other;
+
+    lastComparison = Boolean.valueOf(isSetWhy()).compareTo(isSetWhy());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(why, typedOther.why);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    return 0;
+  }
+
   public void read(TProtocol iprot) throws TException {
     TField field;
     iprot.readStructBegin();
@@ -234,6 +253,9 @@ public class InvalidRequestException extends Exception implements TBase, java.io
 
   public void validate() throws TException {
     // check for required fields
+    if (why == null) {
+      throw new TProtocolException("Required field 'why' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

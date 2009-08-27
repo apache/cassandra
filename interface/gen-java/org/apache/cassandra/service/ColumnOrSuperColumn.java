@@ -33,13 +33,15 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneable {
+public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneable, Comparable<ColumnOrSuperColumn> {
   private static final TStruct STRUCT_DESC = new TStruct("ColumnOrSuperColumn");
   private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRUCT, (short)1);
   private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRUCT, (short)2);
@@ -49,9 +51,7 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
   public SuperColumn super_column;
   public static final int SUPER_COLUMN = 2;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-  }
+  // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
@@ -225,6 +225,33 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
 
   @Override
   public int hashCode() {
+    return 0;
+  }
+
+  public int compareTo(ColumnOrSuperColumn other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    ColumnOrSuperColumn typedOther = (ColumnOrSuperColumn)other;
+
+    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(isSetColumn());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(column, typedOther.column);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(isSetSuper_column());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
     return 0;
   }
 

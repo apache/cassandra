@@ -33,7 +33,9 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
@@ -49,15 +51,16 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
   public Map<String,List<ColumnOrSuperColumn>> cfmap;
   public static final int CFMAP = 2;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-  }
+  // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
         new FieldValueMetaData(TType.STRING)));
     put(CFMAP, new FieldMetaData("cfmap", TFieldRequirementType.DEFAULT, 
-        new FieldValueMetaData(TType.MAP)));
+        new MapMetaData(TType.MAP, 
+            new FieldValueMetaData(TType.STRING), 
+            new ListMetaData(TType.LIST, 
+                new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class)))));
   }});
 
   static {
@@ -84,7 +87,22 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
       this.key = other.key;
     }
     if (other.isSetCfmap()) {
-      this.cfmap = other.cfmap;
+      Map<String,List<ColumnOrSuperColumn>> __this__cfmap = new HashMap<String,List<ColumnOrSuperColumn>>();
+      for (Map.Entry<String, List<ColumnOrSuperColumn>> other_element : other.cfmap.entrySet()) {
+
+        String other_element_key = other_element.getKey();
+        List<ColumnOrSuperColumn> other_element_value = other_element.getValue();
+
+        String __this__cfmap_copy_key = other_element_key;
+
+        List<ColumnOrSuperColumn> __this__cfmap_copy_value = new ArrayList<ColumnOrSuperColumn>();
+        for (ColumnOrSuperColumn other_element_value_element : other_element_value) {
+          __this__cfmap_copy_value.add(new ColumnOrSuperColumn(other_element_value_element));
+        }
+
+        __this__cfmap.put(__this__cfmap_copy_key, __this__cfmap_copy_value);
+      }
+      this.cfmap = __this__cfmap;
     }
   }
 
@@ -346,6 +364,12 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
 
   public void validate() throws TException {
     // check for required fields
+    if (key == null) {
+      throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+    }
+    if (cfmap == null) {
+      throw new TProtocolException("Required field 'cfmap' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

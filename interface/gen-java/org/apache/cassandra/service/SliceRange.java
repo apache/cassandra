@@ -33,13 +33,15 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class SliceRange implements TBase, java.io.Serializable, Cloneable {
+public class SliceRange implements TBase, java.io.Serializable, Cloneable, Comparable<SliceRange> {
   private static final TStruct STRUCT_DESC = new TStruct("SliceRange");
   private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)1);
   private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)2);
@@ -55,11 +57,10 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
   public int count;
   public static final int COUNT = 4;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-    public boolean reversed = false;
-    public boolean count = false;
-  }
+  // isset id assignments
+  private static final int __REVERSED_ISSET_ID = 0;
+  private static final int __COUNT_ISSET_ID = 1;
+  private BitSet __isset_bit_vector = new BitSet(2);
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
@@ -93,15 +94,17 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     this.start = start;
     this.finish = finish;
     this.reversed = reversed;
-    this.__isset.reversed = true;
+    setReversedIsSet(true);
     this.count = count;
-    this.__isset.count = true;
+    setCountIsSet(true);
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
   public SliceRange(SliceRange other) {
+    __isset_bit_vector.clear();
+    __isset_bit_vector.or(other.__isset_bit_vector);
     if (other.isSetStart()) {
       this.start = new byte[other.start.length];
       System.arraycopy(other.start, 0, start, 0, other.start.length);
@@ -110,9 +113,7 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
       this.finish = new byte[other.finish.length];
       System.arraycopy(other.finish, 0, finish, 0, other.finish.length);
     }
-    __isset.reversed = other.__isset.reversed;
     this.reversed = other.reversed;
-    __isset.count = other.__isset.count;
     this.count = other.count;
   }
 
@@ -175,21 +176,21 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
 
   public SliceRange setReversed(boolean reversed) {
     this.reversed = reversed;
-    this.__isset.reversed = true;
+    setReversedIsSet(true);
     return this;
   }
 
   public void unsetReversed() {
-    this.__isset.reversed = false;
+    __isset_bit_vector.clear(__REVERSED_ISSET_ID);
   }
 
   // Returns true if field reversed is set (has been asigned a value) and false otherwise
   public boolean isSetReversed() {
-    return this.__isset.reversed;
+    return __isset_bit_vector.get(__REVERSED_ISSET_ID);
   }
 
   public void setReversedIsSet(boolean value) {
-    this.__isset.reversed = value;
+    __isset_bit_vector.set(__REVERSED_ISSET_ID, value);
   }
 
   public int getCount() {
@@ -198,21 +199,21 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
 
   public SliceRange setCount(int count) {
     this.count = count;
-    this.__isset.count = true;
+    setCountIsSet(true);
     return this;
   }
 
   public void unsetCount() {
-    this.__isset.count = false;
+    __isset_bit_vector.clear(__COUNT_ISSET_ID);
   }
 
   // Returns true if field count is set (has been asigned a value) and false otherwise
   public boolean isSetCount() {
-    return this.__isset.count;
+    return __isset_bit_vector.get(__COUNT_ISSET_ID);
   }
 
   public void setCountIsSet(boolean value) {
-    this.__isset.count = value;
+    __isset_bit_vector.set(__COUNT_ISSET_ID, value);
   }
 
   public void setFieldValue(int fieldID, Object value) {
@@ -346,6 +347,49 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
     return 0;
   }
 
+  public int compareTo(SliceRange other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    SliceRange typedOther = (SliceRange)other;
+
+    lastComparison = Boolean.valueOf(isSetStart()).compareTo(isSetStart());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(start, typedOther.start);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetFinish()).compareTo(isSetFinish());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(finish, typedOther.finish);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetReversed()).compareTo(isSetReversed());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(reversed, typedOther.reversed);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetCount()).compareTo(isSetCount());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    return 0;
+  }
+
   public void read(TProtocol iprot) throws TException {
     TField field;
     iprot.readStructBegin();
@@ -374,7 +418,7 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
         case REVERSED:
           if (field.type == TType.BOOL) {
             this.reversed = iprot.readBool();
-            this.__isset.reversed = true;
+            setReversedIsSet(true);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -382,7 +426,7 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
         case COUNT:
           if (field.type == TType.I32) {
             this.count = iprot.readI32();
-            this.__isset.count = true;
+            setCountIsSet(true);
           } else { 
             TProtocolUtil.skip(iprot, field.type);
           }
@@ -397,6 +441,12 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
 
 
     // check for required fields of primitive type, which can't be checked in the validate method
+    if (!isSetReversed()) {
+      throw new TProtocolException("Required field 'reversed' was not found in serialized data! Struct: " + toString());
+    }
+    if (!isSetCount()) {
+      throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
+    }
     validate();
   }
 
@@ -468,6 +518,14 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable {
 
   public void validate() throws TException {
     // check for required fields
+    if (start == null) {
+      throw new TProtocolException("Required field 'start' was not present! Struct: " + toString());
+    }
+    if (finish == null) {
+      throw new TProtocolException("Required field 'finish' was not present! Struct: " + toString());
+    }
+    // 'reversed' is only checked in read() because it's a primitive and you chose the non-beans generator.
+    // 'count' is only checked in read() because it's a primitive and you chose the non-beans generator.
     // check that fields of type enum have valid values
   }
 

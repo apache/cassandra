@@ -1,3 +1,4 @@
+
 #!/usr/local/bin/thrift --java --php --py
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -106,11 +107,9 @@ struct SlicePredicate {
     2: optional SliceRange   slice_range,
 }
 
-typedef map<string, list<ColumnOrSuperColumn>> column_family_map
-
 struct BatchMutation {
-   1: string                        key,
-   2: column_family_map             cfmap,
+   1: string                                 key,
+   2: map<string, list<ColumnOrSuperColumn>> cfmap,
 }
 
 

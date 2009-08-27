@@ -33,13 +33,15 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class UnavailableException extends Exception implements TBase, java.io.Serializable, Cloneable {
+public class UnavailableException extends Exception implements TBase, java.io.Serializable, Cloneable, Comparable<UnavailableException> {
   private static final TStruct STRUCT_DESC = new TStruct("UnavailableException");
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
@@ -103,6 +105,17 @@ public class UnavailableException extends Exception implements TBase, java.io.Se
 
   @Override
   public int hashCode() {
+    return 0;
+  }
+
+  public int compareTo(UnavailableException other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    UnavailableException typedOther = (UnavailableException)other;
+
     return 0;
   }
 

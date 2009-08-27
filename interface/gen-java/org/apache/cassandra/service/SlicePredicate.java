@@ -33,13 +33,15 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class SlicePredicate implements TBase, java.io.Serializable, Cloneable {
+public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, Comparable<SlicePredicate> {
   private static final TStruct STRUCT_DESC = new TStruct("SlicePredicate");
   private static final TField COLUMN_NAMES_FIELD_DESC = new TField("column_names", TType.LIST, (short)1);
   private static final TField SLICE_RANGE_FIELD_DESC = new TField("slice_range", TType.STRUCT, (short)2);
@@ -49,9 +51,7 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable {
   public SliceRange slice_range;
   public static final int SLICE_RANGE = 2;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-  }
+  // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(COLUMN_NAMES, new FieldMetaData("column_names", TFieldRequirementType.OPTIONAL, 
@@ -232,6 +232,33 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable {
 
   @Override
   public int hashCode() {
+    return 0;
+  }
+
+  public int compareTo(SlicePredicate other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    SlicePredicate typedOther = (SlicePredicate)other;
+
+    lastComparison = Boolean.valueOf(isSetColumn_names()).compareTo(isSetColumn_names());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(column_names, typedOther.column_names);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetSlice_range()).compareTo(isSetSlice_range());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(slice_range, typedOther.slice_range);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
     return 0;
   }
 

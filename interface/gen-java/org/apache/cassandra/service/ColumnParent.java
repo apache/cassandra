@@ -33,13 +33,15 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
+public class ColumnParent implements TBase, java.io.Serializable, Cloneable, Comparable<ColumnParent> {
   private static final TStruct STRUCT_DESC = new TStruct("ColumnParent");
   private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
   private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)4);
@@ -49,9 +51,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
   public byte[] super_column;
   public static final int SUPER_COLUMN = 4;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-  }
+  // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
@@ -229,6 +229,33 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
     return 0;
   }
 
+  public int compareTo(ColumnParent other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    ColumnParent typedOther = (ColumnParent)other;
+
+    lastComparison = Boolean.valueOf(isSetColumn_family()).compareTo(isSetColumn_family());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(column_family, typedOther.column_family);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(isSetSuper_column());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    return 0;
+  }
+
   public void read(TProtocol iprot) throws TException {
     TField field;
     iprot.readStructBegin();
@@ -320,6 +347,9 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable {
 
   public void validate() throws TException {
     // check for required fields
+    if (column_family == null) {
+      throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

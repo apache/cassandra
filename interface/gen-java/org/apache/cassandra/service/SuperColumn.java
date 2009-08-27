@@ -33,13 +33,15 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
-import org.apache.log4j.Logger;
+import java.util.BitSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
+public class SuperColumn implements TBase, java.io.Serializable, Cloneable, Comparable<SuperColumn> {
   private static final TStruct STRUCT_DESC = new TStruct("SuperColumn");
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
   private static final TField COLUMNS_FIELD_DESC = new TField("columns", TType.LIST, (short)2);
@@ -49,9 +51,7 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
   public List<Column> columns;
   public static final int COLUMNS = 2;
 
-  private final Isset __isset = new Isset();
-  private static final class Isset implements java.io.Serializable {
-  }
+  // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
     put(NAME, new FieldMetaData("name", TFieldRequirementType.DEFAULT, 
@@ -234,6 +234,33 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
     return 0;
   }
 
+  public int compareTo(SuperColumn other) {
+    if (!getClass().equals(other.getClass())) {
+      return getClass().getName().compareTo(other.getClass().getName());
+    }
+
+    int lastComparison = 0;
+    SuperColumn typedOther = (SuperColumn)other;
+
+    lastComparison = Boolean.valueOf(isSetName()).compareTo(isSetName());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(name, typedOther.name);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = Boolean.valueOf(isSetColumns()).compareTo(isSetColumns());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(columns, typedOther.columns);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    return 0;
+  }
+
   public void read(TProtocol iprot) throws TException {
     TField field;
     iprot.readStructBegin();
@@ -338,6 +365,12 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable {
 
   public void validate() throws TException {
     // check for required fields
+    if (name == null) {
+      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    }
+    if (columns == null) {
+      throw new TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 
