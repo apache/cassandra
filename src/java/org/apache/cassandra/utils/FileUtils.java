@@ -209,26 +209,42 @@ public class FileUtils
         return d;
     }
     
+    /**
+     * calculate the total space used by a file or directory
+     * 
+     * @param path the path
+     * @return total space used.
+     */
+    public static long getUsedDiskSpaceForPath(String path)
+    {
+        File file = new File(path);
+        
+        if (file.isFile()) 
+        {
+            return file.length();
+        }
+        
+        long diskSpace = 0;
+        for (File childFile: file.listFiles())
+        {
+            diskSpace += getUsedDiskSpaceForPath(childFile.getPath());
+        }
+        return diskSpace;
+    }
+    
     public static long getUsedDiskSpace()
     {
         long diskSpace = 0L;
         String[] directories = DatabaseDescriptor.getAllDataFileLocations();        
         for ( String directory : directories )
         {
-            File f = new File(directory);
-            File[] files = f.listFiles();
-            for ( File file : files )
-            {
-                diskSpace += file.length();
-            }
+            diskSpace += getUsedDiskSpaceForPath(directory);
         }
 
         String value = df_.format(diskSpace);
         return Long.parseLong(value);
     }    
     
-    
-	
     /**
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
