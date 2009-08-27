@@ -441,9 +441,6 @@ public class ColumnPath implements TBase, java.io.Serializable, Cloneable, Compa
 
   public void validate() throws TException {
     // check for required fields
-    if (column_family == null) {
-      throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
-    }
     // check that fields of type enum have valid values
   }
 

@@ -364,12 +364,6 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
 
   public void validate() throws TException {
     // check for required fields
-    if (key == null) {
-      throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
-    }
-    if (cfmap == null) {
-      throw new TProtocolException("Required field 'cfmap' was not present! Struct: " + toString());
-    }
     // check that fields of type enum have valid values
   }
 

@@ -347,9 +347,6 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable, Com
 
   public void validate() throws TException {
     // check for required fields
-    if (column_family == null) {
-      throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
-    }
     // check that fields of type enum have valid values
   }
 

@@ -366,9 +366,6 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
 
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetTimestamp()) {
-      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -433,13 +430,6 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
 
   public void validate() throws TException {
     // check for required fields
-    if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
-    }
-    if (value == null) {
-      throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
-    }
-    // 'timestamp' is only checked in read() because it's a primitive and you chose the non-beans generator.
     // check that fields of type enum have valid values
   }
 

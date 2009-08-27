@@ -1413,9 +1413,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -1504,19 +1501,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (key == null) {
-        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
-      }
-      if (column_parent == null) {
-        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
-      }
-      if (predicate == null) {
-        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -1926,15 +1910,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
-      if (nfe == null) {
-        throw new TProtocolException("Required field 'nfe' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -2436,9 +2411,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -2533,19 +2505,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (keys == null) {
-        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
-      }
-      if (column_parent == null) {
-        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
-      }
-      if (predicate == null) {
-        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -2876,12 +2835,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -3296,9 +3249,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -3374,16 +3324,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (key == null) {
-        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
-      }
-      if (column_path == null) {
-        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -3772,15 +3712,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
-      if (nfe == null) {
-        throw new TProtocolException("Required field 'nfe' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -4210,9 +4141,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -4294,16 +4222,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (keys == null) {
-        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
-      }
-      if (column_path == null) {
-        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -4614,12 +4532,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -5034,9 +4946,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -5112,16 +5021,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (key == null) {
-        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
-      }
-      if (column_parent == null) {
-        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -5383,9 +5282,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetSuccess()) {
-        throw new TProtocolException("Required field 'success' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -5427,10 +5323,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      // 'success' is only checked in read() because it's a primitive and you chose the non-beans generator.
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -5988,12 +5880,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetTimestamp()) {
-        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-      }
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -6094,20 +5980,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (key == null) {
-        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
-      }
-      if (column_path == null) {
-        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
-      }
-      if (value == null) {
-        throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
-      }
-      // 'timestamp' is only checked in read() because it's a primitive and you chose the non-beans generator.
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -6412,12 +6284,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
-      if (ue == null) {
-        throw new TProtocolException("Required field 'ue' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -6726,9 +6592,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -6791,13 +6654,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (batch_mutation == null) {
-        throw new TProtocolException("Required field 'batch_mutation' was not present! Struct: " + toString());
-      }
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -7102,12 +6958,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
-      if (ue == null) {
-        throw new TProtocolException("Required field 'ue' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -7593,12 +7443,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetTimestamp()) {
-        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-      }
-      if (!isSetConsistency_level()) {
-        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -7681,17 +7525,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (key == null) {
-        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
-      }
-      if (column_path == null) {
-        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
-      }
-      // 'timestamp' is only checked in read() because it's a primitive and you chose the non-beans generator.
-      // 'consistency_level' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -7996,12 +7829,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
-      if (ue == null) {
-        throw new TProtocolException("Required field 'ue' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -8478,9 +8305,6 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
-      if (!isSetCount()) {
-        throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
-      }
       validate();
     }
 
@@ -8561,19 +8385,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
-      if (column_family == null) {
-        throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
-      }
-      if (start == null) {
-        throw new TProtocolException("Required field 'start' was not present! Struct: " + toString());
-      }
-      if (finish == null) {
-        throw new TProtocolException("Required field 'finish' was not present! Struct: " + toString());
-      }
-      // 'count' is only checked in read() because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
     }
 
@@ -8895,12 +8706,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (ire == null) {
-        throw new TProtocolException("Required field 'ire' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -9118,9 +8923,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (property == null) {
-        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -9337,9 +9139,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -9557,9 +9356,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (property == null) {
-        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -9797,9 +9593,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -10017,9 +9810,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (keyspace == null) {
-        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 
@@ -10358,12 +10148,6 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
-      if (success == null) {
-        throw new TProtocolException("Required field 'success' was not present! Struct: " + toString());
-      }
-      if (nfe == null) {
-        throw new TProtocolException("Required field 'nfe' was not present! Struct: " + toString());
-      }
       // check that fields of type enum have valid values
     }
 

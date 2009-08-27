@@ -253,9 +253,6 @@ public class InvalidRequestException extends Exception implements TBase, java.io
 
   public void validate() throws TException {
     // check for required fields
-    if (why == null) {
-      throw new TProtocolException("Required field 'why' was not present! Struct: " + toString());
-    }
     // check that fields of type enum have valid values
   }
 

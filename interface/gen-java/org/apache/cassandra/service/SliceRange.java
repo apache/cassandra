@@ -441,12 +441,6 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
 
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetReversed()) {
-      throw new TProtocolException("Required field 'reversed' was not found in serialized data! Struct: " + toString());
-    }
-    if (!isSetCount()) {
-      throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -518,14 +512,6 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
 
   public void validate() throws TException {
     // check for required fields
-    if (start == null) {
-      throw new TProtocolException("Required field 'start' was not present! Struct: " + toString());
-    }
-    if (finish == null) {
-      throw new TProtocolException("Required field 'finish' was not present! Struct: " + toString());
-    }
-    // 'reversed' is only checked in read() because it's a primitive and you chose the non-beans generator.
-    // 'count' is only checked in read() because it's a primitive and you chose the non-beans generator.
     // check that fields of type enum have valid values
   }
 

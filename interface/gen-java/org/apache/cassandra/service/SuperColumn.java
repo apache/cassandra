@@ -365,12 +365,6 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable, Comp
 
   public void validate() throws TException {
     // check for required fields
-    if (name == null) {
-      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
-    }
-    if (columns == null) {
-      throw new TProtocolException("Required field 'columns' was not present! Struct: " + toString());
-    }
     // check that fields of type enum have valid values
   }
 
