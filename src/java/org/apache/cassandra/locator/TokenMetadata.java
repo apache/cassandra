@@ -28,24 +28,27 @@ import org.apache.cassandra.net.EndPoint;
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
-    private Map<Token, EndPoint> tokenToEndPointMap_ = new HashMap<Token, EndPoint>();
+    private Map<Token, EndPoint> tokenToEndPointMap_;
     /* Maintains a reverse index of endpoint to token in the cluster. */
-    private Map<EndPoint, Token> endPointToTokenMap_ = new HashMap<EndPoint, Token>();
+    private Map<EndPoint, Token> endPointToTokenMap_;
     /* Bootstrapping nodes and their tokens */
-    private Map<Token, EndPoint> bootstrapNodes = Collections.synchronizedMap(new HashMap<Token, EndPoint>());
+    private Map<Token, EndPoint> bootstrapNodes;
     
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
 
     public TokenMetadata()
     {
+        tokenToEndPointMap_ = new HashMap<Token, EndPoint>();
+        endPointToTokenMap_ = new HashMap<EndPoint, Token>();
+        this.bootstrapNodes = Collections.synchronizedMap(new HashMap<Token, EndPoint>());
     }
 
     public TokenMetadata(Map<Token, EndPoint> tokenToEndPointMap, Map<EndPoint, Token> endPointToTokenMap, Map<Token, EndPoint> bootstrapNodes)
     {
         tokenToEndPointMap_ = tokenToEndPointMap;
         endPointToTokenMap_ = endPointToTokenMap;
-        this.bootstrapNodes = bootstrapNodes; 
+        this.bootstrapNodes = bootstrapNodes;
     }
     
     public TokenMetadata cloneMe()
