@@ -59,11 +59,11 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
   private BitSet __isset_bit_vector = new BitSet(1);
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(NAME, new FieldMetaData("name", TFieldRequirementType.DEFAULT, 
+    put(NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(VALUE, new FieldMetaData("value", TFieldRequirementType.DEFAULT, 
+    put(VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
+    put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I64)));
   }});
 
@@ -366,6 +366,9 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
 
 
     // check for required fields of primitive type, which can't be checked in the validate method
+    if (!isSetTimestamp()) {
+      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+    }
     validate();
   }
 
@@ -430,6 +433,13 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
 
   public void validate() throws TException {
     // check for required fields
+    if (name == null) {
+      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    }
+    if (value == null) {
+      throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
+    }
+    // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
     // check that fields of type enum have valid values
   }
 

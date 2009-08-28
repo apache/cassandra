@@ -54,7 +54,7 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable, Com
   // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
+    put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
     put(SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
@@ -347,6 +347,9 @@ public class ColumnParent implements TBase, java.io.Serializable, Cloneable, Com
 
   public void validate() throws TException {
     // check for required fields
+    if (column_family == null) {
+      throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

@@ -37,14 +37,14 @@ namespace rb CassandraThrift
 #
 
 struct Column {
-   1: binary                        name,
-   2: binary                        value,
-   3: i64                           timestamp,
+   1: required binary name,
+   2: required binary value,
+   3: required i64 timestamp,
 }
 
 struct SuperColumn {
-   1: binary                        name,
-   2: list<Column>                  columns,
+   1: required binary name,
+   2: required list<Column> columns,
 }
 
 struct ColumnOrSuperColumn {
@@ -63,7 +63,7 @@ exception NotFoundException {
 
 # invalid request (keyspace / CF does not exist, etc.)
 exception InvalidRequestException {
-    1: string why
+    1: required string why
 }
 
 # not all the replicas required could be created / read
@@ -85,21 +85,21 @@ enum ConsistencyLevel {
 }
 
 struct ColumnParent {
-    3: string          column_family,
+    3: required string column_family,
     4: optional binary super_column,
 }
 
 struct ColumnPath {
-    3: string          column_family,
+    3: required string column_family,
     4: optional binary super_column,
     5: optional binary column,
 }
 
 struct SliceRange {
-    1: binary          start,
-    2: binary          finish,
-    3: bool            reversed=0,
-    4: i32             count=100,
+    1: required binary start,
+    2: required binary finish,
+    3: required bool reversed=0,
+    4: required i32 count=100,
 }
 
 struct SlicePredicate {
@@ -108,8 +108,8 @@ struct SlicePredicate {
 }
 
 struct BatchMutation {
-   1: string                                 key,
-   2: map<string, list<ColumnOrSuperColumn>> cfmap,
+   1: required string key,
+   2: required map<string, list<ColumnOrSuperColumn>> cfmap,
 }
 
 

@@ -51,7 +51,7 @@ public class InvalidRequestException extends Exception implements TBase, java.io
   // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(WHY, new FieldMetaData("why", TFieldRequirementType.DEFAULT, 
+    put(WHY, new FieldMetaData("why", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
   }});
 
@@ -253,6 +253,9 @@ public class InvalidRequestException extends Exception implements TBase, java.io
 
   public void validate() throws TException {
     // check for required fields
+    if (why == null) {
+      throw new TProtocolException("Required field 'why' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

@@ -54,9 +54,9 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
   // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+    put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(CFMAP, new FieldMetaData("cfmap", TFieldRequirementType.DEFAULT, 
+    put(CFMAP, new FieldMetaData("cfmap", TFieldRequirementType.REQUIRED, 
         new MapMetaData(TType.MAP, 
             new FieldValueMetaData(TType.STRING), 
             new ListMetaData(TType.LIST, 
@@ -364,6 +364,12 @@ public class BatchMutation implements TBase, java.io.Serializable, Cloneable {
 
   public void validate() throws TException {
     // check for required fields
+    if (key == null) {
+      throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+    }
+    if (cfmap == null) {
+      throw new TProtocolException("Required field 'cfmap' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

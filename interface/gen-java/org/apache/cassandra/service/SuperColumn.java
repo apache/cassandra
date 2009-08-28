@@ -54,9 +54,9 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable, Comp
   // isset id assignments
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(NAME, new FieldMetaData("name", TFieldRequirementType.DEFAULT, 
+    put(NAME, new FieldMetaData("name", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(COLUMNS, new FieldMetaData("columns", TFieldRequirementType.DEFAULT, 
+    put(COLUMNS, new FieldMetaData("columns", TFieldRequirementType.REQUIRED, 
         new ListMetaData(TType.LIST, 
             new StructMetaData(TType.STRUCT, Column.class))));
   }});
@@ -365,6 +365,12 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable, Comp
 
   public void validate() throws TException {
     // check for required fields
+    if (name == null) {
+      throw new TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    }
+    if (columns == null) {
+      throw new TProtocolException("Required field 'columns' was not present! Struct: " + toString());
+    }
     // check that fields of type enum have valid values
   }
 

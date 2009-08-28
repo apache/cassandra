@@ -63,13 +63,13 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
   private BitSet __isset_bit_vector = new BitSet(2);
 
   public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
+    put(START, new FieldMetaData("start", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
+    put(FINISH, new FieldMetaData("finish", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.STRING)));
-    put(REVERSED, new FieldMetaData("reversed", TFieldRequirementType.DEFAULT, 
+    put(REVERSED, new FieldMetaData("reversed", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.BOOL)));
-    put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
+    put(COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
   }});
 
@@ -441,6 +441,12 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
 
 
     // check for required fields of primitive type, which can't be checked in the validate method
+    if (!isSetReversed()) {
+      throw new TProtocolException("Required field 'reversed' was not found in serialized data! Struct: " + toString());
+    }
+    if (!isSetCount()) {
+      throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
+    }
     validate();
   }
 
@@ -512,6 +518,14 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
 
   public void validate() throws TException {
     // check for required fields
+    if (start == null) {
+      throw new TProtocolException("Required field 'start' was not present! Struct: " + toString());
+    }
+    if (finish == null) {
+      throw new TProtocolException("Required field 'finish' was not present! Struct: " + toString());
+    }
+    // alas, we cannot check 'reversed' because it's a primitive and you chose the non-beans generator.
+    // alas, we cannot check 'count' because it's a primitive and you chose the non-beans generator.
     // check that fields of type enum have valid values
   }
 
