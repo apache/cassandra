@@ -60,7 +60,7 @@ public class BootstrapTest
         Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
         ranges.add(r);
 
-        boolean result = store.doAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150), fileList);
+        boolean result = store.forceCompaction(ranges, new EndPoint("127.0.0.1", 9150), 0, fileList);
 
         assertEquals(true, result); // some keys should have qualified
         assertEquals(true, fileList.size() >= 3); //Data, index, filter files
