@@ -642,11 +642,11 @@ public class Table
         for (ColumnFamily columnFamily : row.getColumnFamilies())
         {
             Collection<IColumn> columns = columnFamily.getSortedColumns();
-            for(IColumn column : columns)
+            for (IColumn column : columns)
             {
-                ColumnFamilyStore cfStore = columnFamilyStores_.get(column.name());
+                ColumnFamilyStore cfStore = columnFamilyStores_.get(new String(column.name(), "UTF-8"));
                 cfStore.applyBinary(key, column.value());
-        	}
+            }
         }
         row.clear();
     }

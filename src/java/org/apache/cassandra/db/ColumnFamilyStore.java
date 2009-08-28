@@ -38,6 +38,7 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -55,8 +56,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static final int BUFSIZE = 128 * 1024 * 1024;
 
     private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
-    private static ExecutorService flusher_ = new DebuggableThreadPoolExecutor("MEMTABLE-FLUSHER-POOL");
-
+    private static ExecutorService flusher_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getFlushMinThreads(), DatabaseDescriptor.getFlushMaxThreads(), Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl("MEMTABLE-FLUSHER-POOL"));
+    
     private final String table_;
     public final String columnFamily_;
     private final boolean isSuper_;
@@ -457,7 +458,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert oldMemtable.isFlushed() || oldMemtable.isClean(); 
     }
 
-    void forceFlushBinary()
+    public void forceFlushBinary()
     {
         submitFlush(binaryMemtable_.get());
     }

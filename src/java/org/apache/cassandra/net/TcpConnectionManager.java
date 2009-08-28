@@ -211,4 +211,8 @@ class TcpConnectionManager
     {
         return allConnections_.contains(connection);
     }
+    List<TcpConnection> getConnections()
+    {
+        return allConnections_;
+    }
 }

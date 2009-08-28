@@ -84,4 +84,11 @@ public interface StorageServiceMBean
      * Remove all the existing snapshots.
      */
     public void clearSnapshot() throws IOException;
+
+    /**
+     * Flush all binary memtables for a table
+     * @param tableName
+     * @throws IOException
+     */
+    public void forceTableFlushBinary(String tableName) throws IOException;
 }

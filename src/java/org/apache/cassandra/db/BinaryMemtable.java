@@ -34,11 +34,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import java.util.*;
+import org.apache.cassandra.dht.IPartitioner;
 
 public class BinaryMemtable
 {
     private static Logger logger_ = Logger.getLogger( Memtable.class );
-    private int threshold_ = 512*1024*1024;
+    private int threshold_ = DatabaseDescriptor.getBMTThreshold()*1024*1024;
     private AtomicInteger currentSize_ = new AtomicInteger(0);
 
     /* Table and ColumnFamily name are used to determine the ColumnFamilyStore */
@@ -138,10 +140,31 @@ public class BinaryMemtable
          * Use the SSTable to write the contents of the TreeMap
          * to disk.
         */
+
+        String path;
+        SSTableWriter writer;
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
-        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), keys.size(), StorageService.getPartitioner());
-        Collections.sort(keys);
+        /*
+            Adding a lock here so data directories are evenly used. By default currentIndex
+            is incremented, not an AtomicInteger. Let's fix this!
+         */
+        lock_.lock();
+        try
+        {
+            path = cfStore.getTempSSTablePath();
+            writer = new SSTableWriter(path, keys.size(), StorageService.getPartitioner());
+        }
+        finally
+        {
+            lock_.unlock();
+        }
+
+        final IPartitioner partitioner = StorageService.getPartitioner();
+        final Comparator<String> dc = partitioner.getDecoratedKeyComparator();
+        Collections.sort(keys, dc);
+
+
         /* Use this BloomFilter to decide if a key exists in a SSTable */
         for ( String key : keys )
         {           

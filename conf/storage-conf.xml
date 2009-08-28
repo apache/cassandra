@@ -308,4 +308,19 @@
    ~ ten days.
   -->
   <GCGraceSeconds>864000</GCGraceSeconds>
+
+  <!--
+   ~ Number of threads to run when flushing memtables to disk.  Set this to
+   ~ the number of disks you physically have in your machine allocated for DataDirectory * 2. 
+   ~ If you are planning to use the Binary Memtable, its recommended to increase the max threads
+   ~ to maintain a higher quality of service while under load when normal memtables are flushing to disk. 
+  -->
+  <FlushMinThreads>1</FlushMinThreads>
+  <FlushMaxThreads>1</FlushMaxThreads>
+
+  <!--
+   ~ The threshold size in megabytes the binary memtable must grow to, before it's submitted for flushing to disk.
+  -->
+  <BinaryMemtableSizeInMB>256</BinaryMemtableSizeInMB>
+
 </Storage>

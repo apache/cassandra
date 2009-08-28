@@ -257,7 +257,16 @@ public class NodeProbe
     {
         ssProxy.forceTableCompaction();
     }
-    
+
+    /**
+     * Trigger a binary flush on CFs of a table.
+     */
+    public void forceTableFlushBinary(String tableName) throws IOException
+    {
+        ssProxy.forceTableFlushBinary(tableName);
+    }
+
+
     /**
      * Write a textual representation of the Cassandra ring.
      * 
@@ -517,7 +526,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap, tpstats");
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap, tpstats, flush_binary");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -608,6 +617,16 @@ public class NodeProbe
         else if (cmdName.equals("tpstats"))
         {
             probe.printThreadPoolStats(System.out);
+        }
+        else if (cmdName.equals("flush_binary"))
+        {
+            if (probe.getArgs().length < 2)
+            {
+                System.err.println("Missing keyspace argument.");
+                NodeProbe.printUsage();
+                System.exit(1);
+            }
+            probe.forceTableFlushBinary(probe.getArgs()[1]);
         }
         else
         {

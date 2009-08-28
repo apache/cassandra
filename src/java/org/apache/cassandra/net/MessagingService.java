@@ -478,14 +478,26 @@ public class MessagingService implements IMessagingService
     {
         isStreaming_.set(bVal);
     }
+    public static void flushAndshutdown()
+    {
+        // safely shutdown and send all writes
+        for(Map.Entry<String, TcpConnectionManager> entry : poolTable_.entrySet() )
+        {
+            for(TcpConnection connection: entry.getValue().getConnections())
+            {
+                connection.doPendingWrites();
+            }
+        }
+        shutdown();
+    }
     
     public static void shutdown()
     {
         logger_.info("Shutting down ...");
-        synchronized ( MessagingService.class )
-        {          
-            /* Stop listening on any socket */            
-            for( SelectionKey skey : listenSockets_.values() )
+        synchronized (MessagingService.class)
+        {
+            /* Stop listening on any socket */
+            for (SelectionKey skey : listenSockets_.values())
             {
                 skey.cancel();
                 try
@@ -495,26 +507,25 @@ public class MessagingService implements IMessagingService
                 catch (IOException e) {}
             }
             listenSockets_.clear();
-            
-            /* Shutdown the threads in the EventQueue's */            
-            messageDeserializationExecutor_.shutdownNow();            
+
+            /* Shutdown the threads in the EventQueue's */
+            messageDeserializationExecutor_.shutdownNow();
             messageSerializerExecutor_.shutdownNow();
             messageDeserializerExecutor_.shutdownNow();
             streamExecutor_.shutdownNow();
-            
+
             /* shut down the cachetables */
             taskCompletionMap_.shutdown();
-            callbackMap_.shutdown();                        
-                        
+            callbackMap_.shutdown();
+
             /* Interrupt the selector manager thread */
             SelectorManager.getSelectorManager().interrupt();
-            
-            poolTable_.clear();            
-            verbHandlers_.clear();                                    
+
+            poolTable_.clear();
+            verbHandlers_.clear();
             bShutdown_ = true;
         }
-        if (logger_.isDebugEnabled())
-          logger_.debug("Shutdown invocation complete.");
+        logger_.info("Shutdown invocation complete.");
     }
 
     public static void receive(Message message)

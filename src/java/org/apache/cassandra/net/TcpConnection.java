@@ -387,7 +387,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
          resumeStreaming();        
     }
     
-    void doPendingWrites()
+    public void doPendingWrites()
     {
         synchronized(this)
         {
