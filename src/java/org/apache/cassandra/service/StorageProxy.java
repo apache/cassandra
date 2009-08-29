@@ -112,29 +112,16 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
 		try
 		{
+            // (This is the ZERO consistency level, so user doesn't care if we don't really have N destinations available.)
 			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
-			// TODO: throw a thrift exception if we do not have N nodes
 			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
 			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
 			{
                 Message message = entry.getValue();
                 EndPoint endpoint = entry.getKey();
-                // Check if local and not hinted
-                byte[] hintedBytes = message.getHeader(RowMutation.HINT);
-                if (endpoint.equals(StorageService.getLocalStorageEndPoint())
-                        && !(hintedBytes!= null && hintedBytes.length>0))
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("locally writing writing key " + rm.key()
-                                + " to " + endpoint);
-                    rm.apply();
-                } else
-                {
-                    if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + rm.key() + " to "
-                                + message.getMessageId() + "@" + endpoint);
-                	MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
-                }
+                if (logger.isDebugEnabled())
+                    logger.debug("insert writing key " + rm.key() + " to " + message.getMessageId() + "@" + endpoint);
+                MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
 			}
 		}
         catch (IOException e)
