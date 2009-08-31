@@ -91,4 +91,7 @@ public interface StorageServiceMBean
      * @throws IOException
      */
     public void forceTableFlushBinary(String tableName) throws IOException;
+
+    /** set the logging level at runtime */
+    public void setLog4jLevel(String classQualifier, String level);
 }

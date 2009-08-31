@@ -44,6 +44,7 @@ import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
+import org.apache.log4j.Level;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -1023,4 +1024,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 	{
 	    return tokenMetadata_.cloneTokenEndPointMap();
 	}
+
+    public void setLog4jLevel(String classQualifier, String rawLevel)
+    {
+        Level level = Level.toLevel(rawLevel);
+        Logger.getLogger(classQualifier).setLevel(level);
+        logger_.info("set log level to " + level + " for classes under '" + classQualifier + "' (if the level doesn't look like '" + rawLevel + "' then log4j couldn't parse '" + rawLevel + "')");
+    }
 }
