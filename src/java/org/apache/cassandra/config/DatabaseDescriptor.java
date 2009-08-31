@@ -609,7 +609,7 @@ public class DatabaseDescriptor
         String compareWith = XMLUtils.getAttributeValue(columnFamily, attr);
         if (compareWith == null)
         {
-            typeClass = AsciiType.class;
+            typeClass = BytesType.class;
         }
         else
         {
