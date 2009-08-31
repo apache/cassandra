@@ -113,35 +113,32 @@ public class SelectorManager extends Thread
         {
             selector.selectedKeys().remove(key);
 
-            synchronized (key)
+            SelectionKeyHandler skh = (SelectionKeyHandler) key.attachment();
+
+            if (skh != null)
             {
-                SelectionKeyHandler skh = (SelectionKeyHandler) key.attachment();
-
-                if (skh != null)
+                // accept
+                if (key.isValid() && key.isAcceptable())
                 {
-                    // accept
-                    if (key.isValid() && key.isAcceptable())
-                    {
-                        skh.accept(key);
-                    }
+                    skh.accept(key);
+                }
 
-                    // connect
-                    if (key.isValid() && key.isConnectable())
-                    {
-                        skh.connect(key);
-                    }
+                // connect
+                if (key.isValid() && key.isConnectable())
+                {
+                    skh.connect(key);
+                }
 
-                    // read
-                    if (key.isValid() && key.isReadable())
-                    {
-                        skh.read(key);
-                    }
+                // read
+                if (key.isValid() && key.isReadable())
+                {
+                    skh.read(key);
+                }
 
-                    // write
-                    if (key.isValid() && key.isWritable())
-                    {
-                        skh.write(key);
-                    }
+                // write
+                if (key.isValid() && key.isWritable())
+                {
+                    skh.write(key);
                 }
             }
         }
