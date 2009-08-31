@@ -24,7 +24,6 @@ import java.net.InetSocketAddress;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
-import org.apache.log4j.Level;
 
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
