@@ -142,10 +142,9 @@ service Cassandra {
   list<string>   get_key_range(1:string keyspace, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100, 6:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
-  /////////////////////////////////////////////////////////////////////////////////////
-  // The following are beta APIs being introduced for CLI and/or CQL support.        //
-  // These are still experimental, and subject to change.                            //
-  /////////////////////////////////////////////////////////////////////////////////////
+
+  // Meta-APIs -- APIs to get information about the node or cluster,
+  // rather than user data.  The nodeprobe program provides usage examples.
 
   // get property whose value is of type "string"
   string         get_string_property(1:string property),
