@@ -35,9 +35,9 @@ import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedH
 
 public class SSTableReader extends SSTable
 {
-    private static Logger logger = Logger.getLogger(SSTableReader.class);
+    private static final Logger logger = Logger.getLogger(SSTableReader.class);
 
-    private static FileSSTableMap openedFiles = new FileSSTableMap();
+    private static final FileSSTableMap openedFiles = new FileSSTableMap();
 
     public static int indexInterval()
     {
@@ -109,7 +109,7 @@ public class SSTableReader extends SSTable
         return sstable;
     }
 
-    public static synchronized SSTableReader get(String dataFileName) throws IOException
+    public static synchronized SSTableReader get(String dataFileName)
     {
         SSTableReader sstable = openedFiles.get(dataFileName);
         assert sstable != null;
@@ -334,14 +334,6 @@ public class SSTableReader extends SSTable
     public ColumnFamily makeColumnFamily()
     {
         return ColumnFamily.create(getTableName(), getColumnFamilyName());
-    }
-
-    public static void deleteAll() throws IOException
-    {
-        for (SSTableReader sstable : openedFiles.values())
-        {
-            sstable.delete();
-        }
     }
 }
 
