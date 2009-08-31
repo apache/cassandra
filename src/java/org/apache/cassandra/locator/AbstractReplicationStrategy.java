@@ -37,21 +37,36 @@ import org.apache.cassandra.net.EndPoint;
  * all abstraction that implement the IReplicaPlacementStrategy
  * interface.
 */
-public abstract class AbstractStrategy implements IReplicaPlacementStrategy
+public abstract class AbstractReplicationStrategy
 {
-    protected static final Logger logger_ = Logger.getLogger(AbstractStrategy.class);
+    protected static final Logger logger_ = Logger.getLogger(AbstractReplicationStrategy.class);
 
     protected TokenMetadata tokenMetadata_;
     protected IPartitioner partitioner_;
     protected int replicas_;
     protected int storagePort_;
 
-    AbstractStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
+    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
     {
         tokenMetadata_ = tokenMetadata;
         partitioner_ = partitioner;
         replicas_ = replicas;
         storagePort_ = storagePort;
+    }
+
+    public abstract EndPoint[] getWriteStorageEndPoints(Token token);
+    public abstract EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap);
+    public abstract EndPoint[] getReadStorageEndPoints(Token token);
+
+    /*
+     * This method returns the hint map. The key is the endpoint
+     * on which the data is being placed and the value is the
+     * endpoint which is in the top N.
+     * Get the map of top N to the live nodes currently.
+     */
+    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token)
+    {
+        return getHintedMapForEndpoints(getWriteStorageEndPoints(token));
     }
 
     /*
@@ -94,18 +109,6 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
         return endPoint;
     }
 
-    /*
-     * This method returns the hint map. The key is the endpoint
-     * on which the data is being placed and the value is the
-     * endpoint which is in the top N.
-     * Get the map of top N to the live nodes currently.
-     */
-    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token)
-    {
-        EndPoint[] topN = getStorageEndPointsForWrite( token );
-        return getHintedMapForEndpoints(topN);
-    }
-    
     private Map<EndPoint, EndPoint> getHintedMapForEndpoints(EndPoint[] topN)
     {
         List<EndPoint> liveList = new ArrayList<EndPoint>();
@@ -135,6 +138,4 @@ public abstract class AbstractStrategy implements IReplicaPlacementStrategy
         }
         return map;
     }
-
-    public abstract EndPoint[] getStorageEndPoints(Token token);
 }

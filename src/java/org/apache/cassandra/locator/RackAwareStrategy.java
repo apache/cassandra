@@ -21,7 +21,6 @@ package org.apache.cassandra.locator;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,14 +37,14 @@ import org.apache.cassandra.utils.LogUtil;
  * a node in a different rack in the same datacenter as
  * the primary.
  */
-public class RackAwareStrategy extends AbstractStrategy
+public class RackAwareStrategy extends AbstractReplicationStrategy
 {
     public RackAwareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
     {
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getStorageEndPoints(Token token)
+    public EndPoint[] getReadStorageEndPoints(Token token)
     {
         int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
@@ -123,24 +122,12 @@ public class RackAwareStrategy extends AbstractStrategy
         return list.toArray(new EndPoint[list.size()]);
     }
     
-    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
-    {
-    	Map<String, EndPoint[]> results = new HashMap<String, EndPoint[]>();
-
-        for ( String key : keys )
-        {
-            results.put(key, getStorageEndPoints(partitioner_.getToken(key)));
-        }
-
-        return results;
-    }
-
-    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         throw new UnsupportedOperationException("This operation is not currently supported");
     }
 
-    public EndPoint[] getStorageEndPointsForWrite(Token token)
+    public EndPoint[] getWriteStorageEndPoints(Token token)
     {
         throw new UnsupportedOperationException("Rack-aware bootstrapping not supported");
     }

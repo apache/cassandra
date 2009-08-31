@@ -113,7 +113,7 @@ public class StorageProxy implements StorageProxyMBean
 		try
 		{
             // (This is the ZERO consistency level, so user doesn't care if we don't really have N destinations available.)
-			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
+			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key());
 			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
 			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
 			{
@@ -148,7 +148,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
-            Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getNStorageEndPointMap(rm.key());
+            Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key());
             int blockFor = determineBlockFor(consistency_level);
             List<EndPoint> primaryNodes = getUnhintedNodes(endpointMap);
             if (primaryNodes.size() < blockFor) // guarantee blockFor = W live nodes.
@@ -294,7 +294,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (ReadCommand command: commands)
             {
-                EndPoint[] endpoints = StorageService.instance().getNStorageEndPoint(command.key);
+                EndPoint[] endpoints = StorageService.instance().getReadStorageEndPoints(command.key);
                 boolean foundLocal = Arrays.asList(endpoints).contains(StorageService.getLocalStorageEndPoint());
                 //TODO: Throw InvalidRequest if we're in bootstrap mode?
                 if (foundLocal && !StorageService.instance().isBootstrapMode())
@@ -358,7 +358,7 @@ public class StorageProxy implements StorageProxyMBean
                     DatabaseDescriptor.getQuorum(),
                     readResponseResolver);
             EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-            List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getNStorageEndPoint(command.key)));
+            List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getReadStorageEndPoints(command.key)));
             /* Remove the local storage endpoint from the list. */
             endpointList.remove(dataPoint);
             EndPoint[] endPoints = new EndPoint[endpointList.size() + 1];
@@ -466,7 +466,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             /* This is the primary */
             EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(key);
-            List<EndPoint> replicas = new ArrayList<EndPoint>( StorageService.instance().getNLiveStorageEndPoint(key) );
+            List<EndPoint> replicas = new ArrayList<EndPoint>( StorageService.instance().getLiveReadStorageEndPoints(key) );
             replicas.remove(dataPoint);
             /* Get the messages to be sent index 0 is the data messages and index 1 is the digest message */
             Message[] message = messages.get(key);           
@@ -506,7 +506,7 @@ public class StorageProxy implements StorageProxyMBean
         List<Row> rows = new ArrayList<Row>();
         for (ReadCommand command: commands)
         {
-            List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(command.key);
+            List<EndPoint> endpoints = StorageService.instance().getLiveReadStorageEndPoints(command.key);
             /* Remove the local storage endpoint from the list. */
             endpoints.remove(StorageService.getLocalStorageEndPoint());
             // TODO: throw a thrift exception if we do not have N nodes

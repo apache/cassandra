@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.IReplicaPlacementStrategy;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.Cassandra;
@@ -47,7 +47,7 @@ public class RingCache
 
     private Set<String> seeds_ = new HashSet<String>();
     final private int port_=DatabaseDescriptor.getThriftPort();
-    private volatile IReplicaPlacementStrategy nodePicker_;
+    private volatile AbstractReplicationStrategy nodePicker_;
     final private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
 
     public RingCache()
@@ -84,7 +84,7 @@ public class RingCache
                 Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
                 try
                 {
-                    nodePicker_ = (IReplicaPlacementStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata, partitioner_, DatabaseDescriptor.getReplicationFactor(), port_);
+                    nodePicker_ = (AbstractReplicationStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata, partitioner_, DatabaseDescriptor.getReplicationFactor(), port_);
                 }
                 catch (Exception e)
                 {
@@ -102,6 +102,6 @@ public class RingCache
 
     public EndPoint[] getEndPoint(String key)
     {
-        return nodePicker_.getStorageEndPoints(partitioner_.getToken(key));
+        return nodePicker_.getReadStorageEndPoints(partitioner_.getToken(key));
     }
 }

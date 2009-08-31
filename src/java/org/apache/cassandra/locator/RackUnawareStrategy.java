@@ -20,7 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,19 +33,19 @@ import org.apache.cassandra.net.EndPoint;
  * returns the 3 nodes that lie right next to each other
  * on the ring.
  */
-public class RackUnawareStrategy extends AbstractStrategy
+public class RackUnawareStrategy extends AbstractReplicationStrategy
 {
     public RackUnawareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
     {
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getStorageEndPoints(Token token)
+    public EndPoint[] getReadStorageEndPoints(Token token)
     {
-        return getStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());            
+        return getReadStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());
     }
     
-    public EndPoint[] getStorageEndPointsForWrite(Token token)
+    public EndPoint[] getWriteStorageEndPoints(Token token)
     {
         Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         Map<Token, EndPoint> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
@@ -64,7 +63,7 @@ public class RackUnawareStrategy extends AbstractStrategy
         return list.toArray(new EndPoint[list.size()]);            
     }
     
-    public EndPoint[] getStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         List<Token> tokenList = getStorageTokens(token, tokenToEndPointMap, null);
         List<EndPoint> list = new ArrayList<EndPoint>();
@@ -114,16 +113,5 @@ public class RackUnawareStrategy extends AbstractStrategy
             }
         }
         return tokenList;
-    }
-            
-    public Map<String, EndPoint[]> getStorageEndPoints(String[] keys)
-    {
-    	Map<String, EndPoint[]> results = new HashMap<String, EndPoint[]>();
-
-        for ( String key : keys )
-        {
-            results.put(key, getStorageEndPoints(partitioner_.getToken(key)));
-        }
-        return results;
     }
 }

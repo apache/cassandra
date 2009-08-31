@@ -40,7 +40,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
-        IReplicaPlacementStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
 
         List<Token> endPointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -56,7 +56,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
-        IReplicaPlacementStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
 
         List<Token> endPointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -69,7 +69,7 @@ public class RackUnawareStrategyTest
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void testGetStorageEndPoints(TokenMetadata tmd, IReplicaPlacementStrategy strategy, Token[] endPointTokens, Token[] keyTokens)
+    private void testGetStorageEndPoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens)
     {
         List<EndPoint> hosts = new ArrayList<EndPoint>();
         for (int i = 0; i < endPointTokens.length; i++)
@@ -81,7 +81,7 @@ public class RackUnawareStrategyTest
 
         for (int i = 0; i < keyTokens.length; i++)
         {
-            EndPoint[] endPoints = strategy.getStorageEndPoints(keyTokens[i]);
+            EndPoint[] endPoints = strategy.getReadStorageEndPoints(keyTokens[i]);
             assertEquals(3, endPoints.length);
             for (int j = 0; j < endPoints.length; j++)
             {
@@ -95,7 +95,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
-        IReplicaPlacementStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
 
         Token[] endPointTokens = new Token[5]; 
         Token[] keyTokens = new Token[5];
@@ -121,7 +121,7 @@ public class RackUnawareStrategyTest
         
         for (int i = 0; i < keyTokens.length; i++)
         {
-            EndPoint[] endPoints = strategy.getStorageEndPointsForWrite(keyTokens[i]);
+            EndPoint[] endPoints = strategy.getWriteStorageEndPoints(keyTokens[i]);
             assertTrue(endPoints.length >=3);
             List<EndPoint> endPointsList = Arrays.asList(endPoints);
 

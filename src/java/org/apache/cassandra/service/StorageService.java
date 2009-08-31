@@ -66,7 +66,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     /* All verb handler identifiers */
     public final static String mutationVerbHandler_ = "ROW-MUTATION-VERB-HANDLER";
     public final static String tokenVerbHandler_ = "TOKEN-VERB-HANDLER";
-    public final static String loadVerbHandler_ = "LOAD-VERB-HANDLER";
     public final static String binaryVerbHandler_ = "BINARY-VERB-HANDLER";
     public final static String readRepairVerbHandler_ = "READ-REPAIR-VERB-HANDLER";
     public final static String readVerbHandler_ = "ROW-READ-VERB-HANDLER";
@@ -77,12 +76,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
-
-    public static enum ConsistencyLevel
-    {
-    	WEAK,
-    	STRONG
-    }
 
     private static StorageService instance_;
     /* Used to lock the factory for creation of StorageService instance */
@@ -104,7 +97,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public static IPartitioner getPartitioner() {
         return partitioner_;
     }
-    
+
     static
     {
         partitioner_ = DatabaseDescriptor.getPartitioner();
@@ -183,7 +176,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     /* This is the entity that tracks load information of all nodes in the cluster */
     private StorageLoadBalancer storageLoadBalancer_;
     /* We use this interface to determine where replicas need to be placed */
-    private IReplicaPlacementStrategy nodePicker_;
+    private AbstractReplicationStrategy nodePicker_;
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
     private Set<EndPoint> bootstrapSet;
@@ -241,7 +234,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         /* register the verb handlers */
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.tokenVerbHandler_, new TokenUpdateVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.binaryVerbHandler_, new BinaryVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.loadVerbHandler_, new LoadVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mutationVerbHandler_, new RowMutationVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.readRepairVerbHandler_, new ReadRepairVerbHandler());
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.readVerbHandler_, new ReadVerbHandler());
@@ -268,7 +260,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
         try
         {
-            nodePicker_ = (IReplicaPlacementStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+            nodePicker_ = (AbstractReplicationStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
         }
         catch (Exception e)
         {
@@ -377,7 +369,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
         for ( Range range : ranges )
         {
-            EndPoint[] endpoints = getNStorageEndPoint(range.right());
+            EndPoint[] endpoints = nodePicker_.getReadStorageEndPoints(range.right());
             rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
         }
         if (logger_.isDebugEnabled())
@@ -399,7 +391,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
         for ( Range range : ranges )
         {
-            EndPoint[] endpoints = getNStorageEndPoint(range.right(), tokenToEndPointMap);
+            EndPoint[] endpoints = nodePicker_.getReadStorageEndPoints(range.right(), tokenToEndPointMap);
             rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
         }
         if (logger_.isDebugEnabled())
@@ -417,8 +409,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         Map<EndPoint, List<Range>> endPointToRangesMap = new HashMap<EndPoint, List<Range>>();
         Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Collection<EndPoint> mbrs = tokenToEndPointMap.values();
-        for ( EndPoint mbr : mbrs )
+        for (EndPoint mbr : tokenToEndPointMap.values())
         {
             endPointToRangesMap.put(mbr, getRangesForEndPoint(mbr));
         }
@@ -952,16 +943,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public EndPoint[] getNStorageEndPoint(String key)
+    public EndPoint[] getReadStorageEndPoints(String key)
     {
-        return nodePicker_.getStorageEndPoints(partitioner_.getToken(key));
-    }
-    
-    private Map<String, EndPoint[]> getNStorageEndPoints(String[] keys)
-    {
-    	return nodePicker_.getStorageEndPoints(keys);
-    }
-    
+        return nodePicker_.getReadStorageEndPoints(partitioner_.getToken(key));
+    }    
     
     /**
      * This method attempts to return N endpoints that are responsible for storing the
@@ -970,10 +955,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<EndPoint> getNLiveStorageEndPoint(String key)
+    public List<EndPoint> getLiveReadStorageEndPoints(String key)
     {
     	List<EndPoint> liveEps = new ArrayList<EndPoint>();
-    	EndPoint[] endpoints = getNStorageEndPoint(key);
+    	EndPoint[] endpoints = getReadStorageEndPoints(key);
     	
     	for ( EndPoint endpoint : endpoints )
     	{
@@ -991,42 +976,18 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public Map<EndPoint, EndPoint> getNStorageEndPointMap(String key)
+    public Map<EndPoint, EndPoint> getHintedStorageEndpointMap(String key)
     {
         return nodePicker_.getHintedStorageEndPoints(partitioner_.getToken(key));
     }
 
-    /**
-     * This method returns the N endpoints that are responsible for storing the
-     * specified token i.e for replication.
-     *
-     * @param token - position on the ring
-     */
-    public EndPoint[] getNStorageEndPoint(Token token)
-    {
-        return nodePicker_.getStorageEndPoints(token);
-    }
-    
-    /**
-     * This method returns the N endpoints that are responsible for storing the
-     * specified token i.e for replication and are based on the token to endpoint 
-     * mapping that is passed in.
-     *
-     * @param token - position on the ring
-     * @param tokens - w/o the following tokens in the token list
-     */
-    protected EndPoint[] getNStorageEndPoint(Token token, Map<Token, EndPoint> tokenToEndPointMap)
-    {
-        return nodePicker_.getStorageEndPoints(token, tokenToEndPointMap);
-    }
-    
     /**
      * This function finds the most suitable endpoint given a key.
      * It checks for locality and alive test.
      */
 	public EndPoint findSuitableEndPoint(String key) throws IOException
 	{
-		EndPoint[] endpoints = getNStorageEndPoint(key);
+		EndPoint[] endpoints = getReadStorageEndPoints(key);
 		for(EndPoint endPoint: endpoints)
 		{
 			if(endPoint.equals(StorageService.getLocalStorageEndPoint()))
@@ -1057,68 +1018,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 		}
 		return null;
 	}
-	
-	/*
-	 * TODO:
-	 * This is used by the incomplete multiget implementation. Need to rewrite
-	 * this to use findSuitableEndPoint above instead of copy/paste 
-	 */
-	public Map<String, EndPoint> findSuitableEndPoints(String[] keys) throws IOException
-	{
-		Map<String, EndPoint> suitableEndPoints = new HashMap<String, EndPoint>();
-		Map<String, EndPoint[]> results = getNStorageEndPoints(keys);
-		for ( String key : keys )
-		{
-			EndPoint[] endpoints = results.get(key);
-			/* indicates if we have to move on to the next key */
-			boolean moveOn = false;
-			for(EndPoint endPoint: endpoints)
-			{
-				if(endPoint.equals(StorageService.getLocalStorageEndPoint()))
-				{
-					suitableEndPoints.put(key, endPoint);
-					moveOn = true;
-					break;
-				}
-			}
-			
-			if ( moveOn )
-				continue;
-				
-			int j = 0;
-			for ( ; j < endpoints.length; ++j )
-			{
-				if ( StorageService.instance().isInSameDataCenter(endpoints[j]) && FailureDetector.instance().isAlive(endpoints[j]) )
-				{
-					if (logger_.isDebugEnabled())
-					  logger_.debug("EndPoint " + endpoints[j] + " is in the same data center as local storage endpoint.");
-					suitableEndPoints.put(key, endpoints[j]);
-					moveOn = true;
-					break;
-				}
-			}
-			
-			if ( moveOn )
-				continue;
-			
-			// We have tried to be really nice but looks like there are no servers 
-			// in the local data center that are alive and can service this request so 
-			// just send it to the first alive guy and see if we get anything.
-			j = 0;
-			for ( ; j < endpoints.length; ++j )
-			{
-				if ( FailureDetector.instance().isAlive(endpoints[j]) )
-				{
-					if (logger_.isDebugEnabled())
-					  logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
-					suitableEndPoints.put(key, endpoints[j]);
-					break;
-				}
-			}
-		}
-		return suitableEndPoints;
-	}
-	
+
 	Map<Token, EndPoint> getLiveEndPointMap()
 	{
 	    return tokenMetadata_.cloneTokenEndPointMap();

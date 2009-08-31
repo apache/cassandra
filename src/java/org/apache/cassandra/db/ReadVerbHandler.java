@@ -29,8 +29,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.UnavailableException;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
 
 public class ReadVerbHandler implements IVerbHandler
@@ -115,7 +114,7 @@ public class ReadVerbHandler implements IVerbHandler
     
     private void doReadRepair(Row row, ReadCommand readCommand)
     {
-        List<EndPoint> endpoints = StorageService.instance().getNLiveStorageEndPoint(readCommand.key);
+        List<EndPoint> endpoints = StorageService.instance().getLiveReadStorageEndPoints(readCommand.key);
         /* Remove the local storage endpoint from the list. */ 
         endpoints.remove( StorageService.getLocalStorageEndPoint() );
             
