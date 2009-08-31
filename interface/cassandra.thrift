@@ -139,7 +139,7 @@ service Cassandra {
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys
-  list<string>   get_key_range(1:string keyspace, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100)
+  list<string>   get_key_range(1:string keyspace, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100, 6:ConsistencyLevel consistency_level=1)
   throws (1: InvalidRequestException ire),
 
   /////////////////////////////////////////////////////////////////////////////////////

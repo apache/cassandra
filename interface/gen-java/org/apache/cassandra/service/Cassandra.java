@@ -61,7 +61,7 @@ public class Cassandra {
 
     public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
-    public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count) throws InvalidRequestException, TException;
+    public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count, int consistency_level) throws InvalidRequestException, TException;
 
     public String get_string_property(String property) throws TException;
 
@@ -420,13 +420,13 @@ public class Cassandra {
       return;
     }
 
-    public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count) throws InvalidRequestException, TException
+    public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count, int consistency_level) throws InvalidRequestException, TException
     {
-      send_get_key_range(keyspace, column_family, start, finish, count);
+      send_get_key_range(keyspace, column_family, start, finish, count, consistency_level);
       return recv_get_key_range();
     }
 
-    public void send_get_key_range(String keyspace, String column_family, String start, String finish, int count) throws TException
+    public void send_get_key_range(String keyspace, String column_family, String start, String finish, int count, int consistency_level) throws TException
     {
       oprot_.writeMessageBegin(new TMessage("get_key_range", TMessageType.CALL, seqid_));
       get_key_range_args args = new get_key_range_args();
@@ -435,6 +435,7 @@ public class Cassandra {
       args.start = start;
       args.finish = finish;
       args.count = count;
+      args.consistency_level = consistency_level;
       args.write(oprot_);
       oprot_.writeMessageEnd();
       oprot_.getTransport().flush();
@@ -850,7 +851,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         get_key_range_result result = new get_key_range_result();
         try {
-          result.success = iface_.get_key_range(args.keyspace, args.column_family, args.start, args.finish, args.count);
+          result.success = iface_.get_key_range(args.keyspace, args.column_family, args.start, args.finish, args.count, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
         } catch (Throwable th) {
@@ -7841,6 +7842,7 @@ public class Cassandra {
     private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)3);
     private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)4);
     private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)5);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
 
     public String keyspace;
     public static final int KEYSPACE = 1;
@@ -7852,10 +7854,17 @@ public class Cassandra {
     public static final int FINISH = 4;
     public int count;
     public static final int COUNT = 5;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public int consistency_level;
+    public static final int CONSISTENCY_LEVEL = 6;
 
     // isset id assignments
     private static final int __COUNT_ISSET_ID = 0;
-    private BitSet __isset_bit_vector = new BitSet(1);
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 1;
+    private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
       put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
@@ -7867,6 +7876,8 @@ public class Cassandra {
       put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRING)));
       put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.I32)));
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -7881,6 +7892,8 @@ public class Cassandra {
 
       this.count = 100;
 
+      this.consistency_level = 1;
+
     }
 
     public get_key_range_args(
@@ -7888,7 +7901,8 @@ public class Cassandra {
       String column_family,
       String start,
       String finish,
-      int count)
+      int count,
+      int consistency_level)
     {
       this();
       this.keyspace = keyspace;
@@ -7897,6 +7911,8 @@ public class Cassandra {
       this.finish = finish;
       this.count = count;
       setCountIsSet(true);
+      this.consistency_level = consistency_level;
+      setConsistency_levelIsSet(true);
     }
 
     /**
@@ -7918,6 +7934,7 @@ public class Cassandra {
         this.finish = other.finish;
       }
       this.count = other.count;
+      this.consistency_level = other.consistency_level;
     }
 
     @Override
@@ -8044,6 +8061,37 @@ public class Cassandra {
       __isset_bit_vector.set(__COUNT_ISSET_ID, value);
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public int getConsistency_level() {
+      return this.consistency_level;
+    }
+
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public get_key_range_args setConsistency_level(int consistency_level) {
+      this.consistency_level = consistency_level;
+      setConsistency_levelIsSet(true);
+      return this;
+    }
+
+    public void unsetConsistency_level() {
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
+    }
+
+    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
+    public boolean isSetConsistency_level() {
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
+    }
+
+    public void setConsistency_levelIsSet(boolean value) {
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
+    }
+
     public void setFieldValue(int fieldID, Object value) {
       switch (fieldID) {
       case KEYSPACE:
@@ -8086,6 +8134,14 @@ public class Cassandra {
         }
         break;
 
+      case CONSISTENCY_LEVEL:
+        if (value == null) {
+          unsetConsistency_level();
+        } else {
+          setConsistency_level((Integer)value);
+        }
+        break;
+
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -8108,6 +8164,9 @@ public class Cassandra {
       case COUNT:
         return new Integer(getCount());
 
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
+
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -8126,6 +8185,8 @@ public class Cassandra {
         return isSetFinish();
       case COUNT:
         return isSetCount();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
       default:
         throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
       }
@@ -8189,6 +8250,15 @@ public class Cassandra {
           return false;
       }
 
+      boolean this_present_consistency_level = true;
+      boolean that_present_consistency_level = true;
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
+          return false;
+        if (this.consistency_level != that.consistency_level)
+          return false;
+      }
+
       return true;
     }
 
@@ -8245,6 +8315,14 @@ public class Cassandra {
       if (lastComparison != 0) {
         return lastComparison;
       }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
       return 0;
     }
 
@@ -8295,6 +8373,14 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
+          case CONSISTENCY_LEVEL:
+            if (field.type == TType.I32) {
+              this.consistency_level = iprot.readI32();
+              setConsistency_levelIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           default:
             TProtocolUtil.skip(iprot, field.type);
             break;
@@ -8334,6 +8420,9 @@ public class Cassandra {
       }
       oprot.writeFieldBegin(COUNT_FIELD_DESC);
       oprot.writeI32(this.count);
+      oprot.writeFieldEnd();
+      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+      oprot.writeI32(this.consistency_level);
       oprot.writeFieldEnd();
       oprot.writeFieldStop();
       oprot.writeStructEnd();
@@ -8379,6 +8468,18 @@ public class Cassandra {
       sb.append("count:");
       sb.append(this.count);
       first = false;
+      if (!first) sb.append(", ");
+      sb.append("consistency_level:");
+      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(consistency_level_name);
+        sb.append(" (");
+      }
+      sb.append(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(")");
+      }
+      first = false;
       sb.append(")");
       return sb.toString();
     }
@@ -8386,6 +8487,9 @@ public class Cassandra {
     public void validate() throws TException {
       // check for required fields
       // check that fields of type enum have valid values
+      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
+        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
+      }
     }
 
   }

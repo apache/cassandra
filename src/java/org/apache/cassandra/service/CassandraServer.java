@@ -576,7 +576,7 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults) throws InvalidRequestException, TException
+    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults, int consistency_level) throws InvalidRequestException, TException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_key_range");

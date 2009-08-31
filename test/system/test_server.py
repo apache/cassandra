@@ -284,7 +284,7 @@ class TestMutations(CassandraTester):
         # get doesn't specify supercolumn name
         _expect_exception(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1'), ConsistencyLevel.ONE), InvalidRequestException)
         # invalid CF
-        _expect_exception(lambda: client.get_key_range('Keyspace1', 'S', '', '', 1000), InvalidRequestException)
+        _expect_exception(lambda: client.get_key_range('Keyspace1', 'S', '', '', 1000, ConsistencyLevel.ONE), InvalidRequestException)
         # 'x' is not a valid Long
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', 'x'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
         # start is not a valid Long
@@ -440,31 +440,31 @@ class TestMutations(CassandraTester):
 
 
     def test_empty_range(self):
-        assert client.get_key_range('Keyspace1', 'Standard1', '', '', 1000) == []
+        assert client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE) == []
         _insert_simple()
-        assert client.get_key_range('Keyspace1', 'Super1', '', '', 1000) == []
+        assert client.get_key_range('Keyspace1', 'Super1', '', '', 1000, ConsistencyLevel.ONE) == []
 
     def test_range_with_remove(self):
         _insert_simple()
-        assert client.get_key_range('Keyspace1', 'Standard1', 'key1', '', 1000) == ['key1']
+        assert client.get_key_range('Keyspace1', 'Standard1', 'key1', '', 1000, ConsistencyLevel.ONE) == ['key1']
 
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1', column='c1'), 1, ConsistencyLevel.ONE)
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1', column='c2'), 1, ConsistencyLevel.ONE)
-        actual = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000)
+        actual = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE)
         assert actual == [], actual
 
     def test_range_with_remove_cf(self):
         _insert_simple()
-        assert client.get_key_range('Keyspace1', 'Standard1', 'key1', '', 1000) == ['key1']
+        assert client.get_key_range('Keyspace1', 'Standard1', 'key1', '', 1000, ConsistencyLevel.ONE) == ['key1']
 
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1'), 1, ConsistencyLevel.ONE)
-        actual = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000)
+        actual = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE)
         assert actual == [], actual
 
     def test_range_collation(self):
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
             client.insert('Keyspace1', key, ColumnPath('Standard1', column=key), 'v', 0, ConsistencyLevel.ONE)
-        L = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000)
+        L = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE)
         # note the collated ordering rather than ascii
         assert L == ['0', '1', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '2', '20', '21', '22', '23', '24', '25', '26', '27','28', '29', '3', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '4', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '5', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '6', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '7', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '8', '80', '81', '82', '83', '84', '85', '86', '87', '88', '89', '9', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', 'a', '-a', 'b', '-b'], L
 
@@ -472,16 +472,16 @@ class TestMutations(CassandraTester):
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
             client.insert('Keyspace1', key, ColumnPath('Standard1', column=key), 'v', 0, ConsistencyLevel.ONE)
 
-        L = client.get_key_range('Keyspace1', 'Standard1', 'a', '', 1000)
+        L = client.get_key_range('Keyspace1', 'Standard1', 'a', '', 1000, ConsistencyLevel.ONE)
         assert L == ['a', '-a', 'b', '-b'], L
 
-        L = client.get_key_range('Keyspace1', 'Standard1', '', '15', 1000)
+        L = client.get_key_range('Keyspace1', 'Standard1', '', '15', 1000, ConsistencyLevel.ONE)
         assert L == ['0', '1', '10', '11', '12', '13', '14', '15'], L
 
-        L = client.get_key_range('Keyspace1', 'Standard1', '50', '51', 1000)
+        L = client.get_key_range('Keyspace1', 'Standard1', '50', '51', 1000, ConsistencyLevel.ONE)
         assert L == ['50', '51'], L
     
-        L = client.get_key_range('Keyspace1', 'Standard1', '1', '', 10)
+        L = client.get_key_range('Keyspace1', 'Standard1', '1', '', 10, ConsistencyLevel.ONE)
         assert L == ['1', '10', '11', '12', '13', '14', '15', '16', '17', '18'], L
 
     def test_get_slice_range(self):
