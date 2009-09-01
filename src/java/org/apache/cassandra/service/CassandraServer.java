@@ -419,31 +419,31 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(consistency_level, rm);
     }
 
-    public void batch_insert(String table, BatchMutation batch_mutation, int consistency_level)
+    public void batch_insert(String keyspace, String key, Map<String, List<ColumnOrSuperColumn>> cfmap, int consistency_level)
     throws InvalidRequestException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
 
-        for (String cfName : batch_mutation.cfmap.keySet())
+        for (String cfName : cfmap.keySet())
         {
-            for (ColumnOrSuperColumn cosc : batch_mutation.cfmap.get(cfName))
+            for (ColumnOrSuperColumn cosc : cfmap.get(cfName))
             {
                 if (cosc.column != null)
                 {
-                    ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, null, cosc.column.name));
+                    ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, null, cosc.column.name));
                 }
                 if (cosc.super_column != null)
                 {
                     for (Column c : cosc.super_column.columns)
                     {
-                        ThriftValidation.validateColumnPath(table, new ColumnPath(cfName, cosc.super_column.name, c.name));
+                        ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, cosc.super_column.name, c.name));
                     }
                 }
             }
         }
 
-        doInsert(consistency_level, RowMutation.getRowMutation(table, batch_mutation));
+        doInsert(consistency_level, RowMutation.getRowMutation(keyspace, key, cfmap));
     }
 
     public void remove(String table, String key, ColumnPath column_path, long timestamp, int consistency_level)

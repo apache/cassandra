@@ -59,7 +59,7 @@ def _insert_multi_batch(keys, block):
         consistencyLevel = ConsistencyLevel.ZERO
 
     for key in keys:
-        client.batch_insert('Keyspace1', BatchMutation(key=key, cfmap=cfmap), consistencyLevel)
+        client.batch_insert('Keyspace1', key, cfmap, consistencyLevel)
 
 def _big_slice(keyspace, key, column_parent):
     p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
@@ -311,7 +311,7 @@ class TestMutations(CassandraTester):
     def test_batch_insert_super(self):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
                   'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
-         client.batch_insert('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), ConsistencyLevel.ZERO)
+         client.batch_insert('Keyspace1', 'key1', cfmap, ConsistencyLevel.ZERO)
          time.sleep(0.1)
          _verify_super('Super1')
          _verify_super('Super2')
@@ -319,7 +319,7 @@ class TestMutations(CassandraTester):
     def test_batch_insert_super_blocking(self):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
                   'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
-         client.batch_insert('Keyspace1', BatchMutation(key='key1', cfmap=cfmap), ConsistencyLevel.ONE)
+         client.batch_insert('Keyspace1', 'key1', cfmap, ConsistencyLevel.ONE)
          _verify_super('Super1')
          _verify_super('Super2')
 

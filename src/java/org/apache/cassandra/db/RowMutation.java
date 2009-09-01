@@ -237,10 +237,10 @@ public class RowMutation implements Serializable
         return new Message(from, StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
     }
 
-    public static RowMutation getRowMutation(String table, BatchMutation batchMutation)
+    public static RowMutation getRowMutation(String table, String key, Map<String, List<ColumnOrSuperColumn>> cfmap)
     {
-        RowMutation rm = new RowMutation(table, batchMutation.key.trim());
-        for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : batchMutation.cfmap.entrySet())
+        RowMutation rm = new RowMutation(table, key.trim());
+        for (Map.Entry<String, List<ColumnOrSuperColumn>> entry : cfmap.entrySet())
         {
             String cfName = entry.getKey();
             for (ColumnOrSuperColumn cosc : entry.getValue())

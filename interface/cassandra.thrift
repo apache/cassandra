@@ -107,11 +107,6 @@ struct SlicePredicate {
     2: optional SliceRange   slice_range,
 }
 
-struct BatchMutation {
-   1: required string key,
-   2: required map<string, list<ColumnOrSuperColumn>> cfmap,
-}
-
 
 service Cassandra {
   # retrieval methods
@@ -138,7 +133,7 @@ service Cassandra {
   void insert(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void batch_insert(1:string keyspace, 2:BatchMutation batch_mutation, 3:ConsistencyLevel consistency_level=0)
+  void batch_insert(1:string keyspace, 2:string key, 3:map<string, list<ColumnOrSuperColumn>> cfmap, 4:ConsistencyLevel consistency_level=0)
   throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   void remove(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:i64 timestamp, 5:ConsistencyLevel consistency_level=0)
