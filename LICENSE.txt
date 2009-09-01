@@ -200,3 +200,8 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+
+NOTE: License texts and attribution for convenience copies of third-party
+libraries can be found in their respective LICENSE files in lib/licenses/.
+
