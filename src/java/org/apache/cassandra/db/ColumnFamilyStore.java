@@ -175,16 +175,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (File file : sstableFiles)
         {
             String filename = file.getAbsolutePath();
+            SSTableReader sstable;
             try
             {
-                SSTableReader sstable = SSTableReader.open(filename);
-                ssTables_.put(filename, sstable);
+                sstable = SSTableReader.open(filename);
             }
             catch (IOException ex)
             {
-                logger_.error("Corrupt file " + filename, ex);
-                FileUtils.delete(filename);
+                logger_.error("Corrupt file " + filename + "; skipped", ex);
+                continue;
             }
+            ssTables_.put(filename, sstable);
         }
 
         // submit initial check-for-compaction request
