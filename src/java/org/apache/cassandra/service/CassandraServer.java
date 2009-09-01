@@ -509,7 +509,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else if (propertyName.equals("version"))
         {
-            return "0.3.0";
+            return "0.4.0";
         }
         else
         {
