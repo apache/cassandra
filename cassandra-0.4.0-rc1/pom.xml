@@ -1,0 +1,559 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+  
+  http://www.apache.org/licenses/LICENSE-2.0
+  
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <parent>
+    <groupId>org.apache</groupId>
+    <artifactId>apache</artifactId>
+    <version>6</version>
+  </parent>
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.apache.cassandra</groupId>
+  <artifactId>cassandra</artifactId>
+  <version>0.4.0-dev</version>
+  <packaging>jar</packaging>
+  <name>Cassandra</name>
+  <inceptionYear>2009</inceptionYear>
+
+  <prerequisites>
+    <maven>2.0.9</maven>
+  </prerequisites>
+
+  <url>http://incubator.apache.org/cassandra</url>
+
+  <mailingLists>
+    <mailingList>
+      <name>cassandra-user</name>
+      <subscribe>cassandra-user-subscribe@incubator.apache.org</subscribe>
+      <unsubscribe>cassandra-user-unsubscribe@incubator.apache.org</unsubscribe>
+      <post>cassandra-user@incubator.apache.org</post>
+      <archive>http://mail-archives.apache.org/mod_mbox/incubator-cassandra-user/</archive>
+    </mailingList>
+    <mailingList>
+      <name>cassandra-dev</name>
+      <subscribe>cassandra-dev-subscribe@incubator.apache.org</subscribe>
+      <unsubscribe>cassandra-dev-unsubscribe@incubator.apache.org</unsubscribe>
+      <post>cassandra-dev@incubator.apache.org</post>
+      <archive>http://mail-archives.apache.org/mod_mbox/incubator-cassandra-dev/</archive>
+    </mailingList>
+    <mailingList>
+      <name>cassandra-commits</name>
+      <subscribe>cassandra-commits-subscribe@incubator.apache.org</subscribe>
+      <unsubscribe>cassandra-commits-unsubscribe@incubator.apache.org</unsubscribe>
+      <post>cassandra-commits@incubator.apache.org</post>
+      <archive>http://mail-archives.apache.org/mod_mbox/incubator-cassandra-commits/</archive>
+    </mailingList>
+  </mailingLists>
+
+  <developers>
+    <developer>
+      <id>jbellis</id>
+      <name>Jonathan Bellis</name>
+      <!--<email></email>-->
+      <!--<url></url>-->
+      <!--<organization></organization>-->
+      <!--<organizationUrl></organizationUrl>-->
+      <roles>
+        <role>committer</role>
+        <!--
+        <role>contributor</role>
+        <role>pmc</role>
+        -->
+      </roles>
+      <!--
+      <timezone>-7</timezone>
+      <properties>
+        <picUrl></picUrl>
+      </properties>
+      -->
+    </developer>
+    <developer>
+      <id>eevans</id>
+      <name>Eric Evans</name>
+      <roles>
+        <role>committer</role>
+      </roles>
+    </developer>
+    <developer>
+      <id>junrao</id>
+      <name>Jun Rao</name>
+      <roles>
+        <role>committer</role>
+      </roles>
+    </developer>
+  </developers>
+
+  <issueManagement>
+    <system>JIRA</system>
+    <url>https://issues.apache.org/jira/browse/CASSANDRA</url>
+  </issueManagement>
+
+  <!-- see: https://hudson.dev.java.net/maven-hudson-plugin (to kick off hudson jobs via mvn) -->
+  <ciManagement>
+    <system>hudson</system>
+    <url>http://hudson.zones.apache.org/hudson</url>
+    <notifiers>
+      <!-- Hopefully one day hudson will automatically load this data -->
+      <notifier>
+        <type>mail</type>
+        <sendOnError>true</sendOnError>
+        <sendOnFailure>true</sendOnFailure>
+        <sendOnSuccess>false</sendOnSuccess>
+        <sendOnWarning>false</sendOnWarning>
+        <configuration><address>cassandra-commits@incubator.apache.org</address></configuration>
+      </notifier>
+    </notifiers>
+  </ciManagement>
+
+  <distributionManagement>
+    <site>
+      <id>cassandra-website</id>
+      <url>scp://people.apache.org/x1/www/incubator.apache.org/cassandra/maven/${pom.version}</url>
+    </site>
+  </distributionManagement>
+
+  <scm>
+    <connection>scm:svn:http://svn.apache.org/repos/asf/incubator/cassandra/trunk</connection>
+    <developerConnection>scm:svn:https://svn.apache.org/repos/asf/incubator/cassandra/trunk</developerConnection>
+    <url>http://svn.apache.org/viewvc/incubator/cassandra/trunk/</url>
+  </scm>
+
+  <dependencies>
+
+    <dependency>
+      <groupId>commons-collections</groupId>
+      <artifactId>commons-collections</artifactId>
+      <version>3.2.1</version>
+    </dependency>
+    <dependency>
+      <groupId>commons-cli</groupId>
+      <artifactId>commons-cli</artifactId>
+      <version>1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>commons-lang</groupId>
+      <artifactId>commons-lang</artifactId>
+      <version>2.4</version>
+    </dependency>
+    <dependency>
+      <groupId>jline</groupId>
+      <artifactId>jline</artifactId>
+      <version>0.9.94</version>
+    </dependency>
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>1.2.15</version>
+      <!-- And the exclusion below illustrate why we should try to make as many of our jars optional -->
+      <exclusions>
+        <exclusion>
+          <groupId>javax.jms</groupId>
+          <artifactId>jms</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.sun.jmx</groupId>
+          <artifactId>jmxri</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.sun.jdmk</groupId>
+          <artifactId>jmxtools</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.antlr</groupId>
+      <artifactId>antlr-runtime</artifactId>
+      <version>3.1.3</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.collections</groupId>
+      <artifactId>google-collections</artifactId>
+      <version>1.0-rc1</version>
+    </dependency>
+
+
+
+
+    <!-- Dependencies which I could not find in the maven repos -->
+    <dependency>
+      <groupId>clhm</groupId>
+      <artifactId>clhm</artifactId>
+      <version>20090629</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/clhm-20090629.jar</systemPath>
+    </dependency>
+    <dependency>
+      <groupId>high-scale-lib</groupId>
+      <artifactId>high-scale-lib</artifactId>
+      <version>UNKNOWN</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/high-scale-lib.jar</systemPath>
+    </dependency>
+    <dependency>
+      <groupId>libthrift</groupId>
+      <artifactId>libthrift</artifactId>
+      <version>UNKNOWN</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/libthrift.jar</systemPath>
+    </dependency>
+    <dependency>
+      <groupId>commons-javaflow</groupId>
+      <artifactId>commons-javaflow</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/commons-javaflow-1.0-SNAPSHOT.jar</systemPath>
+    </dependency>
+
+    <!-- Testing Dependencies -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.6</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+
+    <sourceDirectory>${basedir}/src/java</sourceDirectory>
+    <testSourceDirectory>${basedir}/test/unit</testSourceDirectory>
+    <outputDirectory>build/classes</outputDirectory>
+
+    <testResources>
+      <testResource>
+        <directory>${basedir}/test/conf</directory>
+        <includes>
+          <include>**/*</include>
+        </includes>
+      </testResource>
+    </testResources>
+
+    <plugins>
+
+      <!-- builds the antlr sources -->
+      <plugin>
+        <groupId>org.antlr</groupId>
+        <artifactId>antlr3-maven-plugin</artifactId>
+        <version>3.1.3-1</version>
+        <executions>
+          <execution>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>antlr</goal>
+            </goals>
+            <configuration>
+              <sourceDirectory>${basedir}/src/java</sourceDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Include the thrift generated sources in the build -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>1.3</version>
+        <executions>
+          <execution>
+            <id>add-source</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${basedir}/interface/gen-java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Setup the build for JAVA 1.6  -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <source>1.6</source>
+          <target>1.6</target>
+          <optimize>true</optimize>
+          <debug>true</debug>
+          <showDeprecation>true</showDeprecation>
+          <showWarnings>true</showWarnings>
+        </configuration>
+      </plugin>
+
+      <!-- Configure the JUnit Env -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemProperties>
+            <property>
+              <name>storage-config</name>
+              <value>${basedir}/test/conf</value>
+            </property>
+          </systemProperties>
+          <forkMode>always</forkMode>
+        </configuration>
+      </plugin>
+
+      <!-- Lets run with cobertura -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>cobertura-maven-plugin</artifactId>
+        <version>2.0</version>
+        <configuration>
+        </configuration>
+      </plugin>
+
+      <!-- These plugins help validate ASF legal requirements are met for the release -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-release-plugin</artifactId>
+        <version>2.0-beta-9</version>
+        <configuration>
+          <autoVersionSubmodules>true</autoVersionSubmodules>
+          <allowTimestampedSnapshots>false</allowTimestampedSnapshots>
+          <preparationGoals>clean install</preparationGoals>
+          <goals>deploy</goals>
+          <arguments>-Papache-release</arguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>ianal-maven-plugin</artifactId>
+        <version>1.0-alpha-1</version>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>rat-maven-plugin</artifactId>
+        <version>1.0-alpha-3</version>
+        <configuration>
+          <excludeSubProjects>false</excludeSubProjects>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>validate</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>[2.0.9,)</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>ianal-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>verify-legal-files</goal>
+            </goals>
+            <configuration>
+              <strict>true</strict>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jxr-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-pmd-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>taglist-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <links>
+            <link>http://java.sun.com/j2se/1.6.0/docs/api/</link>
+            <link>http://logging.apache.org/log4j/docs/api/</link>
+          </links>
+          <!--
+          <stylesheetfile>${basedir}/../etc/css/stylesheet.css</stylesheetfile>
+          -->
+          <linksource>true</linksource>
+          <maxmemory>900m</maxmemory>
+          <source>1.6</source>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>cobertura-maven-plugin</artifactId>
+        <version>2.2</version>
+        <configuration>
+          <formats>
+            <format>html</format>
+            <format>xml</format>
+          </formats>
+        </configuration>
+      </plugin>
+    </plugins>
+  </reporting>
+
+  <profiles>
+
+    <!-- run "mvn -P thrift" to generate the thrift classes -->
+    <profile>
+      <id>thrift</id>
+      <build>
+        <defaultGoal>process-sources</defaultGoal>
+        <plugins>
+
+          <plugin>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>process-sources</phase>
+                <configuration>
+                  <tasks>
+                    <ant antfile="${basedir}/build.xml" target="gen-thrift-java"/>
+                    <ant antfile="${basedir}/build.xml" target="gen-thrift-py"/>
+                  </tasks>
+                </configuration>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+
+    <profile>
+      <id>apache-release</id>
+      <build>
+        <plugins>
+
+          <!-- We want to sign the artifact, the POM, and all attached artifacts -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <configuration>
+              <passphrase>${gpg.passphrase}</passphrase>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- We want to deploy the artifact to a staging location for perusal -->
+          <plugin>
+            <inherited>true</inherited>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-deploy-plugin</artifactId>
+            <configuration>
+              <updateReleaseInfo>true</updateReleaseInfo>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <configuration>
+              <encoding>${project.build.sourceEncoding}</encoding>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- Deploy a source distro too -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+                <phase>package</phase>
+                <configuration>
+                  <runOnlyAtExecutionRoot>true</runOnlyAtExecutionRoot>
+                  <descriptorRefs>
+                    <descriptorRef>
+                      source-release
+                    </descriptorRef>
+                  </descriptorRefs>
+                </configuration>
+              </execution>
+            </executions>
+            <dependencies>
+              <dependency>
+                <groupId>org.apache.geronimo.genesis</groupId>
+                <artifactId>apache-source-release-assembly-descriptor</artifactId>
+                <version>2.0</version>
+              </dependency>
+            </dependencies>
+          </plugin>
+
+        </plugins>
+      </build>
+    </profile>
+
+  </profiles>
+
+</project>
