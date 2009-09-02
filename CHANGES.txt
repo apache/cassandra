@@ -6,7 +6,6 @@
  * Scan all sstables for all queries to avoid situations where
    different types of operation on the same ColumnFamily could
    disagree on what data was present
- * Configurable LRU cache for key lookups
  * Snapshot support via JMX
  * BinaryMemtable support for bulk load via hadoop; see
    https://github.com/lenn0x/Cassandra-Hadoop-BMT/tree

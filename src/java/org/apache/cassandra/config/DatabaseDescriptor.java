@@ -89,7 +89,6 @@ public class DatabaseDescriptor
     private static String d_columnValue_      = "COLUMN_VALUE";
     private static String d_columnTimestamp_  = "COLUMN_TIMESTAMP";
 
-    private static Map<String, Double> tableKeysCachedFractions_;
     /*
      * A map from table names to the set of column families for the table and the
      * corresponding meta data for that column family.
@@ -401,7 +400,6 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
             tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
-            tableKeysCachedFractions_ = new HashMap<String, Double>();
 
             /* See which replica placement strategy to use */
             String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/ReplicaPlacementStrategy");
@@ -437,17 +435,6 @@ public class DatabaseDescriptor
                 }
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
-
-                String xqlCacheSize = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/KeysCachedFraction";
-                value = xmlUtils.getNodeValue(xqlCacheSize);
-                if (value == null)
-                {
-                    tableKeysCachedFractions_.put(tName, 0.01);
-                }
-                else
-                {
-                    tableKeysCachedFractions_.put(tName, Double.valueOf(value));
-                }
 
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
@@ -573,7 +560,6 @@ public class DatabaseDescriptor
             data.subcolumnComparator = new BytesType();
             systemMetadata.put(HintedHandOffManager.HINTS_CF, data);
             tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
-            tableKeysCachedFractions_.put(Table.SYSTEM_TABLE, 0.01);
 
             /* make sure we have a directory for each table */
             createTableDirectories();
@@ -962,11 +948,6 @@ public class DatabaseDescriptor
     public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()
     {
         return tableToCFMetaDataMap_;
-    }
-
-    public static double getKeysCachedFraction(String tableName)
-    {
-        return tableKeysCachedFractions_.get(tableName);
     }
 
     private static class ConfigurationException extends Exception
