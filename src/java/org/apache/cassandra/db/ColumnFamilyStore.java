@@ -852,6 +852,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (logger_.isDebugEnabled())
                   logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
                 assert newfile != null;
+                // TODO convert this to SSTableWriter.renameAndOpen
                 ssTables_.put(newfile, SSTableReader.open(newfile));
             }
             SSTableReader.get(file).delete();
