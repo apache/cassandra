@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -47,7 +46,7 @@ public class OneCompactionTest
             store.forceBlockingFlush();
             assertEquals(inserted.size(), table.getColumnFamilyStore(columnFamilyName).getKeyRange("", "", 10000).keys.size());
         }
-        Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2);
+        Future<Integer> ft = MinorCompactionManager.instance().submit(store, 2, 32);
         ft.get();
         assertEquals(1, store.getSSTables().size());
         assertEquals(table.getColumnFamilyStore(columnFamilyName).getKeyRange("", "", 10000).keys.size(), inserted.size());

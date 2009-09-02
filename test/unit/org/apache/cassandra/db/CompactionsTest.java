@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -62,7 +61,7 @@ public class CompactionsTest extends CleanupHelper
         }
         if (store.getSSTables().size() > 1)
         {
-            store.doCompaction(store.getSSTables().size());
+            store.doCompaction(2, store.getSSTables().size());
         }
         assertEquals(table.getColumnFamilyStore("Standard1").getKeyRange("", "", 10000).keys.size(), inserted.size());
     }
