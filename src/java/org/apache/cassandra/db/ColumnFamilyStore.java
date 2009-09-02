@@ -1009,7 +1009,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (rangeWriter != null)
         {
-            rangeWriter.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
+            rangeWriter.closeAndOpenReader();
             if (fileList != null)
             {
                 //Retain order. The -Data.db file needs to be last because 
@@ -1160,7 +1160,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (writer != null)
         {
             // TODO if all the keys were the same nothing will be done here
-            ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
+            ssTable = writer.closeAndOpenReader();
             newfile = writer.getFilename();
         }
         sstableLock_.writeLock().lock();

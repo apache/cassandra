@@ -175,7 +175,7 @@ public class BinaryMemtable
                 writer.append(key, bytes);
             }
         }
-        cfStore.storeLocation(writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_)));
+        cfStore.storeLocation(writer.closeAndOpenReader());
         columnFamilies_.clear();       
     }
 }

@@ -42,17 +42,6 @@
   -->
   <Keyspaces>
     <Keyspace Name="Keyspace1">
-      <!--
-       ~ The fraction of keys per sstable whose locations we keep in
-       ~ memory in "mostly LRU" order.  (JUST the key locations, NOT any
-       ~ column values.)
-
-       ~ The amount of memory used by the default setting of 0.01 is
-       ~ comparable to the amount used by the internal per-sstable key
-       ~ index. Consider increasing this if you have fewer, wider rows.
-       ~ Set to 0 to disable entirely.
-      -->
-      <KeysCachedFraction>0.01</KeysCachedFraction>
       <!-- 
        ~ The CompareWith attribute tells Cassandra how to sort the columns
        ~ for slicing operations.  The default is BytesType, which is a
