@@ -304,7 +304,7 @@ public class TableTest extends CleanupHelper
         // compact so we have a big row with more than the minimum index count
         if (cfStore.getSSTables().size() > 1)
         {
-            cfStore.doCompaction(cfStore.getSSTables().size());
+            cfStore.doCompaction(2, cfStore.getSSTables().size());
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         long position = sstable.getPosition(key);

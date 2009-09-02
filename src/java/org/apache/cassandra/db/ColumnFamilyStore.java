@@ -175,16 +175,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (File file : sstableFiles)
         {
             String filename = file.getAbsolutePath();
+            SSTableReader sstable;
             try
             {
-                SSTableReader sstable = SSTableReader.open(filename);
-                ssTables_.put(filename, sstable);
+                sstable = SSTableReader.open(filename);
             }
             catch (IOException ex)
             {
-                logger_.error("Corrupt file " + filename, ex);
-                FileUtils.delete(filename);
+                logger_.error("Corrupt file " + filename + "; skipped", ex);
+                continue;
             }
+            ssTables_.put(filename, sstable);
         }
 
         // submit initial check-for-compaction request
@@ -637,7 +638,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         /* it's ok if compaction gets submitted multiple times while one is already in process.
            worst that happens is, compactor will count the sstable files and decide there are
            not enough to bother with. */
-        if (ssTableCount >= MinorCompactionManager.COMPACTION_THRESHOLD)
+        if (ssTableCount >= MinorCompactionManager.MINCOMPACTION_THRESHOLD)
         {
             if (logger_.isDebugEnabled())
               logger_.debug("Submitting " + columnFamily_ + " for compaction");
@@ -668,7 +669,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      * Group files of similar size into buckets.
      */
-    static Set<List<String>> getCompactionBuckets(List<String> files, long min)
+    static Set<List<String>> getCompactionBuckets(Iterable<String> files, long min)
     {
         Map<List<String>, Long> buckets = new ConcurrentHashMap<List<String>, Long>();
         for (String fname : files)
@@ -710,32 +711,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      * Break the files into buckets and then compact.
      */
-    int doCompaction(int threshold) throws IOException
+    int doCompaction(int minThreshold, int maxThreshold) throws IOException
     {
-        List<String> files = new ArrayList<String>(ssTables_.keySet());
         int filesCompacted = 0;
-        Set<List<String>> buckets = getCompactionBuckets(files, 50L * 1024L * 1024L);
-        for (List<String> fileList : buckets)
+        for (List<String> files : getCompactionBuckets(ssTables_.keySet(), 50L * 1024L * 1024L))
         {
-            Collections.sort(fileList, new FileNameComparator(FileNameComparator.Ascending));
-            if (fileList.size() < threshold)
+            if (files.size() < minThreshold)
             {
                 continue;
             }
-            // For each bucket if it has crossed the threshhold do the compaction
-            // In case of range  compaction merge the counting bloom filters also.
-            files.clear();
-            int count = 0;
-            for (String file : fileList)
-            {
-                files.add(file);
-                count++;
-                if (count == threshold)
-                {
-                    filesCompacted += doFileCompaction(files, BUFSIZE);
-                    break;
-                }
-            }
+            Collections.sort(files, new FileNameComparator(FileNameComparator.Ascending));
+            filesCompacted += doFileCompaction(files.subList(0, Math.min(files.size(), maxThreshold)), BUFSIZE);
         }
         return filesCompacted;
     }

@@ -21,11 +21,8 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -33,7 +30,7 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.service.StorageService;
+
 import org.apache.log4j.Logger;
 
 class MinorCompactionManager
@@ -42,7 +39,8 @@ class MinorCompactionManager
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(MinorCompactionManager.class);
     private static final long intervalInMins_ = 5;
-    static final int COMPACTION_THRESHOLD = 4; // compact this many sstables at a time
+    static final int MINCOMPACTION_THRESHOLD = 4; // compact this many sstables min at a time
+    static final int MAXCOMPACTION_THRESHOLD = 32; // compact this many sstables max at a time
 
     public static MinorCompactionManager instance()
     {
@@ -155,16 +153,16 @@ class MinorCompactionManager
 
     public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
-        return submit(columnFamilyStore, COMPACTION_THRESHOLD);
+        return submit(columnFamilyStore, MINCOMPACTION_THRESHOLD, MAXCOMPACTION_THRESHOLD);
     }
 
-    Future<Integer> submit(final ColumnFamilyStore columnFamilyStore, final int threshold)
+    Future<Integer> submit(final ColumnFamilyStore columnFamilyStore, final int minThreshold, final int maxThreshold)
     {
         Callable<Integer> callable = new Callable<Integer>()
         {
             public Integer call() throws IOException
             {
-                return columnFamilyStore.doCompaction(threshold);
+                return columnFamilyStore.doCompaction(minThreshold, maxThreshold);
             }
         };
         return compactor_.submit(callable);
