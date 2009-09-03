@@ -65,7 +65,7 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
                 }
             }
         };
-        new Thread(runnable).start();
+        new Thread(runnable, "COMMIT-LOG-WRITER").start();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
