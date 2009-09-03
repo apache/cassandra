@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +48,8 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
   private static final TField SLICE_RANGE_FIELD_DESC = new TField("slice_range", TType.STRUCT, (short)2);
 
   public List<byte[]> column_names;
-  public static final int COLUMN_NAMES = 1;
   public SliceRange slice_range;
+  public static final int COLUMN_NAMES = 1;
   public static final int SLICE_RANGE = 2;
 
   // isset id assignments
@@ -95,7 +96,11 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
     }
   }
 
-  @Override
+  public SlicePredicate deepCopy() {
+    return new SlicePredicate(this);
+  }
+
+  @Deprecated
   public SlicePredicate clone() {
     return new SlicePredicate(this);
   }
@@ -320,7 +325,8 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
         oprot.writeFieldBegin(COLUMN_NAMES_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.column_names.size()));
-          for (byte[] _iter7 : this.column_names)          {
+          for (byte[] _iter7 : this.column_names)
+          {
             oprot.writeBinary(_iter7);
           }
           oprot.writeListEnd();

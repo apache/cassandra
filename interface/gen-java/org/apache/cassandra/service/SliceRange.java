@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,12 +50,12 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)4);
 
   public byte[] start;
-  public static final int START = 1;
   public byte[] finish;
-  public static final int FINISH = 2;
   public boolean reversed;
-  public static final int REVERSED = 3;
   public int count;
+  public static final int START = 1;
+  public static final int FINISH = 2;
+  public static final int REVERSED = 3;
   public static final int COUNT = 4;
 
   // isset id assignments
@@ -117,7 +118,11 @@ public class SliceRange implements TBase, java.io.Serializable, Cloneable, Compa
     this.count = other.count;
   }
 
-  @Override
+  public SliceRange deepCopy() {
+    return new SliceRange(this);
+  }
+
+  @Deprecated
   public SliceRange clone() {
     return new SliceRange(this);
   }

@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +79,11 @@ public class InvalidRequestException extends Exception implements TBase, java.io
     }
   }
 
-  @Override
+  public InvalidRequestException deepCopy() {
+    return new InvalidRequestException(this);
+  }
+
+  @Deprecated
   public InvalidRequestException clone() {
     return new InvalidRequestException(this);
   }

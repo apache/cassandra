@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -942,16 +943,16 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String key;
-    public static final int KEY = 2;
     public ColumnPath column_path;
-    public static final int COLUMN_PATH = 3;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEY = 2;
+    public static final int COLUMN_PATH = 3;
     public static final int CONSISTENCY_LEVEL = 4;
 
     // isset id assignments
@@ -959,13 +960,13 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -1010,7 +1011,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public get_args deepCopy() {
+      return new get_args(this);
+    }
+
+    @Deprecated
     public get_args clone() {
       return new get_args(this);
     }
@@ -1343,6 +1348,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -1418,6 +1426,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -1433,10 +1451,10 @@ public class Cassandra {
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
     public ColumnOrSuperColumn success;
-    public static final int SUCCESS = 0;
     public InvalidRequestException ire;
-    public static final int IRE = 1;
     public NotFoundException nfe;
+    public static final int SUCCESS = 0;
+    public static final int IRE = 1;
     public static final int NFE = 2;
 
     // isset id assignments
@@ -1483,7 +1501,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_result deepCopy() {
+      return new get_result(this);
+    }
+
+    @Deprecated
     public get_result clone() {
       return new get_result(this);
     }
@@ -1820,18 +1842,18 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String key;
-    public static final int KEY = 2;
     public ColumnParent column_parent;
-    public static final int COLUMN_PARENT = 3;
     public SlicePredicate predicate;
-    public static final int PREDICATE = 4;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEY = 2;
+    public static final int COLUMN_PARENT = 3;
+    public static final int PREDICATE = 4;
     public static final int CONSISTENCY_LEVEL = 5;
 
     // isset id assignments
@@ -1839,15 +1861,15 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnParent.class)));
-      put(PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.DEFAULT, 
+      put(PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, SlicePredicate.class)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -1897,7 +1919,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public get_slice_args deepCopy() {
+      return new get_slice_args(this);
+    }
+
+    @Deprecated
     public get_slice_args clone() {
       return new get_slice_args(this);
     }
@@ -2292,6 +2318,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -2380,6 +2409,19 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      if (predicate == null) {
+        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -2395,10 +2437,10 @@ public class Cassandra {
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
 
     public List<ColumnOrSuperColumn> success;
-    public static final int SUCCESS = 0;
     public InvalidRequestException ire;
-    public static final int IRE = 1;
     public NotFoundException nfe;
+    public static final int SUCCESS = 0;
+    public static final int IRE = 1;
     public static final int NFE = 2;
 
     // isset id assignments
@@ -2450,7 +2492,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_slice_result deepCopy() {
+      return new get_slice_result(this);
+    }
+
+    @Deprecated
     public get_slice_result clone() {
       return new get_slice_result(this);
     }
@@ -2736,7 +2782,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRUCT, this.success.size()));
-          for (ColumnOrSuperColumn _iter11 : this.success)          {
+          for (ColumnOrSuperColumn _iter11 : this.success)
+          {
             _iter11.write(oprot);
           }
           oprot.writeListEnd();
@@ -2802,16 +2849,16 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public List<String> keys;
-    public static final int KEYS = 2;
     public ColumnPath column_path;
-    public static final int COLUMN_PATH = 3;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEYS = 2;
+    public static final int COLUMN_PATH = 3;
     public static final int CONSISTENCY_LEVEL = 4;
 
     // isset id assignments
@@ -2819,14 +2866,14 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEYS, new FieldMetaData("keys", TFieldRequirementType.DEFAULT, 
+      put(KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
           new ListMetaData(TType.LIST, 
               new FieldValueMetaData(TType.STRING))));
-      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -2875,7 +2922,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public multiget_args deepCopy() {
+      return new multiget_args(this);
+    }
+
+    @Deprecated
     public multiget_args clone() {
       return new multiget_args(this);
     }
@@ -3218,6 +3269,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -3234,7 +3288,8 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (String _iter15 : this.keys)          {
+          for (String _iter15 : this.keys)
+          {
             oprot.writeString(_iter15);
           }
           oprot.writeListEnd();
@@ -3299,6 +3354,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (keys == null) {
+        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -3313,8 +3378,8 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public Map<String,ColumnOrSuperColumn> success;
-    public static final int SUCCESS = 0;
     public InvalidRequestException ire;
+    public static final int SUCCESS = 0;
     public static final int IRE = 1;
 
     // isset id assignments
@@ -3368,7 +3433,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public multiget_result deepCopy() {
+      return new multiget_result(this);
+    }
+
+    @Deprecated
     public multiget_result clone() {
       return new multiget_result(this);
     }
@@ -3567,7 +3636,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.STRUCT, this.success.size()));
-          for (Map.Entry<String, ColumnOrSuperColumn> _iter20 : this.success.entrySet())          {
+          for (Map.Entry<String, ColumnOrSuperColumn> _iter20 : this.success.entrySet())
+          {
             oprot.writeString(_iter20.getKey());
             _iter20.getValue().write(oprot);
           }
@@ -3623,18 +3693,18 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public List<String> keys;
-    public static final int KEYS = 2;
     public ColumnParent column_parent;
-    public static final int COLUMN_PARENT = 3;
     public SlicePredicate predicate;
-    public static final int PREDICATE = 4;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEYS = 2;
+    public static final int COLUMN_PARENT = 3;
+    public static final int PREDICATE = 4;
     public static final int CONSISTENCY_LEVEL = 5;
 
     // isset id assignments
@@ -3642,16 +3712,16 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEYS, new FieldMetaData("keys", TFieldRequirementType.DEFAULT, 
+      put(KEYS, new FieldMetaData("keys", TFieldRequirementType.REQUIRED, 
           new ListMetaData(TType.LIST, 
               new FieldValueMetaData(TType.STRING))));
-      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnParent.class)));
-      put(PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.DEFAULT, 
+      put(PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, SlicePredicate.class)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -3705,7 +3775,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public multiget_slice_args deepCopy() {
+      return new multiget_slice_args(this);
+    }
+
+    @Deprecated
     public multiget_slice_args clone() {
       return new multiget_slice_args(this);
     }
@@ -4110,6 +4184,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -4126,7 +4203,8 @@ public class Cassandra {
         oprot.writeFieldBegin(KEYS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.keys.size()));
-          for (String _iter24 : this.keys)          {
+          for (String _iter24 : this.keys)
+          {
             oprot.writeString(_iter24);
           }
           oprot.writeListEnd();
@@ -4204,6 +4282,19 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (keys == null) {
+        throw new TProtocolException("Required field 'keys' was not present! Struct: " + toString());
+      }
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      if (predicate == null) {
+        throw new TProtocolException("Required field 'predicate' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -4218,8 +4309,8 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public Map<String,List<ColumnOrSuperColumn>> success;
-    public static final int SUCCESS = 0;
     public InvalidRequestException ire;
+    public static final int SUCCESS = 0;
     public static final int IRE = 1;
 
     // isset id assignments
@@ -4277,7 +4368,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public multiget_slice_result deepCopy() {
+      return new multiget_slice_result(this);
+    }
+
+    @Deprecated
     public multiget_slice_result clone() {
       return new multiget_slice_result(this);
     }
@@ -4486,11 +4581,13 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.success.size()));
-          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter32 : this.success.entrySet())          {
+          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter32 : this.success.entrySet())
+          {
             oprot.writeString(_iter32.getKey());
             {
               oprot.writeListBegin(new TList(TType.STRUCT, _iter32.getValue().size()));
-              for (ColumnOrSuperColumn _iter33 : _iter32.getValue())              {
+              for (ColumnOrSuperColumn _iter33 : _iter32.getValue())
+              {
                 _iter33.write(oprot);
               }
               oprot.writeListEnd();
@@ -4544,33 +4641,33 @@ public class Cassandra {
     private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
     private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)2);
     private static final TField COLUMN_PARENT_FIELD_DESC = new TField("column_parent", TType.STRUCT, (short)3);
-    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String key;
-    public static final int KEY = 2;
     public ColumnParent column_parent;
-    public static final int COLUMN_PARENT = 3;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
-    public static final int CONSISTENCY_LEVEL = 5;
+    public static final int KEYSPACE = 1;
+    public static final int KEY = 2;
+    public static final int COLUMN_PARENT = 3;
+    public static final int CONSISTENCY_LEVEL = 4;
 
     // isset id assignments
     private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PARENT, new FieldMetaData("column_parent", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnParent.class)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -4615,7 +4712,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public get_count_args deepCopy() {
+      return new get_count_args(this);
+    }
+
+    @Deprecated
     public get_count_args clone() {
       return new get_count_args(this);
     }
@@ -4948,6 +5049,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -5023,6 +5127,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_parent == null) {
+        throw new TProtocolException("Required field 'column_parent' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -5037,8 +5151,8 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public int success;
-    public static final int SUCCESS = 0;
     public InvalidRequestException ire;
+    public static final int SUCCESS = 0;
     public static final int IRE = 1;
 
     // isset id assignments
@@ -5081,7 +5195,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_count_result deepCopy() {
+      return new get_count_result(this);
+    }
+
+    @Deprecated
     public get_count_result clone() {
       return new get_count_result(this);
     }
@@ -5340,20 +5458,20 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String column_family;
-    public static final int COLUMN_FAMILY = 2;
     public String start;
-    public static final int START = 3;
     public String finish;
-    public static final int FINISH = 4;
     public int count;
-    public static final int COUNT = 5;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int COLUMN_FAMILY = 2;
+    public static final int START = 3;
+    public static final int FINISH = 4;
+    public static final int COUNT = 5;
     public static final int CONSISTENCY_LEVEL = 6;
 
     // isset id assignments
@@ -5362,17 +5480,17 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(START, new FieldMetaData("start", TFieldRequirementType.DEFAULT, 
+      put(START, new FieldMetaData("start", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(FINISH, new FieldMetaData("finish", TFieldRequirementType.DEFAULT, 
+      put(FINISH, new FieldMetaData("finish", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COUNT, new FieldMetaData("count", TFieldRequirementType.DEFAULT, 
+      put(COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -5432,7 +5550,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public get_key_range_args deepCopy() {
+      return new get_key_range_args(this);
+    }
+
+    @Deprecated
     public get_key_range_args clone() {
       return new get_key_range_args(this);
     }
@@ -5886,6 +6008,12 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetCount()) {
+        throw new TProtocolException("Required field 'count' was not found in serialized data! Struct: " + toString());
+      }
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -5981,6 +6109,20 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (column_family == null) {
+        throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+      }
+      if (start == null) {
+        throw new TProtocolException("Required field 'start' was not present! Struct: " + toString());
+      }
+      if (finish == null) {
+        throw new TProtocolException("Required field 'finish' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'count' because it's a primitive and you chose the non-beans generator.
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -5995,8 +6137,8 @@ public class Cassandra {
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
 
     public List<String> success;
-    public static final int SUCCESS = 0;
     public InvalidRequestException ire;
+    public static final int SUCCESS = 0;
     public static final int IRE = 1;
 
     // isset id assignments
@@ -6041,7 +6183,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_key_range_result deepCopy() {
+      return new get_key_range_result(this);
+    }
+
+    @Deprecated
     public get_key_range_result clone() {
       return new get_key_range_result(this);
     }
@@ -6264,7 +6410,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter37 : this.success)          {
+          for (String _iter37 : this.success)
+          {
             oprot.writeString(_iter37);
           }
           oprot.writeListEnd();
@@ -6320,20 +6467,20 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)6);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String key;
-    public static final int KEY = 2;
     public ColumnPath column_path;
-    public static final int COLUMN_PATH = 3;
     public byte[] value;
-    public static final int VALUE = 4;
     public long timestamp;
-    public static final int TIMESTAMP = 5;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEY = 2;
+    public static final int COLUMN_PATH = 3;
+    public static final int VALUE = 4;
+    public static final int TIMESTAMP = 5;
     public static final int CONSISTENCY_LEVEL = 6;
 
     // isset id assignments
@@ -6342,17 +6489,17 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(VALUE, new FieldMetaData("value", TFieldRequirementType.DEFAULT, 
+      put(VALUE, new FieldMetaData("value", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
+      put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I64)));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -6407,7 +6554,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public insert_args deepCopy() {
+      return new insert_args(this);
+    }
+
+    @Deprecated
     public insert_args clone() {
       return new insert_args(this);
     }
@@ -6862,6 +7013,12 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetTimestamp()) {
+        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+      }
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -6962,6 +7119,20 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      if (value == null) {
+        throw new TProtocolException("Required field 'value' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -6976,8 +7147,8 @@ public class Cassandra {
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
 
     public InvalidRequestException ire;
-    public static final int IRE = 1;
     public UnavailableException ue;
+    public static final int IRE = 1;
     public static final int UE = 2;
 
     // isset id assignments
@@ -7017,7 +7188,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public insert_result deepCopy() {
+      return new insert_result(this);
+    }
+
+    @Deprecated
     public insert_result clone() {
       return new insert_result(this);
     }
@@ -7279,16 +7454,16 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)4);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String key;
-    public static final int KEY = 2;
     public Map<String,List<ColumnOrSuperColumn>> cfmap;
-    public static final int CFMAP = 3;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEY = 2;
+    public static final int CFMAP = 3;
     public static final int CONSISTENCY_LEVEL = 4;
 
     // isset id assignments
@@ -7296,16 +7471,16 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(1);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(CFMAP, new FieldMetaData("cfmap", TFieldRequirementType.DEFAULT, 
+      put(CFMAP, new FieldMetaData("cfmap", TFieldRequirementType.REQUIRED, 
           new MapMetaData(TType.MAP, 
               new FieldValueMetaData(TType.STRING), 
               new ListMetaData(TType.LIST, 
                   new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class)))));
-      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I32)));
     }});
 
@@ -7365,7 +7540,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public batch_insert_args deepCopy() {
+      return new batch_insert_args(this);
+    }
+
+    @Deprecated
     public batch_insert_args clone() {
       return new batch_insert_args(this);
     }
@@ -7677,6 +7856,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -7698,11 +7880,13 @@ public class Cassandra {
         oprot.writeFieldBegin(CFMAP_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, this.cfmap.size()));
-          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter45 : this.cfmap.entrySet())          {
+          for (Map.Entry<String, List<ColumnOrSuperColumn>> _iter45 : this.cfmap.entrySet())
+          {
             oprot.writeString(_iter45.getKey());
             {
               oprot.writeListBegin(new TList(TType.STRUCT, _iter45.getValue().size()));
-              for (ColumnOrSuperColumn _iter46 : _iter45.getValue())              {
+              for (ColumnOrSuperColumn _iter46 : _iter45.getValue())
+              {
                 _iter46.write(oprot);
               }
               oprot.writeListEnd();
@@ -7765,6 +7949,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (cfmap == null) {
+        throw new TProtocolException("Required field 'cfmap' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -7779,8 +7973,8 @@ public class Cassandra {
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
 
     public InvalidRequestException ire;
-    public static final int IRE = 1;
     public UnavailableException ue;
+    public static final int IRE = 1;
     public static final int UE = 2;
 
     // isset id assignments
@@ -7820,7 +8014,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public batch_insert_result deepCopy() {
+      return new batch_insert_result(this);
+    }
+
+    @Deprecated
     public batch_insert_result clone() {
       return new batch_insert_result(this);
     }
@@ -8083,18 +8281,18 @@ public class Cassandra {
     private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)5);
 
     public String keyspace;
-    public static final int KEYSPACE = 1;
     public String key;
-    public static final int KEY = 2;
     public ColumnPath column_path;
-    public static final int COLUMN_PATH = 3;
     public long timestamp;
-    public static final int TIMESTAMP = 4;
     /**
      * 
      * @see ConsistencyLevel
      */
     public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int KEY = 2;
+    public static final int COLUMN_PATH = 3;
+    public static final int TIMESTAMP = 4;
     public static final int CONSISTENCY_LEVEL = 5;
 
     // isset id assignments
@@ -8103,13 +8301,13 @@ public class Cassandra {
     private BitSet __isset_bit_vector = new BitSet(2);
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(KEY, new FieldMetaData("key", TFieldRequirementType.DEFAULT, 
+      put(KEY, new FieldMetaData("key", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
-      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.DEFAULT, 
+      put(COLUMN_PATH, new FieldMetaData("column_path", TFieldRequirementType.REQUIRED, 
           new StructMetaData(TType.STRUCT, ColumnPath.class)));
-      put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.DEFAULT, 
+      put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.I64)));
       put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.I32)));
@@ -8160,7 +8358,11 @@ public class Cassandra {
       this.consistency_level = other.consistency_level;
     }
 
-    @Override
+    public remove_args deepCopy() {
+      return new remove_args(this);
+    }
+
+    @Deprecated
     public remove_args clone() {
       return new remove_args(this);
     }
@@ -8554,6 +8756,9 @@ public class Cassandra {
 
 
       // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetTimestamp()) {
+        throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
+      }
       validate();
     }
 
@@ -8636,6 +8841,16 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (key == null) {
+        throw new TProtocolException("Required field 'key' was not present! Struct: " + toString());
+      }
+      if (column_path == null) {
+        throw new TProtocolException("Required field 'column_path' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
       // check that fields of type enum have valid values
       if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
         throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
@@ -8650,8 +8865,8 @@ public class Cassandra {
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
 
     public InvalidRequestException ire;
-    public static final int IRE = 1;
     public UnavailableException ue;
+    public static final int IRE = 1;
     public static final int UE = 2;
 
     // isset id assignments
@@ -8691,7 +8906,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public remove_result deepCopy() {
+      return new remove_result(this);
+    }
+
+    @Deprecated
     public remove_result clone() {
       return new remove_result(this);
     }
@@ -8955,7 +9174,7 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.DEFAULT, 
+      put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
@@ -8982,7 +9201,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_string_property_args deepCopy() {
+      return new get_string_property_args(this);
+    }
+
+    @Deprecated
     public get_string_property_args clone() {
       return new get_string_property_args(this);
     }
@@ -9157,6 +9380,9 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (property == null) {
+        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
@@ -9199,7 +9425,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_string_property_result deepCopy() {
+      return new get_string_property_result(this);
+    }
+
+    @Deprecated
     public get_string_property_result clone() {
       return new get_string_property_result(this);
     }
@@ -9388,7 +9618,7 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.DEFAULT, 
+      put(PROPERTY, new FieldMetaData("property", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
@@ -9415,7 +9645,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_string_list_property_args deepCopy() {
+      return new get_string_list_property_args(this);
+    }
+
+    @Deprecated
     public get_string_list_property_args clone() {
       return new get_string_list_property_args(this);
     }
@@ -9590,6 +9824,9 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (property == null) {
+        throw new TProtocolException("Required field 'property' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
@@ -9637,7 +9874,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public get_string_list_property_result deepCopy() {
+      return new get_string_list_property_result(this);
+    }
+
+    @Deprecated
     public get_string_list_property_result clone() {
       return new get_string_list_property_result(this);
     }
@@ -9798,7 +10039,8 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter50 : this.success)          {
+          for (String _iter50 : this.success)
+          {
             oprot.writeString(_iter50);
           }
           oprot.writeListEnd();
@@ -9842,7 +10084,7 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.DEFAULT, 
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
           new FieldValueMetaData(TType.STRING)));
     }});
 
@@ -9869,7 +10111,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public describe_keyspace_args deepCopy() {
+      return new describe_keyspace_args(this);
+    }
+
+    @Deprecated
     public describe_keyspace_args clone() {
       return new describe_keyspace_args(this);
     }
@@ -10044,6 +10290,9 @@ public class Cassandra {
 
     public void validate() throws TException {
       // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
       // check that fields of type enum have valid values
     }
 
@@ -10055,8 +10304,8 @@ public class Cassandra {
     private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)1);
 
     public Map<String,Map<String,String>> success;
-    public static final int SUCCESS = 0;
     public NotFoundException nfe;
+    public static final int SUCCESS = 0;
     public static final int NFE = 1;
 
     // isset id assignments
@@ -10123,7 +10372,11 @@ public class Cassandra {
       }
     }
 
-    @Override
+    public describe_keyspace_result deepCopy() {
+      return new describe_keyspace_result(this);
+    }
+
+    @Deprecated
     public describe_keyspace_result clone() {
       return new describe_keyspace_result(this);
     }
@@ -10333,11 +10586,13 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter59 : this.success.entrySet())          {
+          for (Map.Entry<String, Map<String,String>> _iter59 : this.success.entrySet())
+          {
             oprot.writeString(_iter59.getKey());
             {
               oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter59.getValue().size()));
-              for (Map.Entry<String, String> _iter60 : _iter59.getValue().entrySet())              {
+              for (Map.Entry<String, String> _iter60 : _iter59.getValue().entrySet())
+              {
                 oprot.writeString(_iter60.getKey());
                 oprot.writeString(_iter60.getValue());
               }

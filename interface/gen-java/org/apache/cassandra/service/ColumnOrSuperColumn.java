@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +48,8 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
   private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRUCT, (short)2);
 
   public Column column;
-  public static final int COLUMN = 1;
   public SuperColumn super_column;
+  public static final int COLUMN = 1;
   public static final int SUPER_COLUMN = 2;
 
   // isset id assignments
@@ -88,7 +89,11 @@ public class ColumnOrSuperColumn implements TBase, java.io.Serializable, Cloneab
     }
   }
 
-  @Override
+  public ColumnOrSuperColumn deepCopy() {
+    return new ColumnOrSuperColumn(this);
+  }
+
+  @Deprecated
   public ColumnOrSuperColumn clone() {
     return new ColumnOrSuperColumn(this);
   }

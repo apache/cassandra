@@ -214,7 +214,7 @@ public class CommitLog
                             }
                         }
                     }
-                }).start();
+                }, "PERIODIC-COMMIT-LOG-SYNCER").start();
             }
         }
     }

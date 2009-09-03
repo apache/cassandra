@@ -8,7 +8,7 @@
    disagree on what data was present
  * Snapshot support via JMX
  * BinaryMemtable support for bulk load via hadoop; see
-   https://github.com/lenn0x/Cassandra-Hadoop-BMT/tree
+   contrib/bmt_example for an example of using it.
  * Thrift API has changed a _lot_:
     - removed time-sorted CFs; instead, user-defined comparators
       may be defined on the column names, which are now byte arrays.

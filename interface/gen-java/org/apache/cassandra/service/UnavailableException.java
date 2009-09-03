@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +61,11 @@ public class UnavailableException extends Exception implements TBase, java.io.Se
   public UnavailableException(UnavailableException other) {
   }
 
-  @Override
+  public UnavailableException deepCopy() {
+    return new UnavailableException(this);
+  }
+
+  @Deprecated
   public UnavailableException clone() {
     return new UnavailableException(this);
   }

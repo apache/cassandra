@@ -340,8 +340,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     String getNextFileName()
     {
-        // increment twice so that we do not generate consecutive numbers
-        fileIndexGenerator_.incrementAndGet();
         return String.format("%s-%s-Data.db", columnFamily_, fileIndexGenerator_.incrementAndGet());
     }
 
@@ -363,31 +361,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         return String.format("%s-%s-%s-Data.db",
                              columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
-    }
-
-    /*
-     * Return a temporary file name. Based on the list of files input 
-     * This fn sorts the list and generates a number between he 2 lowest filenames 
-     * ensuring uniqueness.
-     * Since we do not generate consecutive numbers hence the lowest file number
-     * can just be incremented to generate the next file. 
-     */
-    String getTempFileName(List<String> files)
-    {
-        int lowestIndex;
-        int index;
-        Collections.sort(files, new FileNameComparator(FileNameComparator.Ascending));
-
-        if (files.size() <= 1)
-        {
-            return null;
-        }
-        lowestIndex = getIndexFromFileName(files.get(0));
-
-        index = lowestIndex + 1;
-
-        return String.format("%s-%s-%s-Data.db",
-                             columnFamily_, SSTable.TEMPFILE_MARKER, index);
     }
 
     void switchMemtable(Memtable oldMemtable, CommitLog.CommitLogContext ctx)
@@ -1072,7 +1045,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return 0;
         }
 
-        String mergedFileName = getTempFileName(files);
+        String mergedFileName = getTempSSTableFileName();
         SSTableWriter writer = null;
         SSTableReader ssTable = null;
         String lastkey = null;
