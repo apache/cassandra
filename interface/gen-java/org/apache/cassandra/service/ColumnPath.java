@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +49,10 @@ public class ColumnPath implements TBase, java.io.Serializable, Cloneable, Compa
   private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRING, (short)5);
 
   public String column_family;
-  public static final int COLUMN_FAMILY = 3;
   public byte[] super_column;
-  public static final int SUPER_COLUMN = 4;
   public byte[] column;
+  public static final int COLUMN_FAMILY = 3;
+  public static final int SUPER_COLUMN = 4;
   public static final int COLUMN = 5;
 
   // isset id assignments
@@ -100,7 +101,11 @@ public class ColumnPath implements TBase, java.io.Serializable, Cloneable, Compa
     }
   }
 
-  @Override
+  public ColumnPath deepCopy() {
+    return new ColumnPath(this);
+  }
+
+  @Deprecated
   public ColumnPath clone() {
     return new ColumnPath(this);
   }

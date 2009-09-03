@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,7 +61,11 @@ public class NotFoundException extends Exception implements TBase, java.io.Seria
   public NotFoundException(NotFoundException other) {
   }
 
-  @Override
+  public NotFoundException deepCopy() {
+    return new NotFoundException(this);
+  }
+
+  @Deprecated
   public NotFoundException clone() {
     return new NotFoundException(this);
   }

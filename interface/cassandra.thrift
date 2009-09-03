@@ -110,47 +110,81 @@ struct SlicePredicate {
 
 service Cassandra {
   # retrieval methods
-  ColumnOrSuperColumn get(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
+  ColumnOrSuperColumn get(1:required string keyspace,
+                          2:required string key,
+                          3:required ColumnPath column_path,
+                          4:required ConsistencyLevel consistency_level=1)
+                      throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  list<ColumnOrSuperColumn> get_slice(1:string keyspace, 2:string key, 3:ColumnParent column_parent, 4:SlicePredicate predicate, 5:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
+  list<ColumnOrSuperColumn> get_slice(1:required string keyspace, 
+                                      2:required string key, 
+                                      3:required ColumnParent column_parent, 
+                                      4:required SlicePredicate predicate, 
+                                      5:required ConsistencyLevel consistency_level=1)
+                              throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
 
-  map<string,ColumnOrSuperColumn> multiget(1:string keyspace, 2:list<string> keys, 3:ColumnPath column_path, 4:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire),
+  map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
+                                           2:required list<string> keys, 
+                                           3:required ColumnPath column_path, 
+                                           4:required ConsistencyLevel consistency_level=1)
+                                    throws (1: InvalidRequestException ire),
 
-  map<string,list<ColumnOrSuperColumn>> multiget_slice(1:string keyspace, 2:list<string> keys, 3:ColumnParent column_parent, 4:SlicePredicate predicate, 5:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire),
+  map<string,list<ColumnOrSuperColumn>> multiget_slice(1:required string keyspace, 
+                                                       2:required list<string> keys, 
+                                                       3:required ColumnParent column_parent, 
+                                                       4:required SlicePredicate predicate, 
+                                                       5:required ConsistencyLevel consistency_level=1)
+                                          throws (1: InvalidRequestException ire),
 
-  i32 get_count(1:string keyspace, 2:string key, 3:ColumnParent column_parent, 5:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire),
+  i32 get_count(1:required string keyspace, 
+                2:required string key, 
+                3:required ColumnParent column_parent, 
+                4:required ConsistencyLevel consistency_level=1)
+      throws (1: InvalidRequestException ire),
 
   # range query: returns matching keys
-  list<string> get_key_range(1:string keyspace, 2:string column_family, 3:string start="", 4:string finish="", 5:i32 count=100, 6:ConsistencyLevel consistency_level=1)
-  throws (1: InvalidRequestException ire),
+  list<string> get_key_range(1:required string keyspace, 
+                             2:required string column_family, 
+                             3:required string start="", 
+                             4:required string finish="", 
+                             5:required i32 count=100, 
+                             6:required ConsistencyLevel consistency_level=1)
+               throws (1: InvalidRequestException ire),
 
   # modification methods
-  void insert(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:binary value, 5:i64 timestamp, 6:ConsistencyLevel consistency_level=0)
-  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+  void insert(1:required string keyspace, 
+              2:required string key, 
+              3:required ColumnPath column_path, 
+              4:required binary value, 
+              5:required i64 timestamp, 
+              6:required ConsistencyLevel consistency_level=0)
+       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void batch_insert(1:string keyspace, 2:string key, 3:map<string, list<ColumnOrSuperColumn>> cfmap, 4:ConsistencyLevel consistency_level=0)
-  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+  void batch_insert(1:required string keyspace, 
+                    2:required string key, 
+                    3:required map<string, list<ColumnOrSuperColumn>> cfmap, 
+                    4:required ConsistencyLevel consistency_level=0)
+       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  void remove(1:string keyspace, 2:string key, 3:ColumnPath column_path, 4:i64 timestamp, 5:ConsistencyLevel consistency_level=0)
-  throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+  void remove(1:required string keyspace,
+              2:required string key, 
+              3:required ColumnPath column_path,
+              4:required i64 timestamp,
+              5:ConsistencyLevel consistency_level=0)
+       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
 
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
 
   // get property whose value is of type "string"
-  string get_string_property(1:string property),
+  string get_string_property(1:required string property),
 
   // get property whose value is list of "strings"
-  list<string> get_string_list_property(1:string property),
+  list<string> get_string_list_property(1:required string property),
 
   // describe specified keyspace
-  map<string, map<string, string>> describe_keyspace(1:string keyspace)
-  throws (1: NotFoundException nfe),
+  map<string, map<string, string>> describe_keyspace(1:required string keyspace)
+                                   throws (1: NotFoundException nfe),
 }
 

@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.BitSet;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +49,10 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
   private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)3);
 
   public byte[] name;
-  public static final int NAME = 1;
   public byte[] value;
-  public static final int VALUE = 2;
   public long timestamp;
+  public static final int NAME = 1;
+  public static final int VALUE = 2;
   public static final int TIMESTAMP = 3;
 
   // isset id assignments
@@ -103,7 +104,11 @@ public class Column implements TBase, java.io.Serializable, Cloneable, Comparabl
     this.timestamp = other.timestamp;
   }
 
-  @Override
+  public Column deepCopy() {
+    return new Column(this);
+  }
+
+  @Deprecated
   public Column clone() {
     return new Column(this);
   }
