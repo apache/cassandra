@@ -26,6 +26,7 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -275,6 +276,8 @@ public class NodeProbe
     public void printRing(PrintStream outs)
     {
         Map<Range, List<EndPoint>> rangeMap = getRangeToEndpointMap();
+        List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
+        Collections.sort(ranges);
         
         // Print range-to-endpoint mapping
         int counter = 0;
@@ -283,7 +286,7 @@ public class NodeProbe
         outs.print(String.format("%-4s ", "Size"));
         outs.print(String.format("%-15s", "Address"));
         outs.println("Ring");
-        for (Range range : rangeMap.keySet()) {
+        for (Range range : ranges) {
             List<EndPoint> endpoints = rangeMap.get(range);
             
             outs.print(String.format("%-46s ", range.left()));
