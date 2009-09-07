@@ -23,6 +23,8 @@ import java.util.*;
 
 import org.apache.log4j.Logger;
 
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
@@ -108,7 +110,7 @@ public class SSTableReader extends SSTable
     public static SSTableReader get(String dataFileName)
     {
         SSTableReader sstable = openedFiles.get(dataFileName);
-        assert sstable != null;
+        assert sstable != null : "No sstable opened for " + dataFileName + ": " + openedFiles;
         return sstable;
     }
 
@@ -123,6 +125,7 @@ public class SSTableReader extends SSTable
     private SSTableReader(String filename, IPartitioner partitioner)
     {
         super(filename, partitioner);
+        openedFiles.put(filename, this);
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -352,5 +355,11 @@ class FileSSTableMap
     public void remove(String filename) throws IOException
     {
         map.remove(new File(filename).getCanonicalPath());
+    }
+
+    @Override
+    public String toString()
+    {
+        return "FileSSTableMap {" + StringUtils.join(map.keySet(), ", ") + "}";
     }
 }
