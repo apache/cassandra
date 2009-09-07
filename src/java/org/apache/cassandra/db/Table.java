@@ -23,12 +23,18 @@ import java.io.IOException;
 import java.io.File;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.ExecutionException;
+
+import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.Predicate;
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.FileStruct;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
@@ -179,7 +185,7 @@ public class Table
                     sstable = SSTableWriter.renameAndOpen(streamContext.getTargetFile());
                     
                     //TODO add a sanity check that this sstable has all its parts and is ok
-                    Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
+                    Table.open(tableName).getColumnFamilyStore(temp[0]).addToList(sstable);
                     logger_.info("Bootstrap added " + sstable.getFilename());
                 }
                 catch (IOException e)

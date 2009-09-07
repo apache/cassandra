@@ -79,7 +79,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private Map<String, SSTableReader> ssTables_ = new NonBlockingHashMap<String, SSTableReader>();
+    private SortedMap<String, SSTableReader> ssTables_ = new TreeMap<String, SSTableReader>(new FileNameComparator(FileNameComparator.Descending));
+
+    /* Modification lock used for protecting reads from compactions. */
+    private ReentrantReadWriteLock sstableLock_ = new ReentrantReadWriteLock(true);
 
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
@@ -238,7 +241,24 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sb.append(newLineSeparator);
         return sb.toString();
     }
-    
+
+    /*
+     * This is called after bootstrap to add the files
+     * to the list of files maintained.
+    */
+    void addToList(SSTableReader file)
+    {
+        sstableLock_.writeLock().lock();
+        try
+        {
+            ssTables_.put(file.getFilename(), file);
+        }
+        finally
+        {
+            sstableLock_.writeLock().unlock();
+        }
+    }
+
     /*
      * This method forces a compaction of the SSTables on disk. We wait
      * for the process to complete by waiting on a future pointer.
@@ -557,8 +577,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /*
-     * Called after the Memtable flushes its in-memory data, or we add a file
-     * via bootstrap. This information is
+     * Called after the Memtable flushes its in-memory data. This information is
      * cached in the ColumnFamilyStore. This is useful for reads because the
      * ColumnFamilyStore first looks in the in-memory store and the into the
      * disk to find the key. If invoked during recoveryMode the
@@ -567,11 +586,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ filename - filename just flushed to disk
      * param @ bf - bloom filter which indicates the keys that are in this file.
     */
-    void addSSTable(SSTableReader sstable)
+    void storeLocation(SSTableReader sstable)
     {
         int ssTableCount;
-        ssTables_.put(sstable.getFilename(), sstable);
-        ssTableCount = ssTables_.size();
+        sstableLock_.writeLock().lock();
+        try
+        {
+            ssTables_.put(sstable.getFilename(), sstable);
+            ssTableCount = ssTables_.size();
+        }
+        finally
+        {
+            sstableLock_.writeLock().unlock();
+        }
 
         /* it's ok if compaction gets submitted multiple times while one is already in process.
            worst that happens is, compactor will count the sstable files and decide there are
@@ -781,16 +808,24 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         doFileAntiCompaction(files, myRanges, null, newFiles);
         if (logger_.isDebugEnabled())
           logger_.debug("Original file : " + file + " of size " + new File(file).length());
-        for (String newfile : newFiles)
+        sstableLock_.writeLock().lock();
+        try
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
-            assert newfile != null;
-            // TODO can we convert this to SSTableWriter.renameAndOpen?
-            ssTables_.put(newfile, SSTableReader.open(newfile));
+            ssTables_.remove(file);
+            for (String newfile : newFiles)
+            {
+                if (logger_.isDebugEnabled())
+                  logger_.debug("New file : " + newfile + " of size " + new File(newfile).length());
+                assert newfile != null;
+                // TODO convert this to SSTableWriter.renameAndOpen
+                ssTables_.put(newfile, SSTableReader.open(newfile));
+            }
+            SSTableReader.get(file).delete();
         }
-        ssTables_.remove(file);
-        SSTableReader.get(file).delete();
+        finally
+        {
+            sstableLock_.writeLock().unlock();
+        }
     }
 
     /**
@@ -1094,15 +1129,26 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ssTable = writer.closeAndOpenReader();
             newfile = writer.getFilename();
         }
-        if (newfile != null)
+        sstableLock_.writeLock().lock();
+        try
         {
-            ssTables_.put(newfile, ssTable);
-            totalBytesWritten += (new File(newfile)).length();
+            for (String file : files)
+            {
+                ssTables_.remove(file);
+            }
+            if (newfile != null)
+            {
+                ssTables_.put(newfile, ssTable);
+                totalBytesWritten += (new File(newfile)).length();
+            }
+            for (String file : files)
+            {
+                SSTableReader.get(file).delete();
+            }
         }
-        for (String file : files)
+        finally
         {
-            ssTables_.remove(file);
-            SSTableReader.get(file).delete();
+            sstableLock_.writeLock().unlock();
         }
 
         String format = "Compacted to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
@@ -1236,6 +1282,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Collections.unmodifiableCollection(ssTables_.values());
     }
 
+    public ReentrantReadWriteLock.ReadLock getReadLock()
+    {
+        return sstableLock_.readLock();
+    }
+
     public int getReadCount()
     {
         return readStats_.size();
@@ -1304,6 +1355,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // we are querying top-level columns, do a merging fetch with indexes.
+        sstableLock_.readLock().lock();
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         try
         {
@@ -1369,6 +1421,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             readStats_.add(System.currentTimeMillis() - start);
+            sstableLock_.readLock().unlock();
         }
     }
 
@@ -1380,6 +1433,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public RangeReply getKeyRange(final String startWith, final String stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
+    {
+        getReadLock().lock();
+        try
+        {
+            return getKeyRangeUnsafe(startWith, stopAt, maxResults);
+        }
+        finally
+        {
+            getReadLock().unlock();
+        }
+    }
+
+    private RangeReply getKeyRangeUnsafe(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
@@ -1482,29 +1548,37 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void snapshot(String snapshotName) throws IOException
     {
-        for (SSTableReader ssTable : ssTables_.values())
+        sstableLock_.readLock().lock();
+        try
         {
-            // mkdir
-            File sourceFile = new File(ssTable.getFilename());
-            File dataDirectory = sourceFile.getParentFile().getParentFile();
-            String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
-            FileUtils.createDirectory(snapshotDirectoryPath);
+            for (SSTableReader ssTable : new ArrayList<SSTableReader>(ssTables_.values()))
+            {
+                // mkdir
+                File sourceFile = new File(ssTable.getFilename());
+                File dataDirectory = sourceFile.getParentFile().getParentFile();
+                String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
+                FileUtils.createDirectory(snapshotDirectoryPath);
 
-            // hard links
-            File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+                // hard links
+                File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
 
-            sourceFile = new File(ssTable.indexFilename());
-            targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+                sourceFile = new File(ssTable.indexFilename());
+                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
 
-            sourceFile = new File(ssTable.filterFilename());
-            targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+                sourceFile = new File(ssTable.filterFilename());
+                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
 
-            if (logger_.isDebugEnabled())
-                logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +
-                    " created as " + targetLink.getAbsolutePath());
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +    
+                        " created as " + targetLink.getAbsolutePath());
+            }
+        }
+        finally
+        {
+            sstableLock_.readLock().unlock();
         }
     }
 
@@ -1513,6 +1587,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void clearUnsafe()
     {
-        memtable_.clearUnsafe();
+        sstableLock_.writeLock().lock();
+        try
+        {
+            memtable_.clearUnsafe();
+        }
+        finally
+        {
+            sstableLock_.writeLock().unlock();
+        }
     }
 }

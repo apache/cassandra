@@ -214,7 +214,7 @@ public class Memtable implements Comparable<Memtable>
         }
         SSTableReader ssTable = writer.closeAndOpenReader();
         cfStore.onMemtableFlush(cLogCtx);
-        cfStore.addSSTable(ssTable);
+        cfStore.storeLocation(ssTable);
         buffer.close();
         isFlushed_ = true;
         logger_.info("Completed flushing " + this);
