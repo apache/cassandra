@@ -318,11 +318,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Integer.parseInt(index);
     }
 
-    String getNextFileName()
-    {
-        return String.format("%s-%s-Data.db", columnFamily_, fileIndexGenerator_.incrementAndGet());
-    }
-
     /*
      * @return a temporary file name for an sstable.
      * When the sstable object is closed, it will be renamed to a non-temporary
@@ -330,15 +325,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     String getTempSSTablePath()
     {
-        // increment twice so that we do not generate consecutive numbers
         String fname = getTempSSTableFileName();
         return new File(DatabaseDescriptor.getDataFileLocationForTable(table_), fname).getAbsolutePath();
     }
 
     String getTempSSTableFileName()
     {
-        fileIndexGenerator_.incrementAndGet();
-
         return String.format("%s-%s-%s-Data.db",
                              columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
     }
