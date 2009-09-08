@@ -53,8 +53,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
-    private static final int BUFSIZE = 128 * 1024 * 1024;
-
     private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
     private static ExecutorService flusher_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getFlushMinThreads(), DatabaseDescriptor.getFlushMaxThreads(), Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl("MEMTABLE-FLUSHER-POOL"));
     
@@ -686,7 +684,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 continue;
             }
             Collections.sort(files, new FileNameComparator(FileNameComparator.Ascending));
-            filesCompacted += doFileCompaction(files.subList(0, Math.min(files.size(), maxThreshold)), BUFSIZE);
+            filesCompacted += doFileCompaction(files.subList(0, Math.min(files.size(), maxThreshold)));
         }
         return filesCompacted;
     }
@@ -722,7 +720,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             files = filesInternal;
         }
-        doFileCompaction(files, BUFSIZE);
+        doFileCompaction(files);
     }
 
     /*
@@ -1009,7 +1007,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     * to get the latest data.
     *
     */
-    private int doFileCompaction(List<String> files, int minBufferSize) throws IOException
+    private int doFileCompaction(List<String> files) throws IOException
     {
         logger_.info("Compacting [" + StringUtils.join(files, ",") + "]");
         String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, getExpectedCompactedFileSize(files));
@@ -1019,7 +1017,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             String maxFile = getMaxSizeFile(files);
             files.remove(maxFile);
-            return doFileCompaction(files, minBufferSize);
+            return doFileCompaction(files);
         }
 
         String newfile = null;
