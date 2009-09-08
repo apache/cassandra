@@ -60,41 +60,9 @@
     </mailingList>
   </mailingLists>
 
+  <!-- This section intentionally left blank (see: CASSANDRA-415) -->
   <developers>
     <developer>
-      <id>jbellis</id>
-      <name>Jonathan Bellis</name>
-      <!--<email></email>-->
-      <!--<url></url>-->
-      <!--<organization></organization>-->
-      <!--<organizationUrl></organizationUrl>-->
-      <roles>
-        <role>committer</role>
-        <!--
-        <role>contributor</role>
-        <role>pmc</role>
-        -->
-      </roles>
-      <!--
-      <timezone>-7</timezone>
-      <properties>
-        <picUrl></picUrl>
-      </properties>
-      -->
-    </developer>
-    <developer>
-      <id>eevans</id>
-      <name>Eric Evans</name>
-      <roles>
-        <role>committer</role>
-      </roles>
-    </developer>
-    <developer>
-      <id>junrao</id>
-      <name>Jun Rao</name>
-      <roles>
-        <role>committer</role>
-      </roles>
     </developer>
   </developers>
 
