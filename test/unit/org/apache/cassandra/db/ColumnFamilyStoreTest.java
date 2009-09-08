@@ -48,59 +48,6 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     }
 
     @Test
-    public void testGetCompactionBuckets() throws IOException
-    {
-        // create files 20 40 60 ... 180
-        List<String> small = new ArrayList<String>();
-        List<String> med = new ArrayList<String>();
-        List<String> all = new ArrayList<String>();
-
-        String fname;
-        fname = createFile(20);
-        small.add(fname);
-        all.add(fname);
-        fname = createFile(40);
-        small.add(fname);
-        all.add(fname);
-
-        for (int i = 60; i <= 140; i += 20)
-        {
-            fname = createFile(i);
-            med.add(fname);
-            all.add(fname);
-        }
-
-        Set<List<String>> buckets = ColumnFamilyStore.getCompactionBuckets(all, 50);
-        assert buckets.size() == 2 : bucketString(buckets);
-        Iterator<List<String>> iter = buckets.iterator();
-        List<String> bucket1 = iter.next();
-        List<String> bucket2 = iter.next();
-        assert bucket1.size() + bucket2.size() == all.size() : bucketString(buckets) + " does not match [" + StringUtils.join(all, ", ") + "]";
-        assert buckets.contains(small) : bucketString(buckets) + " does not contain {" + StringUtils.join(small, ", ") + "}";
-        assert buckets.contains(med) : bucketString(buckets) + " does not contain {" + StringUtils.join(med, ", ") + "}";
-    }
-
-    private static String bucketString(Set<List<String>> buckets)
-    {
-        ArrayList<String> pieces = new ArrayList<String>();
-        for (List<String> bucket : buckets)
-        {
-            pieces.add("[" + StringUtils.join(bucket, ", ") + "]");
-        }
-        return "{" + StringUtils.join(pieces, ", ") + "}";
-    }
-
-    private String createFile(int nBytes) throws IOException
-    {
-        File f = File.createTempFile("bucket_test", "");
-        FileOutputStream fos = new FileOutputStream(f);
-        byte[] bytes = new byte[nBytes];
-        fos.write(bytes);
-        fos.close();
-        return f.getAbsolutePath();
-    }
-
-    @Test
     public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
     {
         Table table = Table.open("Keyspace1");

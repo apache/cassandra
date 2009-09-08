@@ -31,14 +31,15 @@ import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
- * Do not use open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
+ * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class SSTableReader extends SSTable
+public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 {
     private static final Logger logger = Logger.getLogger(SSTableReader.class);
 
@@ -49,19 +50,16 @@ public class SSTableReader extends SSTable
         return INDEX_INTERVAL;
     }
 
-    // todo can we refactor to take list of sstables?
-    public static int getApproximateKeyCount(List<String> dataFiles)
+    public static int getApproximateKeyCount(List<SSTableReader> sstables)
     {
         int count = 0;
 
-        for (String dataFileName : dataFiles)
+        for (SSTableReader sstable : sstables)
         {
-            SSTableReader sstable = openedFiles.get(dataFileName);
-            assert sstable != null;
             int indexKeyCount = sstable.getIndexPositions().size();
             count = count + (indexKeyCount + 1) * INDEX_INTERVAL;
             if (logger.isDebugEnabled())
-                logger.debug("index size for bloom filter calc for file  : " + dataFileName + "   : " + count);
+                logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
         }
 
         return count;
@@ -103,14 +101,6 @@ public class SSTableReader extends SSTable
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
 
-        return sstable;
-    }
-
-    @Deprecated // move away from get() towards using the SSTR objects CFS knows about
-    public static SSTableReader get(String dataFileName)
-    {
-        SSTableReader sstable = openedFiles.get(dataFileName);
-        assert sstable != null : "No sstable opened for " + dataFileName + ": " + openedFiles;
         return sstable;
     }
 
@@ -262,6 +252,16 @@ public class SSTableReader extends SSTable
         {
             input.close();
         }
+    }
+
+    public long length()
+    {
+        return new File(path).length();
+    }
+
+    public int compareTo(SSTableReader o)
+    {
+        return ColumnFamilyStore.getGenerationFromFileName(path) - ColumnFamilyStore.getGenerationFromFileName(o.path);
     }
 
     public void delete() throws IOException
