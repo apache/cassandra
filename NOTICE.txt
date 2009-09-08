@@ -4,8 +4,6 @@ Copyright 2009 The Apache Software Foundation
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
 
-Developers and Contributors are listed in the project POM file
-
 JSON support is provided by Flexjson (http://flexjson.sf.net).
 Copyright 2007 Charlie Hubbard.
 
