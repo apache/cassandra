@@ -103,7 +103,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
          * the max which in this case is n and increment it to use it for next
          * index.
          */
-        List<Integer> indices = new ArrayList<Integer>();
+        List<Integer> generations = new ArrayList<Integer>();
         String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
         for (String directory : dataFileDirectories)
         {
@@ -117,13 +117,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 if (cfName.equals(columnFamily))
                 {
-                    int index = getIndexFromFileName(filename);
-                    indices.add(index);
+                    generations.add(getGenerationFromFileName(filename));
                 }
             }
         }
-        Collections.sort(indices);
-        int value = (indices.size() > 0) ? (indices.get(indices.size() - 1)) : 0;
+        Collections.sort(generations);
+        int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
         ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(table, columnFamily)), value);
 
@@ -310,7 +309,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return filename.split("-")[0];
     }
 
-    protected static int getIndexFromFileName(String filename)
+    protected static int getGenerationFromFileName(String filename)
     {
         /*
          * File name is of the form <table>-<column family>-<index>-Data.db.
@@ -683,6 +682,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 continue;
             }
+            // if we have too many to compact all at once, compact older ones first -- this avoids
+            // re-compacting files we just created.
             Collections.sort(files, new FileNameComparator(FileNameComparator.Ascending));
             filesCompacted += doFileCompaction(files.subList(0, Math.min(files.size(), maxThreshold)));
         }

@@ -35,8 +35,8 @@ class FileNameComparator implements Comparator<String>
     public int compare(String f, String f2)
     {
     	if( order_ == 1 )
-    		return ColumnFamilyStore.getIndexFromFileName(f2) - ColumnFamilyStore.getIndexFromFileName(f);
+    		return ColumnFamilyStore.getGenerationFromFileName(f2) - ColumnFamilyStore.getGenerationFromFileName(f);
     	else
-    		return ColumnFamilyStore.getIndexFromFileName(f) - ColumnFamilyStore.getIndexFromFileName(f2);
+    		return ColumnFamilyStore.getGenerationFromFileName(f) - ColumnFamilyStore.getGenerationFromFileName(f2);
     }
 }
