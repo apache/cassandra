@@ -175,7 +175,7 @@ public class BinaryMemtable
                 writer.append(key, bytes);
             }
         }
-        cfStore.storeLocation(writer.closeAndOpenReader());
+        cfStore.addSSTable(writer.closeAndOpenReader());
         columnFamilies_.clear();       
     }
 }

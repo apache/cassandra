@@ -238,24 +238,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sb.append(newLineSeparator);
         return sb.toString();
     }
-
-    /*
-     * This is called after bootstrap to add the files
-     * to the list of files maintained.
-    */
-    void addToList(SSTableReader file)
-    {
-        sstableLock_.writeLock().lock();
-        try
-        {
-            ssTables_.put(file.getFilename(), file);
-        }
-        finally
-        {
-            sstableLock_.writeLock().unlock();
-        }
-    }
-
+    
     /*
      * This method forces a compaction of the SSTables on disk. We wait
      * for the process to complete by waiting on a future pointer.
@@ -574,7 +557,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /*
-     * Called after the Memtable flushes its in-memory data. This information is
+     * Called after the Memtable flushes its in-memory data, or we add a file
+     * via bootstrap. This information is
      * cached in the ColumnFamilyStore. This is useful for reads because the
      * ColumnFamilyStore first looks in the in-memory store and the into the
      * disk to find the key. If invoked during recoveryMode the
@@ -583,7 +567,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ filename - filename just flushed to disk
      * param @ bf - bloom filter which indicates the keys that are in this file.
     */
-    void storeLocation(SSTableReader sstable)
+    void addSSTable(SSTableReader sstable)
     {
         int ssTableCount;
         sstableLock_.writeLock().lock();
@@ -603,7 +587,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (ssTableCount >= MinorCompactionManager.MINCOMPACTION_THRESHOLD)
         {
             if (logger_.isDebugEnabled())
-              logger_.debug("Submitting " + columnFamily_ + " for compaction");
+              logger_.debug("Added " + sstable.getFilename() + ".  Submitting " + columnFamily_ + " for compaction");
             MinorCompactionManager.instance().submit(this);
         }
     }
@@ -674,6 +658,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     int doCompaction(int minThreshold, int maxThreshold) throws IOException
     {
+        logger_.debug("Checking to see if compaction of " + columnFamily_ + " would be useful");
         int filesCompacted = 0;
         for (List<SSTableReader> sstables : getCompactionBuckets(ssTables_.values(), 50L * 1024L * 1024L))
         {
@@ -686,6 +671,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Collections.sort(sstables);
             filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
         }
+        logger_.debug(filesCompacted + " files compacted");
         return filesCompacted;
     }
 
