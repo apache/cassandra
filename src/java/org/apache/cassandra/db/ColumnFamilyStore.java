@@ -77,7 +77,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private Map<String, SSTableReader> ssTables_ = new HashMap<String, SSTableReader>();
+    private Set<SSTableReader> ssTables_ = new HashSet<SSTableReader>();
 
     /* Modification lock used for protecting reads from compactions. */
     private ReentrantReadWriteLock sstableLock_ = new ReentrantReadWriteLock(true);
@@ -182,7 +182,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 logger_.error("Corrupt file " + filename + "; skipped", ex);
                 continue;
             }
-            ssTables_.put(filename, sstable);
+            ssTables_.add(sstable);
         }
 
         // submit initial check-for-compaction request
@@ -226,7 +226,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sb.append("Number of files on disk : " + ssTables_.size());
         sb.append(newLineSeparator);
         double totalSpace = 0d;
-        for (SSTableReader sstable: ssTables_.values())
+        for (SSTableReader sstable: ssTables_)
         {
             File f = new File(sstable.getFilename());
             totalSpace += f.length();
@@ -573,7 +573,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sstableLock_.writeLock().lock();
         try
         {
-            ssTables_.put(sstable.getFilename(), sstable);
+            ssTables_.add(sstable);
             ssTableCount = ssTables_.size();
         }
         finally
@@ -660,7 +660,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         logger_.debug("Checking to see if compaction of " + columnFamily_ + " would be useful");
         int filesCompacted = 0;
-        for (List<SSTableReader> sstables : getCompactionBuckets(ssTables_.values(), 50L * 1024L * 1024L))
+        for (List<SSTableReader> sstables : getCompactionBuckets(ssTables_, 50L * 1024L * 1024L))
         {
             if (sstables.size() < minThreshold)
             {
@@ -692,7 +692,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (skip > 0L)
         {
             sstables = new ArrayList<SSTableReader>();
-            for (SSTableReader sstable : ssTables_.values())
+            for (SSTableReader sstable : ssTables_)
             {
                 if (sstable.length() < skip * 1024L * 1024L * 1024L)
                 {
@@ -702,7 +702,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         else
         {
-            sstables = new ArrayList<SSTableReader>(ssTables_.values());
+            sstables = new ArrayList<SSTableReader>(ssTables_);
         }
         doFileCompaction(sstables);
     }
@@ -742,7 +742,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     boolean doAntiCompaction(List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
     {
-        return doFileAntiCompaction(new ArrayList<SSTableReader>(ssTables_.values()), ranges, target, fileList);
+        return doFileAntiCompaction(new ArrayList<SSTableReader>(ssTables_), ranges, target, fileList);
     }
 
     void forceCleanup()
@@ -758,7 +758,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void doCleanupCompaction() throws IOException
     {
-        List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_.values());
+        List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_);
         for (SSTableReader sstable : sstables)
         {
             doCleanup(sstable);
@@ -783,7 +783,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sstableLock_.writeLock().lock();
         try
         {
-            ssTables_.remove(sstable.getFilename());
+            ssTables_.remove(sstable);
             sstable.delete();
         }
         finally
@@ -1098,12 +1098,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (newfile != null)
             {
-                ssTables_.put(newfile, ssTable);
+                ssTables_.add(ssTable);
                 totalBytesWritten += (new File(newfile)).length();
             }
             for (SSTableReader sstable : sstables)
             {
-                ssTables_.remove(sstable.getFilename());
+                ssTables_.remove(sstable);
                 sstable.delete();
             }
         }
@@ -1240,7 +1240,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** not threadsafe.  caller must have lock_ acquired. */
     public Collection<SSTableReader> getSSTables()
     {
-        return Collections.unmodifiableCollection(ssTables_.values());
+        return Collections.unmodifiableCollection(ssTables_);
     }
 
     public ReentrantReadWriteLock.ReadLock getReadLock()
@@ -1346,7 +1346,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             /* add the SSTables on disk */
-            List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_.values());
+            List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_);
             for (SSTableReader sstable : sstables)
             {
                 iter = filter.getSSTableColumnIterator(sstable);
@@ -1512,7 +1512,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sstableLock_.readLock().lock();
         try
         {
-            for (SSTableReader ssTable : new ArrayList<SSTableReader>(ssTables_.values()))
+            for (SSTableReader ssTable : new ArrayList<SSTableReader>(ssTables_))
             {
                 // mkdir
                 File sourceFile = new File(ssTable.getFilename());
