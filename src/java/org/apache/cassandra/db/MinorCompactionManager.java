@@ -151,6 +151,11 @@ class MinorCompactionManager
     
     private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("MINOR-COMPACTION-POOL"));
 
+    /**
+     * Call this whenever a compaction might be needed on the given columnfamily.
+     * It's okay to over-call (within reason) since the compactions are single-threaded,
+     * and if a call is unnecessary, it will just be no-oped in the bucketing phase.
+     */
     public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
         return submit(columnFamilyStore, MINCOMPACTION_THRESHOLD, MAXCOMPACTION_THRESHOLD);

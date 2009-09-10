@@ -20,6 +20,9 @@ package org.apache.cassandra.io;
 
 import java.io.*;
 import java.util.*;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.PhantomReference;
+import java.lang.ref.Reference;
 
 import org.apache.log4j.Logger;
 
@@ -27,7 +30,6 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
@@ -45,12 +47,47 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private static final FileSSTableMap openedFiles = new FileSSTableMap();
 
+    // `finalizers` is required to keep the PhantomReferences alive after the enclosing SSTR is itself
+    // unreferenced.  otherwise they will never get enqueued.
+    private static final Set<Reference<SSTableReader>> finalizers = new HashSet<Reference<SSTableReader>>();
+    private static final ReferenceQueue<SSTableReader> finalizerQueue = new ReferenceQueue<SSTableReader>()
+    {{
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                while (true)
+                {
+                    FileDeletingReference r = null;
+                    try
+                    {
+                        r = (FileDeletingReference) finalizerQueue.remove();
+                        finalizers.remove(r);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    try
+                    {
+                        r.cleanup();
+                    }
+                    catch (IOException e)
+                    {
+                        logger.error("Error deleting " + r.path, e);
+                    }
+                }
+            }
+        };
+        new Thread(runnable, "SSTABLE-DELETER").start();
+    }};
+
     public static int indexInterval()
     {
         return INDEX_INTERVAL;
     }
 
-    public static int getApproximateKeyCount(List<SSTableReader> sstables)
+    public static int getApproximateKeyCount(Iterable<SSTableReader> sstables)
     {
         int count = 0;
 
@@ -89,7 +126,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return open(dataFileName, StorageService.getPartitioner());
     }
 
-    public static synchronized SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
+    public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
         assert openedFiles.get(dataFileName) == null;
@@ -104,18 +141,21 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return sstable;
     }
 
+    FileDeletingReference phantomReference;
+
     SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter)
     {
         super(filename, partitioner);
         this.indexPositions = indexPositions;
         this.bf = bloomFilter;
+        phantomReference = new FileDeletingReference(this, finalizerQueue);
+        finalizers.add(phantomReference);
         openedFiles.put(filename, this);
     }
 
     private SSTableReader(String filename, IPartitioner partitioner)
     {
-        super(filename, partitioner);
-        openedFiles.put(filename, this);
+        this(filename, partitioner, null, null);
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -264,12 +304,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return ColumnFamilyStore.getGenerationFromFileName(path) - ColumnFamilyStore.getGenerationFromFileName(o.path);
     }
 
-    public void delete() throws IOException
+    public void markCompacted() throws IOException
     {
-        FileUtils.deleteWithConfirm(new File(path));
-        FileUtils.deleteWithConfirm(new File(indexFilename(path)));
-        FileUtils.deleteWithConfirm(new File(filterFilename(path)));
+        if (logger.isDebugEnabled())
+            logger.debug("Marking " + path + " compacted");
         openedFiles.remove(path);
+        new File(compactedFilename()).createNewFile();
+        phantomReference.deleteOnCleanup();
     }
 
     /** obviously only for testing */
@@ -361,5 +402,30 @@ class FileSSTableMap
     public String toString()
     {
         return "FileSSTableMap {" + StringUtils.join(map.keySet(), ", ") + "}";
+    }
+}
+
+class FileDeletingReference extends PhantomReference<SSTableReader>
+{
+    public final String path;
+    private boolean deleteOnCleanup;
+
+    FileDeletingReference(SSTableReader referent, ReferenceQueue<? super SSTableReader> q)
+    {
+        super(referent, q);
+        this.path = referent.path;
+    }
+
+    public void deleteOnCleanup()
+    {
+        deleteOnCleanup = true;
+    }
+
+    public void cleanup() throws IOException
+    {
+        if (deleteOnCleanup)
+        {
+            SSTable.delete(path);
+        }
     }
 }

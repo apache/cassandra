@@ -77,10 +77,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private Set<SSTableReader> ssTables_ = new HashSet<SSTableReader>();
-
-    /* Modification lock used for protecting reads from compactions. */
-    private ReentrantReadWriteLock sstableLock_ = new ReentrantReadWriteLock(true);
+    private SSTableTracker ssTables_ = new SSTableTracker();
 
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
@@ -152,7 +149,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (File file : files)
             {
                 String filename = file.getName();
-                if (((file.length() == 0) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))) && (filename.contains(columnFamily_)))
+                if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))) && (filename.contains(columnFamily_)))
                 {
                     file.delete();
                     continue;
@@ -169,9 +166,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(sstableFiles, new FileUtils.FileComparator());
 
         /* Load the index files and the Bloom Filters associated with them. */
+        List<SSTableReader> sstables = new ArrayList<SSTableReader>();
         for (File file : sstableFiles)
         {
             String filename = file.getAbsolutePath();
+            if (SSTable.deleteIfCompacted(filename))
+                continue;
+
             SSTableReader sstable;
             try
             {
@@ -182,8 +183,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 logger_.error("Corrupt file " + filename + "; skipped", ex);
                 continue;
             }
-            ssTables_.add(sstable);
+            sstables.add(sstable);
         }
+        ssTables_.onStart(sstables);
 
         // submit initial check-for-compaction request
         MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
@@ -569,30 +571,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     */
     void addSSTable(SSTableReader sstable)
     {
-        int ssTableCount;
-        sstableLock_.writeLock().lock();
-        try
-        {
-            ssTables_.add(sstable);
-            ssTableCount = ssTables_.size();
-        }
-        finally
-        {
-            sstableLock_.writeLock().unlock();
-        }
-
-        /* it's ok if compaction gets submitted multiple times while one is already in process.
-           worst that happens is, compactor will count the sstable files and decide there are
-           not enough to bother with. */
-        if (ssTableCount >= MinorCompactionManager.MINCOMPACTION_THRESHOLD)
-        {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Added " + sstable.getFilename() + ".  Submitting " + columnFamily_ + " for compaction");
-            MinorCompactionManager.instance().submit(this);
-        }
+        ssTables_.add(sstable);
+        MinorCompactionManager.instance().submit(this);
     }
 
-    private PriorityQueue<FileStruct> initializePriorityQueue(List<SSTableReader> sstables, List<Range> ranges) throws IOException
+    private PriorityQueue<FileStruct> initializePriorityQueue(Collection<SSTableReader> sstables, List<Range> ranges) throws IOException
     {
         PriorityQueue<FileStruct> pq = new PriorityQueue<FileStruct>();
         if (sstables.size() > 1 || (ranges != null && sstables.size() > 0))
@@ -688,7 +671,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void doMajorCompactionInternal(long skip) throws IOException
     {
-        List<SSTableReader> sstables;
+        Collection<SSTableReader> sstables;
         if (skip > 0L)
         {
             sstables = new ArrayList<SSTableReader>();
@@ -702,7 +685,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         else
         {
-            sstables = new ArrayList<SSTableReader>(ssTables_);
+            sstables = ssTables_.getSSTables();
         }
         doFileCompaction(sstables);
     }
@@ -711,7 +694,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * Add up all the files sizes this is the worst case file
      * size for compaction of all the list of files given.
      */
-    long getExpectedCompactedFileSize(List<SSTableReader> sstables)
+    long getExpectedCompactedFileSize(Iterable<SSTableReader> sstables)
     {
         long expectedFileSize = 0;
         for (SSTableReader sstable : sstables)
@@ -725,7 +708,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /*
      *  Find the maximum size file in the list .
      */
-    SSTableReader getMaxSizeFile(List<SSTableReader> sstables)
+    SSTableReader getMaxSizeFile(Iterable<SSTableReader> sstables)
     {
         long maxSize = 0L;
         SSTableReader maxFile = null;
@@ -742,7 +725,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     boolean doAntiCompaction(List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
     {
-        return doFileAntiCompaction(new ArrayList<SSTableReader>(ssTables_), ranges, target, fileList);
+        return doFileAntiCompaction(ssTables_.getSSTables(), ranges, target, fileList);
     }
 
     void forceCleanup()
@@ -758,8 +741,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void doCleanupCompaction() throws IOException
     {
-        List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_);
-        for (SSTableReader sstable : sstables)
+        for (SSTableReader sstable : ssTables_)
         {
             doCleanup(sstable);
         }
@@ -780,16 +762,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         doFileAntiCompaction(Arrays.asList(sstable), myRanges, null, newFiles);
         if (logger_.isDebugEnabled())
           logger_.debug("Original file : " + sstable + " of size " + sstable.length());
-        sstableLock_.writeLock().lock();
-        try
-        {
-            ssTables_.remove(sstable);
-            sstable.delete();
-        }
-        finally
-        {
-            sstableLock_.writeLock().unlock();
-        }
+        ssTables_.markCompacted(Arrays.asList(sstable));
     }
 
     /**
@@ -803,7 +776,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return
      * @throws IOException
      */
-    boolean doFileAntiCompaction(List<SSTableReader> sstables, List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
+    boolean doFileAntiCompaction(Collection<SSTableReader> sstables, List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
     {
         boolean result = false;
         long startTime = System.currentTimeMillis();
@@ -973,7 +946,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     * to get the latest data.
     *
     */
-    private int doFileCompaction(List<SSTableReader> sstables) throws IOException
+    private int doFileCompaction(Collection<SSTableReader> sstables) throws IOException
     {
         logger_.info("Compacting [" + StringUtils.join(sstables, ",") + "]");
         String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, getExpectedCompactedFileSize(sstables));
@@ -986,29 +959,28 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return doFileCompaction(sstables);
         }
 
-        String newfile = null;
         long startTime = System.currentTimeMillis();
         long totalBytesRead = 0;
-        long totalBytesWritten = 0;
         long totalkeysRead = 0;
         long totalkeysWritten = 0;
         PriorityQueue<FileStruct> pq = initializePriorityQueue(sstables, null);
 
         if (pq.isEmpty())
         {
-            logger_.warn("Nothing to compact (all files empty or corrupt)");
+            logger_.warn("Nothing to compact (all files empty or corrupt). This should not happen.");
             // TODO clean out bad files, if any
             return 0;
         }
 
-        String mergedFileName = getTempSSTableFileName();
-        SSTableWriter writer = null;
+        int expectedBloomFilterSize = SSTableReader.getApproximateKeyCount(sstables);
+        if (expectedBloomFilterSize < 0)
+            expectedBloomFilterSize = SSTableReader.indexInterval();
+        String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
+        SSTableWriter writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
         SSTableReader ssTable = null;
         String lastkey = null;
         List<FileStruct> lfs = new ArrayList<FileStruct>();
         DataOutputBuffer bufOut = new DataOutputBuffer();
-        int expectedBloomFilterSize = SSTableReader.getApproximateKeyCount(sstables);
-        expectedBloomFilterSize = (expectedBloomFilterSize > 0) ? expectedBloomFilterSize : SSTableReader.indexInterval();
         if (logger_.isDebugEnabled())
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
         List<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>();
@@ -1060,11 +1032,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     ColumnFamily.serializer().serializeWithIndexes(filestruct.getColumnFamily(), bufOut);
                 }
 
-                if (writer == null)
-                {
-                    String fname = new File(compactionFileLocation, mergedFileName).getAbsolutePath();
-                    writer = new SSTableWriter(fname, expectedBloomFilterSize, StorageService.getPartitioner());
-                }
                 writer.append(lastkey, bufOut);
                 totalkeysWritten++;
 
@@ -1087,34 +1054,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }
         }
-        if (writer != null)
-        {
-            // TODO if all the keys were the same nothing will be done here
-            ssTable = writer.closeAndOpenReader();
-            newfile = writer.getFilename();
-        }
-        sstableLock_.writeLock().lock();
-        try
-        {
-            if (newfile != null)
-            {
-                ssTables_.add(ssTable);
-                totalBytesWritten += (new File(newfile)).length();
-            }
-            for (SSTableReader sstable : sstables)
-            {
-                ssTables_.remove(sstable);
-                sstable.delete();
-            }
-        }
-        finally
-        {
-            sstableLock_.writeLock().unlock();
-        }
+        ssTable = writer.closeAndOpenReader();
+        ssTables_.add(ssTable);
+        ssTables_.markCompacted(sstables);
+        MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
 
         String format = "Compacted to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;
-        logger_.info(String.format(format, newfile, totalBytesRead, totalBytesWritten, totalkeysRead, totalkeysWritten, dTime));
+        logger_.info(String.format(format, writer.getFilename(), totalBytesRead, ssTable.length(), totalkeysRead, totalkeysWritten, dTime));
         return sstables.size();
     }
 
@@ -1240,12 +1187,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** not threadsafe.  caller must have lock_ acquired. */
     public Collection<SSTableReader> getSSTables()
     {
-        return Collections.unmodifiableCollection(ssTables_);
-    }
-
-    public ReentrantReadWriteLock.ReadLock getReadLock()
-    {
-        return sstableLock_.readLock();
+        return ssTables_.getSSTables();
     }
 
     public int getReadCount()
@@ -1316,7 +1258,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // we are querying top-level columns, do a merging fetch with indexes.
-        sstableLock_.readLock().lock();
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         try
         {
@@ -1346,8 +1287,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             /* add the SSTables on disk */
-            List<SSTableReader> sstables = new ArrayList<SSTableReader>(ssTables_);
-            for (SSTableReader sstable : sstables)
+            for (SSTableReader sstable : ssTables_)
             {
                 iter = filter.getSSTableColumnIterator(sstable);
                 if (iter.hasNext()) // initializes iter.CF
@@ -1382,7 +1322,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             readStats_.add(System.currentTimeMillis() - start);
-            sstableLock_.readLock().unlock();
         }
     }
 
@@ -1394,19 +1333,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public RangeReply getKeyRange(final String startWith, final String stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
-    {
-        getReadLock().lock();
-        try
-        {
-            return getKeyRangeUnsafe(startWith, stopAt, maxResults);
-        }
-        finally
-        {
-            getReadLock().unlock();
-        }
-    }
-
-    private RangeReply getKeyRangeUnsafe(final String startWith, final String stopAt, int maxResults) throws IOException, ExecutionException, InterruptedException
     {
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
@@ -1435,7 +1361,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // sstables
-        for (SSTableReader sstable : getSSTables())
+        for (SSTableReader sstable : ssTables_)
         {
             FileStruct fs = sstable.getFileStruct();
             fs.seekTo(startWith);
@@ -1509,37 +1435,29 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void snapshot(String snapshotName) throws IOException
     {
-        sstableLock_.readLock().lock();
-        try
+        for (SSTableReader ssTable : ssTables_)
         {
-            for (SSTableReader ssTable : new ArrayList<SSTableReader>(ssTables_))
-            {
-                // mkdir
-                File sourceFile = new File(ssTable.getFilename());
-                File dataDirectory = sourceFile.getParentFile().getParentFile();
-                String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
-                FileUtils.createDirectory(snapshotDirectoryPath);
+            // mkdir
+            File sourceFile = new File(ssTable.getFilename());
+            File dataDirectory = sourceFile.getParentFile().getParentFile();
+            String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
+            FileUtils.createDirectory(snapshotDirectoryPath);
 
-                // hard links
-                File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(sourceFile, targetLink);
+            // hard links
+            File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+            FileUtils.createHardLink(sourceFile, targetLink);
 
-                sourceFile = new File(ssTable.indexFilename());
-                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(sourceFile, targetLink);
+            sourceFile = new File(ssTable.indexFilename());
+            targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+            FileUtils.createHardLink(sourceFile, targetLink);
 
-                sourceFile = new File(ssTable.filterFilename());
-                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-                FileUtils.createHardLink(sourceFile, targetLink);
+            sourceFile = new File(ssTable.filterFilename());
+            targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+            FileUtils.createHardLink(sourceFile, targetLink);
 
-                if (logger_.isDebugEnabled())
-                    logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +    
-                        " created as " + targetLink.getAbsolutePath());
-            }
-        }
-        finally
-        {
-            sstableLock_.readLock().unlock();
+            if (logger_.isDebugEnabled())
+                logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +
+                    " created as " + targetLink.getAbsolutePath());
         }
     }
 
@@ -1548,14 +1466,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void clearUnsafe()
     {
-        sstableLock_.writeLock().lock();
-        try
-        {
-            memtable_.clearUnsafe();
-        }
-        finally
-        {
-            sstableLock_.writeLock().unlock();
-        }
+        memtable_.clearUnsafe();
     }
 }

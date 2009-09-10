@@ -22,12 +22,15 @@ package org.apache.cassandra.io;
 
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
+import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -45,6 +48,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
  */
 public abstract class SSTable
 {
+    private static final Logger logger = Logger.getLogger(SSTable.class);
+
+
     protected String path;
     protected IPartitioner partitioner;
     protected BloomFilter bf;
@@ -75,6 +81,37 @@ public abstract class SSTable
         return indexFilename(path);
     }
 
+    protected static String compactedFilename(String dataFile)
+    {
+        String[] parts = dataFile.split("-");
+        parts[parts.length - 1] = "Compacted";
+        return StringUtils.join(parts, "-");
+    }
+
+    /**
+     * We use a ReferenceQueue to manage deleting files that have been compacted
+     * and for which no more SSTable references exist.  But this is not guaranteed
+     * to run for each such file because of the semantics of the JVM gc.  So,
+     * we write a marker to `compactedFilename` when a file is compacted;
+     * if such a marker exists on startup, the file should be removed.
+     *
+     * @return true if the file was deleted
+     */
+    public static boolean deleteIfCompacted(String dataFilename) throws IOException
+    {
+        if (new File(compactedFilename(dataFilename)).exists())
+        {
+            delete(dataFilename);
+            return true;
+        }
+        return false;
+    }
+
+    protected String compactedFilename()
+    {
+        return compactedFilename(path);
+    }
+
     protected static String filterFilename(String dataFile)
     {
         String[] parts = dataFile.split("-");
@@ -100,6 +137,15 @@ public abstract class SSTable
     public static String parseTableName(String filename)
     {
         return new File(filename).getParentFile().getName();        
+    }
+
+    static void delete(String path) throws IOException
+    {
+        FileUtils.deleteWithConfirm(new File(path));
+        FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(path)));
+        FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(path)));
+        FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(path)));
+        logger.info("Deleted " + path);
     }
 
     /**

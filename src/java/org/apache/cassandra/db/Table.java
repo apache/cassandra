@@ -449,8 +449,7 @@ public class Table
             {
                 if (logger_.isDebugEnabled())
                     logger_.debug("Removing snapshot directory " + snapshotPath);
-                if (!FileUtils.deleteDir(snapshotDir))
-                    throw new IOException("Could not clear snapshot directory " + snapshotPath);
+                FileUtils.deleteDir(snapshotDir);
             }
         }
     }

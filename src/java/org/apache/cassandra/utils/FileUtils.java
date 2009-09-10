@@ -52,7 +52,7 @@ public class FileUtils
         assert file.exists() : "attempted to delete non-existing file " + file.getName();
         if (!file.delete())
         {
-            throw new IOException("Failed to delete " + file.getName());
+            throw new IOException("Failed to delete " + file.getAbsolutePath());
         }
     }
 
@@ -69,10 +69,10 @@ public class FileUtils
         {
         	if(file_ == null)
         		return;
-        	logger_.info("*** Deleting " + file_.getName() + " ***");
-        	if(!file_.delete())
+        	logger_.debug("Deleting " + file_.getName());
+        	if (!file_.delete())
         	{
-            	logger_.warn("Warning : Unable to delete file " + file_.getAbsolutePath());
+            	logger_.error("Unable to delete file " + file_.getAbsolutePath());
         	}
         }
     }
@@ -248,24 +248,21 @@ public class FileUtils
     /**
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
-     * @return boolean Returns "true" if all deletions were successful.
-     *                 If a deletion fails, the method stops attempting to
-     *                 delete and returns "false".
+     * @throws IOException if any part of the tree cannot be deleted
      */
-    public static boolean deleteDir(File dir) {
-
-        if (dir.isDirectory()) {
+    public static void deleteDir(File dir) throws IOException
+    {
+        if (dir.isDirectory())
+        {
             String[] children = dir.list();
-            for (int i=0; i<children.length; i++) {
-                boolean success = deleteDir(new File(dir, children[i]));
-                if (!success) {
-                    return false;
-                }
+            for (int i = 0; i < children.length; i++)
+            {
+                deleteDir(new File(dir, children[i]));
             }
         }
 
         // The directory is now empty so now it can be smoked
-        return dir.delete();
+        deleteWithConfirm(dir);
     }
 
     /**

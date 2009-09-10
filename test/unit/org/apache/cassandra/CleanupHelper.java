@@ -48,8 +48,6 @@ public class CleanupHelper
             }
             for (File f : dir.listFiles())
             {
-                if (logger.isDebugEnabled())
-                logger.debug("deleting " + f);
                 if (!f.delete()) {
                     logger.error("could not delete " + f);
             }
@@ -69,8 +67,6 @@ public class CleanupHelper
                 // table directory
                 if (tableFile.isDirectory()) {
                     for (File dataFile : tableFile.listFiles()) {
-                        if (logger.isDebugEnabled())
-                            logger.debug("deleting " + dataFile);
                         if (!dataFile.delete()) {
                             logger.error("could not delete " + dataFile);
                         }

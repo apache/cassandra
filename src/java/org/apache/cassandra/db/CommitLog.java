@@ -509,8 +509,7 @@ public class CommitLog
                 oldCommitLogHeader.and(commitLogHeader);
                 if (oldCommitLogHeader.isSafeToDelete())
                 {
-                    if (logger_.isDebugEnabled())
-                      logger_.debug("Deleting commit log:" + oldFile);
+                    logger_.info("Deleting obsolete commit log:" + oldFile);
                     FileUtils.deleteAsync(oldFile);
                     listOfDeletedFiles.add(oldFile);
                 }
