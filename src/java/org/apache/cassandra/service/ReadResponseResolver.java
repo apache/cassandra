@@ -145,7 +145,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
 	        ReadRepairManager.instance().schedule(endPoints.get(i),rowMutationMessage);
 		}
-        logger_.info("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
+        if (logger_.isDebugEnabled())
+            logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
 		return retRow;
 	}
 
