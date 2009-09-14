@@ -32,6 +32,8 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.io.StreamContextManager;
+import org.apache.cassandra.io.SSTableReader;
+
 import org.junit.Test;
 
 public class BootstrapTest
@@ -54,16 +56,13 @@ public class BootstrapTest
         }
         
         store.forceBlockingFlush();
-        List<String> fileList = new ArrayList<String>();
         List<Range> ranges  = new ArrayList<Range>();
         IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
         Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
         ranges.add(r);
 
-        boolean result = store.forceCompaction(ranges, new EndPoint("127.0.0.1", 9150), 0, fileList);
-
-        assertEquals(true, result); // some keys should have qualified
-        assertEquals(true, fileList.size() >= 3); //Data, index, filter files
+        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150), 0);
+        assert fileList.size() >= 1;
     }
 
     @Test

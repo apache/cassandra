@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -130,7 +131,12 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
               logger_.debug("Forcing compaction ...");
             /* Get the counting bloom filter for each endpoint and the list of files that need to be streamed */
             List<String> fileList = new ArrayList<String>();
-            table.forceCompaction(ranges, target, fileList);
+            for (SSTableReader sstable : table.forceAntiCompaction(ranges, target))
+            {
+                fileList.add(sstable.indexFilename());
+                fileList.add(sstable.filterFilename());
+                fileList.add(sstable.getFilename());
+            }
             doHandoff(target, fileList, tName);
             //In Handoff, Streaming the file also deletes the file, so no cleanup needed            
         }

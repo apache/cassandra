@@ -30,6 +30,7 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
 
@@ -60,29 +61,27 @@ class MinorCompactionManager
         return instance_;
     }
 
-    static class FileCompactor2 implements Callable<Boolean>
+    static class FileCompactor2 implements Callable<List<SSTableReader>>
     {
         private ColumnFamilyStore columnFamilyStore_;
         private List<Range> ranges_;
         private EndPoint target_;
-        private List<String> fileList_;
 
-        FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target,List<String> fileList)
+        FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target)
         {
             columnFamilyStore_ = columnFamilyStore;
             ranges_ = ranges;
             target_ = target;
-            fileList_ = fileList;
         }
 
-        public Boolean call()
+        public List<SSTableReader> call()
         {
-        	boolean result;
+        	List<SSTableReader> results;
             if (logger_.isDebugEnabled())
               logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
             try
             {
-                result = columnFamilyStore_.doAntiCompaction(ranges_, target_,fileList_);
+                results = columnFamilyStore_.doAntiCompaction(ranges_, target_);
             }
             catch (IOException e)
             {
@@ -90,7 +89,7 @@ class MinorCompactionManager
             }
             if (logger_.isDebugEnabled())
               logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
-            return result;
+            return results;
         }
     }
 
@@ -178,9 +177,9 @@ class MinorCompactionManager
         compactor_.submit(new CleanupCompactor(columnFamilyStore));
     }
 
-    public Future<Boolean> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target, List<String> fileList)
+    public Future<List<SSTableReader>> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target)
     {
-        return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges, target, fileList) );
+        return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges, target) );
     }
 
     public void  submitMajor(ColumnFamilyStore columnFamilyStore, long skip)

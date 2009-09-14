@@ -459,9 +459,9 @@ public class Table
      * do a complete compaction since we can figure out based on the ranges
      * whether the files need to be split.
     */
-    public boolean forceCompaction(List<Range> ranges, EndPoint target, List<String> fileList)
+    public List<SSTableReader> forceAntiCompaction(List<Range> ranges, EndPoint target)
     {
-        boolean result = true;
+        List<SSTableReader> allResults = new ArrayList<SSTableReader>();
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
@@ -469,12 +469,9 @@ public class Table
                 continue;
             
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
-            if ( cfStore != null )
-            {
-                cfStore.forceCompaction(ranges, target, 0, fileList);                
-            }
+            allResults.addAll(cfStore.forceAntiCompaction(ranges, target, 0));
         }
-        return result;
+        return allResults;
     }
     
     /*

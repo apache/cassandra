@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -188,7 +187,7 @@ public class HintedHandOffManager
             }
         }
         hintStore.forceFlush();
-        hintStore.forceCompaction(null, null, 0, null);
+        hintStore.forceAntiCompaction(null, null, 0);
 
         if (logger_.isDebugEnabled())
           logger_.debug("Finished deliverAllHints");

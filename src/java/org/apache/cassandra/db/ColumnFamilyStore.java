@@ -245,38 +245,22 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * This method forces a compaction of the SSTables on disk. We wait
      * for the process to complete by waiting on a future pointer.
     */
-    boolean forceCompaction(List<Range> ranges, EndPoint target, long skip, List<String> fileList)
+    List<SSTableReader> forceAntiCompaction(List<Range> ranges, EndPoint target, long skip)
     {
-        Future<Boolean> futurePtr = null;
-        if (ranges != null)
-        {
-            futurePtr = MinorCompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target, fileList);
-        }
-        else
-        {
-            MinorCompactionManager.instance().submitMajor(ColumnFamilyStore.this, skip);
-        }
+        assert ranges != null;
+        Future<List<SSTableReader>> futurePtr = MinorCompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target);
 
-        boolean result = true;
+        List<SSTableReader> result;
         try
         {
             /* Waiting for the compaction to complete. */
-            if (futurePtr != null)
-            {
-                result = futurePtr.get();
-            }
+            result = futurePtr.get();
             if (logger_.isDebugEnabled())
               logger_.debug("Done forcing compaction ...");
         }
-        catch (ExecutionException ex)
+        catch (Exception ex)
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug(LogUtil.throwableToString(ex));
-        }
-        catch (InterruptedException ex2)
-        {
-            if (logger_.isDebugEnabled())
-              logger_.debug(LogUtil.throwableToString(ex2));
+            throw new RuntimeException(ex);
         }
         return result;
     }
@@ -723,9 +707,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    boolean doAntiCompaction(List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
+    List<SSTableReader> doAntiCompaction(List<Range> ranges, EndPoint target) throws IOException
     {
-        return doFileAntiCompaction(ssTables_.getSSTables(), ranges, target, fileList);
+        return doFileAntiCompaction(ssTables_.getSSTables(), ranges, target);
     }
 
     void forceCleanup()
@@ -756,10 +740,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert sstable != null;
         List<Range> myRanges;
-        List<String> newFiles = new ArrayList<String>();
         Map<EndPoint, List<Range>> endPointtoRangeMap = StorageService.instance().constructEndPointToRangesMap();
         myRanges = endPointtoRangeMap.get(StorageService.getLocalStorageEndPoint());
-        doFileAntiCompaction(Arrays.asList(sstable), myRanges, null, newFiles);
+        List<SSTableReader> sstables = doFileAntiCompaction(Arrays.asList(sstable), myRanges, null);
+        if (!sstables.isEmpty())
+        {
+            assert sstables.size() == 1;
+            addSSTable(sstables.get(0));
+        }
         if (logger_.isDebugEnabled())
           logger_.debug("Original file : " + sstable + " of size " + sstable.length());
         ssTables_.markCompacted(Arrays.asList(sstable));
@@ -772,13 +760,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param sstables
      * @param ranges
      * @param target
-     * @param fileList
      * @return
      * @throws IOException
      */
-    boolean doFileAntiCompaction(Collection<SSTableReader> sstables, List<Range> ranges, EndPoint target, List<String> fileList) throws IOException
+    List<SSTableReader> doFileAntiCompaction(Collection<SSTableReader> sstables, List<Range> ranges, EndPoint target) throws IOException
     {
-        boolean result = false;
+        List<SSTableReader> results = new ArrayList<SSTableReader>();
         long startTime = System.currentTimeMillis();
         long totalBytesRead = 0;
         long totalBytesWritten = 0;
@@ -796,12 +783,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             logger_.error("Total bytes to be written for range compaction  ..."
                           + expectedRangeFileSize + "   is greater than the safe limit of the disk space available.");
-            return result;
+            return results;
         }
         PriorityQueue<FileStruct> pq = initializePriorityQueue(sstables, ranges);
         if (pq.isEmpty())
         {
-            return result;
+            return results;
         }
 
         mergedFileName = getTempSSTableFileName();
@@ -912,17 +899,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (rangeWriter != null)
         {
-            rangeWriter.closeAndOpenReader();
-            if (fileList != null)
-            {
-                //Retain order. The -Data.db file needs to be last because 
-                //the receiving end checks for this file before opening the SSTable
-                //and adding this to the list of SSTables.
-                fileList.add(rangeWriter.indexFilename());
-                fileList.add(rangeWriter.filterFilename());
-                fileList.add(rangeWriter.getFilename());
-            }
-            result = true;
+            results.add(rangeWriter.closeAndOpenReader());
         }
 
         if (logger_.isDebugEnabled())
@@ -932,7 +909,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger_.debug("Total bytes written for range split  ..."
                           + totalBytesWritten + "   Total keys read ..." + totalkeysRead);
         }
-        return result;
+        return results;
     }
 
     /*
