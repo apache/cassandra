@@ -1,4 +1,22 @@
-package org.apache.cassandra.locator;
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package src.java.org.apache.cassandra.locator;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -17,15 +35,15 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 /**
- * CustomEndPointSnitch
+ * PropertyFileEndPointSnitch
  * 
- * CustomEndPointSnitch is used by Digg to determine if two IP's are in the same datacenter
- * or on the same rack.
+ * PropertyFileEndPointSnitch is used by Digg to determine if two IP's are in the same
+ * datacenter or on the same rack.
  * 
  * @author Sammy Yu <syu@sammyyu.net>
  * 
  */
-public class CustomEndPointSnitch extends EndPointSnitch implements CustomEndPointSnitchMBean {
+public class PropertyFileEndPointSnitch extends EndPointSnitch implements PropertyFileEndPointSnitchMBean {
     /**
      * A list of properties with keys being host:port and values being datacenter:rack
      */
@@ -44,9 +62,9 @@ public class CustomEndPointSnitch extends EndPointSnitch implements CustomEndPoi
     /**
      * Reference to the logger.
      */
-    private static Logger logger_ = Logger.getLogger(CustomEndPointSnitch.class);     
+    private static Logger logger_ = Logger.getLogger(PropertyFileEndPointSnitch.class);     
 
-    public CustomEndPointSnitch() throws IOException {
+    public PropertyFileEndPointSnitch() throws IOException {
         reloadConfiguration();
         try
         {
