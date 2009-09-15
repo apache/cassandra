@@ -23,9 +23,9 @@ import java.io.IOException;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.LogUtil;
 
 public class TokenUpdateVerbHandler implements IVerbHandler
 {
@@ -33,18 +33,20 @@ public class TokenUpdateVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
-    	byte[] body = message.getMessageBody();
-        Token token = StorageService.getPartitioner().getTokenFactory().fromByteArray(body);
+        byte[] body = message.getMessageBody();
+        DataInputBuffer bufIn = new DataInputBuffer();
+        bufIn.reset(body, body.length);
         try
         {
-        	logger_.info("Updating the token to [" + token + "]");
-        	StorageService.instance().updateToken(token);
+            /* Deserialize to get the token for this endpoint. */
+            Token token = Token.serializer().deserialize(bufIn);
+            logger_.info("Updating the token to [" + token + "]");
+            StorageService.instance().updateToken(token);
         }
-    	catch( IOException ex )
-    	{
-    		if (logger_.isDebugEnabled())
-    		  logger_.debug(LogUtil.throwableToString(ex));
-    	}
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
     }
 
 }

@@ -23,58 +23,67 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.SelectorManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FileUtils;
 
 public class TokenUpdater
 {
     private static final int port_ = 7000;
     private static final long waitTime_ = 10000;
-    
+
     public static void main(String[] args) throws Throwable
     {
-        if ( args.length != 3 )
+        if (args.length < 2)
         {
-            System.out.println("Usage : java org.apache.cassandra.tools.TokenUpdater <ip:port> <token> <file containing node token info>");
+            System.out.println("Usage : java org.apache.cassandra.tools.TokenUpdater <ip:port> <token>");
             System.exit(1);
         }
-        
+
+        Thread selectorThread = SelectorManager.getSelectorManager();
+        selectorThread.setDaemon(true);
+        selectorThread.start();
+
         String ipPort = args[0];
         IPartitioner p = StorageService.getPartitioner();
         Token token = p.getTokenFactory().fromString(args[1]);
-        String file = args[2];
-        
+        System.out.println("Partitioner is " + p.getClass() + ", token is: " + token);
+        System.out.println(p.getTokenFactory().getClass());
+
         String[] ipPortPair = ipPort.split(":");
-        EndPoint target = new EndPoint(ipPortPair[0], Integer.valueOf(ipPortPair[1]));
+        int port = 7000;
+        if (ipPortPair.length > 1)
+        {
+            port = Integer.valueOf(ipPortPair[1]);
+        }
+
+        EndPoint target = new EndPoint(ipPortPair[0], port);
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         Token.serializer().serialize(token, dos);
 
         /* Construct the token update message to be sent */
-        Message tokenUpdateMessage = new Message( new EndPoint(FBUtilities.getHostAddress(), port_), "", StorageService.tokenVerbHandler_, bos.toByteArray() );
-        
-        BufferedReader bufReader = new BufferedReader( new InputStreamReader( new FileInputStream(file) ) );
-        String line = null;
-       
-        while ( ( line = bufReader.readLine() ) != null )
-        {
-            String[] nodeTokenPair = line.split(" ");
-            /* Add the node and the token pair into the header of this message. */
-            Token nodeToken = p.getTokenFactory().fromString(nodeTokenPair[1]);
-            tokenUpdateMessage.addHeader(nodeTokenPair[0], p.getTokenFactory().toByteArray(nodeToken));
-        }
-        
+        Message tokenUpdateMessage = new Message(new EndPoint(FBUtilities.getHostAddress(), port_),
+                                                 "",
+                                                 StorageService.tokenVerbHandler_,
+                                                 bos.toByteArray());
+
         System.out.println("Sending a token update message to " + target);
         MessagingService.getMessagingInstance().sendOneWay(tokenUpdateMessage, target);
         Thread.sleep(TokenUpdater.waitTime_);
         System.out.println("Done sending the update message");
-    }
 
+        MessagingService.shutdown();
+        FileUtils.shutdown();
+    }
 }
