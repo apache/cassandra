@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.UnsupportedEncodingException;
-import java.math.BigInteger;
 import java.text.Collator;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -27,6 +25,7 @@ import java.util.Locale;
 import java.util.Random;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesToken>
@@ -44,18 +43,29 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
             return collator.compare(o1, o2);
         }
     };
+    private static final Comparator<DecoratedKey<BytesToken>> objComparator = new Comparator<DecoratedKey<BytesToken>>() {
+        public int compare(DecoratedKey<BytesToken> o1, DecoratedKey<BytesToken> o2)
+        {
+            return FBUtilities.compareByteArrays(o1.getToken().token, o2.getToken().token);
+        }
+    };    
     private static final Comparator<String> reverseComparator = new Comparator<String>() {
         public int compare(String o1, String o2)
         {
             return -comparator.compare(o1, o2);
         }
     };
-
+  
     public String decorateKey(String key)
     {
         return key;
     }
 
+    public DecoratedKey<BytesToken> decorateKeyObj(String key)
+    {
+        return new DecoratedKey<BytesToken>(getToken(key), key);
+    }
+    
     public String undecorateKey(String decoratedKey)
     {
         return decoratedKey;
@@ -64,6 +74,11 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     public Comparator<String> getDecoratedKeyComparator()
     {
         return comparator;
+    }
+
+    public Comparator<DecoratedKey<BytesToken>> getDecoratedKeyObjComparator()
+    {
+        return objComparator;
     }
 
     public Comparator<String> getReverseDecoratedKeyComparator()

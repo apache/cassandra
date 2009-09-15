@@ -20,6 +20,8 @@ package org.apache.cassandra.dht;
 
 import java.util.Comparator;
 
+import org.apache.cassandra.db.DecoratedKey;
+
 public interface IPartitioner<T extends Token>
 {
     /**
@@ -30,10 +32,23 @@ public interface IPartitioner<T extends Token>
      * @return decorated on-disk version of key
      */
     public String decorateKey(String key);
+    
+    /**
+     * Transform key to object representation of the on-disk format.
+     *
+     * @param key the raw, client-facing key
+     * @return decorated version of key
+     */
+    public DecoratedKey<T> decorateKeyObj(String key);
 
     public String undecorateKey(String decoratedKey);
 
     public Comparator<String> getDecoratedKeyComparator();
+    
+    /**
+     * @return a comparator for decorated key objects, not strings
+     */
+    public Comparator<DecoratedKey<T>> getDecoratedKeyObjComparator();
 
     public Comparator<String> getReverseDecoratedKeyComparator();
 

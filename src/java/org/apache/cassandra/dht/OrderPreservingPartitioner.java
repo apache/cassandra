@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.Random;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 
 public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 {
@@ -38,6 +39,13 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
             return o1.compareTo(o2);
         }
     };
+    private static final Comparator<DecoratedKey<StringToken>> objComparator = 
+        new Comparator<DecoratedKey<StringToken>>() {
+        public int compare(DecoratedKey<StringToken> o1, DecoratedKey<StringToken> o2)
+        {
+            return o1.getKey().compareTo(o2.getKey());
+        }
+    };      
     private static final Comparator<String> reverseComparator = new Comparator<String>() {
         public int compare(String o1, String o2)
         {
@@ -50,6 +58,11 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return key;
     }
 
+    public DecoratedKey<StringToken> decorateKeyObj(String key)
+    {
+        return new DecoratedKey<StringToken>(null, key);
+    }
+    
     public String undecorateKey(String decoratedKey)
     {
         return decoratedKey;
@@ -60,6 +73,11 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return comparator;
     }
 
+    public Comparator<DecoratedKey<StringToken>> getDecoratedKeyObjComparator()
+    {
+        return objComparator;
+    }
+    
     public Comparator<String> getReverseDecoratedKeyComparator()
     {
         return reverseComparator;
@@ -234,4 +252,5 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     {
         return new StringToken(key);
     }
+
 }

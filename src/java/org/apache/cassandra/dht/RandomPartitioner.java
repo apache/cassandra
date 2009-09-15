@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.StringTokenizer;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 
@@ -36,6 +37,21 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
 
+    private static final Comparator<DecoratedKey<BigIntegerToken>> objComparator = 
+        new Comparator<DecoratedKey<BigIntegerToken>>() {
+        public int compare(DecoratedKey<BigIntegerToken> o1, DecoratedKey<BigIntegerToken> o2)
+        {
+            // first, compare on the bigint hash "decoration".  usually this will be enough.
+            int v = o1.getToken().compareTo(o2.getToken());
+            if (v != 0) {
+                return v;
+            }
+
+            // if the hashes are equal, compare the strings
+            return o1.getKey().compareTo(o2.getKey());
+        }
+    };
+    
     private static final Comparator<String> comparator = new Comparator<String>()
     {
         public int compare(String o1, String o2)
@@ -69,6 +85,11 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         return FBUtilities.hash(key).toString() + ":" + key;
     }
 
+    public DecoratedKey<BigIntegerToken> decorateKeyObj(String key)
+    {
+        return new DecoratedKey<BigIntegerToken>(getToken(key), key);
+    }
+    
     public String undecorateKey(String decoratedKey)
     {
         return decoratedKey.split(":", 2)[1];
@@ -77,6 +98,11 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     public Comparator<String> getDecoratedKeyComparator()
     {
         return comparator;
+    }
+    
+    public Comparator<DecoratedKey<BigIntegerToken>> getDecoratedKeyObjComparator()
+    {
+        return objComparator;
     }
 
     public Comparator<String> getReverseDecoratedKeyComparator()

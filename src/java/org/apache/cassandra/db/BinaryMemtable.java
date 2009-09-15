@@ -34,7 +34,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import java.util.*;
 import org.apache.cassandra.dht.IPartitioner;
 
 public class BinaryMemtable
@@ -47,10 +46,11 @@ public class BinaryMemtable
     private String table_;
     private String cfName_;
     private boolean isFrozen_ = false;
-    private Map<String, byte[]> columnFamilies_ = new NonBlockingHashMap<String, byte[]>();
+    private Map<DecoratedKey, byte[]> columnFamilies_ = new NonBlockingHashMap<DecoratedKey, byte[]>();
     /* Lock and Condition for notifying new clients about Memtable switches */
     Lock lock_ = new ReentrantLock();
     Condition condition_;
+    private final IPartitioner partitioner_ = StorageService.getPartitioner();
 
     BinaryMemtable(String table, String cfName) throws IOException
     {
@@ -123,8 +123,8 @@ public class BinaryMemtable
 
     private void resolve(String key, byte[] buffer)
     {
-            columnFamilies_.put(key, buffer);
-            currentSize_.addAndGet(buffer.length + key.length());
+        columnFamilies_.put(partitioner_.decorateKeyObj(key), buffer);
+        currentSize_.addAndGet(buffer.length + key.length());
     }
 
 
@@ -144,7 +144,7 @@ public class BinaryMemtable
         String path;
         SSTableWriter writer;
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-        List<String> keys = new ArrayList<String>( columnFamilies_.keySet() );
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>( columnFamilies_.keySet() );
         /*
             Adding a lock here so data directories are evenly used. By default currentIndex
             is incremented, not an AtomicInteger. Let's fix this!
@@ -160,19 +160,16 @@ public class BinaryMemtable
             lock_.unlock();
         }
 
-        final IPartitioner partitioner = StorageService.getPartitioner();
-        final Comparator<String> dc = partitioner.getDecoratedKeyComparator();
-        Collections.sort(keys, dc);
-
+        Collections.sort(keys, partitioner_.getDecoratedKeyObjComparator());
 
         /* Use this BloomFilter to decide if a key exists in a SSTable */
-        for ( String key : keys )
-        {           
+        for (DecoratedKey key : keys)
+        {
             byte[] bytes = columnFamilies_.get(key);
-            if ( bytes.length > 0 )
-            {            	
+            if (bytes.length > 0)
+            {
                 /* Now write the key and value to disk */
-                writer.append(key, bytes);
+                writer.append(key.toString(), bytes);
             }
         }
         cfStore.addSSTable(writer.closeAndOpenReader());
