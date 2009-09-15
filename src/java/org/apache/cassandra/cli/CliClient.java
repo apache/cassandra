@@ -111,7 +111,7 @@ public class CliClient
     }
 
     // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException
+    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException
     {
         if (!CliMain.isConnected())
             return;

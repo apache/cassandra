@@ -72,7 +72,8 @@ public class CassandraServer implements Cassandra.Iface
 		storageService.start();
 	}
 
-    protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level) throws InvalidRequestException
+    protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level)
+    throws InvalidRequestException, UnavailableException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
         String cfName = commands.get(0).getColumnFamilyName();
@@ -175,7 +176,8 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    private Map<String, List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, int consistency_level) throws InvalidRequestException
+    private Map<String, List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, int consistency_level)
+    throws InvalidRequestException, UnavailableException
     {
         Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
         Map<String, List<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<String, List<ColumnOrSuperColumn>>();
@@ -211,7 +213,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException, NotFoundException
+    throws InvalidRequestException, NotFoundException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
@@ -219,7 +221,7 @@ public class CassandraServer implements Cassandra.Iface
     }
     
     public Map<String, List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
@@ -227,7 +229,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
@@ -250,7 +252,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public ColumnOrSuperColumn get(String table, String key, ColumnPath column_path, int consistency_level)
-    throws InvalidRequestException, NotFoundException
+    throws InvalidRequestException, NotFoundException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("get");
@@ -264,7 +266,7 @@ public class CassandraServer implements Cassandra.Iface
 
     /** no values will be mapped to keys with no data */
     private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
         Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
@@ -299,7 +301,7 @@ public class CassandraServer implements Cassandra.Iface
 
     /** always returns a ColumnOrSuperColumn for each key, even if there is no data for it */
     public Map<String, ColumnOrSuperColumn> multiget(String table, List<String> keys, ColumnPath column_path, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget");
@@ -307,7 +309,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, ColumnOrSuperColumn> multigetInternal(String table, List<String> keys, ColumnPath column_path, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         ThriftValidation.validateColumnPath(table, column_path);
 
@@ -356,7 +358,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public int get_count(String table, String key, ColumnParent column_parent, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_count");
@@ -364,7 +366,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, Integer> multigetCountInternal(String table, List<String> keys, ColumnParent column_parent, int consistency_level)
-    throws InvalidRequestException
+    throws InvalidRequestException, UnavailableException
     {
         // validateColumnParent assumes we require simple columns; g_c_c is the only
         // one of the columnParent-taking apis that can also work at the SC level.
@@ -576,7 +578,8 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults, int consistency_level) throws InvalidRequestException, TException
+    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults, int consistency_level)
+    throws InvalidRequestException, TException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_key_range");

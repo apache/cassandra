@@ -986,7 +986,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This function finds the most suitable endpoint given a key.
      * It checks for locality and alive test.
      */
-	public EndPoint findSuitableEndPoint(String key) throws IOException
+	public EndPoint findSuitableEndPoint(String key) throws IOException, UnavailableException
 	{
 		EndPoint[] endpoints = getReadStorageEndPoints(key);
 		for(EndPoint endPoint: endpoints)
@@ -1017,7 +1017,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 				return endpoints[j];
 			}
 		}
-		return null;
+
+        throw new UnavailableException(); // no nodes that could contain key are alive
 	}
 
 	Map<Token, EndPoint> getLiveEndPointMap()

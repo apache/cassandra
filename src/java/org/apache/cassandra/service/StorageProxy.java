@@ -233,7 +233,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the row associated with command.key
      * @throws Exception
      */
-    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException
+    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("weakreadlocal reading " + StringUtils.join(commands, ", "));
@@ -245,7 +245,6 @@ public class StorageProxy implements StorageProxyMBean
         for (ReadCommand command: commands)
         {
             EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
-            assert endPoint != null;
             Message message = command.makeReadMessage();
 
             if (logger.isDebugEnabled())
@@ -281,7 +280,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> readProtocol(List<ReadCommand> commands, int consistency_level)
-    throws IOException, TimeoutException, InvalidRequestException
+    throws IOException, TimeoutException, InvalidRequestException, UnavailableException
     {
         long startTime = System.currentTimeMillis();
 
@@ -335,7 +334,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static List<Row> strongRead(List<ReadCommand> commands) throws IOException, TimeoutException, InvalidRequestException
+    private static List<Row> strongRead(List<ReadCommand> commands) throws IOException, TimeoutException, InvalidRequestException, UnavailableException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
         List<EndPoint[]> commandEndPoints = new ArrayList<EndPoint[]>();
@@ -448,52 +447,6 @@ public class StorageProxy implements StorageProxyMBean
         }        
         return messages;
     }
-    
-    private static MultiQuorumResponseHandler dispatchMessagesMulti(Map<String, ReadCommand[]> readMessages, Map<String, Message[]> messages) throws IOException
-    {
-        Set<String> keys = messages.keySet();
-        /* This maps the keys to the original data read messages */
-        Map<String, ReadCommand> readMessage = new HashMap<String, ReadCommand>();
-        /* This maps the keys to their respective endpoints/replicas */
-        Map<String, EndPoint[]> endpoints = new HashMap<String, EndPoint[]>();
-        /* Groups the messages that need to be sent to the individual keys */
-        Message[][] msgList = new Message[messages.size()][DatabaseDescriptor.getReplicationFactor()];
-        /* Respects the above grouping and provides the endpoints for the above messages */
-        EndPoint[][] epList = new EndPoint[messages.size()][DatabaseDescriptor.getReplicationFactor()];
-        
-        int i = 0;
-        for ( String key : keys )
-        {
-            /* This is the primary */
-            EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(key);
-            List<EndPoint> replicas = new ArrayList<EndPoint>( StorageService.instance().getLiveReadStorageEndPoints(key) );
-            replicas.remove(dataPoint);
-            /* Get the messages to be sent index 0 is the data messages and index 1 is the digest message */
-            Message[] message = messages.get(key);           
-            msgList[i][0] = message[0];
-            int N = DatabaseDescriptor.getReplicationFactor();
-            for ( int j = 1; j < N; ++j )
-            {
-                msgList[i][j] = message[1];
-            }
-            /* Get the endpoints to which the above messages need to be sent */
-            epList[i][0] = dataPoint;
-            for ( int j = 1; i < N; ++i )
-            {                
-                epList[i][j] = replicas.get(j - 1);
-            } 
-            /* Data ReadMessage associated with this key */
-            readMessage.put( key, readMessages.get(key)[0] );
-            /* EndPoints for this specific key */
-            endpoints.put(key, epList[i]);
-            ++i;
-        }
-                
-        /* Handles the read semantics for this entire set of keys */
-        MultiQuorumResponseHandler quorumResponseHandlers = new MultiQuorumResponseHandler(readMessage, endpoints);
-        MessagingService.getMessagingInstance().sendRR(msgList, epList, quorumResponseHandlers);
-        return quorumResponseHandlers;
-    }
 
     /*
     * This function executes the read protocol locally and should be used only if consistency is not a concern.
@@ -530,7 +483,7 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static List<String> getKeyRange(RangeCommand rawCommand) throws IOException
+    static List<String> getKeyRange(RangeCommand rawCommand) throws IOException, UnavailableException
     {
         long startTime = System.currentTimeMillis();
         Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
