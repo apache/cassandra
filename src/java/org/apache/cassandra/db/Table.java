@@ -485,7 +485,7 @@ public class Table
         {
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
             if ( cfStore != null )
-                MinorCompactionManager.instance().submitMajor(cfStore, 0);
+                CompactionManager.instance().submitMajor(cfStore, 0);
         }
     }
 

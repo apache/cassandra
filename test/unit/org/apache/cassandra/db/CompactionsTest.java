@@ -55,7 +55,7 @@ public class CompactionsTest extends CleanupHelper
         }
         while (true)
         {
-            Future<Integer> ft = MinorCompactionManager.instance().submit(store);
+            Future<Integer> ft = CompactionManager.instance().submit(store);
             if (ft.get() == 0)
                 break;
         }

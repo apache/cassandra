@@ -42,8 +42,8 @@ import javax.management.remote.JMXServiceURL;
 
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.MinorCompactionManager;
-import org.apache.cassandra.db.MinorCompactionManagerMBean;
+import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageServiceMBean;
@@ -74,7 +74,7 @@ public class NodeProbe
     private StorageServiceMBean ssProxy;
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
-    private MinorCompactionManagerMBean mcmProxy;
+    private CompactionManagerMBean mcmProxy;
 
     static
     {
@@ -159,8 +159,8 @@ public class NodeProbe
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
-            name = new ObjectName(MinorCompactionManager.MBEAN_OBJECT_NAME);
-            mcmProxy = JMX.newMBeanProxy(mbeanServerConn, name, MinorCompactionManagerMBean.class);
+            name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
+            mcmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(

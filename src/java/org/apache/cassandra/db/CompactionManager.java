@@ -37,16 +37,16 @@ import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
 
-public class MinorCompactionManager implements MinorCompactionManagerMBean
+public class CompactionManager implements CompactionManagerMBean
 {
-    public static String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=MinorCompactionManager";
-    private static MinorCompactionManager instance_;
+    public static String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
+    private static CompactionManager instance_;
     private static Lock lock_ = new ReentrantLock();
-    private static Logger logger_ = Logger.getLogger(MinorCompactionManager.class);
+    private static Logger logger_ = Logger.getLogger(CompactionManager.class);
     private int minimumCompactionThreshold_ = 4; // compact this many sstables min at a time
     private int maximumCompactionThreshold = 32; // compact this many sstables max at a time
 
-    public static MinorCompactionManager instance()
+    public static CompactionManager instance()
     {
         if ( instance_ == null )
         {
@@ -55,7 +55,7 @@ public class MinorCompactionManager implements MinorCompactionManagerMBean
             {
                 if ( instance_ == null )
                 {
-                    instance_ = new MinorCompactionManager();
+                    instance_ = new CompactionManager();
                     MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
                     mbs.registerMBean(instance_, new ObjectName(MBEAN_OBJECT_NAME));
                 }

@@ -188,7 +188,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.onStart(sstables);
 
         // submit initial check-for-compaction request
-        MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
+        CompactionManager.instance().submit(ColumnFamilyStore.this);
 
         // schedule hinted handoff
         if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
@@ -248,7 +248,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     List<SSTableReader> forceAntiCompaction(List<Range> ranges, EndPoint target, long skip)
     {
         assert ranges != null;
-        Future<List<SSTableReader>> futurePtr = MinorCompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target);
+        Future<List<SSTableReader>> futurePtr = CompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target);
 
         List<SSTableReader> result;
         try
@@ -556,7 +556,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void addSSTable(SSTableReader sstable)
     {
         ssTables_.add(sstable);
-        MinorCompactionManager.instance().submit(this);
+        CompactionManager.instance().submit(this);
     }
 
     private PriorityQueue<FileStruct> initializePriorityQueue(Collection<SSTableReader> sstables, List<Range> ranges) throws IOException
@@ -714,7 +714,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceCleanup()
     {
-        MinorCompactionManager.instance().submitCleanup(ColumnFamilyStore.this);
+        CompactionManager.instance().submitCleanup(ColumnFamilyStore.this);
     }
 
     /**
@@ -1034,7 +1034,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTable = writer.closeAndOpenReader();
         ssTables_.add(ssTable);
         ssTables_.markCompacted(sstables);
-        MinorCompactionManager.instance().submit(ColumnFamilyStore.this);
+        CompactionManager.instance().submit(ColumnFamilyStore.this);
 
         String format = "Compacted to %s.  %d/%d bytes for %d/%d keys read/written.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;
