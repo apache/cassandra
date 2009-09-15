@@ -24,6 +24,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.service.UnavailableException;
 
 public class TokenMetadata
 {
@@ -153,7 +156,7 @@ public class TokenMetadata
     }
     
 
-    public EndPoint getNextEndpoint(EndPoint endPoint)
+    public EndPoint getNextEndpoint(EndPoint endPoint) throws UnavailableException
     {
         lock_.readLock().lock();
         try
@@ -163,7 +166,16 @@ public class TokenMetadata
                 return null;
             Collections.sort(tokens);
             int i = tokens.indexOf(endPointToTokenMap_.get(endPoint)); // TODO binary search
-            return tokenToEndPointMap_.get(tokens.get((i + 1) % tokens.size()));
+            int j = 1;
+            EndPoint ep;
+            while (!FailureDetector.instance().isAlive((ep = tokenToEndPointMap_.get(tokens.get((i + j) % tokens.size())))))
+            {
+                if (++j > DatabaseDescriptor.getReplicationFactor())
+                {
+                    throw new UnavailableException();
+                }
+            }
+            return ep;
         }
         finally
         {

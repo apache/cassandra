@@ -114,33 +114,33 @@ service Cassandra {
                           2:required string key,
                           3:required ColumnPath column_path,
                           4:required ConsistencyLevel consistency_level=1)
-                      throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
+                      throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: UnavailableException ue),
 
   list<ColumnOrSuperColumn> get_slice(1:required string keyspace, 
                                       2:required string key, 
                                       3:required ColumnParent column_parent, 
                                       4:required SlicePredicate predicate, 
                                       5:required ConsistencyLevel consistency_level=1)
-                              throws (1: InvalidRequestException ire, 2: NotFoundException nfe),
+                              throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: UnavailableException ue),
 
   map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
                                            2:required list<string> keys, 
                                            3:required ColumnPath column_path, 
                                            4:required ConsistencyLevel consistency_level=1)
-                                    throws (1: InvalidRequestException ire),
+                                    throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   map<string,list<ColumnOrSuperColumn>> multiget_slice(1:required string keyspace, 
                                                        2:required list<string> keys, 
                                                        3:required ColumnParent column_parent, 
                                                        4:required SlicePredicate predicate, 
                                                        5:required ConsistencyLevel consistency_level=1)
-                                          throws (1: InvalidRequestException ire),
+                                          throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   i32 get_count(1:required string keyspace, 
                 2:required string key, 
                 3:required ColumnParent column_parent, 
                 4:required ConsistencyLevel consistency_level=1)
-      throws (1: InvalidRequestException ire),
+      throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # range query: returns matching keys
   list<string> get_key_range(1:required string keyspace, 
@@ -149,7 +149,7 @@ service Cassandra {
                              4:required string finish="", 
                              5:required i32 count=100, 
                              6:required ConsistencyLevel consistency_level=1)
-               throws (1: InvalidRequestException ire),
+               throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # modification methods
   void insert(1:required string keyspace, 
