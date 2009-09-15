@@ -42,6 +42,8 @@ import javax.management.remote.JMXServiceURL;
 
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.MinorCompactionManager;
+import org.apache.cassandra.db.MinorCompactionManagerMBean;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageServiceMBean;
@@ -72,7 +74,8 @@ public class NodeProbe
     private StorageServiceMBean ssProxy;
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
-    
+    private MinorCompactionManagerMBean mcmProxy;
+
     static
     {
         options = new Options();
@@ -156,6 +159,8 @@ public class NodeProbe
         {
             ObjectName name = new ObjectName(ssObjName);
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
+            name = new ObjectName(MinorCompactionManager.MBEAN_OBJECT_NAME);
+            mcmProxy = JMX.newMBeanProxy(mbeanServerConn, name, MinorCompactionManagerMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
@@ -501,15 +506,31 @@ public class NodeProbe
     }
 
     /**
-     * Retrieve any non-option arguments passed on the command line.
-     * 
-     * @return non-option command args
+     * Get the compaction threshold
+     *
+     * @param outs the stream to write to
      */
-    private String[] getArgs()
+    public void getCompactionThreshold(PrintStream outs)
     {
-        return cmd.getArgs();
+        outs.println("Current compaction threshold: Min=" +  mcmProxy.getMinimumCompactionThreshold() +
+            ", Max=" +  mcmProxy.getMaximumCompactionThreshold());
     }
-    
+
+    /**
+     * Set the compaction threshold
+     *
+     * @param minimumCompactionThreshold minimum compaction threshold
+     * @param maximumCompactionThreshold maximum compaction threshold
+     */
+    public void setCompactionThreshold(int minimumCompactionThreshold, int maximumCompactionThreshold)
+    {
+        mcmProxy.setMinimumCompactionThreshold(minimumCompactionThreshold);
+        if (maximumCompactionThreshold > 0)
+        {
+             mcmProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
+        }
+    }
+
     /**
      * Parse the supplied command line arguments.
      * 
@@ -523,13 +544,24 @@ public class NodeProbe
     }
     
     /**
+     * Retrieve any non-option arguments passed on the command line.
+     * 
+     * @return non-option command args
+     */
+    private String[] getArgs()
+    {
+        return cmd.getArgs();
+    }
+    
+    /**
      * Prints usage information to stdout.
      */
     private static void printUsage()
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap, tpstats, flush_binary");
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap, tpstats, flush_binary, " +
+                " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -630,6 +662,26 @@ public class NodeProbe
                 System.exit(1);
             }
             probe.forceTableFlushBinary(probe.getArgs()[1]);
+        }
+        else if (cmdName.equals("getcompactionthreshold"))
+        {   
+            probe.getCompactionThreshold(System.out);
+        }
+        else if (cmdName.equals("setcompactionthreshold"))
+        {
+            if (arguments.length < 2)
+            {
+                System.err.println("Missing threshold value(s)");
+                NodeProbe.printUsage();
+                System.exit(1);
+            }
+            int minthreshold = Integer.parseInt(arguments[1]);
+            int maxthreshold = 0;
+            if (arguments.length > 2)
+            {   
+                maxthreshold = Integer.parseInt(arguments[2]);
+            }
+            probe.setCompactionThreshold(minthreshold, maxthreshold);
         }
         else
         {

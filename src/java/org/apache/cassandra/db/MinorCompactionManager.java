@@ -19,12 +19,15 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
@@ -34,14 +37,14 @@ import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
 
-class MinorCompactionManager
+public class MinorCompactionManager implements MinorCompactionManagerMBean
 {
+    public static String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=MinorCompactionManager";
     private static MinorCompactionManager instance_;
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(MinorCompactionManager.class);
-    private static final long intervalInMins_ = 5;
-    static final int MINCOMPACTION_THRESHOLD = 4; // compact this many sstables min at a time
-    static final int MAXCOMPACTION_THRESHOLD = 32; // compact this many sstables max at a time
+    private int minimumCompactionThreshold_ = 4; // compact this many sstables min at a time
+    private int maximumCompactionThreshold = 32; // compact this many sstables max at a time
 
     public static MinorCompactionManager instance()
     {
@@ -51,7 +54,15 @@ class MinorCompactionManager
             try
             {
                 if ( instance_ == null )
+                {
                     instance_ = new MinorCompactionManager();
+                    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+                    mbs.registerMBean(instance_, new ObjectName(MBEAN_OBJECT_NAME));
+                }
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
             }
             finally
             {
@@ -157,7 +168,7 @@ class MinorCompactionManager
      */
     public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
-        return submit(columnFamilyStore, MINCOMPACTION_THRESHOLD, MAXCOMPACTION_THRESHOLD);
+        return submit(columnFamilyStore, minimumCompactionThreshold_, maximumCompactionThreshold);
     }
 
     Future<Integer> submit(final ColumnFamilyStore columnFamilyStore, final int minThreshold, final int maxThreshold)
@@ -185,5 +196,37 @@ class MinorCompactionManager
     public void  submitMajor(ColumnFamilyStore columnFamilyStore, long skip)
     {
         compactor_.submit( new OnDemandCompactor(columnFamilyStore, skip) );
+    }
+
+    /**
+     * Gets the minimum number of sstables in queue before compaction kicks off
+     */
+    public int getMinimumCompactionThreshold()
+    {
+        return minimumCompactionThreshold_;
+    }
+
+    /**
+     * Sets the minimum number of sstables in queue before compaction kicks off
+     */
+    public void setMinimumCompactionThreshold(int threshold)
+    {
+        minimumCompactionThreshold_ = threshold;
+    }
+
+    /**
+     * Gets the maximum number of sstables in queue before compaction kicks off
+     */
+    public int getMaximumCompactionThreshold()
+    {
+        return maximumCompactionThreshold;
+    }
+
+    /**
+     * Sets the maximum number of sstables in queue before compaction kicks off
+     */
+    public void setMaximumCompactionThreshold(int threshold)
+    {
+        maximumCompactionThreshold = threshold;
     }
 }
