@@ -159,7 +159,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
     
     
-    private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("MINOR-COMPACTION-POOL"));
+    private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("COMPACTION-POOL"));
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
