@@ -21,8 +21,8 @@ and running, and demonstrate some simple reads and writes.
 
   * tar -zxvf cassandra-$VERSION.tgz
   * cd cassandra-$VERSION
-  * sudo mkdir -p /var/cassandra/logs
-  * sudo chown `whoami` -R /var/cassandra
+  * sudo mkdir -p /var/log/cassandra
+  * sudo chown -R `whoami` /var/lib/cassandra
 
 Note: The sample configuration files in conf/ determine the file-system 
 locations Cassandra uses for logging and data storage. You are free to
