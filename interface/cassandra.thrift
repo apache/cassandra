@@ -1,4 +1,3 @@
-
 #!/usr/local/bin/thrift --java --php --py
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -31,6 +30,18 @@ namespace perl Cassandra
 # with the same name are not properly referenced, so we can't do
 # Cassandra::Cassandra::Client.
 namespace rb CassandraThrift
+
+
+#
+# constants
+#
+
+# for clients checking that server and it have same thrift definitions.
+# no promises are made other than "if both are equal, you're good."
+# in particular, don't try to parse numeric information out and assume
+# that a "greater" version is a superset of a "smaller" one.
+const string VERSION = "0.5-dev-1"
+
 
 #
 # data structures
