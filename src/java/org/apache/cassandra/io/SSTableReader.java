@@ -333,11 +333,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return partitioner;
     }
 
-    public FileStruct getFileStruct() throws IOException
-    {
-        return new FileStruct(this);
-    }
-
     public SSTableScanner getScanner() throws IOException
     {
         return new SSTableScanner(this);

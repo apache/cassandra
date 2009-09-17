@@ -153,7 +153,7 @@ public class Memtable implements Comparable<Memtable>
         {
             int oldSize = oldCf.size();
             int oldObjectCount = oldCf.getColumnCount();
-            oldCf.addColumns(columnFamily);
+            oldCf.addAll(columnFamily);
             int newSize = oldCf.size();
             int newObjectCount = oldCf.getColumnCount();
             resolveSize(oldSize, newSize);

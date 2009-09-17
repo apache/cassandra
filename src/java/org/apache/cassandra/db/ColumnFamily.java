@@ -35,7 +35,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.MarshalException;
 
 
 public final class ColumnFamily implements IColumnContainer
@@ -121,12 +120,13 @@ public final class ColumnFamily implements IColumnContainer
      *  We need to go through each column
      *  in the column family and resolve it before adding
     */
-    void addColumns(ColumnFamily cf)
+    public void addAll(ColumnFamily cf)
     {
         for (IColumn column : cf.getSortedColumns())
         {
             addColumn(column);
         }
+        delete(cf);
     }
 
     public ICompactSerializer2<IColumn> getColumnSerializer()
@@ -415,8 +415,7 @@ public final class ColumnFamily implements IColumnContainer
         for (ColumnFamily cf2 : columnFamilies)
         {
             assert cf.name().equals(cf2.name());
-            cf.addColumns(cf2);
-            cf.delete(cf2);
+            cf.addAll(cf2);
         }
         return cf;
     }

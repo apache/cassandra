@@ -37,7 +37,6 @@ public class IteratingRow extends AbstractIterator<IColumn> implements Comparabl
 {
     private final String key;
     private final long finishedAt;
-    private final ColumnFamily emptyColumnFamily;
     private final BufferedRandomAccessFile file;
     private SSTableReader sstable;
     private long dataStart;
@@ -51,20 +50,11 @@ public class IteratingRow extends AbstractIterator<IColumn> implements Comparabl
         int dataSize = file.readInt();
         dataStart = file.getFilePointer();
         finishedAt = dataStart + dataSize;
-        // legacy stuff to support FileStruct:
-        IndexHelper.skipBloomFilterAndIndex(file);
-        emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
-        file.readInt();
     }
 
     public String getKey()
     {
         return key;
-    }
-
-    public ColumnFamily getEmptyColumnFamily()
-    {
-        return emptyColumnFamily;
     }
 
     public void echoData(DataOutput out) throws IOException

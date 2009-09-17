@@ -20,8 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Random;
 import java.util.TreeMap;
 
 import org.junit.Test;
@@ -125,8 +123,8 @@ public class ColumnFamilyTest
         cf_old.addColumn(QueryPath.column("col2".getBytes()), val2, 1);
         cf_old.addColumn(QueryPath.column("col3".getBytes()), val2, 2);
 
-        cf_result.addColumns(cf_new);
-        cf_result.addColumns(cf_old);
+        cf_result.addAll(cf_new);
+        cf_result.addAll(cf_old);
 
         assert 3 == cf_result.getColumnCount() : "Count is " + cf_new.getColumnCount();
         //addcolumns will only add if timestamp >= old timestamp
