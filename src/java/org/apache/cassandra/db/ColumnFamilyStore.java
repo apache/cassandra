@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Closeable;
 import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -1340,9 +1341,23 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // sstables
         for (SSTableReader sstable : ssTables_)
         {
-            FileStruct fs = sstable.getFileStruct();
+            final SSTableScanner fs = sstable.getScanner();
             fs.seekTo(startWith);
-            iterators.add(fs);
+            iterators.add(new Iterator<String>()
+            {
+                public boolean hasNext()
+                {
+                    return fs.hasNext();
+                }
+                public String next()
+                {
+                    return fs.next().getKey();
+                }
+                public void remove()
+                {
+                    throw new UnsupportedOperationException();
+                }
+            });
         }
 
         Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
@@ -1392,9 +1407,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             for (Iterator iter : iterators)
             {
-                if (iter instanceof FileStruct)
+                if (iter instanceof Closeable)
                 {
-                    ((FileStruct)iter).close();
+                    ((Closeable)iter).close();
                 }
             }
         }

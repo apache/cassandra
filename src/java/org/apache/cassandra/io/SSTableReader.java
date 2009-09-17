@@ -32,8 +32,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -339,6 +338,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return new FileStruct(this);
     }
 
+    public SSTableScanner getScanner() throws IOException
+    {
+        return new SSTableScanner(this);
+    }
+
     public String getTableName()
     {
         return parseTableName(path);
@@ -352,6 +356,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public ColumnFamily makeColumnFamily()
     {
         return ColumnFamily.create(getTableName(), getColumnFamilyName());
+    }
+
+    public ICompactSerializer2<IColumn> getColumnSerializer()
+    {
+        return DatabaseDescriptor.getColumnFamilyType(getTableName(), getColumnFamilyName()).equals("Standard")
+               ? Column.serializer()
+               : SuperColumn.serializer(getColumnComparator());
     }
 }
 

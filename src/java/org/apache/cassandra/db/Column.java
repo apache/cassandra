@@ -36,7 +36,7 @@ public final class Column implements IColumn
 {
     private static ColumnSerializer serializer_ = new ColumnSerializer();
 
-    static ColumnSerializer serializer()
+    public static ColumnSerializer serializer()
     {
         return serializer_;
     }

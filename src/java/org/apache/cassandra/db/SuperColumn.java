@@ -38,7 +38,7 @@ public final class SuperColumn implements IColumn, IColumnContainer
 {
 	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
 
-    static SuperColumnSerializer serializer(AbstractType comparator)
+    public static SuperColumnSerializer serializer(AbstractType comparator)
     {
         return new SuperColumnSerializer(comparator);
     }

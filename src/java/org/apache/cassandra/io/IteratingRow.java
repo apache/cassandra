@@ -22,31 +22,39 @@ package org.apache.cassandra.io;
 
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.DataOutputStream;
+import java.io.DataOutput;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.StorageService;
 import com.google.common.collect.AbstractIterator;
 
-public class IteratingRow extends AbstractIterator<IColumn>
+public class IteratingRow extends AbstractIterator<IColumn> implements Comparable<IteratingRow>
 {
     private final String key;
     private final long finishedAt;
     private final ColumnFamily emptyColumnFamily;
     private final BufferedRandomAccessFile file;
+    private SSTableReader sstable;
+    private long dataStart;
 
     public IteratingRow(BufferedRandomAccessFile file, SSTableReader sstable) throws IOException
     {
         this.file = file;
+        this.sstable = sstable;
 
         key = file.readUTF();
-        long dataSize = file.readInt();
-        long dataStart = file.getFilePointer();
+        int dataSize = file.readInt();
+        dataStart = file.getFilePointer();
         finishedAt = dataStart + dataSize;
+        // legacy stuff to support FileStruct:
         IndexHelper.skipBloomFilterAndIndex(file);
         emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(sstable.makeColumnFamily(), file);
-        file.readInt(); // column count. breaking serializer encapsulation is less fugly than adding a wrapper class to allow deserializeEmpty to return both values
+        file.readInt();
     }
 
     public String getKey()
@@ -59,9 +67,31 @@ public class IteratingRow extends AbstractIterator<IColumn>
         return emptyColumnFamily;
     }
 
+    public void echoData(DataOutput out) throws IOException
+    {
+        file.seek(dataStart);
+        while (file.getFilePointer() < finishedAt)
+        {
+            out.write(file.read());
+        }
+    }
+
+    // TODO r/m this and make compaction merge columns iteratively for CASSSANDRA-16
+    public ColumnFamily getColumnFamily() throws IOException
+    {
+        file.seek(dataStart);
+        IndexHelper.skipBloomFilterAndIndex(file);
+        return ColumnFamily.serializer().deserializeFromSSTable(sstable, file);
+    }
+
     public void skipRemaining() throws IOException
     {
         file.seek(finishedAt);
+    }
+
+    public long getEndPosition()
+    {
+        return finishedAt;
     }
 
     protected IColumn computeNext()
@@ -74,11 +104,16 @@ public class IteratingRow extends AbstractIterator<IColumn>
                 return endOfData();
             }
 
-            return emptyColumnFamily.getColumnSerializer().deserialize(file);
+            return sstable.getColumnSerializer().deserialize(file);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public int compareTo(IteratingRow o)
+    {
+        return StorageService.getPartitioner().getDecoratedKeyComparator().compare(key, o.key);
     }
 }

@@ -27,6 +27,7 @@ import java.io.DataInput;
 import java.util.Collection;
 
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
@@ -81,14 +82,18 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
         ColumnFamily cf = deserializeFromSSTableNoColumns(dis.readUTF(), dis.readUTF(), readComparator(dis), readComparator(dis), dis);
+        deserializeColumns(dis, cf);
+        return cf;
+    }
+
+    private void deserializeColumns(DataInput dis, ColumnFamily cf) throws IOException
+    {
         int size = dis.readInt();
-        IColumn column;
         for (int i = 0; i < size; ++i)
         {
-            column = cf.getColumnSerializer().deserialize(dis);
+            IColumn column = cf.getColumnSerializer().deserialize(dis);
             cf.addColumn(column);
         }
-        return cf;
     }
 
     private AbstractType readComparator(DataInput dis) throws IOException
@@ -122,6 +127,14 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     public ColumnFamily deserializeFromSSTableNoColumns(ColumnFamily cf, DataInput input) throws IOException
     {
         cf.delete(input.readInt(), input.readLong());
+        return cf;
+    }
+
+    public ColumnFamily deserializeFromSSTable(SSTableReader sstable, DataInput file) throws IOException
+    {
+        ColumnFamily cf = sstable.makeColumnFamily();
+        deserializeFromSSTableNoColumns(cf, file);
+        deserializeColumns(file, cf);
         return cf;
     }
 }
