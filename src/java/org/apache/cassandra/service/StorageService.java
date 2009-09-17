@@ -95,7 +95,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return udpAddr_;
     }
 
-    public static IPartitioner getPartitioner() {
+    public static IPartitioner<?> getPartitioner() {
         return partitioner_;
     }
 
