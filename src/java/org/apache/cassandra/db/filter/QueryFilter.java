@@ -82,7 +82,7 @@ public abstract class QueryFilter
     {
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
-        ReducingIterator<IColumn> reduced = new ReducingIterator<IColumn>(collatedColumns)
+        ReducingIterator<IColumn, IColumn> reduced = new ReducingIterator<IColumn, IColumn>(collatedColumns)
         {
             ColumnFamily curCF = returnCF.cloneMeShallow();
 

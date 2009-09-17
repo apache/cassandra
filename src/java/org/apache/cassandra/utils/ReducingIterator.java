@@ -28,29 +28,29 @@ import com.google.common.collect.AbstractIterator;
 /**
  * reduces equal values from the source iterator to a single (optionally transformed) instance.
  */
-public abstract class ReducingIterator<T> extends AbstractIterator<T> implements Iterator<T>, Iterable<T>
+public abstract class ReducingIterator<T1, T2> extends AbstractIterator<T2> implements Iterator<T2>, Iterable<T2>
 {
-    protected Iterator<T> source;
-    protected T last;
+    protected Iterator<T1> source;
+    protected T1 last;
 
-    public ReducingIterator(Iterator<T> source)
+    public ReducingIterator(Iterator<T1> source)
     {
         this.source = source;
     }
 
     /** combine this object with the previous ones.  intermediate state is up to your implementation. */
-    public abstract void reduce(T current);
+    public abstract void reduce(T1 current);
 
     /** return the last object computed by reduce */
-    protected abstract T getReduced();
+    protected abstract T2 getReduced();
 
     /** override this if the keys you want to base the reduce on are not the same as the object itself (but can be generated from it) */
-    protected boolean isEqual(T o1, T o2)
+    protected boolean isEqual(T1 o1, T1 o2)
     {
         return o1.equals(o2);
     }
 
-    protected T computeNext()
+    protected T2 computeNext()
     {
         if (last == null && !source.hasNext())
             return endOfData();
@@ -65,7 +65,7 @@ public abstract class ReducingIterator<T> extends AbstractIterator<T> implements
                 last = null;
                 break;
             }
-            T current = source.next();
+            T1 current = source.next();
             if (last != null && !isEqual(current, last))
                 keyChanged = true;
             last = current;
@@ -73,7 +73,7 @@ public abstract class ReducingIterator<T> extends AbstractIterator<T> implements
         return getReduced();
     }
 
-    public Iterator<T> iterator()
+    public Iterator<T2> iterator()
     {
         return this;
     }

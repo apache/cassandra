@@ -1361,7 +1361,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
-        Iterable<String> reduced = new ReducingIterator<String>(collated) {
+        Iterable<String> reduced = new ReducingIterator<String, String>(collated) {
             String current;
 
             public void reduce(String current)
