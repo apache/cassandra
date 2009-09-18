@@ -24,7 +24,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +39,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class RowMutation implements Serializable
@@ -186,40 +184,27 @@ public class RowMutation implements Serializable
     */
     public void apply() throws IOException
     {
-        Row row = new Row(table_, key_);
-        apply(row);
+        Row row = createRow();
+        Table.open(table_).apply(row, row.getSerializedBuffer());
     }
 
-    /*
-     * Allows RowMutationVerbHandler to optimize by re-using a single Row object.
-    */
-    void apply(Row emptyRow) throws IOException
+    private Row createRow()
     {
-        assert emptyRow.getColumnFamilies().size() == 0;
-        Table table = Table.open(table_);
+        Row row = new Row(table_, key_);
         for (String cfName : modifications_.keySet())
         {
-            assert table.isValidColumnFamily(cfName);
-            emptyRow.addColumnFamily(modifications_.get(cfName));
+            row.addColumnFamily(modifications_.get(cfName));
         }
-        table.apply(emptyRow);
+        return row;
     }
 
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the table that is obtained by calling Table.open().
     */
-    void applyBinary(Row emptyRow) throws IOException, ExecutionException, InterruptedException
+    void applyBinary() throws IOException, ExecutionException, InterruptedException
     {
-        assert emptyRow.getColumnFamilies().size() == 0;
-        Table table = Table.open(table_);
-        Set<String> cfNames = modifications_.keySet();
-        for (String cfName : cfNames)
-        {
-            assert table.isValidColumnFamily(cfName);
-            emptyRow.addColumnFamily(modifications_.get(cfName));
-        }
-        table.load(emptyRow);
+        Table.open(table_).load(createRow());
     }
 
     public Message makeRowMutationMessage() throws IOException

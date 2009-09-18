@@ -60,12 +60,12 @@ public class RowTest
     @Test
     public void testRepair()
     {
-        Row row1 = new Row();
+        Row row1 = new Row("", "");
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("one", "A", 0));
         row1.addColumnFamily(cf1);
 
-        Row row2 = new Row();
+        Row row2 = new Row("", "");
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("one", "B", 1));
         cf2.addColumn(column("two", "C", 1));

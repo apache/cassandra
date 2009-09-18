@@ -56,7 +56,7 @@ public class Memtable implements Comparable<Memtable>
     private String cfName_;
     private long creationTime_;
     // we use NBHM with manual locking, so reads are automatically threadsafe but write merging is serialized per key
-    private Map<String, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<String, ColumnFamily>();
+    private NonBlockingHashMap<String, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<String, ColumnFamily>();
     private Object[] keyLocks;
 
     Memtable(String table, String cfName)
@@ -142,16 +142,19 @@ public class Memtable implements Comparable<Memtable>
     {
         assert !isFrozen_; // not 100% foolproof but hell, it's an assert
         isDirty_ = true;
-        synchronized (keyLocks[Math.abs(key.hashCode() % keyLocks.length)])
-        {
-            resolve(key, columnFamily);
-        }
+        resolve(key, columnFamily);
     }
 
     private void resolve(String key, ColumnFamily columnFamily)
     {
-    	ColumnFamily oldCf = columnFamilies_.get(key);
-        if ( oldCf != null )
+        ColumnFamily oldCf = columnFamilies_.putIfAbsent(key, columnFamily);
+        if (oldCf == null)
+        {
+            currentSize_.addAndGet(columnFamily.size() + key.length());
+            currentObjectCount_.addAndGet(columnFamily.getColumnCount());
+            return;
+        }
+        synchronized (keyLocks[Math.abs(key.hashCode() % keyLocks.length)])
         {
             int oldSize = oldCf.size();
             int oldObjectCount = oldCf.getColumnCount();
@@ -161,12 +164,6 @@ public class Memtable implements Comparable<Memtable>
             resolveSize(oldSize, newSize);
             resolveCount(oldObjectCount, newObjectCount);
             oldCf.delete(columnFamily);
-        }
-        else
-        {
-            columnFamilies_.put(key, columnFamily);
-            currentSize_.addAndGet(columnFamily.size() + key.length());
-            currentObjectCount_.addAndGet(columnFamily.getColumnCount());
         }
     }
 

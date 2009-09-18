@@ -397,9 +397,9 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    CommitLogContext add(final Row row) throws IOException
+    CommitLogContext add(Row row, DataOutputBuffer serializedRow) throws IOException
     {
-        Callable<CommitLogContext> task = new LogRecordAdder(row);
+        Callable<CommitLogContext> task = new LogRecordAdder(row, serializedRow);
 
         try
         {
@@ -559,27 +559,38 @@ public class CommitLog
 
     class LogRecordAdder implements Callable<CommitLog.CommitLogContext>
     {
-        Row row;
+        final Row row;
+        final Object serializedRow;
 
-        LogRecordAdder(Row row)
+        LogRecordAdder(Row row, DataOutputBuffer serializedRow)
         {
             this.row = row;
+            this.serializedRow = serializedRow;
         }
 
         public CommitLog.CommitLogContext call() throws Exception
         {
             long currentPosition = -1L;
-            DataOutputBuffer cfBuffer = new DataOutputBuffer();
             try
             {
                 /* serialize the row */
-                Row.serializer().serialize(row, cfBuffer);
                 currentPosition = logWriter_.getFilePointer();
                 CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
                 /* Update the header */
                 maybeUpdateHeader(row);
-                logWriter_.writeLong(cfBuffer.getLength());
-                logWriter_.write(cfBuffer.getData(), 0, cfBuffer.getLength());
+                if (serializedRow instanceof DataOutputBuffer)
+                {
+                    DataOutputBuffer buffer = (DataOutputBuffer) serializedRow;
+                    logWriter_.writeLong(buffer.getLength());
+                    logWriter_.write(buffer.getData(), 0, buffer.getLength());
+                }
+                else
+                {
+                    assert serializedRow instanceof byte[];
+                    byte[] bytes = (byte[]) serializedRow;
+                    logWriter_.writeLong(bytes.length);
+                    logWriter_.write(bytes);
+                }
                 maybeRollLog();
                 return cLogCtx;
             }

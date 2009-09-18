@@ -31,32 +31,17 @@ import org.apache.cassandra.net.*;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
-    protected static class RowMutationContext
-    {
-        protected Row row_ = new Row();
-        protected DataInputBuffer buffer_ = new DataInputBuffer();
-    }
-
     private static Logger logger_ = Logger.getLogger(RowMutationVerbHandler.class);
-    /* We use this so that we can reuse the same row mutation context for the mutation. */
-    private static ThreadLocal<RowMutationContext> tls_ = new InheritableThreadLocal<RowMutationContext>();
 
     public void doVerb(Message message)
     {
         byte[] bytes = message.getMessageBody();
-        /* Obtain a Row Mutation Context from TLS */
-        RowMutationContext rowMutationCtx = tls_.get();
-        if ( rowMutationCtx == null )
-        {
-            rowMutationCtx = new RowMutationContext();
-            tls_.set(rowMutationCtx);
-        }
-
-        rowMutationCtx.buffer_.reset(bytes, bytes.length);
+        DataInputBuffer buffer = new DataInputBuffer();
+        buffer.reset(bytes, bytes.length);
 
         try
         {
-            RowMutation rm = RowMutation.serializer().deserialize(rowMutationCtx.buffer_);
+            RowMutation rm = RowMutation.serializer().deserialize(buffer);
             if (logger_.isDebugEnabled())
               logger_.debug("Applying " + rm);
 
@@ -73,10 +58,7 @@ public class RowMutationVerbHandler implements IVerbHandler
                 hintedMutation.apply();
             }
 
-            rowMutationCtx.row_.clear();
-            rowMutationCtx.row_.setTable(rm.table());
-            rowMutationCtx.row_.setKey(rm.key());
-            rm.apply(rowMutationCtx.row_);
+            rm.apply();
 
             WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);

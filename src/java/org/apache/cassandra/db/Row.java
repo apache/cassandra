@@ -32,6 +32,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Row
@@ -45,15 +46,11 @@ public class Row
         return serializer;
     }
 
-    public Row(String table, String key) {
+    public Row(String table, String key)
+    {
         assert table != null;
         this.table_ = table;
         this.key_ = key;
-    }
-
-    // only for use by RMVH
-    Row()
-    {
     }
 
     public String getTable() {
@@ -189,6 +186,13 @@ public class Row
     void clear()
     {
         columnFamilies_.clear();
+    }
+
+    public DataOutputBuffer getSerializedBuffer() throws IOException
+    {
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        Row.serializer().serialize(this, buffer);
+        return buffer;
     }
 
     public String toString()

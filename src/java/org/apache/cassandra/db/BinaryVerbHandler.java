@@ -18,37 +18,28 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.db.RowMutationVerbHandler.RowMutationContext;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.io.DataInputBuffer;
+
 import org.apache.log4j.Logger;
 
 public class BinaryVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = Logger.getLogger(BinaryVerbHandler.class);    
-    /* We use this so that we can reuse the same row mutation context for the mutation. */
-    private static ThreadLocal<RowMutationContext> tls_ = new InheritableThreadLocal<RowMutationContext>();
-    
+    private static Logger logger_ = Logger.getLogger(BinaryVerbHandler.class);
+
     public void doVerb(Message message)
     { 
         byte[] bytes = message.getMessageBody();
-        /* Obtain a Row Mutation Context from TLS */
-        RowMutationContext rowMutationCtx = tls_.get();
-        if ( rowMutationCtx == null )
-        {
-            rowMutationCtx = new RowMutationContext();
-            tls_.set(rowMutationCtx);
-        }                
-        rowMutationCtx.buffer_.reset(bytes, bytes.length);
-        
+        DataInputBuffer buffer = new DataInputBuffer();
+        buffer.reset(bytes, bytes.length);
+
 	    try
 	    {
-            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(rowMutationCtx.buffer_);
+            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(buffer);
             RowMutation rm = rmMsg.getRowMutation();            	                
-            rowMutationCtx.row_.setKey(rm.key());
-            rm.applyBinary(rowMutationCtx.row_);
-	
+            rm.applyBinary();
 	    }        
 	    catch ( Exception e )
 	    {
