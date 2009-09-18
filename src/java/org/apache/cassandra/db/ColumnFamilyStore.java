@@ -322,11 +322,28 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                              columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
     }
 
-    void switchMemtable(Memtable oldMemtable, CommitLog.CommitLogContext ctx)
+    void switchMemtable(Memtable oldMemtable)
     {
-        memtableLock_.writeLock().lock();
+        CommitLog.CommitLogContext ctx = null;
+        /**
+         *  If we can get the writelock, that means no new updates can come in and 
+         *  all ongoing updates to memtables have completed. We can get the tail
+         *  of the log and use it as the starting position for log replay on recovery.
+         *  
+         *  By holding the flusherLock_, we don't need the memetableLock any more.
+         */
+        Table.flusherLock_.writeLock().lock();
         try
         {
+            try
+            {
+                ctx = CommitLog.open().getContext();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+
             if (oldMemtable.isFrozen())
             {
                 return;
@@ -336,17 +353,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             getMemtablesPendingFlushNotNull(columnFamily_).add(oldMemtable); // it's ok for the MT to briefly be both active and pendingFlush
             submitFlush(oldMemtable, ctx);
             memtable_ = new Memtable(table_, columnFamily_);
+
+            if (memtableSwitchCount == Integer.MAX_VALUE)
+            {
+                memtableSwitchCount = 0;
+            }
+            memtableSwitchCount++;
         }
         finally
         {
-            memtableLock_.writeLock().unlock();
+            Table.flusherLock_.writeLock().unlock();
         }
-
-        if (memtableSwitchCount == Integer.MAX_VALUE)
-        {
-            memtableSwitchCount = 0;
-        }
-        memtableSwitchCount++;
     }
 
     void switchBinaryMemtable(String key, byte[] buffer) throws IOException
@@ -360,16 +377,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (memtable_.isClean())
             return;
 
-        CommitLog.CommitLogContext ctx = null;
-        try
-        {
-            ctx = CommitLog.open().getContext();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        switchMemtable(memtable_, ctx);
+        switchMemtable(memtable_);
     }
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
@@ -402,25 +410,30 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    void apply(String key, ColumnFamily columnFamily, CommitLog.CommitLogContext cLogCtx)
+    Memtable apply(String key, ColumnFamily columnFamily)
             throws IOException
     {
         long start = System.currentTimeMillis();
         Memtable initialMemtable = getMemtableThreadSafe();
+        boolean isFlush = false;
+        
         if (initialMemtable.isThresholdViolated())
         {
-            switchMemtable(initialMemtable, cLogCtx);
+            isFlush = true;
         }
+        
         memtableLock_.writeLock().lock();
         try
         {
-            memtable_.put(key, columnFamily);
+            initialMemtable.put(key, columnFamily);
         }
         finally
         {
             memtableLock_.writeLock().unlock();
         }
         writeStats_.add(System.currentTimeMillis() - start);
+        
+        return isFlush ? initialMemtable : null;
     }
 
     /*

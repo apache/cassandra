@@ -268,10 +268,11 @@ public class CommitLog
         logWriter_.seek(currentPos);
     }
 
-    private static void writeCommitLogHeader(RandomAccessFile logWriter, byte[] bytes) throws IOException
+    private static void writeCommitLogHeader(BufferedRandomAccessFile logWriter, byte[] bytes) throws IOException
     {
         logWriter.writeLong(bytes.length);
         logWriter.write(bytes);
+        logWriter.sync();
     }
 
     void recover(File[] clogs) throws IOException
@@ -515,7 +516,7 @@ public class CommitLog
                 }
                 else
                 {
-                    RandomAccessFile logWriter = CommitLog.createWriter(oldFile);
+                    BufferedRandomAccessFile logWriter = CommitLog.createWriter(oldFile);
                     writeCommitLogHeader(logWriter, oldCommitLogHeader.toByteArray());
                     logWriter.close();
                 }

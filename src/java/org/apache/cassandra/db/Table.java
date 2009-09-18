@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.File;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.BootstrapInitiateMessage;
@@ -48,6 +49,8 @@ public class Table
 
     private static Logger logger_ = Logger.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
+    /* we use this lock to drain updaters before calling a flush. */
+    static final ReentrantReadWriteLock flusherLock_ = new ReentrantReadWriteLock(true);
 
     /*
      * This class represents the metadata of this Table. The metadata
@@ -590,12 +593,30 @@ public class Table
     */
     void apply(Row row) throws IOException
     {
-        CommitLog.CommitLogContext cLogCtx = CommitLog.open().add(row);
+        HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>();
 
-        for (ColumnFamily columnFamily : row.getColumnFamilies())
+        flusherLock_.readLock().lock();
+        try
         {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-            cfStore.apply(row.key(), columnFamily, cLogCtx);
+            CommitLog.open().add(row);
+        
+            for (ColumnFamily columnFamily : row.getColumnFamilies())
+            {
+                Memtable memtableToFlush;
+                ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
+                if ( (memtableToFlush=cfStore.apply(row.key(), columnFamily)) != null)
+                    memtablesToFlush.put(cfStore, memtableToFlush);
+            }
+        }
+        finally
+        {
+            flusherLock_.readLock().unlock();
+        }
+        
+        if (memtablesToFlush.size() > 0)
+        {
+            for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
+                entry.getKey().switchMemtable(entry.getValue());
         }
     }
 
