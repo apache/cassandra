@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -34,6 +35,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
@@ -50,19 +52,23 @@ public class Memtable implements Comparable<Memtable>
     private AtomicInteger currentSize_ = new AtomicInteger(0);
     private AtomicInteger currentObjectCount_ = new AtomicInteger(0);
 
-    /* Table and ColumnFamily name are used to determine the ColumnFamilyStore */
     private String table_;
     private String cfName_;
-    /* Creation time of this Memtable */
     private long creationTime_;
-    private Map<String, ColumnFamily> columnFamilies_ = new HashMap<String, ColumnFamily>();
-    /* Lock and Condition for notifying new clients about Memtable switches */
+    // we use NBHM with manual locking, so reads are automatically threadsafe but write merging is serialized per key
+    private Map<String, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<String, ColumnFamily>();
+    private Object[] keyLocks;
 
     Memtable(String table, String cfName)
     {
         table_ = table;
         cfName_ = cfName;
         creationTime_ = System.currentTimeMillis();
+        keyLocks = new Object[Runtime.getRuntime().availableProcessors() * 8];
+        for (int i = 0; i < keyLocks.length; i++)
+        {
+            keyLocks[i] = new Object();
+        }
     }
 
     public boolean isFlushed()
@@ -136,14 +142,10 @@ public class Memtable implements Comparable<Memtable>
     {
         assert !isFrozen_; // not 100% foolproof but hell, it's an assert
         isDirty_ = true;
-        resolve(key, columnFamily);
-    }
-
-    /** flush synchronously (in the current thread, not on the executor).
-     *  only the recover code should call this. */
-    void flushOnRecovery() throws IOException {
-        if (!isClean())
-            flush(CommitLog.CommitLogContext.NULL);
+        synchronized (keyLocks[Math.abs(key.hashCode() % keyLocks.length)])
+        {
+            resolve(key, columnFamily);
+        }
     }
 
     private void resolve(String key, ColumnFamily columnFamily)
@@ -166,6 +168,13 @@ public class Memtable implements Comparable<Memtable>
             currentSize_.addAndGet(columnFamily.size() + key.length());
             currentObjectCount_.addAndGet(columnFamily.getColumnCount());
         }
+    }
+
+    /** flush synchronously (in the current thread, not on the executor).
+     *  only the recover code should call this. */
+    void flushOnRecovery() throws IOException {
+        if (!isClean())
+            flush(CommitLog.CommitLogContext.NULL);
     }
 
     // for debugging
@@ -225,24 +234,17 @@ public class Memtable implements Comparable<Memtable>
         return "Memtable(" + cfName_ + ")@" + hashCode();
     }
 
-    /**
-     * there does not appear to be any data structure that we can pass to PriorityQueue that will
-     * get it to heapify in-place instead of copying first, so we might as well return a Set.
-    */
-    Set<String> getKeys() throws ExecutionException, InterruptedException
+    public Iterator<String> getKeyIterator()
     {
-        return new HashSet<String>(columnFamilies_.keySet());
-    }
-
-    public static Iterator<String> getKeyIterator(Set<String> keys)
-    {
-        if (keys.size() == 0)
+        // even though we are using NBHM, it is okay to use size() twice here, since size() will never decrease
+        // w/in a single memtable's lifetime
+        if (columnFamilies_.size() == 0)
         {
             // cannot create a PQ of size zero (wtf?)
             return Arrays.asList(new String[0]).iterator();
         }
-        PriorityQueue<String> pq = new PriorityQueue<String>(keys.size(), StorageService.getPartitioner().getDecoratedKeyComparator());
-        pq.addAll(keys);
+        PriorityQueue<String> pq = new PriorityQueue<String>(columnFamilies_.size(), StorageService.getPartitioner().getDecoratedKeyComparator());
+        pq.addAll(columnFamilies_.keySet());
         return new DestructivePQIterator<String>(pq);
     }
 

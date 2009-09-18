@@ -68,8 +68,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable_;
-    // this lock is to (1) serialize puts and
-    // (2) make sure we don't perform puts on a memtable that is queued for flush.
+    // this lock is to
+    // make sure we don't perform puts on a memtable that is queued for flush.
     // (or conversely, flush a memtable that is mid-put.)
     // gets may be safely performed on a flushing ("frozen") memtable.
     private ReentrantReadWriteLock memtableLock_ = new ReentrantReadWriteLock(true);
@@ -421,15 +421,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             isFlush = true;
         }
-        
-        memtableLock_.writeLock().lock();
+
+        memtableLock_.readLock().lock();
         try
         {
             initialMemtable.put(key, columnFamily);
         }
         finally
         {
-            memtableLock_.writeLock().unlock();
+            memtableLock_.readLock().unlock();
         }
         writeStats_.add(System.currentTimeMillis() - start);
         
@@ -1007,17 +1007,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterator<String> memtableKeyIterator() throws ExecutionException, InterruptedException
     {
-        Set<String> keys;
         memtableLock_.readLock().lock();
         try
         {
-            keys = memtable_.getKeys();
+             return memtable_.getKeyIterator();
         }
         finally
         {
             memtableLock_.readLock().unlock();
         }
-        return Memtable.getKeyIterator(keys);
     }
 
     /** not threadsafe.  caller must have lock_ acquired. */
@@ -1193,7 +1191,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // historical memtables
         for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily_))
         {
-            iterators.add(IteratorUtils.filteredIterator(Memtable.getKeyIterator(memtable.getKeys()), p));
+            iterators.add(IteratorUtils.filteredIterator(memtable.getKeyIterator(), p));
         }
 
         // sstables
