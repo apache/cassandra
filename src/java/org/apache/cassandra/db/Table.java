@@ -594,7 +594,7 @@ public class Table
     */
     void apply(Row row, DataOutputBuffer serializedRow) throws IOException
     {
-        HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>();
+        HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
         flusherLock_.readLock().lock();
         try
@@ -605,7 +605,7 @@ public class Table
             {
                 Memtable memtableToFlush;
                 ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-                if ( (memtableToFlush=cfStore.apply(row.key(), columnFamily)) != null)
+                if ((memtableToFlush=cfStore.apply(row.key(), columnFamily)) != null)
                     memtablesToFlush.put(cfStore, memtableToFlush);
             }
         }
@@ -613,12 +613,10 @@ public class Table
         {
             flusherLock_.readLock().unlock();
         }
-        
-        if (memtablesToFlush.size() > 0)
-        {
-            for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-                entry.getKey().switchMemtable(entry.getValue());
-        }
+
+        // usually mTF will be empty and this will be a no-op
+        for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
+            entry.getKey().switchMemtable(entry.getValue());
     }
 
     void applyNow(Row row) throws IOException

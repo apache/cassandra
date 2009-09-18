@@ -441,28 +441,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * needs to be used. param @ key - key for update/insert param @
      * columnFamily - columnFamily changes
      */
-    void applyBinary(String key, byte[] buffer)
-            throws IOException
+    void applyBinary(String key, byte[] buffer) throws IOException
     {
         long start = System.currentTimeMillis();
         binaryMemtable_.get().put(key, buffer);
         writeStats_.add(System.currentTimeMillis() - start);
-    }
-
-    /**
-     * like resolve, but leaves the resolved CF as the only item in the list
-     */
-    private static void merge(List<ColumnFamily> columnFamilies)
-    {
-        ColumnFamily cf = ColumnFamily.resolve(columnFamilies);
-        columnFamilies.clear();
-        columnFamilies.add(cf);
-    }
-
-    private static ColumnFamily resolveAndRemoveDeleted(List<ColumnFamily> columnFamilies)
-    {
-        ColumnFamily cf = ColumnFamily.resolve(columnFamilies);
-        return removeDeleted(cf);
     }
 
     /*

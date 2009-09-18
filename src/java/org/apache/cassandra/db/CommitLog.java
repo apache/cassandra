@@ -397,13 +397,13 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    CommitLogContext add(Row row, DataOutputBuffer serializedRow) throws IOException
+    void add(Row row, DataOutputBuffer serializedRow) throws IOException
     {
         Callable<CommitLogContext> task = new LogRecordAdder(row, serializedRow);
 
         try
         {
-            return executor.submit(task).get();
+            executor.submit(task).get();
         }
         catch (InterruptedException e)
         {
