@@ -39,7 +39,8 @@ import org.apache.cassandra.dht.IPartitioner;
 public class BinaryMemtable
 {
     private static Logger logger_ = Logger.getLogger( Memtable.class );
-    private int threshold_ = DatabaseDescriptor.getBMTThreshold()*1024*1024;
+    private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
+    private int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
     private AtomicInteger currentSize_ = new AtomicInteger(0);
 
     /* Table and ColumnFamily name are used to determine the ColumnFamilyStore */
@@ -72,7 +73,7 @@ public class BinaryMemtable
 
     boolean isThresholdViolated()
     {
-        if (currentSize_.get() >= threshold_ || columnFamilies_.size() > 50000)
+        if (currentSize_.get() >= threshold_ || columnFamilies_.size() > thresholdCount_)
         {
             if (logger_.isDebugEnabled())
               logger_.debug("CURRENT SIZE:" + currentSize_.get());

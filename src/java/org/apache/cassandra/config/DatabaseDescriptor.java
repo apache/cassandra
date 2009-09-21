@@ -76,7 +76,6 @@ public class DatabaseDescriptor
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
     private static int flushMinThreads_ = 1;
     private static int flushMaxThreads_ = 1;
-    private static int bmtThreshold_ = 256;
 
     // Default descriptive names for introspection. The user can override
     // these choices in the config file. These are not case sensitive.
@@ -283,12 +282,6 @@ public class DatabaseDescriptor
             if (rawflushMaxThreads != null)
             {
                 flushMaxThreads_ = Integer.parseInt(rawflushMaxThreads);
-            }
-
-            String bmtThreshold = xmlUtils.getNodeValue("/Storage/BinaryMemtableSizeInMB");
-            if (bmtThreshold != null)
-            {
-                bmtThreshold_ = Integer.parseInt(bmtThreshold);
             }
 
             /* TCP port on which the storage system listens */
@@ -1012,8 +1005,4 @@ public class DatabaseDescriptor
         return flushMaxThreads_;
     }
 
-    public static int getBMTThreshold()
-    {
-        return bmtThreshold_;
-    }
 }

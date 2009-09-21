@@ -307,9 +307,4 @@
   <FlushMinThreads>1</FlushMinThreads>
   <FlushMaxThreads>1</FlushMaxThreads>
 
-  <!--
-   ~ The threshold size in megabytes the binary memtable must grow to, before it's submitted for flushing to disk.
-  -->
-  <BinaryMemtableSizeInMB>256</BinaryMemtableSizeInMB>
-
 </Storage>
