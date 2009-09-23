@@ -38,7 +38,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     private ObjectName objName;
     public DebuggableThreadPoolExecutor(String threadPoolName) 
     {
-        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl(threadPoolName));
+        this(1, 1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName));
     }
 
     public DebuggableThreadPoolExecutor(int corePoolSize,
@@ -46,7 +46,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
             long keepAliveTime,
             TimeUnit unit,
             BlockingQueue<Runnable> workQueue,
-            ThreadFactoryImpl threadFactory)
+            NamedThreadFactory threadFactory)
     {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
@@ -54,7 +54,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            objName = new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id_);
+            objName = new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id);
             mbs.registerMBean(this, objName);
         }
         catch (Exception e)

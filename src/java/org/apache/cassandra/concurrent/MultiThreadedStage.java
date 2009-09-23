@@ -21,13 +21,6 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 
-import javax.naming.OperationNotSupportedException;
-
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.LogUtil;
-import org.apache.log4j.Logger;
-
 /**
  * This class is an implementation of the <i>IStage</i> interface. In particular
  * it is for a stage that has a thread pool with multiple threads. For details 
@@ -47,7 +40,7 @@ public class MultiThreadedStage implements IStage
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                new ThreadFactoryImpl(name)
+                new NamedThreadFactory(name)
                 );        
     }
     

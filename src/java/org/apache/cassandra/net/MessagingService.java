@@ -26,7 +26,6 @@ import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
-import java.net.MulticastSocket;
 import java.net.ServerSocket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
@@ -144,7 +143,7 @@ public class MessagingService implements IMessagingService
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                new ThreadFactoryImpl("MESSAGING-SERVICE-POOL")
+                new NamedThreadFactory("MESSAGING-SERVICE-POOL")
                 );
 
         messageDeserializerExecutor_ = new DebuggableThreadPoolExecutor( maxSize,
@@ -152,7 +151,7 @@ public class MessagingService implements IMessagingService
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                new ThreadFactoryImpl("MESSAGE-DESERIALIZER-POOL")
+                new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL")
                 ); 
         
         streamExecutor_ = new DebuggableThreadPoolExecutor("MESSAGE-STREAMING-POOL");

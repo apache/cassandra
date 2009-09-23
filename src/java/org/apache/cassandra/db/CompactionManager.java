@@ -30,7 +30,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.io.SSTableReader;
@@ -159,7 +159,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
     
     
-    private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("COMPACTION-POOL"));
+    private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new NamedThreadFactory("COMPACTION-POOL"));
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.

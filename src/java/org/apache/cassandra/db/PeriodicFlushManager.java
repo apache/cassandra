@@ -27,7 +27,6 @@ import java.io.IOException;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.service.StorageService;
 
 /**
  *  Background flusher that force-flushes a column family periodically.
@@ -37,7 +36,7 @@ class PeriodicFlushManager
     private static Logger logger_ = Logger.getLogger(PeriodicFlushManager.class);
     private static PeriodicFlushManager instance_;
     private static Lock lock_ = new ReentrantLock();
-    private ScheduledExecutorService flusher_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("PERIODIC-FLUSHER-POOL"));
+    private ScheduledExecutorService flusher_ = new DebuggableScheduledThreadPoolExecutor(1, new NamedThreadFactory("PERIODIC-FLUSHER-POOL"));
 
     public static PeriodicFlushManager instance()
     {

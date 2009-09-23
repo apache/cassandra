@@ -20,7 +20,6 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
-import org.apache.cassandra.utils.*;
 
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This 
@@ -28,23 +27,19 @@ import org.apache.cassandra.utils.*;
  * a tool like JConsole.
  */
 
-public class ThreadFactoryImpl implements ThreadFactory
+public class NamedThreadFactory implements ThreadFactory
 {
-    protected String id_;
-    protected ThreadGroup threadGroup_;
-    protected final AtomicInteger threadNbr_ = new AtomicInteger(1);
-    
-    public ThreadFactoryImpl(String id)
+    protected final String id;
+    protected final AtomicInteger n = new AtomicInteger(1);
+
+    public NamedThreadFactory(String id)
     {
-        SecurityManager sm = System.getSecurityManager();
-        threadGroup_ = ( sm != null ) ? sm.getThreadGroup() : Thread.currentThread().getThreadGroup();
-        id_ = id;
-    }    
-    
+        this.id = id;
+    }
+
     public Thread newThread(Runnable runnable)
     {        
-        String name = id_ + ":" + threadNbr_.getAndIncrement();       
-        Thread thread = new Thread(threadGroup_, runnable, name);        
-        return thread;
+        String name = id + ":" + n.getAndIncrement();
+        return new Thread(runnable, name);
     }
 }

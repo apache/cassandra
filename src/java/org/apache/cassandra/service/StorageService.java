@@ -250,7 +250,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         consistencyManager_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
                                                                DatabaseDescriptor.getConsistencyThreads(),
                                                                Integer.MAX_VALUE, TimeUnit.SECONDS,
-                                                               new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl("CONSISTENCY-MANAGER"));
+                                                               new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("CONSISTENCY-MANAGER"));
         
         StageManager.registerStage(StorageService.mutationStage_,
                                    new MultiThreadedStage(StorageService.mutationStage_, DatabaseDescriptor.getConcurrentWriters()));

@@ -38,7 +38,7 @@ import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -59,7 +59,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                             Integer.MAX_VALUE,
                                                                                             TimeUnit.SECONDS,
                                                                                             new LinkedBlockingQueue<Runnable>(2 * Runtime.getRuntime().availableProcessors()),
-                                                                                            new ThreadFactoryImpl("MEMTABLE-FLUSHER-POOL"));
+                                                                                            new NamedThreadFactory("MEMTABLE-FLUSHER-POOL"));
     private static ExecutorService commitLogUpdater_ = new DebuggableThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
     private final String table_;

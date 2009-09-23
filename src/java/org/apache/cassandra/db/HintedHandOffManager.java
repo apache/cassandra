@@ -29,7 +29,7 @@ import java.io.IOException;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.EndPoint;
@@ -55,7 +55,7 @@ public class HintedHandOffManager
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     final static long intervalInMins_ = 60;
-    private ScheduledExecutorService executor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("HINTED-HANDOFF-POOL"));
+    private ScheduledExecutorService executor_ = new DebuggableScheduledThreadPoolExecutor(1, new NamedThreadFactory("HINTED-HANDOFF-POOL"));
     public static final String HINTS_CF = "HintsColumnFamily";
 
 
