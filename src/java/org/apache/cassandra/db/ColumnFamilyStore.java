@@ -26,6 +26,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -53,13 +54,36 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
+    /*
+     * submitFlush first puts [Binary]Memtable.getSortedContents on the flushSorter executor,
+     * which then puts the sorted results on the writer executor.  This is because sorting is CPU-bound,
+     * and writing is disk-bound; we want to be able to do both at once.  When the write is complete,
+     * we turn the writer into an SSTableReader and add it to ssTables_ where it is available for reads.
+     *
+     * For BinaryMemtable that's about all that happens.  For live Memtables there are two other things
+     * that switchMemtable does (which should be the only caller of submitFlush in this case).
+     * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
+     * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
+     * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
+     * to happen simultaneously on multicore systems, while still calling onMF in the correct order,
+     * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
+     * called, all data up to the given context has been persisted to SSTables.
+     */
     private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
-    private static DebuggableThreadPoolExecutor flusher_ = new DebuggableThreadPoolExecutor(1,
-                                                                                            Runtime.getRuntime().availableProcessors(),
-                                                                                            Integer.MAX_VALUE,
-                                                                                            TimeUnit.SECONDS,
-                                                                                            new LinkedBlockingQueue<Runnable>(2 * Runtime.getRuntime().availableProcessors()),
-                                                                                            new NamedThreadFactory("MEMTABLE-FLUSHER-POOL"));
+    private static ExecutorService flushSorter_
+            = new DebuggableThreadPoolExecutor(1,
+                                               Runtime.getRuntime().availableProcessors(),
+                                               Integer.MAX_VALUE,
+                                               TimeUnit.SECONDS,
+                                               new LinkedBlockingQueue<Runnable>(2 * Runtime.getRuntime().availableProcessors()),
+                                               new NamedThreadFactory("FLUSH-SORTER-POOL"));
+    private static ExecutorService flushWriter_
+            = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getAllDataFileLocations().length,
+                                               DatabaseDescriptor.getAllDataFileLocations().length,
+                                               Integer.MAX_VALUE,
+                                               TimeUnit.SECONDS,
+                                               new LinkedBlockingQueue<Runnable>(),
+                                               new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new DebuggableThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
     private final String table_;
@@ -328,8 +352,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
          *  If we can get the writelock, that means no new updates can come in and 
          *  all ongoing updates to memtables have completed. We can get the tail
          *  of the log and use it as the starting position for log replay on recovery.
-         *  
-         *  By holding the flusherLock_, we don't need the memetableLock any more.
          */
         Table.flusherLock_.writeLock().lock();
         try
@@ -342,8 +364,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable");
             oldMemtable.freeze();
-            getMemtablesPendingFlushNotNull(columnFamily_).add(oldMemtable); // it's ok for the MT to briefly be both active and pendingFlush
-            final Future<?> future = submitFlush(oldMemtable);
+            final Condition condition = submitFlush(oldMemtable);
             memtable_ = new Memtable(table_, columnFamily_);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
@@ -353,7 +374,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     try
                     {
-                        future.get();
+                        condition.await();
                         onMemtableFlush(ctx);
                     }
                     catch (Exception e)
@@ -876,7 +897,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return new ArrayList<Memtable>(getMemtablesPendingFlushNotNull(cfName));
     }
 
-    private static Set<Memtable> getMemtablesPendingFlushNotNull(String columnFamilyName)
+    static Set<Memtable> getMemtablesPendingFlushNotNull(String columnFamilyName)
     {
         Set<Memtable> memtables = memtablesPendingFlush.get(columnFamilyName);
         if (memtables == null)
@@ -887,44 +908,45 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return memtables;
     }
 
-    /* Submit memtables to be flushed to disk */
-    private static Future<?> submitFlush(final Memtable memtable)
+    Condition submitFlush(final IFlushable flushable)
     {
-        logger_.info("Enqueuing flush of " + memtable);
-        return flusher_.submit(new Runnable()
+        logger_.info("Enqueuing flush of " + flushable);
+        if (flushable instanceof Memtable)
+        {
+            // special-casing Memtable here is a bit messy, but it's best to keep the flush-related happenings in one place
+            // since they're a little complicated.  (We dont' want to move the remove back to switchMemtable, which is
+            // the other sane option, since that could mean keeping a flushed memtable in the Historical set unnecessarily
+            // while earlier flushes finish.)
+            getMemtablesPendingFlushNotNull(columnFamily_).add((Memtable) flushable); // it's ok for the MT to briefly be both active and pendingFlush
+        }
+        final Condition condition = new SimpleCondition();
+        flushSorter_.submit(new Runnable()
         {
             public void run()
             {
-                try
+                final SortedFlushable sortedFlushable = flushable.getSortedContents();
+                flushWriter_.submit(new Runnable()
                 {
-                    memtable.flush();
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                getMemtablesPendingFlushNotNull(memtable.getColumnFamily()).remove(memtable);
+                    public void run()
+                    {
+                        try
+                        {
+                            addSSTable(flushable.writeSortedContents(sortedFlushable));
+                        }
+                        catch (IOException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                        if (flushable instanceof Memtable)
+                        {
+                            getMemtablesPendingFlushNotNull(columnFamily_).remove(flushable);
+                        }
+                        condition.signalAll();
+                    }
+                });
             }
         });
-    }
-
-    static void submitFlush(final BinaryMemtable binaryMemtable)
-    {
-        logger_.info("Enqueuing flush of " + binaryMemtable);
-        flusher_.submit(new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    binaryMemtable.flush();
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
+        return condition;
     }
 
     public boolean isSuper()
@@ -1287,5 +1309,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void clearUnsafe()
     {
         memtable_.clearUnsafe();
+    }
+
+    public static class SortedFlushable
+    {
+        public final List<?> keys;
+        public final IFlushable flushable;
+
+        public SortedFlushable(List<?> keys, IFlushable flushable)
+        {
+            this.keys = keys;
+            this.flushable = flushable;
+        }
     }
 }

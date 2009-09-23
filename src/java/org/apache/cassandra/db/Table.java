@@ -163,6 +163,8 @@ public class Table
     /**
      * This is the callback handler that is invoked when we have
      * completely been bootstrapped for a single file by a remote host.
+     *
+     * TODO if we move this into CFS we could make addSSTables private, improving encapsulation.
     */
     public static class BootstrapCompletionHandler implements IStreamComplete
     {                

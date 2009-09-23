@@ -29,6 +29,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.cassandra.io.SSTableWriter;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -36,7 +37,7 @@ import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.dht.IPartitioner;
 
-public class BinaryMemtable
+public class BinaryMemtable implements IFlushable
 {
     private static Logger logger_ = Logger.getLogger( Memtable.class );
     private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
@@ -128,40 +129,30 @@ public class BinaryMemtable
         currentSize_.addAndGet(buffer.length + key.length());
     }
 
-
-    /*
-     * 
-    */
-    void flush() throws IOException
+    public ColumnFamilyStore.SortedFlushable getSortedContents()
     {
-        if (columnFamilies_.size() == 0)
-            return;
-
-        /*
-         * Use the SSTable to write the contents of the TreeMap
-         * to disk.
-        */
-
-        String path;
-        SSTableWriter writer;
-        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-        List<DecoratedKey> keys = new ArrayList<DecoratedKey>( columnFamilies_.keySet() );
-        path = cfStore.getTempSSTablePath();
-        writer = new SSTableWriter(path, keys.size(), StorageService.getPartitioner());
-
+        assert !columnFamilies_.isEmpty();
+        logger_.info("Sorting " + this);
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
         Collections.sort(keys, partitioner_.getDecoratedKeyObjComparator());
+        return new ColumnFamilyStore.SortedFlushable(keys, this);
+    }
 
-        /* Use this BloomFilter to decide if a key exists in a SSTable */
-        for (DecoratedKey key : keys)
+    public SSTableReader writeSortedContents(ColumnFamilyStore.SortedFlushable sortedFlushable) throws IOException
+    {
+        logger_.info("Writing " + this);
+        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
+        String path = cfStore.getTempSSTablePath();
+        SSTableWriter writer = new SSTableWriter(path, sortedFlushable.keys.size(), StorageService.getPartitioner());
+
+        for (DecoratedKey key : (List<DecoratedKey>) sortedFlushable.keys)
         {
             byte[] bytes = columnFamilies_.get(key);
-            if (bytes.length > 0)
-            {
-                /* Now write the key and value to disk */
-                writer.append(key.toString(), bytes);
-            }
+            assert bytes.length > 0;
+            writer.append(key.toString(), bytes);
         }
-        cfStore.addSSTable(writer.closeAndOpenReader());
-        columnFamilies_.clear();       
+        SSTableReader sstable = writer.closeAndOpenReader();
+        logger_.info("Completed flushing " + writer.getFilename());
+        return sstable;
     }
 }

@@ -57,7 +57,7 @@ public interface ColumnFamilyStoreMBean
     /**
      * Triggers an immediate memtable flush.
      */
-    public Future<?> forceFlush() throws IOException;
+    public Object forceFlush() throws IOException;
 
     /**
      * @return the number of read operations on this column family in the last minute

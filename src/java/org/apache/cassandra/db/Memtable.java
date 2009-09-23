@@ -20,8 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -39,7 +37,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
-public class Memtable implements Comparable<Memtable>
+public class Memtable implements Comparable<Memtable>, IFlushable
 {
 	private static Logger logger_ = Logger.getLogger( Memtable.class );
 
@@ -167,11 +165,13 @@ public class Memtable implements Comparable<Memtable>
         }
     }
 
-    /** flush synchronously (in the current thread, not on the executor).
+    /** flush synchronously (in the current thread, not on the executors).
      *  only the recover code should call this. */
     void flushOnRecovery() throws IOException {
         if (!isClean())
-            flush();
+        {
+            writeSortedContents(getSortedContents());
+        }
     }
 
     // for debugging
@@ -187,15 +187,11 @@ public class Memtable implements Comparable<Memtable>
         return builder.toString();
     }
 
-    void flush() throws IOException
+    public ColumnFamilyStore.SortedFlushable getSortedContents()
     {
-        logger_.info("Flushing " + this);
-        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-
-        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
-
+        logger_.info("Sorting " + this);
         // sort keys in the order they would be in when decorated
-        final IPartitioner partitioner = StorageService.getPartitioner();
+        final IPartitioner<?> partitioner = StorageService.getPartitioner();
         final Comparator<String> dc = partitioner.getDecoratedKeyComparator();
         ArrayList<String> orderedKeys = new ArrayList<String>(columnFamilies_.keySet());
         Collections.sort(orderedKeys, new Comparator<String>()
@@ -205,8 +201,18 @@ public class Memtable implements Comparable<Memtable>
                 return dc.compare(partitioner.decorateKey(o1), partitioner.decorateKey(o2));
             }
         });
+        return new ColumnFamilyStore.SortedFlushable(orderedKeys, this);
+    }
+
+    public SSTableReader writeSortedContents(ColumnFamilyStore.SortedFlushable sortedFlushable) throws IOException
+    {
+        logger_.info("Writing " + this);
+        IPartitioner<?> partitioner = StorageService.getPartitioner();
+        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
+        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
+
         DataOutputBuffer buffer = new DataOutputBuffer();
-        for (String key : orderedKeys)
+        for (String key : (List<String>) sortedFlushable.keys)
         {
             buffer.reset();
             ColumnFamily columnFamily = columnFamilies_.get(key);
@@ -218,11 +224,11 @@ public class Memtable implements Comparable<Memtable>
                 writer.append(partitioner.decorateKey(key), buffer);
             }
         }
-        SSTableReader ssTable = writer.closeAndOpenReader();
-        cfStore.addSSTable(ssTable);
         buffer.close();
+        SSTableReader ssTable = writer.closeAndOpenReader();
         isFlushed_ = true;
-        logger_.info("Flushed " + ssTable.getFilename());
+        logger_.info("Completed flushing " + ssTable.getFilename());
+        return ssTable;
     }
 
     public String toString()
