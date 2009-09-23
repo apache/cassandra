@@ -39,9 +39,8 @@ import org.apache.cassandra.dht.IPartitioner;
 
 public class BinaryMemtable implements IFlushable
 {
-    private static Logger logger_ = Logger.getLogger( Memtable.class );
-    private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
-    private int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
+    private static Logger logger_ = Logger.getLogger(BinaryMemtable.class);
+    private int threshold_ = DatabaseDescriptor.getBMTThreshold() * 1024 * 1024;
     private AtomicInteger currentSize_ = new AtomicInteger(0);
 
     /* Table and ColumnFamily name are used to determine the ColumnFamilyStore */
@@ -74,13 +73,7 @@ public class BinaryMemtable implements IFlushable
 
     boolean isThresholdViolated()
     {
-        if (currentSize_.get() >= threshold_ || columnFamilies_.size() > thresholdCount_)
-        {
-            if (logger_.isDebugEnabled())
-              logger_.debug("CURRENT SIZE:" + currentSize_.get());
-        	return true;
-        }
-        return false;
+        return currentSize_.get() >= threshold_;
     }
 
     String getColumnFamily()
@@ -95,7 +88,7 @@ public class BinaryMemtable implements IFlushable
     */
     void put(String key, byte[] buffer) throws IOException
     {
-        if (isThresholdViolated() )
+        if (isThresholdViolated())
         {
             lock_.lock();
             try
