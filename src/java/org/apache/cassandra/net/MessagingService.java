@@ -21,12 +21,14 @@ package org.apache.cassandra.net;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.io.SerializerType;
+import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.net.MulticastSocket;
 import java.net.ServerSocket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -40,8 +42,6 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class MessagingService implements IMessagingService
 {
-    private static boolean debugOn_ = false;   
-    
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
     private static SerializerType serializerType_ = SerializerType.BINARY;
@@ -51,7 +51,8 @@ public class MessagingService implements IMessagingService
     public static final String responseVerbHandler_ = "RESPONSE";
     /* Stage for responses. */
     public static final String responseStage_ = "RESPONSE-STAGE";
-    private enum ReservedVerbs_ {RESPONSE};
+    private enum ReservedVerbs_ {
+    };
     
     private static Map<String, String> reservedVerbs_ = new Hashtable<String, String>();
     /* Indicate if we are currently streaming data to another node or receiving streaming data */
@@ -69,14 +70,9 @@ public class MessagingService implements IMessagingService
     
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<String, IVerbHandler> verbHandlers_;
-    
-    private static Map<String, MulticastSocket> mCastMembership_ = new HashMap<String, MulticastSocket>();
-    
+
     /* Thread pool to handle messaging read activities of Socket and default stage */
     private static ExecutorService messageDeserializationExecutor_;
-    
-    /* Thread pool to handle messaging write activities */
-    private static ExecutorService messageSerializerExecutor_;
     
     /* Thread pool to handle deserialization of messages read from the socket. */
     private static ExecutorService messageDeserializerExecutor_;
@@ -92,48 +88,12 @@ public class MessagingService implements IMessagingService
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
     private static IMessagingService messagingService_ = new MessagingService();
-    
-    public static boolean isDebugOn()
-    {
-        return debugOn_;
-    }
-    
-    public static void debugOn(boolean on)
-    {
-        debugOn_ = on;
-    }
-    
-    public static SerializerType getSerializerType()
-    {
-        return serializerType_;
-    }
-    
-    public synchronized static void serializerType(String type)
-    { 
-        if ( type.equalsIgnoreCase("binary") )
-        {
-            serializerType_ = SerializerType.BINARY;
-        }
-        else if ( type.equalsIgnoreCase("java") )
-        {
-            serializerType_ = SerializerType.JAVA;
-        }
-        else if ( type.equalsIgnoreCase("xml") )
-        {
-            serializerType_ = SerializerType.XML;
-        }
-    }
-    
+
     public static int getVersion()
     {
         return version_;
     }
-    
-    public static void setVersion(int version)
-    {
-        version_ = version;
-    }
-    
+
     public static IMessagingService getMessagingInstance()
     {   
     	if ( bShutdown_ )
@@ -186,15 +146,7 @@ public class MessagingService implements IMessagingService
                 new LinkedBlockingQueue<Runnable>(),
                 new ThreadFactoryImpl("MESSAGING-SERVICE-POOL")
                 );
-                
-        messageSerializerExecutor_ = new DebuggableThreadPoolExecutor( maxSize,
-                maxSize,
-                Integer.MAX_VALUE,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                new ThreadFactoryImpl("MESSAGE-SERIALIZER-POOL")
-                ); 
-        
+
         messageDeserializerExecutor_ = new DebuggableThreadPoolExecutor( maxSize,
                 maxSize,
                 Integer.MAX_VALUE,
@@ -284,19 +236,6 @@ public class MessagingService implements IMessagingService
         return cp;
     }
 
-    public static ConnectionStatistics[] getPoolStatistics()
-    {
-        Set<ConnectionStatistics> stats = new HashSet<ConnectionStatistics>();        
-        Iterator<TcpConnectionManager> it = poolTable_.values().iterator();
-        while ( it.hasNext() )
-        {
-            TcpConnectionManager cp = it.next();
-            ConnectionStatistics cs = new ConnectionStatistics(cp.getLocalEndPoint(), cp.getRemoteEndPoint(), cp.getPoolSize(), cp.getConnectionsInUse());
-            stats.add( cs );
-        }
-        return stats.toArray(new ConnectionStatistics[0]);
-    }
-    
     public static TcpConnection getConnection(EndPoint from, EndPoint to) throws IOException
     {
         return getConnectionPool(from, to).getConnection();
@@ -419,8 +358,38 @@ public class MessagingService implements IMessagingService
             return;
         }
         
-        Runnable tcpWriteEvent = new MessageSerializationTask(message, to);
-        messageSerializerExecutor_.execute(tcpWriteEvent);    
+        TcpConnection connection = null;
+        try
+        {
+            Message processedMessage = SinkManager.processClientMessageSink(message);
+            if (processedMessage == null)
+            {
+                return;
+            }
+            connection = MessagingService.getConnection(processedMessage.getFrom(), to);
+            connection.write(message);
+        }
+        catch (SocketException se)
+        {
+            // Shutting down the entire pool. May be too conservative an approach.
+            MessagingService.getConnectionPool(message.getFrom(), to).shutdown();
+            logger_.error("socket error writing to " + to, se);
+        }
+        catch (IOException e)
+        {
+            if (connection != null)
+            {
+                connection.errorClose();
+            }
+            logger_.error("unexpected error writing " + message, e);
+        }
+        finally
+        {
+            if (connection != null)
+            {
+                connection.close();
+            }
+        }
     }
     
     public IAsyncResult sendRR(Message message, EndPoint to)
@@ -463,34 +432,12 @@ public class MessagingService implements IMessagingService
         Runnable streamingTask = new FileStreamTask(file, startPosition, total, from, to);
         streamExecutor_.execute(streamingTask);
     }
-    
-    /*
-     * Does the application determine if we are currently streaming data.
-     * This would imply either streaming to a receiver, receiving streamed
-     * data or both. 
-    */
-    public static boolean isStreaming()
-    {
-        return isStreaming_.get();
-    }
-    
+
     public static void setStreamingMode(boolean bVal)
     {
         isStreaming_.set(bVal);
     }
-    public static void flushAndshutdown()
-    {
-        // safely shutdown and send all writes
-        for(Map.Entry<String, TcpConnectionManager> entry : poolTable_.entrySet() )
-        {
-            for(TcpConnection connection: entry.getValue().getConnections())
-            {
-                connection.doPendingWrites();
-            }
-        }
-        shutdown();
-    }
-    
+
     public static void shutdown()
     {
         logger_.info("Shutting down ...");
@@ -510,7 +457,6 @@ public class MessagingService implements IMessagingService
 
             /* Shutdown the threads in the EventQueue's */
             messageDeserializationExecutor_.shutdownNow();
-            messageSerializerExecutor_.shutdownNow();
             messageDeserializerExecutor_.shutdownNow();
             streamExecutor_.shutdownNow();
 
@@ -534,12 +480,7 @@ public class MessagingService implements IMessagingService
     {        
         enqueueRunnable(message.getMessageType(), new MessageDeliveryTask(message));
     }
-    
-    public static boolean isLocalEndPoint(EndPoint ep)
-    {
-        return ( endPoints_.contains(ep) );
-    }
-        
+
     private static void enqueueRunnable(String stageName, Runnable runnable){
         
         IStage stage = StageManager.getStage(stageName);   
@@ -550,8 +491,8 @@ public class MessagingService implements IMessagingService
         } 
         else
         {
-            logger_.info("Running on default stage - beware");
-            messageSerializerExecutor_.execute(runnable);
+            logger_.warn("Running on default stage - beware");
+            messageDeserializerExecutor_.execute(runnable);
         }
     }    
     
@@ -569,27 +510,12 @@ public class MessagingService implements IMessagingService
     {
         return taskCompletionMap_.remove(key);
     }
-    
-    public static void removeAsyncResult(String key)
-    {
-        taskCompletionMap_.remove(key);
-    }
 
-    public static byte[] getProtocol()
-    {
-        return protocol_;
-    }
-    
     public static ExecutorService getReadExecutor()
     {
         return messageDeserializationExecutor_;
     }
-    
-    public static ExecutorService getWriteExecutor()
-    {
-        return messageSerializerExecutor_;
-    }
-    
+
     public static ExecutorService getDeserializationExecutor()
     {
         return messageDeserializerExecutor_;
