@@ -28,7 +28,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
 
@@ -55,8 +54,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 
     private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
-    private static ExecutorService flusher_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getFlushMinThreads(), DatabaseDescriptor.getFlushMaxThreads(), Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactoryImpl("MEMTABLE-FLUSHER-POOL"));
-    
+    private static DebuggableThreadPoolExecutor flusher_ = new DebuggableThreadPoolExecutor(1,
+                                                                                            Runtime.getRuntime().availableProcessors(),
+                                                                                            Integer.MAX_VALUE,
+                                                                                            TimeUnit.SECONDS,
+                                                                                            new LinkedBlockingQueue<Runnable>(2 * Runtime.getRuntime().availableProcessors()),
+                                                                                            new ThreadFactoryImpl("MEMTABLE-FLUSHER-POOL"));
+    private static ExecutorService commitLogUpdater_ = new DebuggableThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+
     private final String table_;
     public final String columnFamily_;
     private final boolean isSuper_;
@@ -317,9 +322,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                              columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
     }
 
-    void switchMemtable(Memtable oldMemtable)
+    Future<?> switchMemtable(Memtable oldMemtable) throws IOException
     {
-        CommitLog.CommitLogContext ctx = null;
         /**
          *  If we can get the writelock, that means no new updates can come in and 
          *  all ongoing updates to memtables have completed. We can get the tail
@@ -330,34 +334,43 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Table.flusherLock_.writeLock().lock();
         try
         {
-            try
-            {
-                ctx = CommitLog.open().getContext();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            final CommitLog.CommitLogContext ctx = CommitLog.open().getContext();
 
             if (oldMemtable.isFrozen())
             {
-                return;
+                return null;
             }
             logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable");
             oldMemtable.freeze();
             getMemtablesPendingFlushNotNull(columnFamily_).add(oldMemtable); // it's ok for the MT to briefly be both active and pendingFlush
-            submitFlush(oldMemtable, ctx);
+            final Future<?> future = submitFlush(oldMemtable, ctx);
             memtable_ = new Memtable(table_, columnFamily_);
-
+            // a second executor that makes sure the onMemtableFlushes get called in the right order,
+            // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
+            return commitLogUpdater_.submit(new Runnable()
+            {
+                public void run()
+                {
+                    try
+                    {
+                        future.get();
+                        onMemtableFlush(ctx);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            });
+        }
+        finally
+        {
+            Table.flusherLock_.writeLock().unlock();
             if (memtableSwitchCount == Integer.MAX_VALUE)
             {
                 memtableSwitchCount = 0;
             }
             memtableSwitchCount++;
-        }
-        finally
-        {
-            Table.flusherLock_.writeLock().unlock();
         }
     }
 
@@ -367,27 +380,20 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         binaryMemtable_.get().put(key, buffer);
     }
 
-    public void forceFlush()
+    public Future<?> forceFlush() throws IOException
     {
         if (memtable_.isClean())
-            return;
+            return null;
 
-        switchMemtable(memtable_);
+        return switchMemtable(memtable_);
     }
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
     {
         Memtable oldMemtable = getMemtableThreadSafe();
-        forceFlush();
-        // block for flush to finish by adding a no-op action to the flush executorservice
-        // and waiting for that to finish.  (this works since flush ES is single-threaded.)
-        Future f = flusher_.submit(new Runnable()
-        {
-            public void run()
-            {
-            }
-        });
-        f.get();
+        Future<?> future = forceFlush();
+        if (future != null)
+            future.get();
         /* this assert is not threadsafe -- the memtable could have been clean when forceFlush
            checked it, but dirty now thanks to another thread.  But as long as we are only
            calling this from single-threaded test code it is useful to have as a sanity check. */
@@ -882,10 +888,10 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /* Submit memtables to be flushed to disk */
-    private static void submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
+    private static Future<?> submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
     {
         logger_.info("Enqueuing flush of " + memtable);
-        flusher_.submit(new Runnable()
+        return flusher_.submit(new Runnable()
         {
             public void run()
             {

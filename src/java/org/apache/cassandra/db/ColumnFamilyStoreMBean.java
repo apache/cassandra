@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.db;
 
+import java.util.concurrent.Future;
+import java.io.IOException;
+
 /**
  * The MBean interface for ColumnFamilyStore
  */
@@ -54,7 +57,7 @@ public interface ColumnFamilyStoreMBean
     /**
      * Triggers an immediate memtable flush.
      */
-    public void forceFlush();
+    public Future<?> forceFlush() throws IOException;
 
     /**
      * @return the number of read operations on this column family in the last minute

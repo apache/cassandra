@@ -74,8 +74,7 @@ public class DatabaseDescriptor
     private static int slicedReadBufferSizeInKB_ = 64;
     private static List<String> tables_ = new ArrayList<String>();
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
-    private static int flushMinThreads_ = 1;
-    private static int flushMaxThreads_ = 1;
+    private static int bmtThreshold_ = 256;
 
     // Default descriptive names for introspection. The user can override
     // these choices in the config file. These are not case sensitive.
@@ -272,16 +271,10 @@ public class DatabaseDescriptor
                 slicedReadBufferSizeInKB_ = Integer.parseInt(rawSlicedBuffer);
             }
 
-            String rawflushMinThreads = xmlUtils.getNodeValue("/Storage/FlushMinThreads");
-            if (rawflushMinThreads != null)
+            String bmtThreshold = xmlUtils.getNodeValue("/Storage/BinaryMemtableSizeInMB");
+            if (bmtThreshold != null)
             {
-                flushMinThreads_ = Integer.parseInt(rawflushMinThreads);
-            }
-
-            String rawflushMaxThreads = xmlUtils.getNodeValue("/Storage/FlushMaxThreads");
-            if (rawflushMaxThreads != null)
-            {
-                flushMaxThreads_ = Integer.parseInt(rawflushMaxThreads);
+                bmtThreshold_ = Integer.parseInt(bmtThreshold);
             }
 
             /* TCP port on which the storage system listens */
@@ -995,14 +988,8 @@ public class DatabaseDescriptor
         return slicedReadBufferSizeInKB_;
     }
 
-    public static int getFlushMinThreads()
+    public static int getBMTThreshold()
     {
-        return flushMinThreads_;
+        return bmtThreshold_;
     }
-
-    public static int getFlushMaxThreads()
-    {
-        return flushMaxThreads_;
-    }
-
 }

@@ -22,6 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.io.IOException;
 
 import org.apache.log4j.Logger;
 
@@ -62,7 +63,14 @@ class PeriodicFlushManager
         {
             public void run()
             {
-                columnFamilyStore.forceFlush();
+                try
+                {
+                    columnFamilyStore.forceFlush();
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         };
         flusher_.scheduleWithFixedDelay(runnable, flushPeriodInMinutes, flushPeriodInMinutes, TimeUnit.MINUTES);       
