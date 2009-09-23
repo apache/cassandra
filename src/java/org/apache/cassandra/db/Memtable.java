@@ -171,7 +171,7 @@ public class Memtable implements Comparable<Memtable>
      *  only the recover code should call this. */
     void flushOnRecovery() throws IOException {
         if (!isClean())
-            flush(CommitLog.CommitLogContext.NULL);
+            flush();
     }
 
     // for debugging
@@ -187,7 +187,7 @@ public class Memtable implements Comparable<Memtable>
         return builder.toString();
     }
 
-    void flush(CommitLog.CommitLogContext cLogCtx) throws IOException
+    void flush() throws IOException
     {
         logger_.info("Flushing " + this);
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);

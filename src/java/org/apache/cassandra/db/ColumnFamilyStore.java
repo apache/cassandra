@@ -310,7 +310,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * When the sstable object is closed, it will be renamed to a non-temporary
      * format, so incomplete sstables can be recognized and removed on startup.
      */
-    String getTempSSTablePath()
+    synchronized String getTempSSTablePath()
     {
         String fname = getTempSSTableFileName();
         return new File(DatabaseDescriptor.getDataFileLocationForTable(table_), fname).getAbsolutePath();
@@ -343,7 +343,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable");
             oldMemtable.freeze();
             getMemtablesPendingFlushNotNull(columnFamily_).add(oldMemtable); // it's ok for the MT to briefly be both active and pendingFlush
-            final Future<?> future = submitFlush(oldMemtable, ctx);
+            final Future<?> future = submitFlush(oldMemtable);
             memtable_ = new Memtable(table_, columnFamily_);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
@@ -888,7 +888,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /* Submit memtables to be flushed to disk */
-    private static Future<?> submitFlush(final Memtable memtable, final CommitLog.CommitLogContext cLogCtx)
+    private static Future<?> submitFlush(final Memtable memtable)
     {
         logger_.info("Enqueuing flush of " + memtable);
         return flusher_.submit(new Runnable()
@@ -897,7 +897,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 try
                 {
-                    memtable.flush(cLogCtx);
+                    memtable.flush();
                 }
                 catch (IOException e)
                 {

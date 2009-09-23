@@ -134,7 +134,7 @@ public class BinaryMemtable
     */
     void flush() throws IOException
     {
-        if ( columnFamilies_.size() == 0 )
+        if (columnFamilies_.size() == 0)
             return;
 
         /*
@@ -146,20 +146,8 @@ public class BinaryMemtable
         SSTableWriter writer;
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>( columnFamilies_.keySet() );
-        /*
-            Adding a lock here so data directories are evenly used. By default currentIndex
-            is incremented, not an AtomicInteger. Let's fix this!
-         */
-        lock_.lock();
-        try
-        {
-            path = cfStore.getTempSSTablePath();
-            writer = new SSTableWriter(path, keys.size(), StorageService.getPartitioner());
-        }
-        finally
-        {
-            lock_.unlock();
-        }
+        path = cfStore.getTempSSTablePath();
+        writer = new SSTableWriter(path, keys.size(), StorageService.getPartitioner());
 
         Collections.sort(keys, partitioner_.getDecoratedKeyObjComparator());
 

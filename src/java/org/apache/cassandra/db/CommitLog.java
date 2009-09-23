@@ -81,7 +81,6 @@ public class CommitLog
 
     public static final class CommitLogContext
     {
-        static CommitLogContext NULL = new CommitLogContext(null, -1L);
         /* Commit Log associated with this operation */
         public final String file;
         /* Offset within the Commit Log where this row as added */
