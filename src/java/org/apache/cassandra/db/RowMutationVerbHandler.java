@@ -53,14 +53,14 @@ public class RowMutationVerbHandler implements IVerbHandler
                 if (logger_.isDebugEnabled())
                   logger_.debug("Adding hint for " + hint);
                 /* add necessary hints to this mutation */
-                RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.table());
+                RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.getTable());
                 hintedMutation.addHints(rm.key(), hint.getHost());
                 hintedMutation.apply();
             }
 
             rm.apply();
 
-            WriteResponse response = new WriteResponse(rm.table(), rm.key(), true);
+            WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
             if (logger_.isDebugEnabled())
               logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());

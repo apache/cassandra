@@ -317,27 +317,27 @@ public class CommitLog
                 bufIn.reset(bytes, bytes.length);
 
                 /* read the commit log entry */
-                Row row = Row.serializer().deserialize(bufIn);
+                RowMutation rm = RowMutation.serializer().deserialize(bufIn);
                 if (logger_.isDebugEnabled())
                     logger_.debug(String.format("replaying mutation for %s.%s: %s",
-                                                row.getTable(),
-                                                row.key(),
-                                                "{" + StringUtils.join(row.getColumnFamilies(), ", ") + "}"));
-                Table table = Table.open(row.getTable());
+                                                rm.getTable(),
+                                                rm.key(),
+                                                "{" + StringUtils.join(rm.getColumnFamilies(), ", ") + "}"));
+                Table table = Table.open(rm.getTable());
                 tablesRecovered.add(table);
-                Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(row.getColumnFamilies());
+                Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
                 /* remove column families that have already been flushed */
                 for (ColumnFamily columnFamily : columnFamilies)
                 {
                     int id = table.getColumnFamilyId(columnFamily.name());
                     if (!clHeader.isDirty(id) || reader.getFilePointer() < clHeader.getPosition(id))
                     {
-                        row.removeColumnFamily(columnFamily);
+                        rm.removeColumnFamily(columnFamily);
                     }
                 }
-                if (!row.isEmpty())
+                if (!rm.isEmpty())
                 {
-                    table.applyNow(row);
+                    table.applyNow(rm);
                 }
             }
             reader.close();
@@ -353,10 +353,10 @@ public class CommitLog
      * Update the header of the commit log if a new column family
      * is encountered for the first time.
     */
-    private void maybeUpdateHeader(Row row) throws IOException
+    private void maybeUpdateHeader(RowMutation rm) throws IOException
     {
-        Table table = Table.open(row.getTable());
-        for (ColumnFamily columnFamily : row.getColumnFamilies())
+        Table table = Table.open(rm.getTable());
+        for (ColumnFamily columnFamily : rm.getColumnFamilies())
         {
             int id = table.getColumnFamilyId(columnFamily.name());
             if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
@@ -396,9 +396,9 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    void add(Row row, DataOutputBuffer serializedRow) throws IOException
+    void add(RowMutation rowMutation, DataOutputBuffer serializedRow) throws IOException
     {
-        Callable<CommitLogContext> task = new LogRecordAdder(row, serializedRow);
+        Callable<CommitLogContext> task = new LogRecordAdder(rowMutation, serializedRow);
 
         try
         {
@@ -558,12 +558,12 @@ public class CommitLog
 
     class LogRecordAdder implements Callable<CommitLog.CommitLogContext>
     {
-        final Row row;
+        final RowMutation rowMutation;
         final Object serializedRow;
 
-        LogRecordAdder(Row row, DataOutputBuffer serializedRow)
+        LogRecordAdder(RowMutation rm, DataOutputBuffer serializedRow)
         {
-            this.row = row;
+            this.rowMutation = rm;
             this.serializedRow = serializedRow;
         }
 
@@ -576,7 +576,7 @@ public class CommitLog
                 currentPosition = logWriter_.getFilePointer();
                 CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
                 /* Update the header */
-                maybeUpdateHeader(row);
+                maybeUpdateHeader(rowMutation);
                 if (serializedRow instanceof DataOutputBuffer)
                 {
                     DataOutputBuffer buffer = (DataOutputBuffer) serializedRow;

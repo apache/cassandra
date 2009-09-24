@@ -594,20 +594,20 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    void apply(Row row, DataOutputBuffer serializedRow) throws IOException
+    void apply(RowMutation mutation, DataOutputBuffer serializedMutation) throws IOException
     {
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
         flusherLock_.readLock().lock();
         try
         {
-            CommitLog.open().add(row, serializedRow);
+            CommitLog.open().add(mutation, serializedMutation);
         
-            for (ColumnFamily columnFamily : row.getColumnFamilies())
+            for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
                 Memtable memtableToFlush;
                 ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-                if ((memtableToFlush=cfStore.apply(row.key(), columnFamily)) != null)
+                if ((memtableToFlush=cfStore.apply(mutation.key(), columnFamily)) != null)
                     memtablesToFlush.put(cfStore, memtableToFlush);
             }
         }
@@ -621,7 +621,7 @@ public class Table
             entry.getKey().switchMemtable(entry.getValue());
     }
 
-    void applyNow(Row row) throws IOException
+    void applyNow(RowMutation row) throws IOException
     {
         String key = row.key();
         for (ColumnFamily columnFamily : row.getColumnFamilies())
@@ -647,11 +647,11 @@ public class Table
     }
 
     // for binary load path.  skips commitlog.
-    void load(Row row) throws IOException
+    void load(RowMutation rowMutation) throws IOException
     {
-        String key = row.key();
+        String key = rowMutation.key();
                 
-        for (ColumnFamily columnFamily : row.getColumnFamilies())
+        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
         {
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             for (IColumn column : columns)
@@ -660,7 +660,6 @@ public class Table
                 cfStore.applyBinary(key, column.value());
             }
         }
-        row.clear();
     }
 
     public SortedSet<String> getApplicationColumnFamilies()

@@ -23,6 +23,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import java.nio.ByteBuffer;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
@@ -83,7 +85,7 @@ public class RowMutation implements Serializable
         modifications_ = modifications;
     }
 
-    public String table()
+    public String getTable()
     {
         return table_;
     }
@@ -96,6 +98,11 @@ public class RowMutation implements Serializable
     public Set<String> columnFamilyNames()
     {
         return modifications_.keySet();
+    }
+    
+    public Collection<ColumnFamily> getColumnFamilies()
+    {
+        return modifications_.values();
     }
 
     void addHints(String key, String host) throws IOException
@@ -117,6 +124,17 @@ public class RowMutation implements Serializable
             throw new IllegalArgumentException("ColumnFamily " + columnFamily.name() + " is already being modified");
         }
         modifications_.put(columnFamily.name(), columnFamily);
+    }
+
+    /** should only be called by commitlog replay code */
+    public void removeColumnFamily(ColumnFamily columnFamily)
+    {
+        modifications_.remove(columnFamily.name());
+    }
+    
+    public boolean isEmpty()
+    {
+        return modifications_.isEmpty();
     }
 
     /*
@@ -183,19 +201,8 @@ public class RowMutation implements Serializable
      * to the table that is obtained by calling Table.open().
     */
     public void apply() throws IOException
-    {
-        Row row = createRow();
-        Table.open(table_).apply(row, row.getSerializedBuffer());
-    }
-
-    private Row createRow()
-    {
-        Row row = new Row(table_, key_);
-        for (String cfName : modifications_.keySet())
-        {
-            row.addColumnFamily(modifications_.get(cfName));
-        }
-        return row;
+    {   
+        Table.open(table_).apply(this, this.getSerializedBuffer());
     }
 
     /*
@@ -204,7 +211,7 @@ public class RowMutation implements Serializable
     */
     void applyBinary() throws IOException, ExecutionException, InterruptedException
     {
-        Table.open(table_).load(createRow());
+        Table.open(table_).load(this);
     }
 
     public Message makeRowMutationMessage() throws IOException
@@ -247,6 +254,13 @@ public class RowMutation implements Serializable
         }
         return rm;
     }
+    
+    public DataOutputBuffer getSerializedBuffer() throws IOException
+    {
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        RowMutation.serializer().serialize(this, buffer);
+        return buffer;
+    }
 
     public String toString()
     {
@@ -281,7 +295,7 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
 
     public void serialize(RowMutation rm, DataOutputStream dos) throws IOException
     {
-        dos.writeUTF(rm.table());
+        dos.writeUTF(rm.getTable());
         dos.writeUTF(rm.key());
 
         /* serialize the modifications_ in the mutation */
