@@ -187,7 +187,7 @@ public class HintedHandOffManager
             }
         }
         hintStore.forceFlush();
-        hintStore.forceAntiCompaction(null, null, 0);
+        hintStore.doMajorCompaction(0);
 
         if (logger_.isDebugEnabled())
           logger_.debug("Finished deliverAllHints");

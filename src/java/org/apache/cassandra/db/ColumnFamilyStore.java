@@ -270,7 +270,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * This method forces a compaction of the SSTables on disk. We wait
      * for the process to complete by waiting on a future pointer.
     */
-    List<SSTableReader> forceAntiCompaction(List<Range> ranges, EndPoint target, long skip)
+    List<SSTableReader> forceAntiCompaction(List<Range> ranges, EndPoint target)
     {
         assert ranges != null;
         Future<List<SSTableReader>> futurePtr = CompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target);

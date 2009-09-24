@@ -475,7 +475,7 @@ public class Table
                 continue;
             
             ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
-            allResults.addAll(cfStore.forceAntiCompaction(ranges, target, 0));
+            allResults.addAll(cfStore.forceAntiCompaction(ranges, target));
         }
         return allResults;
     }

@@ -61,7 +61,7 @@ public class BootstrapTest
         Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
         ranges.add(r);
 
-        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150), 0);
+        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150));
         assert fileList.size() >= 1;
     }
 
