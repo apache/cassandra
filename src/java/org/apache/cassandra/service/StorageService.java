@@ -198,13 +198,29 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (bootstrapSet.isEmpty())
         {
             isBootstrapMode = false;
-            tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, false);
+            updateTokenMetadata(storageMetadata_.getToken(), StorageService.tcpAddr_, false);
 
             logger_.info("Bootstrap completed! Now serving reads.");
             /* Tell others you're not bootstrapping anymore */
             Gossiper.instance().deleteApplicationState(BOOTSTRAP_MODE);
         }
         return isBootstrapMode;
+    }
+
+    private void updateTokenMetadata(Token token, EndPoint endpoint, boolean isBootstraping)
+    {
+        tokenMetadata_.update(token, endpoint, isBootstraping);
+        if (!isBootstraping)
+        {
+            try
+            {
+                SystemTable.updateToken(endpoint, token);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     /*
@@ -317,7 +333,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /* TODO: used for testing */
-    public void updateTokenMetadata(Token token, EndPoint endpoint)
+    public void updateTokenMetadataUnsafe(Token token, EndPoint endpoint)
     {
         tokenMetadata_.update(token, endpoint);
     }
@@ -453,7 +469,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 {
                     if (logger_.isDebugEnabled())
                       logger_.debug("Relocation for endpoint " + ep);
-                    tokenMetadata_.update(newToken, ep, bootstrapState);                    
+                    updateTokenMetadata(newToken, ep, bootstrapState);
                 }
                 else
                 {
@@ -471,7 +487,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 /*
                  * This is a new node and we just update the token map.
                 */
-                tokenMetadata_.update(newToken, ep, bootstrapState);
+                updateTokenMetadata(newToken, ep, bootstrapState);
             }
         }
         else

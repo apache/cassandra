@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.net.EndPoint;
 
 public class SystemTable
 {
@@ -53,25 +54,31 @@ public class SystemTable
         }
     }
 
-    /*
-     * This method is used to update the SystemTable on disk with the new token.
+    /**
+     * Record token being used by another node
+     */
+    public static synchronized void updateToken(EndPoint ep, Token token) throws IOException
+    {
+        IPartitioner p = StorageService.getPartitioner();
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCATION_CF);
+        cf.addColumn(new Column(ep.getHost().getBytes("UTF-8"), p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
+        rm.add(cf);
+        rm.apply();
+    }
+
+    /**
+     * This method is used to update the System Table with the new token for this node
     */
     public static synchronized void updateToken(Token token) throws IOException
     {
         assert metadata != null;
-        IPartitioner p = StorageService.getPartitioner();
-        Table table = Table.open(Table.SYSTEM_TABLE);
-        /* Retrieve the "LocationInfo" column family */
-        QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_CF), TOKEN);
-        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(filter);
-        long oldTokenColumnTimestamp = cf.getColumn(SystemTable.TOKEN).timestamp();
-        /* create the "Token" whose value is the new token. */
-        IColumn tokenColumn = new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), oldTokenColumnTimestamp + 1);
-        /* replace the old "Token" column with this new one. */
         if (logger.isDebugEnabled())
-          logger.debug("Replacing old token " + p.getTokenFactory().fromByteArray(cf.getColumn(SystemTable.TOKEN).value()) + " with " + token);
+          logger.debug("Setting token to " + token);
+        IPartitioner p = StorageService.getPartitioner();
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCATION_CF);
+        cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
-        cf.addColumn(tokenColumn);
         rm.add(cf);
         rm.apply();
         metadata.setToken(token);

@@ -277,14 +277,14 @@ public class LeaveJoinProtocolImpl implements Runnable
     public static void main(String[] args) throws Throwable
     {
         StorageService ss = StorageService.instance();
-        ss.updateTokenMetadata(new BigIntegerToken("3"), new EndPoint("A", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("6"), new EndPoint("B", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("9"), new EndPoint("C", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("12"), new EndPoint("D", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("15"), new EndPoint("E", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("18"), new EndPoint("F", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("21"), new EndPoint("G", 7000));
-        ss.updateTokenMetadata(new BigIntegerToken("24"), new EndPoint("H", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("3"), new EndPoint("A", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("6"), new EndPoint("B", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("9"), new EndPoint("C", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("12"), new EndPoint("D", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("15"), new EndPoint("E", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("18"), new EndPoint("F", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("21"), new EndPoint("G", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("24"), new EndPoint("H", 7000));
         
         Runnable runnable = new LeaveJoinProtocolImpl( new EndPoint[]{new EndPoint("C", 7000), new EndPoint("D", 7000)}, new Token[]{new BigIntegerToken("22"), new BigIntegerToken("23")} );
         runnable.run();

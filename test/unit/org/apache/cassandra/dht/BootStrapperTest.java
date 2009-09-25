@@ -23,7 +23,6 @@ import static org.junit.Assert.*;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
@@ -41,7 +40,7 @@ public class BootStrapperTest {
         /* New token needs to be part of the map for the algorithm
          * to calculate the ranges correctly
          */
-        StorageService.instance().updateTokenMetadata(newToken, newEndPoint);
+        StorageService.instance().updateTokenMetadataUnsafe(newToken, newEndPoint);
 
         BootStrapper b = new BootStrapper(new EndPoint[]{newEndPoint}, newToken );
         Map<Range,List<BootstrapSourceTarget>> res = b.getRangesWithSourceTarget();
@@ -74,7 +73,7 @@ public class BootStrapperTest {
         {
             EndPoint e  = new EndPoint("127.0.0."+i, 100);
             Token t = p.getDefaultToken();
-            StorageService.instance().updateTokenMetadata(t, e);
+            StorageService.instance().updateTokenMetadataUnsafe(t, e);
         }
         return p;
     }
