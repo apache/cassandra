@@ -104,7 +104,11 @@ public class ColumnIndexer
      */
     private static void doIndexing(AbstractType comparator, Collection<IColumn> columns, DataOutput dos) throws IOException
     {
-        assert !columns.isEmpty();
+        if (columns.isEmpty())
+        {
+            dos.writeInt(0);
+            return;            
+        }
 
         /*
          * Maintains a list of ColumnIndexInfo objects for the columns in this

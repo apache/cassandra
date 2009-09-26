@@ -42,12 +42,12 @@ public class TableTest extends CleanupHelper
     private static final String KEY2 = "key2";
     private static final String TEST_KEY = "key1";
 
-    interface Runner
+    public interface Runner
     {
         public void run() throws Exception;
     }
 
-    private void reTest(ColumnFamilyStore cfs, Runner verify) throws Exception
+    public static void reTest(ColumnFamilyStore cfs, Runner verify) throws Exception
     {
         verify.run();
         cfs.forceBlockingFlush();
