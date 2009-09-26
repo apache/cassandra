@@ -35,57 +35,33 @@ public class IndexHelper
 {
 
     /**
-     * Skip the bloom filter and the index and return the bytes read.
-     * @param in the data input from which the bloom filter and index 
-     *           should be skipped
-     * @return number of bytes read.
+     * Skip the bloom filter
+     * @param in the data input from which the bloom filter should be skipped
      * @throws IOException
      */
-    public static int skipBloomFilterAndIndex(DataInput in) throws IOException
+    public static void skipBloomFilter(DataInput in) throws IOException
     {
-        return skipBloomFilter(in) + skipIndex(in);
-    }
-    
-    /**
-     * Skip the bloom filter and return the bytes read.
-     * @param in the data input from which the bloom filter 
-     *           should be skipped
-     * @return number of bytes read.
-     * @throws IOException
-     */
-    public static int skipBloomFilter(DataInput in) throws IOException
-    {
-        int totalBytesRead = 0;
         /* size of the bloom filter */
         int size = in.readInt();
-        totalBytesRead += 4;
         /* skip the serialized bloom filter */
         in.skipBytes(size);
-        totalBytesRead += size;
-        return totalBytesRead;
     }
 
 	/**
-	 * Skip the index and return the number of bytes read.
+	 * Skip the index
 	 * @param file the data input from which the index should be skipped
-	 * @return number of bytes read from the data input
 	 * @throws IOException
 	 */
-	private static int skipIndex(DataInput file) throws IOException
+	public static void skipIndex(DataInput file) throws IOException
 	{
         /* read only the column index list */
         int columnIndexSize = file.readInt();
-        int totalBytesRead = 4;
-
         /* skip the column index data */
         file.skipBytes(columnIndexSize);
-        totalBytesRead += columnIndexSize;
-
-        return totalBytesRead;
 	}
     
     /**
-     * Deserialize the index into a structure and return the number of bytes read.
+     * Deserialize the index into a structure and return it
      * @throws IOException
      */
 	public static ArrayList<IndexInfo> deserializeIndex(RandomAccessFile in) throws IOException
@@ -176,5 +152,4 @@ public class IndexHelper
             return new IndexInfo(ColumnSerializer.readName(dis), ColumnSerializer.readName(dis), dis.readLong(), dis.readLong());
         }
     }
-
 }

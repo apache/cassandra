@@ -21,15 +21,10 @@ package org.apache.cassandra.io;
  */
 
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.DataOutputStream;
-import java.io.DataOutput;
+import java.io.*;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import com.google.common.collect.AbstractIterator;
 
@@ -70,7 +65,8 @@ public class IteratingRow extends AbstractIterator<IColumn> implements Comparabl
     public ColumnFamily getColumnFamily() throws IOException
     {
         file.seek(dataStart);
-        IndexHelper.skipBloomFilterAndIndex(file);
+        IndexHelper.skipBloomFilter(file);
+        IndexHelper.skipIndex(file);
         return ColumnFamily.serializer().deserializeFromSSTable(sstable, file);
     }
 
