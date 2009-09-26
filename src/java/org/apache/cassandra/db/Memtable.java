@@ -37,7 +37,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
-public class Memtable implements Comparable<Memtable>, IFlushable
+public class Memtable implements Comparable<Memtable>, IFlushable<String>
 {
 	private static Logger logger_ = Logger.getLogger( Memtable.class );
 
@@ -170,7 +170,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     void flushOnRecovery() throws IOException {
         if (!isClean())
         {
-            writeSortedContents(getSortedContents());
+            writeSortedContents(getSortedKeys());
         }
     }
 
@@ -187,7 +187,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return builder.toString();
     }
 
-    public ColumnFamilyStore.SortedFlushable getSortedContents()
+    public List<String> getSortedKeys()
     {
         logger_.info("Sorting " + this);
         // sort keys in the order they would be in when decorated
@@ -201,10 +201,10 @@ public class Memtable implements Comparable<Memtable>, IFlushable
                 return dc.compare(partitioner.decorateKey(o1), partitioner.decorateKey(o2));
             }
         });
-        return new ColumnFamilyStore.SortedFlushable(orderedKeys, this);
+        return orderedKeys;
     }
 
-    public SSTableReader writeSortedContents(ColumnFamilyStore.SortedFlushable sortedFlushable) throws IOException
+    public SSTableReader writeSortedContents(List<String> sortedKeys) throws IOException
     {
         logger_.info("Writing " + this);
         IPartitioner<?> partitioner = StorageService.getPartitioner();
@@ -212,17 +212,14 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        for (String key : (List<String>) sortedFlushable.keys)
+        for (String key : sortedKeys)
         {
             buffer.reset();
             ColumnFamily columnFamily = columnFamilies_.get(key);
-            if (columnFamily != null)
-            {
-                /* serialize the cf with column indexes */
-                ColumnFamily.serializer().serializeWithIndexes(columnFamily, buffer);
-                /* Now write the key and value to disk */
-                writer.append(partitioner.decorateKey(key), buffer);
-            }
+            /* serialize the cf with column indexes */
+            ColumnFamily.serializer().serializeWithIndexes(columnFamily, buffer);
+            /* Now write the key and value to disk */
+            writer.append(partitioner.decorateKey(key), buffer);
         }
         buffer.close();
         SSTableReader ssTable = writer.closeAndOpenReader();

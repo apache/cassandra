@@ -924,14 +924,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public void run()
             {
-                final SortedFlushable sortedFlushable = flushable.getSortedContents();
+                final List sortedKeys = flushable.getSortedKeys();
                 flushWriter_.submit(new Runnable()
                 {
                     public void run()
                     {
                         try
                         {
-                            addSSTable(flushable.writeSortedContents(sortedFlushable));
+                            addSSTable(flushable.writeSortedContents(sortedKeys));
                         }
                         catch (IOException e)
                         {
@@ -1309,17 +1309,5 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void clearUnsafe()
     {
         memtable_.clearUnsafe();
-    }
-
-    public static class SortedFlushable
-    {
-        public final List<?> keys;
-        public final IFlushable flushable;
-
-        public SortedFlushable(List<?> keys, IFlushable flushable)
-        {
-            this.keys = keys;
-            this.flushable = flushable;
-        }
     }
 }

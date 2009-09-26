@@ -37,7 +37,7 @@ import org.apache.log4j.Logger;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.dht.IPartitioner;
 
-public class BinaryMemtable implements IFlushable
+public class BinaryMemtable implements IFlushable<DecoratedKey>
 {
     private static Logger logger_ = Logger.getLogger(BinaryMemtable.class);
     private int threshold_ = DatabaseDescriptor.getBMTThreshold() * 1024 * 1024;
@@ -122,23 +122,23 @@ public class BinaryMemtable implements IFlushable
         currentSize_.addAndGet(buffer.length + key.length());
     }
 
-    public ColumnFamilyStore.SortedFlushable getSortedContents()
+    public List<DecoratedKey> getSortedKeys()
     {
         assert !columnFamilies_.isEmpty();
         logger_.info("Sorting " + this);
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
         Collections.sort(keys, partitioner_.getDecoratedKeyObjComparator());
-        return new ColumnFamilyStore.SortedFlushable(keys, this);
+        return keys;
     }
 
-    public SSTableReader writeSortedContents(ColumnFamilyStore.SortedFlushable sortedFlushable) throws IOException
+    public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
         logger_.info("Writing " + this);
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         String path = cfStore.getTempSSTablePath();
-        SSTableWriter writer = new SSTableWriter(path, sortedFlushable.keys.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(path, sortedKeys.size(), StorageService.getPartitioner());
 
-        for (DecoratedKey key : (List<DecoratedKey>) sortedFlushable.keys)
+        for (DecoratedKey key : sortedKeys)
         {
             byte[] bytes = columnFamilies_.get(key);
             assert bytes.length > 0;
