@@ -51,6 +51,8 @@ public final class SuperColumn implements IColumn, IColumnContainer
 
     SuperColumn(byte[] name, AbstractType comparator)
     {
+        assert name != null;
+        assert name.length <= IColumn.MAX_NAME_LENGTH;
     	name_ = name;
         columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
     }

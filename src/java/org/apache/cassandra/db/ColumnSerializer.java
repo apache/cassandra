@@ -32,7 +32,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public static void writeName(byte[] name, DataOutput out) throws IOException
     {
         int length = name.length;
-        assert length <= 65535;
+        assert length <= IColumn.MAX_NAME_LENGTH;
         out.writeByte((length >> 8) & 0xFF);
         out.writeByte(length & 0xFF);
         out.write(name);

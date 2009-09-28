@@ -28,6 +28,7 @@ import java.util.Arrays;
 import org.apache.cassandra.db.KeyspaceNotDefinedException;
 import org.apache.cassandra.db.ColumnFamilyNotDefinedException;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -148,9 +149,20 @@ public class ThriftValidation
     private static void validateColumns(String keyspace, String columnFamilyName, byte[] superColumnName, Iterable<byte[]> column_names)
     throws InvalidRequestException
     {
+        if (superColumnName != null)
+        {
+            if (superColumnName.length > IColumn.MAX_NAME_LENGTH)
+                throw new InvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
+            if (superColumnName.length == 0)
+                throw new InvalidRequestException("supercolumn name must not be empty");
+        }
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamilyName, superColumnName);
         for (byte[] name : column_names)
         {
+            if (name.length > IColumn.MAX_NAME_LENGTH)
+                throw new InvalidRequestException("column name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
+            if (name.length == 0)
+                throw new InvalidRequestException("column name must not be empty");
             try
             {
                 comparator.validate(name);

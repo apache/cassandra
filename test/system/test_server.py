@@ -274,6 +274,18 @@ class TestMutations(CassandraTester):
         _insert_batch(True)
         _verify_batch()
 
+    def test_column_name_lengths(self):
+        _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column=''), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*1), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*127), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*128), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*129), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*255), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*256), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*257), 'value', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*(2**16 - 1)), 'value', 0, ConsistencyLevel.ONE)
+        _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*(2**16)), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
+
     def test_bad_calls(self):
         # supercolumn in a non-super CF
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', 'x', 'y'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)

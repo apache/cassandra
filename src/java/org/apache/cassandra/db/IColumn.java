@@ -25,6 +25,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 public interface IColumn
 {
     public static short UtfPrefix_ = 2;
+    public static final int MAX_NAME_LENGTH = 0xFFFF; // we use 2 bytes to hold length
+
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
     public long mostRecentChangeAt();
