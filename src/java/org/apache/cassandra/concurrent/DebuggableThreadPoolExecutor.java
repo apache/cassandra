@@ -68,31 +68,16 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         return getTaskCount() - getCompletedTaskCount();
     }
 
-    /*
-     * 
-     *  (non-Javadoc)
-     * @see java.util.concurrent.ThreadPoolExecutor#afterExecute(java.lang.Runnable, java.lang.Throwable)
-     * Helps us in figuring out why sometimes the threads are getting 
-     * killed and replaced by new ones.
-     */
     public void afterExecute(Runnable r, Throwable t)
     {
         super.afterExecute(r,t);
 
-        logFutureExceptions(r);
-        if (t != null)
-        {
-            logger_.error("Error in ThreadPoolExecutor", t);
-        }
-    }
-
-    public static void logFutureExceptions(Runnable r)
-    {
+        // exceptions wrapped by FutureTask
         if (r instanceof FutureTask)
         {
             try
             {
-                ((FutureTask)r).get();
+                ((FutureTask) r).get();
             }
             catch (InterruptedException e)
             {
@@ -103,5 +88,12 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
                 logger_.error("Error in executor futuretask", e);
             }
         }
+
+        // exceptions for non-FutureTask runnables [i.e., added via execute() instead of submit()]
+        if (t != null)
+        {
+            logger_.error("Error in ThreadPoolExecutor", t);
+        }
     }
+
 }

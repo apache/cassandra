@@ -22,20 +22,19 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.io.SSTableReader;
-
 import org.apache.log4j.Logger;
+
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.net.EndPoint;
 
 public class CompactionManager implements CompactionManagerMBean
 {
@@ -159,7 +158,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
     
     
-    private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new NamedThreadFactory("COMPACTION-POOL"));
+    private ExecutorService compactor_ = new DebuggableThreadPoolExecutor("COMPACTION-POOL");
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.

@@ -22,16 +22,13 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
@@ -184,10 +181,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     /* This map is a clone of the one above and is used for various calculations during LB operation */
     private Map<EndPoint, LoadInfo> loadInfo2_ = new HashMap<EndPoint, LoadInfo>();
     /* This thread pool is used for initiating load balancing operations */
-    private ScheduledThreadPoolExecutor lb_ = new DebuggableScheduledThreadPoolExecutor(
-            1,
-            new NamedThreadFactory("LB-OPERATIONS")
-            );
+    private ExecutorService lb_ = new DebuggableThreadPoolExecutor("LB-OPERATIONS");
     /* This thread pool is used by target node to leave the ring. */
     private ExecutorService lbOperations_ = new DebuggableThreadPoolExecutor("LB-TARGET");
 

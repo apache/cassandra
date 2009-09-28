@@ -19,17 +19,18 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.io.IOException;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.EndPoint;
@@ -54,8 +55,9 @@ public class HintedHandOffManager
     private static HintedHandOffManager instance_;
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
-    final static long intervalInMins_ = 60;
-    private ScheduledExecutorService executor_ = new DebuggableScheduledThreadPoolExecutor(1, new NamedThreadFactory("HINTED-HANDOFF-POOL"));
+    final static long INTERVAL_IN_MS = 3600 * 1000;
+    private ExecutorService executor_ = new DebuggableThreadPoolExecutor("HINTED-HANDOFF-POOL");
+    Timer timer = new Timer("HINTED-HANDOFF-TIMER");
     public static final String HINTS_CF = "HintsColumnFamily";
 
 
@@ -234,9 +236,9 @@ public class HintedHandOffManager
           logger_.debug("Finished hinted handoff for endpoint " + endPoint.getHost());
     }
 
-    public void submit(final ColumnFamilyStore columnFamilyStore)
+    public void scheduleHandoffsFor(final ColumnFamilyStore columnFamilyStore)
     {
-        Runnable r = new Runnable()
+        final Runnable r = new Runnable()
         {
             public void run()
             {
@@ -250,7 +252,13 @@ public class HintedHandOffManager
                 }
             }
         };
-    	executor_.scheduleWithFixedDelay(r, HintedHandOffManager.intervalInMins_, HintedHandOffManager.intervalInMins_, TimeUnit.MINUTES);
+        timer.schedule(new TimerTask()
+        {
+            public void run()
+            {
+                executor_.execute(r);
+            }
+        }, INTERVAL_IN_MS, INTERVAL_IN_MS);
     }
 
     /*

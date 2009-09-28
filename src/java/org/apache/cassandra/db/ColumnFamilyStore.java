@@ -85,6 +85,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                new LinkedBlockingQueue<Runnable>(),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new DebuggableThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+    private static Timer flushTimer_ = new Timer("FLUSH-TIMER");
 
     private final String table_;
     public final String columnFamily_;
@@ -218,14 +219,27 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // schedule hinted handoff
         if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
         {
-            HintedHandOffManager.instance().submit(this);
+            HintedHandOffManager.instance().scheduleHandoffsFor(this);
         }
 
         // schedule periodic flusher if required
-        int flushPeriod = DatabaseDescriptor.getFlushPeriod(table_, columnFamily_);
-        if (flushPeriod > 0)
+        int flushPeriodMS = DatabaseDescriptor.getFlushPeriod(table_, columnFamily_) * 60 * 1000;
+        if (flushPeriodMS > 0)
         {
-            PeriodicFlushManager.instance().submitPeriodicFlusher(this, flushPeriod);
+            flushTimer_.schedule(new TimerTask()
+            {
+                public void run()
+                {
+                    try
+                    {
+                        forceFlush();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }, flushPeriodMS, flushPeriodMS);
         }
     }
 
