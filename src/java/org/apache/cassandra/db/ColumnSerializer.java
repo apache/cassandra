@@ -41,8 +41,8 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public static byte[] readName(DataInput in) throws IOException
     {
         int length = 0;
-        length |= (in.readByte() << 8);
-        length |= in.readByte();
+        length |= (in.readByte() & 0xFF) << 8;
+        length |= in.readByte() & 0xFF;
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return bytes;
