@@ -65,6 +65,7 @@ public final class Column implements IColumn
     {
         assert name != null;
         assert value != null;
+        assert name.length <= IColumn.MAX_NAME_LENGTH;
         this.name = name;
         this.value = value;
         this.timestamp = timestamp;
