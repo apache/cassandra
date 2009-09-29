@@ -50,4 +50,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
     {
         return sstables.iterator();
     }
+
+    public synchronized void clearUnsafe()
+    {
+        sstables = Collections.emptySet();
+    }
 }

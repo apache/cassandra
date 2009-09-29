@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Arrays;
+import java.util.Collections;
 
 import org.junit.Test;
 
@@ -43,19 +44,24 @@ public class RecoveryManager2Test extends CleanupHelper
         for (int i = 0; i < 100; i++)
         {
             String key = "key" + i;
-            RowMutation rm = new RowMutation("Keyspace1", key);
-            ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
-            cf.addColumn(column("col1", "val1", 1L));
-            rm.add(cf);
-            rm.apply();
+            insertRow(key);
             keys.add(key);
         }
         table1.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
         table1.getColumnFamilyStore("Standard1").clearUnsafe();
-        RecoveryManager.doRecovery();
+        RecoveryManager.doRecovery(); // this is a no-op. is testing this useful?
 
         Set<String> foundKeys = new HashSet<String>(table1.getColumnFamilyStore("Standard1").getKeyRange("", "", 1000).keys);
-        assert keys.equals(foundKeys);
+        assert foundKeys.equals(Collections.emptySet());
+    }
+
+    private void insertRow(String key) throws IOException
+    {
+        RowMutation rm = new RowMutation("Keyspace1", key);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        cf.addColumn(column("col1", "val1", 1L));
+        rm.add(cf);
+        rm.apply();
     }
 }

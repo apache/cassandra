@@ -1325,5 +1325,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void clearUnsafe()
     {
         memtable_.clearUnsafe();
+        ssTables_.clearUnsafe();
     }
 }
