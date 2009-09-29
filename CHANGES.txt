@@ -1,3 +1,12 @@
+0.4.1
+ * Fix FlushPeriod columnfamily configuration regression
+   (CASSANDRA-455)
+ * Fix long column name support (CASSANDRA-460)
+ * Fix for serializing a row that only contains tombstones
+   (CASSANDRA-458)
+ * Fix for discarding unneeded commitlog segments (CASSANDRA-459)
+
+
 0.4.0
  * fix get_key_range problems when a node is down (CASSANDRA-440)
    and add UnavailableException to more Thrift methods
