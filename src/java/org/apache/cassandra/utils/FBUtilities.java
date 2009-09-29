@@ -25,11 +25,7 @@ import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -411,5 +407,17 @@ public class FBUtilities
             chars[i*2+1] = HEX_CHARS[buf[i] & 0x0F];
         }
         return new String(chars);
+    }
+
+    public static String mapToString(Map<?,?> map)
+    {
+        StringBuilder sb = new StringBuilder("");
+
+        for (Map.Entry entry : map.entrySet())
+        {
+            sb.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
+        }
+
+        return sb.append("}").toString();
     }
 }

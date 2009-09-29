@@ -538,12 +538,14 @@ public class DatabaseDescriptor
             CFMetaData data = new CFMetaData();
             data.columnType = "Standard";
             data.comparator = new UTF8Type();
+            data.flushPeriodInMinutes = 1;
             systemMetadata.put(SystemTable.LOCATION_CF, data);
 
             data = new CFMetaData();
             data.columnType = "Super";
             data.comparator = new UTF8Type();
             data.subcolumnComparator = new BytesType();
+            data.flushPeriodInMinutes = 10;
             systemMetadata.put(HintedHandOffManager.HINTS_CF, data);
             tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
 

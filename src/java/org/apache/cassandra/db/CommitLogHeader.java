@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.util.BitSet;
+import java.util.Arrays;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.DataInputBuffer;
@@ -35,17 +36,6 @@ class CommitLogHeader
         return serializer;
     }
         
-    public static BitSet and(byte[] bytes1, byte[] bytes2) throws IOException
-    {
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(bytes1, 0, bytes1.length);
-        CommitLogHeader header1 = serializer.deserialize(bufIn);
-        bufIn.reset(bytes2, 0, bytes2.length);
-        CommitLogHeader header2 = serializer.deserialize(bufIn);
-        header1.and(header2);
-        return header1.dirty;
-    }
-
     static int getLowestPosition(CommitLogHeader clHeader)
     {
         int minPosition = Integer.MAX_VALUE;
@@ -116,17 +106,12 @@ class CommitLogHeader
         return dirty.isEmpty();
     }
 
-    void zeroPositions()
+    void clear()
     {
-        int size = lastFlushedAt.length;
-        lastFlushedAt = new int[size];
+        dirty.clear();
+        Arrays.fill(lastFlushedAt, 0);
     }
-    
-    void and(CommitLogHeader commitLogHeader)
-    {
-        dirty.and(commitLogHeader.dirty);
-    }
-    
+        
     byte[] toByteArray() throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -151,6 +136,19 @@ class CommitLogHeader
             sb.append(position);
             sb.append(" ");
         }        
+        return sb.toString();
+    }
+
+    public String dirtyString()
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < dirty.length(); i++)
+        {
+            if (dirty.get(i))
+            {
+                sb.append(i).append(", ");
+            }
+        }
         return sb.toString();
     }
 

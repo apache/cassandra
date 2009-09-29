@@ -35,8 +35,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.commons.lang.StringUtils;
-
 /*
  * Commit Log tracks every write operation into the system. The aim
  * of the commit log is to be able to successfully recover data that was
@@ -95,6 +93,15 @@ public class CommitLog
         boolean isValidContext()
         {
             return (position != -1L);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "CommitLogContext(" +
+                   "file='" + file + '\'' +
+                   ", position=" + position +
+                   ')';
         }
     }
 
@@ -359,7 +366,7 @@ public class CommitLog
         for (ColumnFamily columnFamily : rm.getColumnFamilies())
         {
             int id = table.getColumnFamilyId(columnFamily.name());
-            if (!clHeader_.isDirty(id) || (clHeader_.isDirty(id) && clHeader_.getPosition(id) == 0))
+            if (!clHeader_.isDirty(id))
             {
                 clHeader_.turnOn(id, logWriter_.getFilePointer());
                 seekAndWriteCommitLogHeader(clHeader_.toByteArray());
@@ -455,77 +462,83 @@ public class CommitLog
     */
     private void discardCompletedSegments(CommitLog.CommitLogContext cLogCtx, int id) throws IOException
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("discard completed log segments for " + cLogCtx + ", column family " + id + ". CFIDs are " + Table.TableMetadata.getColumnFamilyIDString());
         /* retrieve the commit log header associated with the file in the context */
-        CommitLogHeader commitLogHeader = clHeaders_.get(cLogCtx.file);
-        if(commitLogHeader == null )
+        if (clHeaders_.get(cLogCtx.file) == null)
         {
-            if( logFile_.equals(cLogCtx.file) )
+            if (logFile_.equals(cLogCtx.file))
             {
                 /* this means we are dealing with the current commit log. */
-                commitLogHeader = clHeader_;
                 clHeaders_.put(cLogCtx.file, clHeader_);
             }
             else
+            {
+                logger_.error("Unknown commitlog file " + cLogCtx.file);
                 return;
+            }
         }
 
         /*
          * log replay assumes that we only have to look at entries past the last
          * flush position, so verify that this flush happens after the last.
-         * (Currently Memtables are flushed on a single thread so this should be fine.)
         */
-        assert cLogCtx.position >= commitLogHeader.getPosition(id);
+        assert cLogCtx.position >= clHeaders_.get(cLogCtx.file).getPosition(id);
 
-        commitLogHeader.turnOff(id);
         /* Sort the commit logs based on creation time */
         List<String> oldFiles = new ArrayList<String>(clHeaders_.keySet());
         Collections.sort(oldFiles, new CommitLogFileComparator());
-        List<String> listOfDeletedFiles = new ArrayList<String>();
+
         /*
          * Loop through all the commit log files in the history. Now process
          * all files that are older than the one in the context. For each of
-         * these files the header needs to modified by performing a bitwise &
-         * of the header with the header of the file in the context. If we
-         * encounter the file in the context in our list of old commit log files
-         * then we update the header and write it back to the commit log.
+         * these files the header needs to modified by resetting the dirty
+         * bit corresponding to the flushed CF.
         */
         for (String oldFile : oldFiles)
         {
+            CommitLogHeader header = clHeaders_.get(oldFile);
             if (oldFile.equals(cLogCtx.file))
             {
-                /*
-                 * We need to turn on again. This is because we always keep
-                 * the bit turned on and the position indicates from where the
-                 * commit log needs to be read. When a flush occurs we turn off
-                 * perform & operation and then turn on with the new position.
-                */
-                commitLogHeader.turnOn(id, cLogCtx.position);
-                seekAndWriteCommitLogHeader(commitLogHeader.toByteArray());
-                break;
-            }
-            else
-            {
-                CommitLogHeader oldCommitLogHeader = clHeaders_.get(oldFile);
-                oldCommitLogHeader.and(commitLogHeader);
-                if (oldCommitLogHeader.isSafeToDelete())
+                // we can't just mark the segment where the flush happened clean,
+                // since there may have been writes to it between when the flush
+                // started and when it finished. so mark the flush position as
+                // the replay point for this CF, instead.
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Marking replay position " + cLogCtx.position + " on commit log " + oldFile);
+                header.turnOn(id, cLogCtx.position);
+                if (oldFile.equals(logFile_))
                 {
-                    logger_.info("Deleting obsolete commit log:" + oldFile);
-                    FileUtils.deleteAsync(oldFile);
-                    listOfDeletedFiles.add(oldFile);
+                    seekAndWriteCommitLogHeader(header.toByteArray());
                 }
                 else
                 {
-                    BufferedRandomAccessFile logWriter = CommitLog.createWriter(oldFile);
-                    writeCommitLogHeader(logWriter, oldCommitLogHeader.toByteArray());
-                    logWriter.close();
+                    writeOldCommitLogHeader(oldFile, header);
                 }
+                break;
+            }
+
+            header.turnOff(id);
+            if (header.isSafeToDelete())
+            {
+                logger_.info("Deleting obsolete commit log:" + oldFile);
+                FileUtils.deleteAsync(oldFile);
+                clHeaders_.remove(oldFile);
+            }
+            else
+            {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Not safe to delete commit log " + oldFile + "; dirty is " + header.dirtyString());
+                writeOldCommitLogHeader(oldFile, header);
             }
         }
+    }
 
-        for ( String deletedFile : listOfDeletedFiles)
-        {
-            clHeaders_.remove(deletedFile);
-        }
+    private void writeOldCommitLogHeader(String oldFile, CommitLogHeader header) throws IOException
+    {
+        BufferedRandomAccessFile logWriter = CommitLog.createWriter(oldFile);
+        writeCommitLogHeader(logWriter, header.toByteArray());
+        logWriter.close();
     }
 
     private boolean maybeRollLog() throws IOException
@@ -541,10 +554,7 @@ public class CommitLog
             logWriter_ = CommitLog.createWriter(logFile_);
             /* squirrel away the old commit log header */
             clHeaders_.put(oldLogFile, new CommitLogHeader(clHeader_));
-            // we leave the old 'dirty' bits alone, so we can test for
-            // whether it's safe to remove a given log segment by and-ing its dirty
-            // with the current one.
-            clHeader_.zeroPositions();
+            clHeader_.clear();
             writeCommitLogHeader(logWriter_, clHeader_.toByteArray());
             return true;
         }

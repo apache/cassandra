@@ -140,23 +140,17 @@ public class Table
 
         public String toString()
         {
-            StringBuilder sb = new StringBuilder("");
-            Set<String> cfNames = cfIdMap_.keySet();
-            
-            for ( String cfName : cfNames )
-            {
-                sb.append(cfName);
-                sb.append("---->");
-                sb.append(cfIdMap_.get(cfName));
-                sb.append(System.getProperty("line.separator"));
-            }
-            
-            return sb.toString();
+            return "TableMetadata(" + FBUtilities.mapToString(cfIdMap_) + ")";
         }
 
         public static int getColumnFamilyCount()
         {
             return idCfMap_.size();
+        }
+
+        public static String getColumnFamilyIDString()
+        {
+            return FBUtilities.mapToString(tableMetadataMap_);
         }
     }
 

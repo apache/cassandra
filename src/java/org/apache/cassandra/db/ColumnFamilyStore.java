@@ -165,6 +165,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void onStart() throws IOException
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("Starting CFS " + columnFamily_);
         // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
         String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table_);
