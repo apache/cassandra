@@ -59,9 +59,9 @@
        ~ (To get the closest approximation to 0.3-style supercolumns, you
        ~ would use CompareWith=UTF8Type CompareSubcolumnsWith=LongType.)
 
-       ~ If FlushPeriodInMinutes is configured and positive, it will be
-       ~ flushed to disk with that period whether it is dirty or not.  This
-       ~ is intended for lightly-used columnfamilies so that they do not
+       ~ If FlushPeriodInMinutes is positive, it will be
+       ~ flushed to disk with that period even if the memtable has not
+       ~ exceeded the size or count thresholds, so that it does not
        ~ prevent commitlog segments from being purged. 
       -->
       <ColumnFamily CompareWith="BytesType"
