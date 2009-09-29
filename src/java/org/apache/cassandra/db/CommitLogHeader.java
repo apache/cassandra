@@ -154,6 +154,19 @@ class CommitLogHeader
         return sb.toString();
     }
 
+    public String dirtyString()
+    {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < dirty.length(); i++)
+        {
+            if (dirty.get(i))
+            {
+                sb.append(i).append(", ");
+            }
+        }
+        return sb.toString();
+    }
+
     static class CommitLogHeaderSerializer implements ICompactSerializer<CommitLogHeader>
     {
         public void serialize(CommitLogHeader clHeader, DataOutputStream dos) throws IOException

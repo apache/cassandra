@@ -97,6 +97,15 @@ public class CommitLog
         {
             return (position != -1L);
         }
+
+        @Override
+        public String toString()
+        {
+            return "CommitLogContext(" +
+                   "file='" + file + '\'' +
+                   ", position=" + position +
+                   ')';
+        }
     }
 
     public static class CommitLogFileComparator implements Comparator<String>
@@ -455,18 +464,23 @@ public class CommitLog
     */
     private void discardCompletedSegments(CommitLog.CommitLogContext cLogCtx, int id) throws IOException
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("discard completed log segments for " + cLogCtx + ", column family " + id + ". CFIDs are " + Table.TableMetadata.getColumnFamilyIDString());
         /* retrieve the commit log header associated with the file in the context */
         CommitLogHeader commitLogHeader = clHeaders_.get(cLogCtx.file);
-        if(commitLogHeader == null )
+        if (commitLogHeader == null)
         {
-            if( logFile_.equals(cLogCtx.file) )
+            if (logFile_.equals(cLogCtx.file))
             {
                 /* this means we are dealing with the current commit log. */
                 commitLogHeader = clHeader_;
                 clHeaders_.put(cLogCtx.file, clHeader_);
             }
             else
+            {
+                logger_.error("Unknown commitlog file " + cLogCtx.file);
                 return;
+            }
         }
 
         /*
@@ -499,6 +513,8 @@ public class CommitLog
                  * commit log needs to be read. When a flush occurs we turn off
                  * perform & operation and then turn on with the new position.
                 */
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Marking replay position on current commit log " + oldFile);
                 commitLogHeader.turnOn(id, cLogCtx.position);
                 seekAndWriteCommitLogHeader(commitLogHeader.toByteArray());
                 break;
@@ -516,6 +532,8 @@ public class CommitLog
                 }
                 else
                 {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("Not safe to delete commit log " + oldFile + "; dirty is " + oldCommitLogHeader.dirtyString());
                     RandomAccessFile logWriter = CommitLog.createWriter(oldFile);
                     writeCommitLogHeader(logWriter, oldCommitLogHeader.toByteArray());
                     logWriter.close();
