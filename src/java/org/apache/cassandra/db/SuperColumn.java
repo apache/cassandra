@@ -23,15 +23,13 @@ import java.util.Collection;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.security.MessageDigest;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.MarshalException;
 
 
 public final class SuperColumn implements IColumn, IColumnContainer
@@ -270,17 +268,24 @@ public final class SuperColumn implements IColumn, IColumnContainer
         	return null;
     }
 
-    public byte[] digest()
+    public void updateDigest(MessageDigest digest)
     {
-    	byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
-    	if(name_ == null)
-    		return xorHash;
-    	xorHash = name_.clone();
-    	for(IColumn column : columns_.values())
-    	{
-			xorHash = FBUtilities.xor(xorHash, column.digest());
-    	}
-    	return xorHash;
+        assert name_ != null;
+        digest.update(name_);
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        try
+        {
+            buffer.writeLong(markedForDeleteAt);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        digest.update(buffer.getData(), 0, buffer.getLength());
+        for (IColumn column : columns_.values())
+        {
+            column.updateDigest(digest);
+        }
     }
 
     public String getString(AbstractType comparator)

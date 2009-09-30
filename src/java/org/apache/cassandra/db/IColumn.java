@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
+import java.security.MessageDigest;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -42,7 +43,7 @@ public interface IColumn
     public void addColumn(IColumn column);
     public IColumn diff(IColumn column);
     public int getObjectCount();
-    public byte[] digest();
+    public void updateDigest(MessageDigest digest);
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
     public String getString(AbstractType comparator);
 }

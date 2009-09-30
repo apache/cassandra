@@ -26,12 +26,11 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.security.MessageDigest;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -347,21 +346,12 @@ public final class ColumnFamily implements IColumnContainer
     	return sb.toString();
     }
 
-    public byte[] digest()
+    public void updateDigest(MessageDigest digest)
     {
-        byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
         for (IColumn column : columns_.values())
         {
-            if (xorHash.length == 0)
-            {
-                xorHash = column.digest();
-            }
-            else
-            {
-                xorHash = FBUtilities.xor(xorHash, column.digest());
-            }
+            column.updateDigest(digest);
         }
-        return xorHash;
     }
 
     public long getMarkedForDeleteAt()

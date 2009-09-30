@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.Arrays;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -167,20 +169,22 @@ public class Row
 
     public byte[] digest()
     {
-        Set<String> cfamilies = columnFamilies_.keySet();
-        byte[] xorHash = ArrayUtils.EMPTY_BYTE_ARRAY;
-        for (String cFamily : cfamilies)
+        MessageDigest digest;
+        try
         {
-            if (xorHash.length == 0)
-            {
-                xorHash = columnFamilies_.get(cFamily).digest();
-            }
-            else
-            {
-                xorHash = FBUtilities.xor(xorHash, columnFamilies_.get(cFamily).digest());
-            }
+            digest = MessageDigest.getInstance("MD5");
         }
-        return xorHash;
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new AssertionError(e);
+        }
+
+        for (String cFamily : columnFamilies_.keySet())
+        {
+            columnFamilies_.get(cFamily).updateDigest(digest);
+        }
+
+        return digest.digest();
     }
 
     void clear()

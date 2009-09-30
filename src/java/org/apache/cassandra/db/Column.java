@@ -20,10 +20,13 @@ package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.io.IOException;
 
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.DataOutputBuffer;
 
 
 /**
@@ -172,13 +175,21 @@ public final class Column implements IColumn
         return null;
     }
 
-    public byte[] digest()
+    public void updateDigest(MessageDigest digest)
     {
-        StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(name);
-        stringBuilder.append(":");
-        stringBuilder.append(timestamp);
-        return stringBuilder.toString().getBytes();
+        digest.update(name);
+        digest.update(value);
+        DataOutputBuffer buffer = new DataOutputBuffer();
+        try
+        {
+            buffer.writeLong(timestamp);
+            buffer.writeBoolean(isMarkedForDelete);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        digest.update(buffer.getData(), 0, buffer.getLength());
     }
 
     public int getLocalDeletionTime()

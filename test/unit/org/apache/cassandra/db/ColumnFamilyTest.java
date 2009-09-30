@@ -130,11 +130,4 @@ public class ColumnFamilyTest
         //addcolumns will only add if timestamp >= old timestamp
         assert Arrays.equals(val, cf_result.getColumn("col2".getBytes()).value());
     }
-
-    @Test
-    public void testEmptyDigest()
-    {
-        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
-        assert cf.digest().length == 0;
-    }
 }
