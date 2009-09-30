@@ -352,10 +352,7 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.makeReadMessage();
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
-            IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
-            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(
-                    DatabaseDescriptor.getQuorum(),
-                    readResponseResolver);
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver());
             EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
             List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getReadStorageEndPoints(command.key)));
             /* Remove the local storage endpoint from the list. */
@@ -401,7 +398,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                if ( DatabaseDescriptor.getConsistencyCheck())
+                if (DatabaseDescriptor.getConsistencyCheck())
                 {
                     IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver();
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
@@ -409,8 +406,7 @@ public class StorageProxy implements StorageProxyMBean
                             readResponseResolverRepair);
                     logger.info("DigestMismatchException: " + command.key);
                     Message messageRepair = command.makeReadMessage();
-                    MessagingService.getMessagingInstance().sendRR(messageRepair, commandEndPoints.get(commandIndex),
-                            quorumResponseHandlerRepair);
+                    MessagingService.getMessagingInstance().sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
                     {
                         row = quorumResponseHandlerRepair.get();

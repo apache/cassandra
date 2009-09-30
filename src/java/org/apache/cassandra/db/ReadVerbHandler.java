@@ -75,9 +75,8 @@ public class ReadVerbHandler implements IVerbHandler
             }
             ReadCommand readCommand = ReadCommand.serializer().deserialize(readCtx.bufIn_);
             Table table = Table.open(readCommand.table);
-            Row row = null;
-            row = readCommand.getRow(table);
-            ReadResponse readResponse = null;
+            Row row = readCommand.getRow(table);
+            ReadResponse readResponse;
             if (readCommand.isDigestQuery())
             {
                 readResponse = new ReadResponse(row.digest());

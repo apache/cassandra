@@ -115,20 +115,12 @@ class ReadResponseSerializer implements ICompactSerializer<ReadResponse>
         boolean isDigest = dis.readBoolean();
         
         Row row = null;
-        if ( !isDigest )
+        if (!isDigest)
         {
             row = Row.serializer().deserialize(dis);
         }
-		
-		ReadResponse rmsg = null;
-    	if( isDigest  )
-        {
-    		rmsg =  new ReadResponse(digest);
-        }
-    	else
-        {
-    		rmsg =  new ReadResponse(row);
-        }
+
+        ReadResponse rmsg = isDigest ? new ReadResponse(digest) : new ReadResponse(row);
         rmsg.setIsDigestQuery(isDigest);
     	return rmsg;
     } 

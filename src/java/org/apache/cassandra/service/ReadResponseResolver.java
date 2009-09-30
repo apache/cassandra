@@ -54,8 +54,8 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	 * repair request should be scheduled.
 	 * 
 	 */
-	public Row resolve(List<Message> responses) throws DigestMismatchException
-	{
+	public Row resolve(List<Message> responses) throws DigestMismatchException, IOException
+    {
         long startTime = System.currentTimeMillis();
 		Row retRow = null;
 		List<Row> rowList = new ArrayList<Row>();
@@ -76,38 +76,31 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		{					            
             byte[] body = response.getMessageBody();
             bufIn.reset(body, body.length);
-            try
+            long start = System.currentTimeMillis();
+            ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
+            if (logger_.isDebugEnabled())
+              logger_.debug( "Response deserialization time : " + (System.currentTimeMillis() - start) + " ms.");
+            if (result.isDigestQuery())
             {
-                long start = System.currentTimeMillis();
-                ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
-                if (logger_.isDebugEnabled())
-                  logger_.debug( "Response deserialization time : " + (System.currentTimeMillis() - start) + " ms.");
-    			if(!result.isDigestQuery())
-    			{
-    				rowList.add(result.row());
-    				endPoints.add(response.getFrom());
-    				key = result.row().key();
-    				table = result.row().getTable();
-    			}
-    			else
-    			{
-    				digest = result.digest();
-    				isDigestQuery = true;
-    			}
+                digest = result.digest();
+                isDigestQuery = true;
             }
-            catch( IOException ex )
+            else
             {
-                logger_.info(LogUtil.throwableToString(ex));
+                rowList.add(result.row());
+                endPoints.add(response.getFrom());
+                key = result.row().key();
+                table = result.row().getTable();
             }
-		}
+        }
 		// If there was a digest query compare it with all the data digests 
 		// If there is a mismatch then throw an exception so that read repair can happen.
-		if(isDigestQuery)
-		{
-			for(Row row: rowList)
-			{
-				if( !Arrays.equals(row.digest(), digest) )
-				{
+        if (isDigestQuery)
+        {
+            for (Row row : rowList)
+            {
+                if (!Arrays.equals(row.digest(), digest))
+                {
                     /* Wrap the key as the context in this exception */
 					throw new DigestMismatchException(row.key());
 				}
@@ -115,36 +108,36 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		}
 		
         /* If the rowList is empty then we had some exception above. */
-        if ( rowList.size() == 0 )
+        if (rowList.size() == 0)
         {
             return retRow;
         }
-        
+
         /* Now calculate the resolved row */
-		retRow = new Row(table, key);
-		for (int i = 0 ; i < rowList.size(); i++)
-		{
-			retRow.repair(rowList.get(i));			
-		}
+        retRow = new Row(table, key);
+        for (int i = 0; i < rowList.size(); i++)
+        {
+            retRow.repair(rowList.get(i));
+        }
 
         // At  this point  we have the return row .
-		// Now we need to calculate the difference 
-		// so that we can schedule read repairs 
-		for (int i = 0 ; i < rowList.size(); i++)
-		{
-			// since retRow is the resolved row it can be used as the super set
-			Row diffRow = rowList.get(i).diff(retRow);
-			if(diffRow == null) // no repair needs to happen
-				continue;
-			// create the row mutation message based on the diff and schedule a read repair 
-			RowMutation rowMutation = new RowMutation(table, key);            			
-	        for (ColumnFamily cf : diffRow.getColumnFamilies())
-	        {
-	            rowMutation.add(cf);
-	        }
+        // Now we need to calculate the difference
+        // so that we can schedule read repairs
+        for (int i = 0; i < rowList.size(); i++)
+        {
+            // since retRow is the resolved row it can be used as the super set
+            Row diffRow = rowList.get(i).diff(retRow);
+            if (diffRow == null) // no repair needs to happen
+                continue;
+            // create the row mutation message based on the diff and schedule a read repair
+            RowMutation rowMutation = new RowMutation(table, key);
+            for (ColumnFamily cf : diffRow.getColumnFamilies())
+            {
+                rowMutation.add(cf);
+            }
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
-	        ReadRepairManager.instance().schedule(endPoints.get(i),rowMutationMessage);
-		}
+            ReadRepairManager.instance().schedule(endPoints.get(i), rowMutationMessage);
+        }
         if (logger_.isDebugEnabled())
             logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
 		return retRow;
@@ -152,26 +145,26 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
 	public boolean isDataPresent(List<Message> responses)
 	{
-		boolean isDataPresent = false;
-		for (Message response : responses)
-		{
+        boolean isDataPresent = false;
+        for (Message response : responses)
+        {
             byte[] body = response.getMessageBody();
-			DataInputBuffer bufIn = new DataInputBuffer();
+            DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
             try
             {
-    			ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
-    			if(!result.isDigestQuery())
-    			{
-    				isDataPresent = true;
-    			}
+                ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
+                if (!result.isDigestQuery())
+                {
+                    isDataPresent = true;
+                }
                 bufIn.close();
             }
-            catch(IOException ex)
+            catch (IOException ex)
             {
                 logger_.info(LogUtil.throwableToString(ex));
-            }                        
-		}
-		return isDataPresent;
-	}
+            }
+        }
+        return isDataPresent;
+    }
 }

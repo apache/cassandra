@@ -398,15 +398,12 @@ public class FBUtilities
         return bytes;
     }
 
-    public static String bytesToHex(byte[] buf)
+    public static String bytesToHex(byte[] bytes)
     {
-        char[] chars = new char[2*buf.length];
-        for (int i = 0; i < buf.length; i++)
-        {
-            chars[i*2] = HEX_CHARS[(buf[i] & 0xF0) >>> 4];
-            chars[i*2+1] = HEX_CHARS[buf[i] & 0x0F];
-        }
-        return new String(chars);
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes)
+            sb.append(Integer.toHexString(b & 0xff));
+        return sb.toString();
     }
 
     public static String mapToString(Map<?,?> map)

@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
@@ -129,21 +128,17 @@ class ConsistencyManager implements Runnable
 		
 		public void callMe(String key, String value)
 		{
-			handleResponses();
-		}
-		
-		private void handleResponses()
-		{
-			try
+            try
 			{
 				readResponseResolver_.resolve(new ArrayList<Message>(responses_));
-			}
-			catch ( DigestMismatchException ex )
-			{
-				throw new RuntimeException(ex);
-			}
-		}
-	}
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException(ex);
+            }
+        }
+
+    }
 
 	private static long scheduledTimeMillis_ = 600;
 	private static ICachetable<String, String> readRepairTable_ = new Cachetable<String, String>(scheduledTimeMillis_);

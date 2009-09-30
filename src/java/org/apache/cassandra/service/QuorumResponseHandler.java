@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.io.IOException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -55,64 +56,67 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
         startTime_ = System.currentTimeMillis();
     }
     
-    public T get() throws TimeoutException, DigestMismatchException
+    public T get() throws TimeoutException, DigestMismatchException, IOException
     {
-    	lock_.lock();
+        lock_.lock();
         try
-        {            
-            boolean bVal = true;            
+        {
+            boolean bVal = true;
             try
             {
-            	if ( !done_.get() )
+                if (!done_.get())
                 {
                     long timeout = System.currentTimeMillis() - startTime_ + DatabaseDescriptor.getRpcTimeout();
-                    if(timeout > 0)
+                    if (timeout > 0)
+                    {
                         bVal = condition_.await(timeout, TimeUnit.MILLISECONDS);
+                    }
                     else
+                    {
                         bVal = false;
+                    }
                 }
             }
-            catch ( InterruptedException ex )
+            catch (InterruptedException ex)
             {
-                if (logger_.isDebugEnabled())
-                  logger_.debug( LogUtil.throwableToString(ex) );
+                throw new AssertionError(ex);
             }
-            
-            if ( !bVal && !done_.get() )
+
+            if (!bVal && !done_.get())
             {
                 StringBuilder sb = new StringBuilder("");
-                for ( Message message : responses_ )
+                for (Message message : responses_)
                 {
-                    sb.append(message.getFrom());                    
-                }                
-                throw new TimeoutException("Operation timed out - received only " +  responses_.size() + " responses from " + sb.toString() + " .");
+                    sb.append(message.getFrom());
+                }
+                throw new TimeoutException("Operation timed out - received only " + responses_.size() + " responses from " + sb.toString() + " .");
             }
         }
         finally
         {
             lock_.unlock();
-            for(Message response : responses_)
+            for (Message response : responses_)
             {
-            	MessagingService.removeRegisteredCallback( response.getMessageId() );
+                MessagingService.removeRegisteredCallback(response.getMessageId());
             }
         }
 
-    	return responseResolver_.resolve( responses_);
+        return responseResolver_.resolve(responses_);
     }
     
     public void response(Message message)
     {
         lock_.lock();
         try
-        {            
-            if ( !done_.get() )
+        {
+            if (!done_.get())
             {
-            	responses_.add( message );
-            	if ( responses_.size() >= responseCount_ && responseResolver_.isDataPresent(responses_))
-            	{
-            		done_.set(true);
-            		condition_.signal();            	
-            	}
+                responses_.add(message);
+                if (responses_.size() >= responseCount_ && responseResolver_.isDataPresent(responses_))
+                {
+                    done_.set(true);
+                    condition_.signal();
+                }
             }
         }
         finally
