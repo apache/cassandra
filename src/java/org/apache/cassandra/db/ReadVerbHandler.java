@@ -29,6 +29,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.log4j.Logger;
 
@@ -79,6 +80,8 @@ public class ReadVerbHandler implements IVerbHandler
             ReadResponse readResponse;
             if (readCommand.isDigestQuery())
             {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("digest is " + FBUtilities.bytesToHex(row.digest()));
                 readResponse = new ReadResponse(row.digest());
             }
             else

@@ -404,7 +404,7 @@ public class StorageProxy implements StorageProxyMBean
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
                             DatabaseDescriptor.getQuorum(),
                             readResponseResolverRepair);
-                    logger.info("DigestMismatchException: " + command.key);
+                    logger.info("DigestMismatchException: " + ex.getMessage());
                     Message messageRepair = command.makeReadMessage();
                     MessagingService.getMessagingInstance().sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
                     try

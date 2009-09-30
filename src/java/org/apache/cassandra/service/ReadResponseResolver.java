@@ -34,6 +34,8 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.log4j.Logger;
 
 
@@ -76,10 +78,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		{					            
             byte[] body = response.getMessageBody();
             bufIn.reset(body, body.length);
-            long start = System.currentTimeMillis();
             ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
-            if (logger_.isDebugEnabled())
-              logger_.debug( "Response deserialization time : " + (System.currentTimeMillis() - start) + " ms.");
             if (result.isDigestQuery())
             {
                 digest = result.digest();
@@ -102,11 +101,12 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                 if (!Arrays.equals(row.digest(), digest))
                 {
                     /* Wrap the key as the context in this exception */
-					throw new DigestMismatchException(row.key());
-				}
-			}
-		}
-		
+                    String s = String.format("Mismatch for key %s (%s vs %s)", row.key(), FBUtilities.bytesToHex(row.digest()), FBUtilities.bytesToHex(digest));
+                    throw new DigestMismatchException(s);
+                }
+            }
+        }
+
         /* If the rowList is empty then we had some exception above. */
         if (rowList.size() == 0)
         {
