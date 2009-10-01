@@ -26,6 +26,7 @@ public class CliSessionState {
     public boolean timingOn = false;
     public String  hostName;       // cassandra server name
     public int     thriftPort;     // cassandra server's thrift port
+    public boolean framed = false; // cassandra server's framed transport 
 
     /*
      * Streams to read/write from

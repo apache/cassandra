@@ -21,6 +21,7 @@ package org.apache.cassandra.cli;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TFramedTransport;
 
 import jline.*;
 import java.io.*;
@@ -48,7 +49,11 @@ public class CliMain
         if (transport_ != null)
             transport_.close();
 
-        transport_ = socket;
+        if (css_.framed) {
+            transport_ = new TFramedTransport(socket);
+        } else {
+            transport_ = socket;
+        }
 
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport_, false, false);
         Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);

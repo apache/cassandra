@@ -27,6 +27,7 @@ public class CliOptions {
     // Command line options
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
+    private static final String FRAME_OPTION = "framed";
 
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
@@ -38,12 +39,13 @@ public class CliOptions {
         options = new Options();
         options.addOption(HOST_OPTION, true, "cassandra server's host name");
         options.addOption(PORT_OPTION, true, "cassandra server's thrift port");  
+        options.addOption(FRAME_OPTION, false, "cassandra server's framed transport");  
     }
 
     private static void printUsage()
     {
         System.err.println("");
-        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>]");
+        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--framed]");
         System.err.println("");
     }
 
@@ -76,6 +78,11 @@ public class CliOptions {
         else 
         {
             css.hostName = cmd.getOptionValue(HOST_OPTION);
+        }
+
+        // Look to see if frame has been specified
+        if (cmd.hasOption(FRAME_OPTION)) {
+            css.framed = true;
         }
 
         // Look for optional args.
