@@ -43,7 +43,7 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         new Comparator<DecoratedKey<StringToken>>() {
         public int compare(DecoratedKey<StringToken> o1, DecoratedKey<StringToken> o2)
         {
-            return o1.getKey().compareTo(o2.getKey());
+            return o1.key.compareTo(o2.key);
         }
     };      
     private static final Comparator<String> reverseComparator = new Comparator<String>() {

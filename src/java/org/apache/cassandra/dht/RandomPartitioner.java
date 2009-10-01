@@ -42,13 +42,13 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         public int compare(DecoratedKey<BigIntegerToken> o1, DecoratedKey<BigIntegerToken> o2)
         {
             // first, compare on the bigint hash "decoration".  usually this will be enough.
-            int v = o1.getToken().compareTo(o2.getToken());
+            int v = o1.token.compareTo(o2.token);
             if (v != 0) {
                 return v;
             }
 
             // if the hashes are equal, compare the strings
-            return o1.getKey().compareTo(o2.getKey());
+            return o1.key.compareTo(o2.key);
         }
     };
     

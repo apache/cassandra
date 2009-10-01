@@ -46,7 +46,7 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     private static final Comparator<DecoratedKey<BytesToken>> objComparator = new Comparator<DecoratedKey<BytesToken>>() {
         public int compare(DecoratedKey<BytesToken> o1, DecoratedKey<BytesToken> o2)
         {
-            return FBUtilities.compareByteArrays(o1.getToken().token, o2.getToken().token);
+            return FBUtilities.compareByteArrays(o1.token.token, o2.token.token);
         }
     };    
     private static final Comparator<String> reverseComparator = new Comparator<String>() {

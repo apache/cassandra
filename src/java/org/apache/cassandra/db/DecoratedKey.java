@@ -28,24 +28,14 @@ public class DecoratedKey<T extends Token>
 {
     public static final String DELIMITER = ":";
 
-    private T token;
-    private String key;
+    public final T token;
+    public final String key;
 
     public DecoratedKey(T token, String key)
     {
         super();
         this.token = token;
         this.key = key;
-    }
-
-    public T getToken()
-    {
-        return token;
-    }
-
-    public String getKey()
-    {
-        return key;
     }
 
     @Override
