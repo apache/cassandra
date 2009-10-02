@@ -38,21 +38,22 @@ public class RecoveryManager2Test extends CleanupHelper
     @Test
     public void testWithFlush() throws IOException, ExecutionException, InterruptedException
     {
-        Table table1 = Table.open("Keyspace1");
-        Set<String> keys = new HashSet<String>();
+        CompactionManager.instance().disableCompactions();
 
         for (int i = 0; i < 100; i++)
         {
             String key = "key" + i;
             insertRow(key);
-            keys.add(key);
         }
-        table1.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
-        table1.getColumnFamilyStore("Standard1").clearUnsafe();
+        Table table1 = Table.open("Keyspace1");
+        ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
+        cfs.forceBlockingFlush();
+
+        cfs.clearUnsafe();
         RecoveryManager.doRecovery(); // this is a no-op. is testing this useful?
 
-        Set<String> foundKeys = new HashSet<String>(table1.getColumnFamilyStore("Standard1").getKeyRange("", "", 1000).keys);
+        Set<String> foundKeys = new HashSet<String>(cfs.getKeyRange("", "", 1000).keys);
         assert foundKeys.equals(Collections.emptySet());
     }
 

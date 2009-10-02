@@ -1011,7 +1011,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    /** not threadsafe.  caller must have lock_ acquired. */
     public Collection<SSTableReader> getSSTables()
     {
         return ssTables_.getSSTables();

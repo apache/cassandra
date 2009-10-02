@@ -228,4 +228,10 @@ public class CompactionManager implements CompactionManagerMBean
     {
         maximumCompactionThreshold = threshold;
     }
+
+    public void disableCompactions()
+    {
+        minimumCompactionThreshold_ = 0;
+        maximumCompactionThreshold = 0;
+    }
 }
