@@ -60,7 +60,8 @@ public class IndexHelper
         int size = in.readInt();
         totalBytesRead += 4;
         /* skip the serialized bloom filter */
-        in.skipBytes(size);
+        if (in.skipBytes(size) != size)
+            throw new EOFException();
         totalBytesRead += size;
         return totalBytesRead;
     }
@@ -78,7 +79,8 @@ public class IndexHelper
         int totalBytesRead = 4;
 
         /* skip the column index data */
-        file.skipBytes(columnIndexSize);
+        if (file.skipBytes(columnIndexSize) != columnIndexSize)
+            throw new EOFException();
         totalBytesRead += columnIndexSize;
 
         return totalBytesRead;
