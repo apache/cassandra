@@ -307,7 +307,8 @@ public class TableTest extends CleanupHelper
             cfStore.doCompaction(2, cfStore.getSSTables().size());
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
-        long position = sstable.getPosition(key);
+        DecoratedKey decKey = sstable.getPartitioner().decorateKey(key);
+        long position = sstable.getPosition(decKey);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(position);
         assert file.readUTF().equals(key);

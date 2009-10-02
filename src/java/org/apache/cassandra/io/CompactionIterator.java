@@ -10,6 +10,7 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
 
 public class CompactionIterator extends ReducingIterator<IteratingRow, CompactionIterator.CompactedRow> implements Closeable
 {
@@ -65,7 +66,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     protected CompactedRow getReducedRaw() throws IOException
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
-        String key = rows.get(0).getKey();
+        DecoratedKey key = rows.get(0).getKey();
         if (rows.size() > 1)
         {
             ColumnFamily cf = null;
@@ -101,10 +102,10 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 
     public static class CompactedRow
     {
-        public final String key;
+        public final DecoratedKey key;
         public final DataOutputBuffer buffer;
 
-        public CompactedRow(String key, DataOutputBuffer buffer)
+        public CompactedRow(DecoratedKey key, DataOutputBuffer buffer)
         {
             this.key = key;
             this.buffer = buffer;

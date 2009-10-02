@@ -37,53 +37,31 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     /**
      * Comparators for decorated keys.
      */
-    private static final Comparator<String> comparator = new Comparator<String>() {
-        public int compare(String o1, String o2)
-        {
-            return collator.compare(o1, o2);
-        }
-    };
-    private static final Comparator<DecoratedKey<BytesToken>> objComparator = new Comparator<DecoratedKey<BytesToken>>() {
+    private static final Comparator<DecoratedKey<BytesToken>> comparator = new Comparator<DecoratedKey<BytesToken>>() {
         public int compare(DecoratedKey<BytesToken> o1, DecoratedKey<BytesToken> o2)
         {
-            return FBUtilities.compareByteArrays(o1.token.token, o2.token.token);
-        }
-    };    
-    private static final Comparator<String> reverseComparator = new Comparator<String>() {
-        public int compare(String o1, String o2)
-        {
-            return -comparator.compare(o1, o2);
+            return collator.compare(o1.key, o2.key);
         }
     };
-  
-    public String decorateKey(String key)
-    {
-        return key;
-    }
 
-    public DecoratedKey<BytesToken> decorateKeyObj(String key)
+    public DecoratedKey<BytesToken> decorateKey(String key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
     }
     
-    public String undecorateKey(String decoratedKey)
+    public DecoratedKey<BytesToken> convertFromDiskFormat(String key)
     {
-        return decoratedKey;
+        return new DecoratedKey<BytesToken>(getToken(key), key);
     }
 
-    public Comparator<String> getDecoratedKeyComparator()
+    public String convertToDiskFormat(DecoratedKey<BytesToken> key)
+    {
+        return key.key;
+    }
+
+    public Comparator<DecoratedKey<BytesToken>> getDecoratedKeyComparator()
     {
         return comparator;
-    }
-
-    public Comparator<DecoratedKey<BytesToken>> getDecoratedKeyObjComparator()
-    {
-        return objComparator;
-    }
-
-    public Comparator<String> getReverseDecoratedKeyComparator()
-    {
-        return reverseComparator;
     }
 
     /**

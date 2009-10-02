@@ -31,8 +31,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -152,15 +151,13 @@ public abstract class SSTable
      * This is a simple container for the index Key and its corresponding position
      * in the data file. Binary search is performed on a list of these objects
      * to lookup keys within the SSTable data file.
-     *
-     * All keys are decorated.
      */
     class KeyPosition implements Comparable<KeyPosition>
     {
-        public final String key; // decorated
+        public final DecoratedKey key;
         public final long position;
 
-        public KeyPosition(String key, long position)
+        public KeyPosition(DecoratedKey key, long position)
         {
             this.key = key;
             this.position = position;

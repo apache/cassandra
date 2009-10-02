@@ -19,9 +19,6 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.service.StorageService;
 
 /**
  * Represents a decorated key, handy for certain operations
@@ -29,8 +26,6 @@ import org.apache.cassandra.service.StorageService;
  */
 public class DecoratedKey<T extends Token>
 {
-    public static final String DELIMITER = ":";
-
     public final T token;
     public final String key;
 
@@ -76,16 +71,9 @@ public class DecoratedKey<T extends Token>
         return true;
     }
 
-    /**
-     * Return the on disk format of the decorated key.
-     */
+    @Override
     public String toString()
     {
-        // TODO when we can break the disk format, we should use
-        // token == null ? key : token.toString() + DELIMITER + key
-        // until then we special case like this, which keeps COPP using just the key string
-        return StorageService.getPartitioner() instanceof RandomPartitioner
-               ? token.toString() + DELIMITER + key
-               : key;
+        return "DecoratedKey(" + token + ", " + key + ")";
     }
 }

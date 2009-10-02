@@ -45,7 +45,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private static final Logger logger = Logger.getLogger(SSTableReader.class);
 
     private static final FileSSTableMap openedFiles = new FileSSTableMap();
-
+    
     // `finalizers` is required to keep the PhantomReferences alive after the enclosing SSTR is itself
     // unreferenced.  otherwise they will never get enqueued.
     private static final Set<Reference<SSTableReader>> finalizers = new HashSet<Reference<SSTableReader>>();
@@ -99,25 +99,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         return count;
-    }
-
-    /**
-     * Get all indexed keys in the SSTable.
-     */
-    public static List<String> getIndexedKeys()
-    {
-        List<String> indexedKeys = new ArrayList<String>();
-
-        for (SSTableReader sstable : openedFiles.values())
-        {
-            for (KeyPosition kp : sstable.getIndexPositions())
-            {
-                indexedKeys.add(kp.key);
-            }
-        }
-        Collections.sort(indexedKeys);
-
-        return indexedKeys;
     }
 
     public static SSTableReader open(String dataFileName) throws IOException
@@ -182,7 +163,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             {
                 break;
             }
-            String decoratedKey = input.readUTF();
+            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
             input.readLong();
             if (i++ % INDEX_INTERVAL == 0)
             {
@@ -192,7 +173,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
-    private long getIndexScanPosition(String decoratedKey, IPartitioner partitioner)
+    private long getIndexScanPosition(DecoratedKey decoratedKey, IPartitioner partitioner)
     {
         assert indexPositions != null && indexPositions.size() > 0;
         int index = Collections.binarySearch(indexPositions, new KeyPosition(decoratedKey, -1));
@@ -214,9 +195,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /**
      * returns the position in the data file to find the given key, or -1 if the key is not present
      */
-    public long getPosition(String decoratedKey) throws IOException
+    public long getPosition(DecoratedKey decoratedKey) throws IOException
     {
-        if (!bf.isPresent(decoratedKey))
+        if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return -1;
         long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
@@ -232,10 +213,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         {
             do
             {
-                String indexDecoratedKey;
+                DecoratedKey indexDecoratedKey;
                 try
                 {
-                    indexDecoratedKey = input.readUTF();
+                    indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
                 }
                 catch (EOFException e)
                 {
@@ -259,7 +240,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /** like getPosition, but if key is not found will return the location of the first key _greater_ than the desired one, or -1 if no such key exists. */
-    public long getNearestPosition(String decoratedKey) throws IOException
+    public long getNearestPosition(DecoratedKey decoratedKey) throws IOException
     {
         long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
@@ -272,10 +253,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         {
             while (true)
             {
-                String indexDecoratedKey;
+                DecoratedKey indexDecoratedKey;
                 try
                 {
-                    indexDecoratedKey = input.readUTF();
+                    indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
                 }
                 catch (EOFException e)
                 {

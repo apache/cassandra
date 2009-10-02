@@ -118,7 +118,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
 
     private void resolve(String key, byte[] buffer)
     {
-        columnFamilies_.put(partitioner_.decorateKeyObj(key), buffer);
+        columnFamilies_.put(partitioner_.decorateKey(key), buffer);
         currentSize_.addAndGet(buffer.length + key.length());
     }
 
@@ -127,7 +127,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         assert !columnFamilies_.isEmpty();
         logger_.info("Sorting " + this);
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
-        Collections.sort(keys, partitioner_.getDecoratedKeyObjComparator());
+        Collections.sort(keys, partitioner_.getDecoratedKeyComparator());
         return keys;
     }
 
@@ -142,7 +142,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         {
             byte[] bytes = columnFamilies_.get(key);
             assert bytes.length > 0;
-            writer.append(key.toString(), bytes);
+            writer.append(key, bytes);
         }
         SSTableReader sstable = writer.closeAndOpenReader();
         logger_.info("Completed flushing " + writer.getFilename());

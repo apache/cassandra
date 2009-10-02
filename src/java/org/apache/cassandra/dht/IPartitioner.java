@@ -24,14 +24,21 @@ import org.apache.cassandra.db.DecoratedKey;
 
 public interface IPartitioner<T extends Token>
 {
+    
     /**
-     * Transform key to on-disk format s.t. keys are stored in node comparison order.
-     * This lets bootstrap rip out parts of the sstable sequentially instead of doing random seeks.
-     *
-     * @param key the raw, client-facing key
-     * @return decorated on-disk version of key
+     * Convert the on disk representation to a DecoratedKey object
+     * @param key On disk representation 
+     * @return DecoratedKey object
      */
-    public String decorateKey(String key);
+    public DecoratedKey<T> convertFromDiskFormat(String key);
+    
+    /**
+     * Convert the DecoratedKey to the on disk format used for
+     * this partitioner.
+     * @param key The DecoratedKey in question
+     * @return
+     */
+    public String convertToDiskFormat(DecoratedKey<T> key);    
     
     /**
      * Transform key to object representation of the on-disk format.
@@ -39,18 +46,12 @@ public interface IPartitioner<T extends Token>
      * @param key the raw, client-facing key
      * @return decorated version of key
      */
-    public DecoratedKey<T> decorateKeyObj(String key);
+    public DecoratedKey<T> decorateKey(String key);
 
-    public String undecorateKey(String decoratedKey);
-
-    public Comparator<String> getDecoratedKeyComparator();
-    
     /**
      * @return a comparator for decorated key objects, not strings
      */
-    public Comparator<DecoratedKey<T>> getDecoratedKeyObjComparator();
-
-    public Comparator<String> getReverseDecoratedKeyComparator();
+    public Comparator<DecoratedKey<T>> getDecoratedKeyComparator();
 
     /**
      * Calculate a Token representing the approximate "middle" of the given

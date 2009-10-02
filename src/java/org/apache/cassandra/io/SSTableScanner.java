@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.util.Iterator;
 import java.util.Arrays;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.log4j.Logger;
 import com.google.common.collect.AbstractIterator;
 
@@ -52,7 +53,7 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
         file.close();
     }
 
-    public void seekTo(String seekKey)
+    public void seekTo(DecoratedKey seekKey)
     {
         try
         {

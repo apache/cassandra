@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.net.EndPoint;
@@ -46,9 +47,11 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.collections.Predicate;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterators;
 
 public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -106,6 +109,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
+    
+    private final IPartitioner partitioner = StorageService.getPartitioner();
 
     ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
     {
@@ -782,7 +787,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             while (ci.hasNext())
             {
                 CompactionIterator.CompactedRow row = ci.next();
-                if (Range.isTokenInRanges(StorageService.getPartitioner().getToken(row.key), ranges))
+                if (Range.isTokenInRanges(row.key.token, ranges))
                 {
                     if (writer == null)
                     {
@@ -998,7 +1003,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Iterator<String> memtableKeyIterator() throws ExecutionException, InterruptedException
+    public Iterator<DecoratedKey> memtableKeyIterator() throws ExecutionException, InterruptedException
     {
         Table.flusherLock_.readLock().lock();
         try
@@ -1161,44 +1166,46 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public RangeReply getKeyRange(final String startWith, final String stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
+        final DecoratedKey startWithDK = partitioner.decorateKey(startWith);
+        final DecoratedKey stopAtDK = partitioner.decorateKey(stopAt);
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
-        final Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
+        final Comparator<DecoratedKey> comparator = partitioner.getDecoratedKeyComparator();
 
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
-        List<Iterator<String>> iterators = new ArrayList<Iterator<String>>();
+        List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
 
         // we iterate through memtables with a priority queue to avoid more sorting than necessary.
         // this predicate throws out the keys before the start of our range.
-        Predicate p = new Predicate()
+        Predicate<DecoratedKey> p = new Predicate<DecoratedKey>()
         {
-            public boolean evaluate(Object key)
+            public boolean apply(DecoratedKey key)
             {
-                String st = (String)key;
-                return comparator.compare(startWith, st) <= 0 && (stopAt.isEmpty() || comparator.compare(st, stopAt) <= 0);
+                return comparator.compare(startWithDK, key) <= 0
+                       && (stopAt.isEmpty() || comparator.compare(key, stopAtDK) <= 0);
             }
         };
 
         // current memtable keys.  have to go through the CFS api for locking.
-        iterators.add(IteratorUtils.filteredIterator(memtableKeyIterator(), p));
+        iterators.add(Iterators.filter(memtableKeyIterator(), p));
         // historical memtables
         for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily_))
         {
-            iterators.add(IteratorUtils.filteredIterator(memtable.getKeyIterator(), p));
+            iterators.add(Iterators.filter(memtable.getKeyIterator(), p));
         }
 
         // sstables
         for (SSTableReader sstable : ssTables_)
         {
             final SSTableScanner scanner = sstable.getScanner();
-            scanner.seekTo(startWith);
-            Iterator<String> iter = new Iterator<String>()
+            scanner.seekTo(startWithDK);
+            Iterator<DecoratedKey> iter = new Iterator<DecoratedKey>()
             {
                 public boolean hasNext()
                 {
                     return scanner.hasNext();
                 }
-                public String next()
+                public DecoratedKey next()
                 {
                     return scanner.next().getKey();
                 }
@@ -1210,16 +1217,17 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             iterators.add(iter);
         }
 
-        Iterator<String> collated = IteratorUtils.collatedIterator(comparator, iterators);
-        Iterable<String> reduced = new ReducingIterator<String, String>(collated) {
-            String current;
+        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(comparator, iterators);
+        
+        Iterable<DecoratedKey> reduced = new ReducingIterator<DecoratedKey, DecoratedKey>(collated) {
+            DecoratedKey current;
 
-            public void reduce(String current)
+            public void reduce(DecoratedKey current)
             {
                  this.current = current;
             }
 
-            protected String getReduced()
+            protected DecoratedKey getReduced()
             {
                 return current;
             }
@@ -1231,19 +1239,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // so we set an arbitrary limit on how many we'll do at once.
             List<String> keys = new ArrayList<String>();
             boolean rangeCompletedLocally = false;
-            for (String current : reduced)
+            for (DecoratedKey current : reduced)
             {
-                if (!stopAt.isEmpty() && comparator.compare(stopAt, current) < 0)
+                if (!stopAt.isEmpty() && comparator.compare(stopAtDK, current) < 0)
                 {
                     rangeCompletedLocally = true;
                     break;
                 }
                 // make sure there is actually non-tombstone content associated w/ this key
                 // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                QueryFilter filter = new SliceQueryFilter(current, new QueryPath(columnFamily_), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
+                QueryFilter filter = new SliceQueryFilter(current.key, new QueryPath(columnFamily_), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
                 if (getColumnFamily(filter, Integer.MAX_VALUE) != null)
                 {
-                    keys.add(current);
+                    keys.add(current.key);
                 }
                 if (keys.size() >= maxResults)
                 {
@@ -1311,4 +1319,5 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         memtable_.clearUnsafe();
         ssTables_.clearUnsafe();
     }
+
 }

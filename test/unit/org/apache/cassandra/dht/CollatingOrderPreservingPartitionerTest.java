@@ -18,9 +18,6 @@
 */
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
-
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.FBUtilities;
@@ -58,7 +55,7 @@ public class CollatingOrderPreservingPartitionerTest extends PartitionerTestCase
     @Test
     public void testTokenFactoryStringsNonUTF()
     {
-        Token.TokenFactory factory = this.part.getTokenFactory();
+        Token.TokenFactory factory = this.partitioner.getTokenFactory();
         BytesToken tok = new BytesToken((byte)0xFF, (byte)0xFF);
         assert tok.compareTo(factory.fromString(factory.toString(tok))) == 0;
     }

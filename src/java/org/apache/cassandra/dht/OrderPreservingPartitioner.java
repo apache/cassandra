@@ -33,54 +33,32 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     /**
      * Comparators for decorated keys.
      */
-    private static final Comparator<String> comparator = new Comparator<String>() {
-        public int compare(String o1, String o2)
-        {
-            return o1.compareTo(o2);
-        }
-    };
-    private static final Comparator<DecoratedKey<StringToken>> objComparator = 
+    private static final Comparator<DecoratedKey<StringToken>> comparator =
         new Comparator<DecoratedKey<StringToken>>() {
         public int compare(DecoratedKey<StringToken> o1, DecoratedKey<StringToken> o2)
         {
             return o1.key.compareTo(o2.key);
         }
-    };      
-    private static final Comparator<String> reverseComparator = new Comparator<String>() {
-        public int compare(String o1, String o2)
-        {
-            return o2.compareTo(o1);
-        }
     };
 
-    public String decorateKey(String key)
-    {
-        return key;
-    }
-
-    public DecoratedKey<StringToken> decorateKeyObj(String key)
+    public DecoratedKey<StringToken> decorateKey(String key)
     {
         return new DecoratedKey<StringToken>(null, key);
     }
     
-    public String undecorateKey(String decoratedKey)
+    public DecoratedKey<StringToken> convertFromDiskFormat(String key)
     {
-        return decoratedKey;
+        return new DecoratedKey<StringToken>(null, key);
     }
 
-    public Comparator<String> getDecoratedKeyComparator()
+    public String convertToDiskFormat(DecoratedKey<StringToken> key)
+    {
+        return key.key;
+    }
+
+    public Comparator<DecoratedKey<StringToken>> getDecoratedKeyComparator()
     {
         return comparator;
-    }
-
-    public Comparator<DecoratedKey<StringToken>> getDecoratedKeyObjComparator()
-    {
-        return objComparator;
-    }
-    
-    public Comparator<String> getReverseDecoratedKeyComparator()
-    {
-        return reverseComparator;
     }
 
     /**
@@ -252,5 +230,4 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     {
         return new StringToken(key);
     }
-
 }

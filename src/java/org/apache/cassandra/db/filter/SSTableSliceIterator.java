@@ -24,6 +24,7 @@ package org.apache.cassandra.db.filter;
 import java.util.*;
 import java.io.IOException;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -48,7 +49,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         this.reversed = reversed;
 
         /* Morph key into actual key based on the partition type. */
-        String decoratedKey = ssTable.getPartitioner().decorateKey(key);
+        DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
         long position = ssTable.getPosition(decoratedKey);
         this.comparator = ssTable.getColumnComparator();
         this.startColumn = startColumn;
@@ -105,12 +106,12 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(SSTableReader ssTable, String key, long position) throws IOException
+        public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, long position) throws IOException
         {
             this.file = new BufferedRandomAccessFile(ssTable.getFilename(), "r", DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
 
             file.seek(position);
-            String keyInDisk = file.readUTF();
+            DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
             assert keyInDisk.equals(key);
 
             file.readInt(); // row size

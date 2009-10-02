@@ -25,6 +25,7 @@ import java.util.*;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 
 public class SSTableTest extends CleanupHelper
@@ -40,7 +41,7 @@ public class SSTableTest extends CleanupHelper
         random.nextBytes(bytes);
 
         String key = Integer.toString(1);
-        writer.append(key, bytes);
+        writer.append(writer.partitioner.decorateKey(key), bytes);
         SSTableReader ssTable = writer.closeAndOpenReader();
 
         // verify
@@ -57,7 +58,7 @@ public class SSTableTest extends CleanupHelper
     private void verifySingle(SSTableReader sstable, byte[] bytes, String key) throws IOException
     {
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.path, "r");
-        file.seek(sstable.getPosition(key));
+        file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)));
         assert key.equals(file.readUTF());
         int size = file.readInt();
         byte[] bytes2 = new byte[size];
@@ -79,7 +80,7 @@ public class SSTableTest extends CleanupHelper
         SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), 1000, new OrderPreservingPartitioner());
         for (String key: map.navigableKeySet())
         {
-            writer.append(key, map.get(key));
+            writer.append(writer.partitioner.decorateKey(key), map.get(key));
         }
         SSTableReader ssTable = writer.closeAndOpenReader();
 
@@ -96,7 +97,7 @@ public class SSTableTest extends CleanupHelper
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.path, "r");
         for (String key : keys)
         {
-            file.seek(sstable.getPosition(key));
+            file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)));
             assert key.equals(file.readUTF());
             int size = file.readInt();
             byte[] bytes2 = new byte[size];

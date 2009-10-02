@@ -34,6 +34,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.TimedStatsDeque;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.dht.IPartitioner;
 
 import org.apache.log4j.Logger;
 
@@ -426,24 +427,6 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    private static Map<String, Message[]> constructReplicaMessages(Map<String, ReadCommand[]> readMessages) throws IOException
-    {
-        Map<String, Message[]> messages = new HashMap<String, Message[]>();
-        Set<String> keys = readMessages.keySet();
-        
-        for ( String key : keys )
-        {
-            Message[] msg = new Message[DatabaseDescriptor.getReplicationFactor()];
-            ReadCommand[] readParameters = readMessages.get(key);
-            msg[0] = readParameters[0].makeReadMessage();
-            for ( int i = 1; i < msg.length; ++i )
-            {
-                msg[i] = readParameters[1].makeReadMessage();
-            }
-        }        
-        return messages;
-    }
-
     /*
     * This function executes the read protocol locally and should be used only if consistency is not a concern.
     * Read the data from the local disk and return if the row is NOT NULL. If the data is NULL do the read from
@@ -482,7 +465,6 @@ public class StorageProxy implements StorageProxyMBean
     static List<String> getKeyRange(RangeCommand rawCommand) throws IOException, UnavailableException
     {
         long startTime = System.currentTimeMillis();
-        Comparator<String> comparator = StorageService.getPartitioner().getDecoratedKeyComparator();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
         List<String> allKeys = new ArrayList<String>();
         RangeCommand command = rawCommand;
@@ -516,6 +498,15 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (allKeys.size() > 0)
                 {
+                    Comparator<String> comparator = new Comparator<String>()
+                    {
+                        public int compare(String o1, String o2)
+                        {
+                            IPartitioner p = StorageService.getPartitioner();
+                            return p.getDecoratedKeyComparator().compare(p.decorateKey(o1), p.decorateKey(o2));
+                        }
+                    };
+
                     if (comparator.compare(rangeKeys.get(rangeKeys.size() - 1), allKeys.get(0)) <= 0)
                     {
                         // unlikely, but possible

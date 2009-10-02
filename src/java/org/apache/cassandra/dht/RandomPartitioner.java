@@ -20,7 +20,7 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.util.Comparator;
-import java.util.StringTokenizer;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -37,7 +37,12 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
 
-    private static final Comparator<DecoratedKey<BigIntegerToken>> objComparator = 
+    private static final String DELIMITER = ":";
+    
+    //to avoid having to create the pattern on every String.split
+    private Pattern diskDelimiter = Pattern.compile(DELIMITER);
+
+    private static final Comparator<DecoratedKey<BigIntegerToken>> comparator =
         new Comparator<DecoratedKey<BigIntegerToken>>() {
         public int compare(DecoratedKey<BigIntegerToken> o1, DecoratedKey<BigIntegerToken> o2)
         {
@@ -51,63 +56,27 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
             return o1.key.compareTo(o2.key);
         }
     };
-    
-    private static final Comparator<String> comparator = new Comparator<String>()
-    {
-        public int compare(String o1, String o2)
-        {
-            // StringTokenizer is faster than String.split()
-            StringTokenizer st1 = new StringTokenizer(o1, ":");
-            StringTokenizer st2 = new StringTokenizer(o2, ":");
 
-            // first, compare on the bigint hash "decoration".  usually this will be enough.
-            BigInteger i1 = new BigInteger(st1.nextToken());
-            BigInteger i2 = new BigInteger(st2.nextToken());
-            int v = i1.compareTo(i2);
-            if (v != 0) {
-                return v;
-            }
-
-            // if the hashes are equal, compare the strings
-            return st1.nextToken().compareTo(st2.nextToken());
-        }
-    };
-    private static final Comparator<String> rcomparator = new Comparator<String>()
-    {
-        public int compare(String o1, String o2)
-        {
-            return -comparator.compare(o1, o2);
-        }
-    };
-
-    public String decorateKey(String key)
-    {
-        return FBUtilities.hash(key).toString() + ":" + key;
-    }
-
-    public DecoratedKey<BigIntegerToken> decorateKeyObj(String key)
+    public DecoratedKey<BigIntegerToken> decorateKey(String key)
     {
         return new DecoratedKey<BigIntegerToken>(getToken(key), key);
     }
     
-    public String undecorateKey(String decoratedKey)
+    public DecoratedKey<BigIntegerToken> convertFromDiskFormat(String key)
     {
-        return decoratedKey.split(":", 2)[1];
+        String[] parts = diskDelimiter.split(key, 2);
+        assert parts.length == 2;
+        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(parts[0]), parts[1]);
     }
 
-    public Comparator<String> getDecoratedKeyComparator()
+    public String convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
+    {
+        return key.token + DELIMITER + key.key;
+    }
+
+    public Comparator<DecoratedKey<BigIntegerToken>> getDecoratedKeyComparator()
     {
         return comparator;
-    }
-    
-    public Comparator<DecoratedKey<BigIntegerToken>> getDecoratedKeyObjComparator()
-    {
-        return objComparator;
-    }
-
-    public Comparator<String> getReverseDecoratedKeyComparator()
-    {
-        return rcomparator;
     }
 
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)

@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
+import java.util.Arrays;
 
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -40,4 +40,23 @@ public class BytesToken extends Token<byte[]>
     {
         return FBUtilities.compareByteArrays(token, o.token);
     }
+
+    @Override
+    public int hashCode()
+    {
+        final int prime = 31;
+        return prime + Arrays.hashCode(token);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj)
+            return true;
+        if (!(obj instanceof BytesToken))
+            return false;
+        BytesToken other = (BytesToken) obj;
+        return Arrays.equals(token, other.token);
+    }
+
 }

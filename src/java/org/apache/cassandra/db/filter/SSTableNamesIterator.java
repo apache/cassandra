@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
@@ -42,7 +43,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         assert columnNames != null;
         this.columns = columnNames;
 
-        String decoratedKey = ssTable.getPartitioner().decorateKey(key);
+        DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
         long position = ssTable.getPosition(decoratedKey);
         if (position < 0)
             return;
@@ -52,7 +53,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         {
             file.seek(position);
 
-            String keyInDisk = file.readUTF();
+            DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
             assert keyInDisk.equals(decoratedKey) : keyInDisk;
             file.readInt(); // data size
 

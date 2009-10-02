@@ -18,15 +18,15 @@
 */
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
+import static org.junit.Assert.assertEquals;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.DecoratedKey;
 
 public abstract class PartitionerTestCase<T extends Token> {
-    protected IPartitioner<T> part;
+    protected IPartitioner<T> partitioner;
 
     public abstract IPartitioner<T> getPartitioner();
     public abstract T tok(String string);
@@ -35,7 +35,7 @@ public abstract class PartitionerTestCase<T extends Token> {
     @Before
     public void clean()
     {
-        this.part = this.getPartitioner();
+        this.partitioner = this.getPartitioner();
     }
 
     @Test
@@ -52,7 +52,7 @@ public abstract class PartitionerTestCase<T extends Token> {
 
     public void assertMidpoint(T left, T right, int depth)
     {
-        T mid = this.part.midpoint(left, right);
+        T mid = this.partitioner.midpoint(left, right);
         assert new Range(left, right).contains(mid)
                 : "For " + tos(left) + "," + tos(right) + ": range did not contain mid:" + tos(mid);
         if (depth > 0)
@@ -83,16 +83,25 @@ public abstract class PartitionerTestCase<T extends Token> {
     }
     
     @Test
+    public void testDiskFormat()
+    {
+        String key = "key";
+        DecoratedKey<T> decKey = partitioner.decorateKey(key);
+        DecoratedKey<T> result = partitioner.convertFromDiskFormat(partitioner.convertToDiskFormat(decKey));
+        assertEquals(decKey, result);
+    }
+    
+    @Test
     public void testTokenFactoryBytes()
     {
-        Token.TokenFactory factory = this.part.getTokenFactory();
+        Token.TokenFactory factory = this.partitioner.getTokenFactory();
         assert tok("a").compareTo(factory.fromByteArray(factory.toByteArray(tok("a")))) == 0;
     }
     
     @Test
     public void testTokenFactoryStrings()
     {
-        Token.TokenFactory factory = this.part.getTokenFactory();
+        Token.TokenFactory factory = this.partitioner.getTokenFactory();
         assert tok("a").compareTo(factory.fromString(factory.toString(tok("a")))) == 0;
     }
 }

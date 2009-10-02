@@ -30,6 +30,7 @@ import java.util.ArrayList;
 
 import org.apache.log4j.Logger;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
@@ -42,7 +43,7 @@ public class SSTableWriter extends SSTable
     private long keysWritten;
     private BufferedRandomAccessFile dataFile;
     private BufferedRandomAccessFile indexFile;
-    private String lastWrittenKey;
+    private DecoratedKey lastWrittenKey;
     private BloomFilter bf;
 
     public SSTableWriter(String filename, int keyCount, IPartitioner partitioner) throws IOException
@@ -53,13 +54,13 @@ public class SSTableWriter extends SSTable
         bf = new BloomFilter(keyCount, 15);
     }
 
-    private long beforeAppend(String decoratedKey) throws IOException
+    private long beforeAppend(DecoratedKey decoratedKey) throws IOException
     {
         if (decoratedKey == null)
         {
             throw new IOException("Keys must not be null.");
         }
-        Comparator<String> c = partitioner.getDecoratedKeyComparator();
+        Comparator<DecoratedKey> c = partitioner.getDecoratedKeyComparator();
         if (lastWrittenKey != null && c.compare(lastWrittenKey, decoratedKey) > 0)
         {
             logger.info("Last written key : " + lastWrittenKey);
@@ -70,12 +71,13 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(String decoratedKey, long position) throws IOException
+    private void afterAppend(DecoratedKey decoratedKey, long position) throws IOException
     {
-        bf.add(decoratedKey);
+        String diskKey = partitioner.convertToDiskFormat(decoratedKey);
+        bf.add(diskKey);
         lastWrittenKey = decoratedKey;
         long indexPosition = indexFile.getFilePointer();
-        indexFile.writeUTF(decoratedKey);
+        indexFile.writeUTF(diskKey);
         indexFile.writeLong(position);
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + position);
@@ -92,20 +94,20 @@ public class SSTableWriter extends SSTable
     }
 
     // TODO make this take a DataOutputStream and wrap the byte[] version to combine them
-    public void append(String decoratedKey, DataOutputBuffer buffer) throws IOException
+    public void append(DecoratedKey decoratedKey, DataOutputBuffer buffer) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        dataFile.writeUTF(decoratedKey);
+        dataFile.writeUTF(partitioner.convertToDiskFormat(decoratedKey));
         int length = buffer.getLength();
         dataFile.writeInt(length);
         dataFile.write(buffer.getData(), 0, length);
         afterAppend(decoratedKey, currentPosition);
     }
 
-    public void append(String decoratedKey, byte[] value) throws IOException
+    public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
     {
         long currentPosition = beforeAppend(decoratedKey);
-        dataFile.writeUTF(decoratedKey);
+        dataFile.writeUTF(partitioner.convertToDiskFormat(decoratedKey));
         dataFile.writeInt(value.length);
         dataFile.write(value);
         afterAppend(decoratedKey, currentPosition);
