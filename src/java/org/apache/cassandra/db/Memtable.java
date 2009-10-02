@@ -217,7 +217,7 @@ public class Memtable implements Comparable<Memtable>
         cfStore.storeLocation(ssTable);
         buffer.close();
         isFlushed_ = true;
-        logger_.info("Completed flushing " + this);
+        logger_.info("Completed flushing " + ssTable.getFilename());
     }
 
     public String toString()
