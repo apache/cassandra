@@ -572,7 +572,6 @@ public class CassandraServer implements Cassandra.Iface
             {
                 columnMap.put("CompareSubcolumnsWith", columnFamilyMetaData.subcolumnComparator.getClass().getName());
             }
-            columnMap.put("FlushPeriodInMinutes", columnFamilyMetaData.flushPeriodInMinutes + "");
             columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }
         return columnFamiliesMap;

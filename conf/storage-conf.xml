@@ -58,15 +58,8 @@
        ~
        ~ (To get the closest approximation to 0.3-style supercolumns, you
        ~ would use CompareWith=UTF8Type CompareSubcolumnsWith=LongType.)
-
-       ~ If FlushPeriodInMinutes is positive, it will be
-       ~ flushed to disk with that period even if the memtable has not
-       ~ exceeded the size or count thresholds, so that it does not
-       ~ prevent commitlog segments from being purged. 
       -->
-      <ColumnFamily CompareWith="BytesType"
-                    Name="Standard1"
-                    FlushPeriodInMinutes="60"/>
+      <ColumnFamily CompareWith="BytesType" Name="Standard1"/>
       <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
       <ColumnFamily CompareWith="TimeUUIDType" Name="StandardByUUID1"/>
       <ColumnFamily ColumnType="Super"
@@ -243,6 +236,16 @@
    ~ setting.  Use with MemtableSizeInMB to tune memory usage.
   -->
   <MemtableObjectCountInMillions>0.1</MemtableObjectCountInMillions>
+  <!--
+   ~ The maximum time to leave a dirty memtable unflushed.
+   ~ (While any affected columnfamilies have unflushed data from a
+   ~ commit log segment, that segment cannot be deleted.)
+   ~ This needs to be large enough that it won't cause a flush storm
+   ~ of all your memtables flushing at once because none has hit
+   ~ the size or count thresholds yet.  For production, a larger
+   ~ value such as 1440 is recommended.
+  -->
+  <MemtableFlushAfterMinutes>60</MemtableFlushAfterMinutes>
 
   <!--
    ~ Unlike most systems, in Cassandra writes are faster than reads, so

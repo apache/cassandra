@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
@@ -101,8 +100,8 @@ public class DatabaseDescriptor
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     private static int columnIndexSizeInKB_;
-    /* Number of hours to keep a memtable in memory */
-    private static int memtableLifetime_ = 6;
+    /* Number of minutes to keep a memtable in memory */
+    private static int memtableLifetimeMs_ = 60 * 60 * 1000;
     /* Size of the memtable in memory before it is dumped */
     private static int memtableSize_ = 128;
     /* Number of objects in millions in the memtable before it is dumped */
@@ -320,9 +319,9 @@ public class DatabaseDescriptor
             
 
             /* Number of days to keep the memtable around w/o flushing */
-            String lifetime = xmlUtils.getNodeValue("/Storage/MemtableLifetimeInDays");
-            if ( lifetime != null )
-                memtableLifetime_ = Integer.parseInt(lifetime);
+            String lifetime = xmlUtils.getNodeValue("/Storage/MemtableFlushAfterMinutes");
+            if (lifetime != null)
+                memtableLifetimeMs_ = Integer.parseInt(lifetime) * 60 * 1000;
 
             /* Size of the memtable in memory in MB before it is dumped */
             String memtableSize = xmlUtils.getNodeValue("/Storage/MemtableSizeInMB");
@@ -471,13 +470,6 @@ public class DatabaseDescriptor
                         throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
                     }
 
-                    // see if flush period is set
-                    String flushPeriodInMinutes = XMLUtils.getAttributeValue(columnFamily, "FlushPeriodInMinutes");
-                    int flushPeriod=0;
-                    if ( flushPeriodInMinutes != null )
-                        flushPeriod = Integer.parseInt(flushPeriodInMinutes);
-
-                    
                     // Parse out user-specified logical names for the various dimensions
                     // of a the column family from the config.
                     String n_superColumnMap = xmlUtils.getNodeValue(xqlCF + "SuperColumnMap");
@@ -525,8 +517,7 @@ public class DatabaseDescriptor
                         cfMetaData.n_superColumnKey = n_superColumnKey;
                         cfMetaData.n_superColumnMap = n_superColumnMap;
                     }
-                    cfMetaData.flushPeriodInMinutes = flushPeriod;
-                    
+
                     tableToCFMetaDataMap_.get(tName).put(cfName, cfMetaData);
                 }
             }
@@ -538,14 +529,12 @@ public class DatabaseDescriptor
             CFMetaData data = new CFMetaData();
             data.columnType = "Standard";
             data.comparator = new UTF8Type();
-            data.flushPeriodInMinutes = 1;
             systemMetadata.put(SystemTable.LOCATION_CF, data);
 
             data = new CFMetaData();
             data.columnType = "Super";
             data.comparator = new UTF8Type();
             data.subcolumnComparator = new BytesType();
-            data.flushPeriodInMinutes = 10;
             systemMetadata.put(HintedHandOffManager.HINTS_CF, data);
             tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
 
@@ -673,9 +662,9 @@ public class DatabaseDescriptor
     	return columnIndexSizeInKB_ * 1024;
     }
 
-    public static int getMemtableLifetime()
+    public static int getMemtableLifetimeMS()
     {
-      return memtableLifetime_;
+      return memtableLifetimeMs_;
     }
 
     public static String getInitialToken()
@@ -746,16 +735,6 @@ public class DatabaseDescriptor
         if (cfMetaData == null)
             return null;
         return cfMetaData.columnType;
-    }
-
-    public static int getFlushPeriod(String tableName, String columnFamilyName)
-    {
-        assert tableName != null;
-        CFMetaData cfMetaData = getCFMetaData(tableName, columnFamilyName);
-        
-        if (cfMetaData == null)
-            return 0;
-        return cfMetaData.flushPeriodInMinutes;
     }
 
     public static List<String> getTables()

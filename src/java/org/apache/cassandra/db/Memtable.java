@@ -346,4 +346,9 @@ public class Memtable implements Comparable<Memtable>, IFlushable<String>
     {
         columnFamilies_.clear();
     }
+
+    public boolean isExpired()
+    {
+        return System.currentTimeMillis() > creationTime_ + DatabaseDescriptor.getMemtableLifetimeMS();
+    }
 }

@@ -53,6 +53,8 @@ public class Table
     /* we use this lock to drain updaters before calling a flush. */
     static final ReentrantReadWriteLock flusherLock_ = new ReentrantReadWriteLock(true);
 
+    private static Timer flushTimer_ = new Timer("FLUSH-TIMER");
+
     /*
      * This class represents the metadata of this Table. The metadata
      * is basically the column family name and the ID associated with
@@ -513,6 +515,26 @@ public class Table
         {
             columnFamilyStores_.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
         }
+
+        // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
+        int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
+        flushTimer_.schedule(new TimerTask()
+        {
+            public void run()
+            {
+                for (ColumnFamilyStore cfs : columnFamilyStores_.values())
+                {
+                    try
+                    {
+                        cfs.forceFlushIfExpired();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }, checkMs, checkMs);
     }
 
     boolean isApplicationColumnFamily(String columnFamily)
