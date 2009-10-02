@@ -409,7 +409,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
     {
-        Memtable oldMemtable = getMemtableThreadSafe();
         forceFlush();
         // block for flush to finish by adding a no-op action to the flush executorservice
         // and waiting for that to finish.  (this works since flush ES is single-threaded.)
@@ -420,10 +419,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         });
         f.get();
-        /* this assert is not threadsafe -- the memtable could have been clean when forceFlush
-           checked it, but dirty now thanks to another thread.  But as long as we are only
-           calling this from single-threaded test code it is useful to have as a sanity check. */
-        assert oldMemtable.isFlushed() || oldMemtable.isClean(); 
     }
 
     public void forceFlushBinary()
@@ -1012,6 +1007,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     */
     private int doFileCompaction(List<String> files, int minBufferSize) throws IOException
     {
+        if (DatabaseDescriptor.isSnapshotBeforeCompaction())
+            Table.open(table_).snapshot("compact-" + columnFamily_);
         logger_.info("Compacting [" + StringUtils.join(files, ",") + "]");
         String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, getExpectedCompactedFileSize(files));
         // If the compaction file path is null that means we have no space left for this compaction.
@@ -1549,6 +1546,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void snapshot(String snapshotName) throws IOException
     {
+        try
+        {
+            forceBlockingFlush();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+
         sstableLock_.readLock().lock();
         try
         {

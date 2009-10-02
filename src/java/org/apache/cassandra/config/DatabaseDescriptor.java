@@ -131,6 +131,8 @@ public class DatabaseDescriptor
     private static double commitLogSyncBatchMS_;
     private static int commitLogSyncPeriodMS_;
 
+    private static boolean snapshotBeforeCompaction_;
+
     static
     {
         try
@@ -320,18 +322,31 @@ public class DatabaseDescriptor
             String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
             if (framedRaw != null)
             {
-                if (framedRaw.compareToIgnoreCase("true") == 0 || 
-                        framedRaw.compareToIgnoreCase("false") == 0)
+                if (framedRaw.equalsIgnoreCase("true") || framedRaw.equalsIgnoreCase("false"))
                 {
                     thriftFramed_ = Boolean.valueOf(framedRaw);
                 }
                 else
                 {
-                    throw new ConfigurationException("Unrecognized value " + 
-                            "for ThriftFramedTransport.  Use 'true' or 'false'."); 
+                    throw new ConfigurationException("Unrecognized value for ThriftFramedTransport.  Use 'true' or 'false'.");
                 }
             }
-            
+
+            /* snapshot-before-compaction.  defaults to false */
+            String sbc = xmlUtils.getNodeValue("/Storage/SnapshotBeforeCompaction");
+            if (sbc != null)
+            {
+                if (sbc.equalsIgnoreCase("true") || sbc.equalsIgnoreCase("false"))
+                {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("setting snapshotBeforeCompaction to " + sbc);
+                    snapshotBeforeCompaction_ = Boolean.valueOf(sbc);
+                }
+                else
+                {
+                    throw new ConfigurationException("Unrecognized value for SnapshotBeforeCompaction.  Use 'true' or 'false'.");
+                }
+            }
 
             /* Number of days to keep the memtable around w/o flushing */
             String lifetime = xmlUtils.getNodeValue("/Storage/MemtableLifetimeInDays");
@@ -1017,5 +1032,10 @@ public class DatabaseDescriptor
     public static int getBMTThreshold()
     {
         return bmtThreshold_;
+    }
+
+    public static boolean isSnapshotBeforeCompaction()
+    {
+        return snapshotBeforeCompaction_;
     }
 }
