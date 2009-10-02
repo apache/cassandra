@@ -99,6 +99,7 @@ public class SSTableWriter extends SSTable
         long currentPosition = beforeAppend(decoratedKey);
         dataFile.writeUTF(partitioner.convertToDiskFormat(decoratedKey));
         int length = buffer.getLength();
+        assert length > 0;
         dataFile.writeInt(length);
         dataFile.write(buffer.getData(), 0, length);
         afterAppend(decoratedKey, currentPosition);
@@ -108,6 +109,7 @@ public class SSTableWriter extends SSTable
     {
         long currentPosition = beforeAppend(decoratedKey);
         dataFile.writeUTF(partitioner.convertToDiskFormat(decoratedKey));
+        assert value.length > 0;
         dataFile.writeInt(value.length);
         dataFile.write(value);
         afterAppend(decoratedKey, currentPosition);

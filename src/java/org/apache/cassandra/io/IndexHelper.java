@@ -44,7 +44,8 @@ public class IndexHelper
         /* size of the bloom filter */
         int size = in.readInt();
         /* skip the serialized bloom filter */
-        in.skipBytes(size);
+        if (in.skipBytes(size) != size)
+            throw new EOFException();
     }
 
 	/**
@@ -57,7 +58,8 @@ public class IndexHelper
         /* read only the column index list */
         int columnIndexSize = file.readInt();
         /* skip the column index data */
-        file.skipBytes(columnIndexSize);
+        if (file.skipBytes(columnIndexSize) != columnIndexSize)
+            throw new EOFException();
 	}
     
     /**
