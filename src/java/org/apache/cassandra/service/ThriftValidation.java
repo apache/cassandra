@@ -95,7 +95,7 @@ public class ThriftValidation
         else
         {
             if (column_path.super_column == null)
-                throw new InvalidRequestException("column parameter is not optional for super CF " + column_path.column_family);
+                throw new InvalidRequestException("supercolumn parameter is not optional for super CF " + column_path.column_family);
         }
         if (column_path.column != null)
         {
