@@ -23,11 +23,13 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ThreadFactoryImpl;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
 
@@ -38,7 +40,6 @@ class MinorCompactionManager
     private static MinorCompactionManager instance_;
     private static Lock lock_ = new ReentrantLock();
     private static Logger logger_ = Logger.getLogger(MinorCompactionManager.class);
-    private static final long intervalInMins_ = 5;
     static final int MINCOMPACTION_THRESHOLD = 4; // compact this many sstables min at a time
     static final int MAXCOMPACTION_THRESHOLD = 32; // compact this many sstables max at a time
 
@@ -149,7 +150,7 @@ class MinorCompactionManager
     }
     
     
-    private ScheduledExecutorService compactor_ = new DebuggableScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("MINOR-COMPACTION-POOL"));
+    private ExecutorService compactor_ = new DebuggableThreadPoolExecutor("MINOR-COMPACTION-POOL");
 
     public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
