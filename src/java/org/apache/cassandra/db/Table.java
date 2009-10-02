@@ -48,7 +48,7 @@ public class Table
 {
     public static final String SYSTEM_TABLE = "system";
 
-    private static Logger logger_ = Logger.getLogger(Table.class);
+    private static final Logger logger_ = Logger.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
     /* we use this lock to drain updaters before calling a flush. */
     static final ReentrantReadWriteLock flusherLock_ = new ReentrantReadWriteLock(true);
@@ -312,14 +312,14 @@ public class Table
     }
     
     /* Used to lock the factory for creation of Table instance */
-    private static Lock createLock_ = new ReentrantLock();
-    private static Map<String, Table> instances_ = new HashMap<String, Table>();
+    private static final Lock createLock_ = new ReentrantLock();
+    private static final Map<String, Table> instances_ = new HashMap<String, Table>();
     /* Table name. */
-    private String table_;
+    private final String table_;
     /* Handle to the Table Metadata */
-    private Table.TableMetadata tableMetadata_;
+    private final Table.TableMetadata tableMetadata_;
     /* ColumnFamilyStore per column family */
-    private Map<String, ColumnFamilyStore> columnFamilyStores_ = new HashMap<String, ColumnFamilyStore>();
+    private final Map<String, ColumnFamilyStore> columnFamilyStores_ = new HashMap<String, ColumnFamilyStore>();
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies_;
 
@@ -331,12 +331,12 @@ public class Table
          * Set the isConfigured flag so that we do not read config all the
          * time.
         */
-        if ( tableInstance == null )
+        if (tableInstance == null)
         {
             Table.createLock_.lock();
             try
             {
-                if ( tableInstance == null )
+                if (tableInstance == null)
                 {
                     tableInstance = new Table(table);
                     instances_.put(table, tableInstance);

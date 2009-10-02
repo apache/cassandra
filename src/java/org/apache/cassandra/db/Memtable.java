@@ -39,23 +39,24 @@ import org.apache.log4j.Logger;
 
 public class Memtable implements Comparable<Memtable>, IFlushable<String>
 {
-	private static Logger logger_ = Logger.getLogger( Memtable.class );
+	private static final Logger logger_ = Logger.getLogger( Memtable.class );
 
     private boolean isFrozen_;
     private volatile boolean isDirty_;
     private volatile boolean isFlushed_; // for tests, in particular forceBlockingFlush asserts this
 
-    private int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024;
-    private int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
-    private AtomicInteger currentSize_ = new AtomicInteger(0);
-    private AtomicInteger currentObjectCount_ = new AtomicInteger(0);
+    private final int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024; // not static since we might want to change at runtime
+    private final int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
 
-    private String table_;
-    private String cfName_;
-    private long creationTime_;
+    private final AtomicInteger currentSize_ = new AtomicInteger(0);
+    private final AtomicInteger currentObjectCount_ = new AtomicInteger(0);
+
+    private final String table_;
+    private final String cfName_;
+    private final long creationTime_;
     // we use NBHM with manual locking, so reads are automatically threadsafe but write merging is serialized per key
-    private NonBlockingHashMap<String, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<String, ColumnFamily>();
-    private Object[] keyLocks;
+    private final NonBlockingHashMap<String, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<String, ColumnFamily>();
+    private final Object[] keyLocks;
 
     Memtable(String table, String cfName)
     {
@@ -113,7 +114,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<String>
 
     boolean isThresholdViolated()
     {
-        return currentSize_.get() >= threshold_ ||  currentObjectCount_.get() >= thresholdCount_;
+        return currentSize_.get() >= threshold_ || currentObjectCount_.get() >= thresholdCount_;
     }
 
     String getColumnFamily()
