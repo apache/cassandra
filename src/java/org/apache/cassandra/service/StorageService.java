@@ -79,8 +79,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
 
     private static StorageService instance_;
-    /* Used to lock the factory for creation of StorageService instance */
-    private static Lock createLock_ = new ReentrantLock();
     private static EndPoint tcpAddr_;
     private static EndPoint udpAddr_;
     private static IPartitioner partitioner_;
@@ -126,28 +124,23 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         String bs = System.getProperty("bootstrap");
         boolean bootstrap = bs != null && bs.contains("true");
-        
-        if ( instance_ == null )
+
+        if (instance_ == null)
         {
-            StorageService.createLock_.lock();
-            try
+            synchronized (StorageService.class)
             {
-                if ( instance_ == null )
+                if (instance_ == null)
                 {
                     try
                     {
                         instance_ = new StorageService(bootstrap);
                     }
-                    catch ( Throwable th )
+                    catch (Throwable th)
                     {
                         logger_.error(LogUtil.throwableToString(th));
                         System.exit(1);
                     }
                 }
-            }
-            finally
-            {
-                createLock_.unlock();
             }
         }
         return instance_;
