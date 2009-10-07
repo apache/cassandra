@@ -178,11 +178,6 @@ public class NodeProbe
         ssProxy.forceTableCleanup();
     }
     
-    public void bootstrapNodes(String nodeList) throws UnknownHostException
-    {
-        ssProxy.bootstrapNodes(nodeList);
-    }
-    
     public void forceTableCompaction() throws IOException
     {
         ssProxy.forceTableCompaction();
@@ -469,7 +464,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, bootstrap, tpstats, flush_binary, " +
+                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, tpstats, flush_binary, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -540,19 +535,6 @@ public class NodeProbe
         else if (cmdName.equals("clearsnapshot"))
         {
             probe.clearSnapshot();
-        }
-        else if (cmdName.equals("bootstrap"))
-        {
-            if (arguments.length == 2)
-            {
-                probe.bootstrapNodes(arguments[1]);
-            }
-            else
-            {
-                System.err.println(cmdName + " needs a node to work with");
-                NodeProbe.printUsage();
-                System.exit(1);
-            }
         }
         else if (cmdName.equals("tpstats"))
         {

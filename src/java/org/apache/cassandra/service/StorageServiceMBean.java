@@ -78,20 +78,7 @@ public interface StorageServiceMBean
      * Forces major compaction (all sstable files compacted)
      */
     public void forceTableCompaction() throws IOException;
-    
-    /**
-     * This method will cause the local node initiate
-     * the bootstrap process for all the nodes specified
-     * in the string parameter passed in. This local node
-     * will calculate who gives what ranges to the nodes
-     * and then instructs the nodes to do so.
-     * 
-     * @param nodes colon delimited list of endpoints that need
-     *              to be bootstrapped
-     * @throws UnknownHostException 
-    */
-    public void bootstrapNodes(String nodes) throws UnknownHostException;
-    
+
     /**
      * Trigger a cleanup of keys on all tables.
      */

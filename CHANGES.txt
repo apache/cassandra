@@ -1,3 +1,12 @@
+0.5 dev
+ * All non-seed nodes will attempt to bootstrap when started, until
+   bootstrap successfully completes. -b option is removed.
+ * Unless a token is manually specified in the configuration xml,
+   a bootstraping node will use a token that gives it half the
+   keys from the most-heavily-loaded node in the cluster,
+   instead of generating a random token.
+
+
 0.4.1
  * Fix FlushPeriod columnfamily configuration regression
    (CASSANDRA-455)

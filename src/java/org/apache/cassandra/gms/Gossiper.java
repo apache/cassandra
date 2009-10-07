@@ -145,6 +145,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         StageManager.registerStage( Gossiper.GOSSIP_STAGE, new SingleThreadedStage("GMFD") );
     }
 
+    /** Register with the Gossiper for EndPointState notifications */
     public void register(IEndPointStateChangeSubscriber subscriber)
     {
         subscribers_.add(subscriber);
@@ -881,6 +882,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
+    /**
+     * Start the gossiper with the generation # retrieved from the System
+     * table
+     */
     public void start(EndPoint localEndPoint, int generationNbr) throws IOException
     {
         localEndPoint_ = localEndPoint;

@@ -83,7 +83,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
     public final static String bootstrapTokenVerbHandler_ = "SPLITS-VERB-HANDLER";
 
-    private static StorageService instance_;
+    private static volatile StorageService instance_;
     private static EndPoint tcpAddr_;
     private static EndPoint udpAddr_;
     private static IPartitioner partitioner_;
@@ -139,15 +139,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         if (instance_ == null)
         {
-            boolean bootstrap = !(DatabaseDescriptor.getSeeds().contains(getLocalControlEndPoint().getHost()) || SystemTable.isBootstrapped());
-
             synchronized (StorageService.class)
             {
                 if (instance_ == null)
                 {
                     try
                     {
-                        instance_ = new StorageService(bootstrap);
+                        instance_ = new StorageService();
                     }
                     catch (Throwable th)
                     {
@@ -248,9 +246,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    public StorageService(boolean isBootstrapMode)
+    public StorageService()
     {
-        this.isBootstrapMode = isBootstrapMode;
         bootstrapSet = new HashSet<EndPoint>();
         init();
         storageLoadBalancer_ = new StorageLoadBalancer(this);
@@ -316,6 +313,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         storageMetadata_ = SystemTable.initMetadata();
         tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
         udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
+        isBootstrapMode = !(DatabaseDescriptor.getSeeds().contains(udpAddr_.getHost()) || SystemTable.isBootstrapped());
+
         /* Listen for application messages */
         MessagingService.instance().listen(tcpAddr_);
         /* Listen for control messages */
@@ -327,19 +326,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         /* starts a load timer thread */
         loadTimer_.schedule( new LoadDisseminator(), StorageService.threshold_, StorageService.threshold_);
         
-        /* Start the storage load balancer */
-        storageLoadBalancer_.start();
-        /* Register with the Gossiper for EndPointState notifications */
-        Gossiper.instance().register(this);
-        /*
-         * Start the gossiper with the generation # retrieved from the System
-         * table
-         */
-        Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
-        /* Make sure this token gets gossiped around. */
-        tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
-        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
-        Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
         if (isBootstrapMode)
         {
             logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
@@ -379,9 +365,19 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                     updateToken(t);
                 }
             }
-            doBootstrap(StorageService.getLocalStorageEndPoint());
+
+            BootStrapper bs = new BootStrapper(new EndPoint[] {getLocalStorageEndPoint()}, storageMetadata_.getToken());
+            bootStrapper_.submit(bs);
             Gossiper.instance().addApplicationState(BOOTSTRAP_MODE, new ApplicationState(""));
         }
+
+        storageLoadBalancer_.start();
+        Gossiper.instance().register(this);
+        Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
+        /* Make sure this token gets gossiped around. */
+        tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
+        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
+        Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
     }
 
     private Token<?> getBootstrapTokenFrom(EndPoint maxEndpoint)
@@ -659,42 +655,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 	        updateToken(newToken);
     	}
     }
-    
-    /**
-     * This method takes a colon separated string of nodes that need
-     * to be bootstrapped. * <i>nodes</i> must be specified as A:B:C.
-     * @throws UnknownHostException 
-     * 
-    */
-    private void doBootstrap(String nodes) throws UnknownHostException
-    {
-        String[] allNodes = nodes.split(":");
-        EndPoint[] endpoints = new EndPoint[allNodes.length];
-        Token[] tokens = new Token[allNodes.length];
-        
-        for ( int i = 0; i < allNodes.length; ++i )
-        {
-            String host = allNodes[i].trim();
-            InetAddress ip = InetAddress.getByName(host);
-            host = ip.getHostAddress();
-            endpoints[i] = new EndPoint( host, DatabaseDescriptor.getStoragePort() );
-            tokens[i] = tokenMetadata_.getToken(endpoints[i]);
-        }
-        
-        /* Start the bootstrap algorithm */
-        bootStrapper_.submit( new BootStrapper(endpoints, tokens) );
-    }
 
-    /**
-     * Starts the bootstrap operations for the specified endpoint.
-     * @param endpoint
-     */
-    public final void doBootstrap(EndPoint endpoint)
-    {
-        Token token = tokenMetadata_.getToken(endpoint);
-        bootStrapper_.submit(new BootStrapper(new EndPoint[]{endpoint}, token));
-    }
-    
     /**
      * Deliver hints to the specified node when it has crashed
      * and come back up/ marked as alive after a network partition
@@ -757,11 +718,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return Gossiper.instance().getCurrentGenerationNumber(udpAddr_);
     }
 
-    public void bootstrapNodes(String nodes) throws UnknownHostException
-    {        
-        doBootstrap(nodes);
-    }
-    
     public void forceTableCleanup() throws IOException
     {
         List<String> tables = DatabaseDescriptor.getTables();
@@ -772,9 +728,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
     
-    /**
-     * Trigger the immediate compaction of all tables.
-     */
     public void forceTableCompaction() throws IOException
     {
         List<String> tables = DatabaseDescriptor.getTables();
