@@ -375,11 +375,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
 class MoveMessage implements Serializable
 {
-    private Token targetToken_;
-
-    private MoveMessage()
-    {
-    }
+    private final Token targetToken_;
 
     MoveMessage(Token targetToken)
     {

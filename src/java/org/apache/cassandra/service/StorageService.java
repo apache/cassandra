@@ -498,24 +498,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    /**
-     * Get the count of primary keys from the sampler.
-    */
-    public String getLoadInfo()
+    /** raw load value */
+    public double getLoad()
     {
-        long diskSpace = FileUtils.getUsedDiskSpace();
-    	return FileUtils.stringifyFileSize(diskSpace);
+        return FileUtils.getUsedDiskSpace();
     }
 
-    /**
-     * Get the primary count info for this endpoint.
-     * This is gossiped around and cached in the
-     * StorageLoadBalancer.
-    */
-    public String getLoadInfo(EndPoint ep)
+    /** Human-readable load value */
+    public String getLoadString()
     {
-        LoadInfo li = storageLoadBalancer_.getLoad(ep);
-        return ( li == null ) ? "N/A" : li.toString();
+        return FileUtils.stringifyFileSize(FileUtils.getUsedDiskSpace());
     }
 
     /*

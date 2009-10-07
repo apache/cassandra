@@ -34,8 +34,7 @@ class LoadDisseminator extends TimerTask
     {
         try
         {
-            long diskSpace = FileUtils.getUsedDiskSpace();                
-            String diskUtilization = FileUtils.stringifyFileSize(diskSpace);
+            String diskUtilization = String.valueOf(StorageService.instance().getLoad());
             if (logger_.isDebugEnabled())
               logger_.debug("Disseminating load info ...");
             Gossiper.instance().addApplicationState(LoadDisseminator.loadInfo_, new ApplicationState(diskUtilization));

@@ -227,18 +227,7 @@ public class NodeProbe
     {
         return ssProxy.getCurrentGenerationNumber();
     }
-    
-    /**
-     * Retrieve a textual representation of the on-disk size of data
-     * stored on this node.
-     * 
-     * @return the size description
-     */
-    public String getLoadInfo()
-    {
-        return ssProxy.getLoadInfo();
-    }
-    
+
     /**
      * Trigger a cleanup of keys on all tables.
      */
@@ -444,7 +433,7 @@ public class NodeProbe
     public void printInfo(PrintStream outs)
     {
         outs.println(getToken());
-        outs.println(String.format("%-17s: %s", "Load Info", getLoadInfo()));
+        outs.println(String.format("%-17s: %s", "Load", ssProxy.getLoadString()));
         outs.println(String.format("%-17s: %s", "Generation No", getCurrentGenerationNumber()));
         
         // Uptime

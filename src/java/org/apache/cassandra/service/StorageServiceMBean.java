@@ -32,7 +32,7 @@ public interface StorageServiceMBean
     public String getUnreachableNodes();
     public String getToken();
     public Map<Range, List<EndPoint>> getRangeToEndPointMap();
-    public String getLoadInfo();
+    public String getLoadString();
     public int getCurrentGenerationNumber();
     public void forceTableCompaction() throws IOException;
     
