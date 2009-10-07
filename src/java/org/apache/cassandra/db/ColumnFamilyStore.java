@@ -611,20 +611,27 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     int doCompaction(int minThreshold, int maxThreshold) throws IOException
     {
-        logger_.debug("Checking to see if compaction of " + columnFamily_ + " would be useful");
         int filesCompacted = 0;
-        for (List<SSTableReader> sstables : getCompactionBuckets(ssTables_, 50L * 1024L * 1024L))
+        if (minThreshold > 0 && maxThreshold > 0)
         {
-            if (sstables.size() < minThreshold)
+            logger_.debug("Checking to see if compaction of " + columnFamily_ + " would be useful");
+            for (List<SSTableReader> sstables : getCompactionBuckets(ssTables_, 50L * 1024L * 1024L))
             {
-                continue;
+                if (sstables.size() < minThreshold)
+                {
+                    continue;
+                }
+                // if we have too many to compact all at once, compact older ones first -- this avoids
+                // re-compacting files we just created.
+                Collections.sort(sstables);
+                filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
             }
-            // if we have too many to compact all at once, compact older ones first -- this avoids
-            // re-compacting files we just created.
-            Collections.sort(sstables);
-            filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
+            logger_.debug(filesCompacted + " files compacted");
         }
-        logger_.debug(filesCompacted + " files compacted");
+        else
+        {
+            logger_.debug("Compaction is currently disabled.");
+        }
         return filesCompacted;
     }
 

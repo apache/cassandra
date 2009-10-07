@@ -429,7 +429,7 @@ public class NodeProbe
     public void setCompactionThreshold(int minimumCompactionThreshold, int maximumCompactionThreshold)
     {
         mcmProxy.setMinimumCompactionThreshold(minimumCompactionThreshold);
-        if (maximumCompactionThreshold > 0)
+        if (maximumCompactionThreshold >= 0)
         {
              mcmProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
         }
@@ -563,10 +563,24 @@ public class NodeProbe
                 System.exit(1);
             }
             int minthreshold = Integer.parseInt(arguments[1]);
-            int maxthreshold = 0;
+            int maxthreshold = CompactionManager.instance().getMaximumCompactionThreshold();
             if (arguments.length > 2)
             {
                 maxthreshold = Integer.parseInt(arguments[2]);
+            }
+
+            if (minthreshold > maxthreshold)
+            {
+                System.err.println("Min threshold can't be greater than Max threshold");
+                NodeProbe.printUsage();
+                System.exit(1);
+            }
+
+            if (minthreshold < 2 && maxthreshold != 0)
+            {
+                System.err.println("Min threshold must be at least 2");
+                NodeProbe.printUsage();
+                System.exit(1);
             }
             probe.setCompactionThreshold(minthreshold, maxthreshold);
         }
