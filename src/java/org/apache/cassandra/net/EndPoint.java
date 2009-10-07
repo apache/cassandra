@@ -19,7 +19,6 @@
 package org.apache.cassandra.net;
 
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -28,7 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 public class EndPoint implements Serializable, Comparable<EndPoint>
@@ -47,10 +45,10 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
         try
         {
             sentinelLocalEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), EndPoint.sentinelPort_);
-        }        
-        catch ( IOException ex )
+        }
+        catch (UnknownHostException e)
         {
-            logger_.warn(LogUtil.throwableToString(ex));
+            throw new AssertionError(e);
         }
     }
 

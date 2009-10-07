@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.EndPoint;
 
@@ -30,21 +32,19 @@ public interface StorageServiceMBean
 {    
     /**
      * Retrieve the list of live nodes in the cluster, where "liveness" is
-     * determined by the failure detector of the node being queried. The
-     * returned string is a space delimited list of host:port end points.
+     * determined by the failure detector of the node being queried.
      *
-     * @return space delimited list of nodes
+     * @return set of IP addresses, as Strings
      */
-    public String getLiveNodes();
+    public Set<String> getLiveNodes();
 
     /**
      * Retrieve the list of unreachable nodes in the cluster, as determined
-     * by this node's failure detector. The returned string is a space
-     * delimited list of host:port end points.
+     * by this node's failure detector.
      *
-     * @return space delimited list of nodes
+     * @return set of IP addresses, as Strings
      */
-    public String getUnreachableNodes();
+    public Set<String> getUnreachableNodes();
 
     /**
      * Fetch a string representation of the token.
@@ -59,7 +59,7 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to end points
      */
-    public Map<Range, List<EndPoint>> getRangeToEndPointMap();
+    public Map<Range, List<String>> getRangeToEndPointMap();
 
     /** Human-readable load value */
     public String getLoadString();

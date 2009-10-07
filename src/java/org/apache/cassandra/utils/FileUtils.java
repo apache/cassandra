@@ -175,7 +175,7 @@ public class FileUtils
         else
         {       
             String val = df_.format(value);
-            return val + " bytes.";
+            return val + " bytes";
         }        
     }
     

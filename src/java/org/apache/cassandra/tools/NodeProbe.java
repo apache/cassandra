@@ -200,25 +200,37 @@ public class NodeProbe
      */
     public void printRing(PrintStream outs)
     {
-        Map<Range, List<EndPoint>> rangeMap = ssProxy.getRangeToEndPointMap();
+        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndPointMap();
         List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
         Collections.sort(ranges);
-        
+        Set<String> liveNodes = ssProxy.getLiveNodes();
+        Set<String> deadNodes = ssProxy.getUnreachableNodes();
+
         // Print range-to-endpoint mapping
         int counter = 0;
-        outs.print(String.format("%-46s ", "Starting Token"));
-        outs.print(String.format("%-44s ", "Ending Token"));
-        outs.print(String.format("%-4s ", "Size"));
-        outs.print(String.format("%-15s", "Address"));
+        outs.print(String.format("%-14s", "Address"));
+        outs.print(String.format("%-11s", "Status"));
+        outs.print(String.format("%-43s", "Range"));
         outs.println("Ring");
+        // emphasize that we're showing the right part of each range
+        if (ranges.size() > 1)
+        {
+            outs.println(String.format("%-14s%-11s%-43s", "", "", ranges.get(0).left()));
+        }
+        // normal range & node info
         for (Range range : ranges) {
-            List<EndPoint> endpoints = rangeMap.get(range);
-            
-            outs.print(String.format("%-46s ", range.left()));
-            outs.print(String.format("%-46s ", range.right()));
-            outs.print(String.format("%2d ", endpoints.size()));
-            outs.print(String.format("%-15s", endpoints.get(0).getHost()));
-            
+            List<String> endpoints = rangeMap.get(range);
+            String primaryEndpoint = endpoints.get(0);
+
+            outs.print(String.format("%-14s", primaryEndpoint));
+            String status = liveNodes.contains(primaryEndpoint)
+                            ? "Up"
+                            : deadNodes.contains(primaryEndpoint)
+                              ? "Down"
+                              : "?";
+            outs.print(String.format("%-11s", status));
+            outs.print(String.format("%-43s", range.right()));
+
             String asciiRingArt;
             if (counter == 0)
             {
@@ -231,17 +243,11 @@ public class NodeProbe
             else
             {
                 if ((rangeMap.size() > 4) && ((counter % 2) == 0))
-                {
                     asciiRingArt = "v   |";
-                }
                 else if ((rangeMap.size() > 4) && ((counter % 2) != 0))
-                {
                     asciiRingArt = "|   ^";
-                }
                 else
-                {
                     asciiRingArt = "|   |";
-                }
             }
             outs.println(asciiRingArt);
             
@@ -332,30 +338,6 @@ public class NodeProbe
         
     }
 
-    /**
-     * Write a list of nodes with corresponding status.
-     * 
-     * @param outs the stream to write to
-     */
-    public void printCluster(PrintStream outs)
-    {
-        for (String upNode : ssProxy.getLiveNodes().split("\\s+"))
-        {
-            if (upNode.length() > 0)
-            {
-                outs.println(String.format("%-21s up", upNode));
-            }
-        }
-
-        for (String downNode : ssProxy.getUnreachableNodes().split("\\s+"))
-        {
-            if (downNode.length() > 0)
-            {
-                outs.println(String.format("%-21s down", downNode));
-            }
-        }
-    }
-    
     /**
      * Write node information.
      * 
@@ -523,10 +505,6 @@ public class NodeProbe
         {
             probe.printRing(System.out);
         }
-        else if (cmdName.equals("cluster"))
-        {
-            probe.printCluster(System.out);
-        }
         else if (cmdName.equals("info"))
         {
             probe.printInfo(System.out);
@@ -562,11 +540,11 @@ public class NodeProbe
             {
                 probe.bootstrapNodes(arguments[1]);
             }
-            else 
+            else
             {
                 System.err.println(cmdName + " needs a node to work with");
                 NodeProbe.printUsage();
-                System.exit(1);                
+                System.exit(1);
             }
         }
         else if (cmdName.equals("tpstats"))
@@ -584,7 +562,7 @@ public class NodeProbe
             probe.forceTableFlushBinary(probe.getArgs()[1]);
         }
         else if (cmdName.equals("getcompactionthreshold"))
-        {   
+        {
             probe.getCompactionThreshold(System.out);
         }
         else if (cmdName.equals("setcompactionthreshold"))
@@ -598,7 +576,7 @@ public class NodeProbe
             int minthreshold = Integer.parseInt(arguments[1]);
             int maxthreshold = 0;
             if (arguments.length > 2)
-            {   
+            {
                 maxthreshold = Integer.parseInt(arguments[2]);
             }
             probe.setCompactionThreshold(minthreshold, maxthreshold);

@@ -357,13 +357,18 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         consistencyManager_.submit(consistencySentinel);
     }
 
-    public Map<Range, List<EndPoint>> getRangeToEndPointMap()
+    public Map<Range, List<String>> getRangeToEndPointMap()
     {
         /* Get the token to endpoint map. */
         Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         /* All the ranges for the tokens */
         Range[] ranges = getAllRanges(tokenToEndPointMap.keySet());
-        return constructRangeToEndPointMap(ranges);
+        Map<Range, List<String>> map = new HashMap<Range, List<String>>();
+        for (Map.Entry<Range,List<EndPoint>> entry : constructRangeToEndPointMap(ranges).entrySet())
+        {
+            map.put(entry.getKey(), stringify(entry.getValue()));
+        }
+        return map;
     }
 
     /**
@@ -626,31 +631,39 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return tokenMetadata_.getToken(StorageService.tcpAddr_).toString();
     }
 
-    public String getLiveNodes()
+    public Set<String> getLiveNodes()
     {
         return stringify(Gossiper.instance().getLiveMembers());
     }
 
-    public String getUnreachableNodes()
+    public Set<String> getUnreachableNodes()
     {
         return stringify(Gossiper.instance().getUnreachableMembers());
     }
-    
+
+    private Set<String> stringify(Set<EndPoint> endPoints)
+    {
+        Set<String> stringEndPoints = new HashSet<String>();
+        for (EndPoint ep : endPoints)
+        {
+            stringEndPoints.add(ep.getHost());
+        }
+        return stringEndPoints;
+    }
+
+    private List<String> stringify(List<EndPoint> endPoints)
+    {
+        List<String> stringEndPoints = new ArrayList<String>();
+        for (EndPoint ep : endPoints)
+        {
+            stringEndPoints.add(ep.getHost());
+        }
+        return stringEndPoints;
+    }
+
     public int getCurrentGenerationNumber()
     {
         return Gossiper.instance().getCurrentGenerationNumber(udpAddr_);
-    }
-
-    /* Helper for the MBean interface */
-    private String stringify(Set<EndPoint> eps)
-    {
-        StringBuilder sb = new StringBuilder("");
-        for (EndPoint ep : eps)
-        {
-            sb.append(ep);
-            sb.append(" ");
-        }
-        return sb.toString();
     }
 
     public void bootstrapNodes(String nodes) throws UnknownHostException

@@ -23,10 +23,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
-import java.math.BigInteger;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.service.StorageService;
 
 
 /**
