@@ -504,7 +504,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return FileUtils.getUsedDiskSpace();
     }
 
-    /** Human-readable load value */
     public String getLoadString()
     {
         return FileUtils.stringifyFileSize(FileUtils.getUsedDiskSpace());
@@ -654,7 +653,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return sb.toString();
     }
 
-    public void loadAll(String nodes) throws UnknownHostException
+    public void bootstrapNodes(String nodes) throws UnknownHostException
     {        
         doBootstrap(nodes);
     }

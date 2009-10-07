@@ -172,95 +172,26 @@ public class NodeProbe
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
     }
-    
-    /**
-     * Retrieve a map of range to end points that describe the ring topology
-     * of a Cassandra cluster.
-     * 
-     * @return mapping of ranges to end points
-     */
-    public Map<Range, List<EndPoint>> getRangeToEndpointMap()
-    {
-        return ssProxy.getRangeToEndPointMap();
-    }
-    
-    /**
-     * Retrieve the list of live nodes in the cluster, where "liveness" is
-     * determined by the failure detector of the node being queried. The 
-     * returned string is a space delimited list of host:port end points.
-     * 
-     * @return space delimited list of nodes
-     */
-    public String getLiveNodes()
-    {
-        return ssProxy.getLiveNodes();
-    }
-    
-    /**
-     * Retrieve the list of unreachable nodes in the cluster, as determined
-     * by this node's failure detector. The returned string is a space
-     * delimited list of host:port end points.
-     * 
-     * @return space delimited list of nodes
-     */
-    public String getUnreachableNodes()
-    {
-        return ssProxy.getUnreachableNodes();
-    }
-    
-    /**
-     * Fetch a string representation of the token.
-     * 
-     * @return a string token
-     */
-    public String getToken()
-    {
-        return ssProxy.getToken();
-    }
-    
-    /**
-     * Return the generation value for this node.
-     * 
-     * @return generation number
-     */
-    public int getCurrentGenerationNumber()
-    {
-        return ssProxy.getCurrentGenerationNumber();
-    }
 
-    /**
-     * Trigger a cleanup of keys on all tables.
-     */
     public void forceTableCleanup() throws IOException
     {
         ssProxy.forceTableCleanup();
     }
     
-    /**
-     * Bootstrap the listed nodes with data
-     * @param nodeList a colon separated list of nodes to bootstrap
-     */
-    public void bootStrapNodes(String nodeList) throws UnknownHostException
+    public void bootstrapNodes(String nodeList) throws UnknownHostException
     {
-        ssProxy.loadAll(nodeList);
+        ssProxy.bootstrapNodes(nodeList);
     }
     
-    /**
-     * Trigger compaction of all tables.
-     */
     public void forceTableCompaction() throws IOException
     {
         ssProxy.forceTableCompaction();
     }
 
-    /**
-     * Trigger a binary flush on CFs of a table.
-     */
     public void forceTableFlushBinary(String tableName) throws IOException
     {
         ssProxy.forceTableFlushBinary(tableName);
     }
-
 
     /**
      * Write a textual representation of the Cassandra ring.
@@ -269,7 +200,7 @@ public class NodeProbe
      */
     public void printRing(PrintStream outs)
     {
-        Map<Range, List<EndPoint>> rangeMap = getRangeToEndpointMap();
+        Map<Range, List<EndPoint>> rangeMap = ssProxy.getRangeToEndPointMap();
         List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
         Collections.sort(ranges);
         
@@ -408,15 +339,15 @@ public class NodeProbe
      */
     public void printCluster(PrintStream outs)
     {
-        for (String upNode : getLiveNodes().split("\\s+"))
+        for (String upNode : ssProxy.getLiveNodes().split("\\s+"))
         {
             if (upNode.length() > 0)
             {
                 outs.println(String.format("%-21s up", upNode));
             }
         }
-        
-        for (String downNode : getUnreachableNodes().split("\\s+"))
+
+        for (String downNode : ssProxy.getUnreachableNodes().split("\\s+"))
         {
             if (downNode.length() > 0)
             {
@@ -432,9 +363,9 @@ public class NodeProbe
      */
     public void printInfo(PrintStream outs)
     {
-        outs.println(getToken());
+        outs.println(ssProxy.getToken());
         outs.println(String.format("%-17s: %s", "Load", ssProxy.getLoadString()));
-        outs.println(String.format("%-17s: %s", "Generation No", getCurrentGenerationNumber()));
+        outs.println(String.format("%-17s: %s", "Generation No", ssProxy.getCurrentGenerationNumber()));
         
         // Uptime
         long secondsUp = runtimeProxy.getUptime() / 1000;
@@ -629,7 +560,7 @@ public class NodeProbe
         {
             if (arguments.length == 2)
             {
-                probe.bootStrapNodes(arguments[1]);
+                probe.bootstrapNodes(arguments[1]);
             }
             else 
             {

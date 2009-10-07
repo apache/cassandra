@@ -28,12 +28,52 @@ import org.apache.cassandra.net.EndPoint;
 
 public interface StorageServiceMBean
 {    
+    /**
+     * Retrieve the list of live nodes in the cluster, where "liveness" is
+     * determined by the failure detector of the node being queried. The
+     * returned string is a space delimited list of host:port end points.
+     *
+     * @return space delimited list of nodes
+     */
     public String getLiveNodes();
+
+    /**
+     * Retrieve the list of unreachable nodes in the cluster, as determined
+     * by this node's failure detector. The returned string is a space
+     * delimited list of host:port end points.
+     *
+     * @return space delimited list of nodes
+     */
     public String getUnreachableNodes();
+
+    /**
+     * Fetch a string representation of the token.
+     *
+     * @return a string token
+     */
     public String getToken();
+
+    /**
+     * Retrieve a map of range to end points that describe the ring topology
+     * of a Cassandra cluster.
+     *
+     * @return mapping of ranges to end points
+     */
     public Map<Range, List<EndPoint>> getRangeToEndPointMap();
+
+    /** Human-readable load value */
     public String getLoadString();
+
+    /**
+     * Return the generation value for this node.
+     *
+     * @return generation number
+     */
     public int getCurrentGenerationNumber();
+
+    /**
+     * Forces major compaction (all sstable files compacted)
+     */
     public void forceTableCompaction() throws IOException;
     
     /**
@@ -47,10 +87,10 @@ public interface StorageServiceMBean
      *              to be bootstrapped
      * @throws UnknownHostException 
     */
-    public void loadAll(String nodes) throws UnknownHostException;
+    public void bootstrapNodes(String nodes) throws UnknownHostException;
     
     /**
-     * 
+     * Trigger a cleanup of keys on all tables.
      */
     public void forceTableCleanup() throws IOException;
 
