@@ -725,10 +725,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void doCleanup(SSTableReader sstable) throws IOException
     {
         assert sstable != null;
-        List<Range> myRanges;
-        Map<EndPoint, List<Range>> endPointtoRangeMap = StorageService.instance().constructEndPointToRangesMap();
-        myRanges = endPointtoRangeMap.get(StorageService.getLocalStorageEndPoint());
-        List<SSTableReader> sstables = doFileAntiCompaction(Arrays.asList(sstable), myRanges, null);
+        List<SSTableReader> sstables = doFileAntiCompaction(Arrays.asList(sstable), StorageService.instance().getLocalRanges(), null);
         if (!sstables.isEmpty())
         {
             assert sstables.size() == 1;
@@ -764,7 +761,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
 
-        int expectedBloomFilterSize = Math.max(SSTableReader.indexInterval(), SSTableReader.getApproximateKeyCount(sstables) / 2);
+        int expectedBloomFilterSize = Math.max(SSTableReader.indexInterval(), (int)(SSTableReader.getApproximateKeyCount(sstables) / 2));
         if (logger_.isDebugEnabled())
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
@@ -844,7 +841,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
 
-        int expectedBloomFilterSize = Math.max(SSTableReader.indexInterval(), SSTableReader.getApproximateKeyCount(sstables));
+        // TODO the int cast here is potentially buggy
+        int expectedBloomFilterSize = Math.max(SSTableReader.indexInterval(), (int)SSTableReader.getApproximateKeyCount(sstables));
         if (logger_.isDebugEnabled())
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 

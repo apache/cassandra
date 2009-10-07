@@ -525,10 +525,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             return DatabaseDescriptor.getTables();        
         }
-        else
-        {
-            return new ArrayList<String>();
-        }
+        return Collections.emptyList();
     }
 
     public Map<String, Map<String, String>> describe_keyspace(String table) throws NotFoundException

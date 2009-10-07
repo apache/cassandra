@@ -29,6 +29,7 @@ import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -86,9 +87,14 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return INDEX_INTERVAL;
     }
 
-    public static int getApproximateKeyCount(Iterable<SSTableReader> sstables)
+    public static long getApproximateKeyCount()
     {
-        int count = 0;
+        return getApproximateKeyCount(openedFiles.values());
+    }
+
+    public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
+    {
+        long count = 0;
 
         for (SSTableReader sstable : sstables)
         {
@@ -99,6 +105,30 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         return count;
+    }
+
+    /**
+     * Get all indexed keys in any SSTable for our primary range
+     * TODO add option to include keys from one or more other ranges
+     */
+    public static List<DecoratedKey> getIndexedDecoratedKeys()
+    {
+        Range range = StorageService.instance().getLocalPrimaryRange();
+        List<DecoratedKey> indexedKeys = new ArrayList<DecoratedKey>();
+        
+        for (SSTableReader sstable : openedFiles.values())
+        {
+            for (KeyPosition kp : sstable.getIndexPositions())
+            {
+                if (range.contains(kp.key.token))
+                {
+                    indexedKeys.add(kp.key);
+                }
+            }
+        }
+        Collections.sort(indexedKeys);
+
+        return indexedKeys;
     }
 
     public static SSTableReader open(String dataFileName) throws IOException

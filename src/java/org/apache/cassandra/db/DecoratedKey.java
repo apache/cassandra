@@ -24,7 +24,7 @@ import org.apache.cassandra.dht.Token;
  * Represents a decorated key, handy for certain operations
  * where just working with strings gets slow.
  */
-public class DecoratedKey<T extends Token>
+public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 {
     public final T token;
     public final String key;
@@ -32,6 +32,7 @@ public class DecoratedKey<T extends Token>
     public DecoratedKey(T token, String key)
     {
         super();
+        assert key != null;
         this.token = token;
         this.key = key;
     }
@@ -55,20 +56,22 @@ public class DecoratedKey<T extends Token>
             return false;
         if (getClass() != obj.getClass())
             return false;
+
         DecoratedKey other = (DecoratedKey) obj;
-        if (key == null)
-        {
-            if (other.key != null)
-                return false;
-        } else if (!key.equals(other.key))
-            return false;
+        // either both should be of a class where all tokens are null, or neither
+        assert (token == null) == (other.token == null);
         if (token == null)
-        {
-            if (other.token != null)
-                return false;
-        } else if (!token.equals(other.token))
-            return false;
-        return true;
+            return key.equals(other.key);
+        return token.equals(other.token) && key.equals(other.key);
+    }
+
+    public int compareTo(DecoratedKey other)
+    {
+        assert (token == null) == (other.token == null);
+        if (token == null)
+            return key.compareTo(other.key);
+        int i = token.compareTo(other.token);
+        return i == 0 ? key.compareTo(other.key) : i;
     }
 
     @Override

@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -27,8 +28,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Condition;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -43,8 +43,18 @@ import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.SimpleCondition;
+import org.apache.cassandra.io.SSTableReader;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
+import org.apache.thrift.TException;
+
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
+import org.apache.commons.lang.ArrayUtils;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -77,6 +87,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
+    public final static String bootstrapTokenVerbHandler_ = "SPLITS-VERB-HANDLER";
 
     private static StorageService instance_;
     private static EndPoint tcpAddr_;
@@ -95,6 +106,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public static IPartitioner<?> getPartitioner() {
         return partitioner_;
+    }
+
+    public List<Range> getLocalRanges()
+    {
+        return getRangesForEndPoint(getLocalStorageEndPoint());
+    }
+
+    public Range getLocalPrimaryRange()
+    {
+        return getPrimaryRangeForEndPoint(getLocalStorageEndPoint());
     }
 
     static
@@ -254,6 +275,24 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
         MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.rangeVerbHandler_, new RangeVerbHandler());
+        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootstrapTokenVerbHandler_, new IVerbHandler()
+        {
+            public void doVerb(Message message)
+            {
+                List<String> tokens = getSplits(2);
+                assert tokens.size() == 3 : tokens.size();
+                Message response;
+                try
+                {
+                    response = message.getReply(getLocalStorageEndPoint(), tokens.get(1).getBytes("UTF-8"));
+                }
+                catch (UnsupportedEncodingException e)
+                {
+                    throw new AssertionError();
+                }
+                MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
+            }
+        });
         
         /* register the stage for the mutations */
         consistencyManager_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
@@ -309,12 +348,56 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
         if (isBootstrapMode)
         {
-            logger_.info("Starting in bootstrap mode");
+            logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
+            // wait for node information to be available.  if the rest of the cluster just came up,
+            // this could be up to threshold_ ms (currently 5 minutes).
+            try
+            {
+                while (storageLoadBalancer_.getLoadInfo().isEmpty())
+                {
+                    Thread.sleep(100);
+                }
+                // one more sleep in case there are some stragglers
+                Thread.sleep(BootStrapper.INITIAL_DELAY);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+
+            // if initialtoken was specified, use that.  otherwise, pick a token to assume half the load of the most-loaded node.
+            if (DatabaseDescriptor.getInitialToken() == null)
+            {
+                double maxLoad = 0;
+                EndPoint maxEndpoint = null;
+                for (Map.Entry<EndPoint,Double> entry : storageLoadBalancer_.getLoadInfo().entrySet())
+                {
+                    if (maxEndpoint == null || entry.getValue() > maxLoad)
+                    {
+                        maxEndpoint = entry.getKey();
+                        maxLoad = entry.getValue();
+                    }
+                }
+                if (!maxEndpoint.equals(getLocalStorageEndPoint()))
+                {
+                    Token<?> t = getBootstrapTokenFrom(maxEndpoint);
+                    logger_.info("Setting token to " + t + " to assume load from " + maxEndpoint.getHost());
+                    updateToken(t);
+                }
+            }
             doBootstrap(StorageService.getLocalStorageEndPoint());
             Gossiper.instance().addApplicationState(BOOTSTRAP_MODE, new ApplicationState(""));
         }
     }
-    
+
+    private Token<?> getBootstrapTokenFrom(EndPoint maxEndpoint)
+    {
+        Message message = new Message(getLocalStorageEndPoint(), "", bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
+        BootstrapTokenCallback btc = new BootstrapTokenCallback();
+        MessagingService.getMessagingInstance().sendRR(message, maxEndpoint, btc);
+        return btc.getToken();
+    }
+
     public boolean isBootstrapMode()
     {
         return isBootstrapMode;
@@ -1057,5 +1140,69 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Level level = Level.toLevel(rawLevel);
         Logger.getLogger(classQualifier).setLevel(level);
         logger_.info("set log level to " + level + " for classes under '" + classQualifier + "' (if the level doesn't look like '" + rawLevel + "' then log4j couldn't parse '" + rawLevel + "')");
+    }
+
+    /**
+     * @param splits: number of ranges to break into. Minimum 2.
+     * @return list of Tokens (_not_ keys!) breaking up the data this node is responsible for into `splits` pieces.
+     * There will be 1 more token than splits requested.  So for splits of 2, tokens T1 T2 T3 will be returned,
+     * where (T1, T2] is the first range and (T2, T3] is the second.  The first token will always be the left
+     * Token of this node's primary range, and the last will always be the Right token of that range.
+     */ 
+    public List<String> getSplits(int splits)
+    {
+        assert splits > 1;
+        // we use the actual Range token for the first and last brackets of the splits to ensure correctness
+        // (we're only operating on 1/128 of the keys remember)
+        Range range = getLocalPrimaryRange();
+        List<String> tokens = new ArrayList<String>();
+        tokens.add(range.left().toString());
+
+        List<DecoratedKey> decoratedKeys = SSTableReader.getIndexedDecoratedKeys();
+        for (int i = 1; i < splits; i++)
+        {
+            int index = i * (decoratedKeys.size() / splits);
+            tokens.add(decoratedKeys.get(index).token.toString());
+        }
+
+        tokens.add(range.right().toString());
+        return tokens;
+    }
+
+    class BootstrapTokenCallback implements IAsyncCallback
+    {
+        private volatile Token<?> token;
+        private final Condition condition = new SimpleCondition();
+
+        public Token<?> getToken()
+        {
+            try
+            {
+                condition.await();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return token;
+        }
+
+        public void response(Message msg)
+        {
+            try
+            {
+                token = partitioner_.getTokenFactory().fromString(new String(msg.getMessageBody(), "UTF-8"));
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                throw new AssertionError();
+            }
+            condition.signalAll();
+        }
+
+        public void attachContext(Object o)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 }

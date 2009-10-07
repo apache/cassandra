@@ -492,7 +492,7 @@ public class Table
     }
 
     /*
-     * Get the list of all SSTables on disk.  Not safe unless you aquire the CFS readlocks!
+     * Get the list of all SSTables on disk.
     */
     public List<SSTableReader> getAllSSTablesOnDisk()
     {

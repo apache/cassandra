@@ -41,8 +41,10 @@ import org.apache.cassandra.utils.LogUtil;
 */
 public class BootStrapper implements Runnable
 {
+    public static final long INITIAL_DELAY = 30 * 1000; //ms
+
     private static Logger logger_ = Logger.getLogger(BootStrapper.class);
-    private static final long INITIAL_DELAY = 60*1000; //ms
+
     /* endpoints that need to be bootstrapped */
     protected EndPoint[] targets_ = new EndPoint[0];
     /* tokens of the nodes being bootstrapped. */
@@ -60,10 +62,6 @@ public class BootStrapper implements Runnable
     {
         try
         {
-            /* Initial delay waiting for this node to get a stable endpoint map */
-            Thread.sleep(INITIAL_DELAY);
-            /* Clone again now so we include all discovered nodes in our calculations */
-            tokenMetadata_ = StorageService.instance().getTokenMetadata();
             // Mark as not bootstrapping to calculate ranges correctly
             for (int i=0; i< targets_.length; i++)
             {

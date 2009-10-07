@@ -46,12 +46,12 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private BloomFilter bf;
 
-    public SSTableWriter(String filename, int keyCount, IPartitioner partitioner) throws IOException
+    public SSTableWriter(String filename, long keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
         dataFile = new BufferedRandomAccessFile(path, "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
         indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", (int)(DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024));
-        bf = new BloomFilter(keyCount, 15);
+        bf = new BloomFilter((int)keyCount, 15); // TODO fix long -> int cast
     }
 
     private long beforeAppend(DecoratedKey decoratedKey) throws IOException
