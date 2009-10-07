@@ -179,33 +179,6 @@ public class FileUtils
         }        
     }
     
-    public static double stringToFileSize(String value)
-    {        
-        String[] peices = value.split(" ");
-        double d = Double.valueOf(peices[0]);
-        if ( peices[1].equals("TB") )
-        {
-            d *= tb_;
-        }
-        else if ( peices[1].equals("GB") )
-        {
-            d *= gb_;
-        }
-        else if ( peices[1].equals("MB") )
-        {
-            d *= mb_;
-        }
-        else if ( peices[1].equals("KB") )
-        {
-            d *= kb_;
-        }
-        else
-        {
-            d *= 1;
-        }
-        return d;
-    }
-    
     /**
      * calculate the total space used by a file or directory
      * 

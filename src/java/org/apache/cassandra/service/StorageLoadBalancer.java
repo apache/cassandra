@@ -19,8 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -69,7 +68,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         public void run()
         {
             /*
-            int threshold = (int)(StorageLoadBalancer.ratio_ * averageSystemLoad());
+            int threshold = (int)(StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad());
             int myLoad = localLoad();            
             EndPoint predecessor = storageService_.getPredecessor(StorageService.getLocalStorageEndPoint());
             if (logger_.isDebugEnabled())
@@ -171,15 +170,15 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     private static final String moveMessageVerbHandler_ = "MOVE-MESSAGE-VERB-HANDLER";
     /* time to delay in minutes the actual load balance procedure if heavily loaded */
     private static final int delay_ = 5;
-    /* Ratio of highest loaded node and the average load. */
-    private static final double ratio_ = 1.5;
+    /* If a node's load is this factor more than the average, it is considered Heavy */
+    private static final double TOPHEAVY_RATIO = 1.5;
 
     private StorageService storageService_;
     /* this indicates whether this node is already helping someone else */
     private AtomicBoolean isMoveable_ = new AtomicBoolean(false);
-    private Map<EndPoint, LoadInfo> loadInfo_ = new HashMap<EndPoint, LoadInfo>();
+    private Map<EndPoint, Double> loadInfo_ = new HashMap<EndPoint, Double>();
     /* This map is a clone of the one above and is used for various calculations during LB operation */
-    private Map<EndPoint, LoadInfo> loadInfo2_ = new HashMap<EndPoint, LoadInfo>();
+    private Map<EndPoint, Double> loadInfo2_ = new HashMap<EndPoint, Double>();
     /* This thread pool is used for initiating load balancing operations */
     private ExecutorService lb_ = new DebuggableThreadPoolExecutor("LB-OPERATIONS");
     /* This thread pool is used by target node to leave the ring. */
@@ -206,15 +205,9 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         ApplicationState loadInfoState = epState.getApplicationState(LoadDisseminator.loadInfo_);
         if ( loadInfoState != null )
         {
-            String lInfoState = loadInfoState.getState();
-            LoadInfo lInfo = new LoadInfo(lInfoState);
-            loadInfo_.put(endpoint, lInfo);
-            
-            /*
-            int currentLoad = Integer.parseInt(loadInfoState.getState());
-            // update load information for this endpoint
-            loadInfo_.put(endpoint, currentLoad);
+            loadInfo_.put(endpoint, Double.parseDouble(loadInfoState.getState()));
 
+            /*
             // clone load information to perform calculations
             loadInfo2_.putAll(loadInfo_);
             // Perform the analysis for load balance operations
@@ -226,15 +219,6 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             }
             */
         }       
-    }
-
-    /*
-     * Load information associated with a given endpoint.
-    */
-    LoadInfo getLoad(EndPoint ep)
-    {
-        LoadInfo li = loadInfo_.get(ep);        
-        return li;        
     }
 
     /*
@@ -253,82 +237,65 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             return false;
         else
         {            
-            if ( ( myload + li.count() ) > StorageLoadBalancer.ratio_*averageSystemLoad() )
-                return false;
-            else
-                return true;
+            return ( ( myload + li.count() ) <= StorageLoadBalancer.TOPHEAVY_RATIO*averageSystemLoad() );
         }
     }
     */
 
-    /*
-    private int localLoad()
+    private double localLoad()
     {
-        LoadInfo value = loadInfo2_.get(StorageService.getLocalStorageEndPoint());
-        return (value == null) ? 0 : value.count();
+        Double load = loadInfo2_.get(StorageService.getLocalStorageEndPoint());
+        return load == null ? 0 : load;
     }
-    */
 
-    /*
-    private int averageSystemLoad()
+    private double averageSystemLoad()
     {
         int nodeCount = loadInfo2_.size();
         Set<EndPoint> nodes = loadInfo2_.keySet();
 
-        int systemLoad = 0;
-        for ( EndPoint node : nodes )
+        double systemLoad = 0;
+        for (EndPoint node : nodes)
         {
-            LoadInfo load = loadInfo2_.get(node);
-            if ( load != null )
-                systemLoad += load.count();
+            systemLoad += loadInfo2_.get(node);
         }
-        int averageLoad = (nodeCount > 0) ? (systemLoad / nodeCount) : 0;
+        double averageLoad = (nodeCount > 0) ? (systemLoad / nodeCount) : 0;
         if (logger_.isDebugEnabled())
-          logger_.debug("Average system load should be " + averageLoad);
+            logger_.debug("Average system load is " + averageLoad);
         return averageLoad;
     }
-    */
-    
-    /*
+
     private boolean isHeavyNode()
     {
-        return ( localLoad() > ( StorageLoadBalancer.ratio_ * averageSystemLoad() ) );
+        return ( localLoad() > ( StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad() ) );
     }
-    */
-    
-    /*
+
     private boolean isMoveable(EndPoint target)
     {
-        int threshold = (int)(StorageLoadBalancer.ratio_ * averageSystemLoad());
-        if ( isANeighbour(target) )
+        double threshold = StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad();
+        if (isANeighbour(target))
         {
             // If the target is a neighbour then it is
             // moveable if its
-            LoadInfo load = loadInfo2_.get(target);
-            if ( load == null )
+            Double load = loadInfo2_.get(target);
+            if (load == null)
+            {
                 return false;
+            }
             else
             {
-                int myload = localLoad();
-                int avgLoad = (load.count() + myload) >> 1;
-                if ( avgLoad <= threshold )
-                    return true;
-                else
-                    return false;
+                double myload = localLoad();
+                double avgLoad = (load + myload) / 2;
+                return avgLoad <= threshold;
             }
         }
         else
         {
             EndPoint successor = storageService_.getSuccessor(target);
-            LoadInfo sLoad = loadInfo2_.get(successor);
-            LoadInfo targetLoad = loadInfo2_.get(target);
-            if ( (sLoad.count() + targetLoad.count()) > threshold )
-                return false;
-            else
-                return true;
+            double sLoad = loadInfo2_.get(successor);
+            double targetLoad = loadInfo2_.get(target);
+            return (sLoad + targetLoad) <= threshold;
         }
     }
-    */
 
     private boolean isANeighbour(EndPoint neighbour)
     {
@@ -348,21 +315,22 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
      * random one of the lightly loaded nodes and use them as
      * a potential target for load balance.
     */
-    /*
     private EndPoint findARandomLightNode()
     {
         List<EndPoint> potentialCandidates = new ArrayList<EndPoint>();
         Set<EndPoint> allTargets = loadInfo2_.keySet();
-        int avgLoad =  averageSystemLoad();
+        double avgLoad = averageSystemLoad();
 
-        for( EndPoint target : allTargets )
+        for (EndPoint target : allTargets)
         {
-            LoadInfo load = loadInfo2_.get(target);
-            if ( load.count() < avgLoad )
+            double load = loadInfo2_.get(target);
+            if (load < avgLoad)
+            {
                 potentialCandidates.add(target);
+            }
         }
 
-        if ( potentialCandidates.size() > 0 )
+        if (potentialCandidates.size() > 0)
         {
             Random random = new Random();
             int index = random.nextInt(potentialCandidates.size());
@@ -370,7 +338,6 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
         return null;
     }
-    */
 }
 
 class MoveMessage implements Serializable
