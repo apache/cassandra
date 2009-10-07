@@ -610,10 +610,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public void updateToken(Token token) throws IOException
     {
+        if (logger_.isDebugEnabled())
+          logger_.debug("Setting token to " + token);
         /* update the token on disk */
         SystemTable.updateToken(token);
         /* Update the token maps */
-        /* Get the old token. This needs to be removed. */
         tokenMetadata_.update(token, StorageService.tcpAddr_);
         /* Gossip this new token for the local storage instance */
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(token));

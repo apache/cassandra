@@ -544,7 +544,7 @@ public class DatabaseDescriptor
             CFMetaData data = new CFMetaData();
             data.columnType = "Standard";
             data.comparator = new UTF8Type();
-            systemMetadata.put(SystemTable.LOCATION_CF, data);
+            systemMetadata.put(SystemTable.STATUS_CF, data);
 
             data = new CFMetaData();
             data.columnType = "Super";

@@ -30,14 +30,14 @@ import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.net.EndPoint;
 
 public class SystemTable
 {
     private static Logger logger = Logger.getLogger(SystemTable.class);
-    public static final String LOCATION_CF = "LocationInfo";
-    private static final String LOCATION_KEY = "L"; // only one row in Location CF
+    public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
+    private static final String LOCATION_KEY = "L";
+    private static final String BOOTSTRAP_KEY = "Bootstrap";
     private static final byte[] TOKEN = utf8("Token");
     private static final byte[] GENERATION = utf8("Generation");
     private static StorageMetadata metadata;
@@ -60,7 +60,7 @@ public class SystemTable
     public static synchronized void updateToken(EndPoint ep, Token token) throws IOException
     {
         IPartitioner p = StorageService.getPartitioner();
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCATION_CF);
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(ep.getHost().getBytes("UTF-8"), p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
@@ -73,10 +73,8 @@ public class SystemTable
     public static synchronized void updateToken(Token token) throws IOException
     {
         assert metadata != null;
-        if (logger.isDebugEnabled())
-          logger.debug("Setting token to " + token);
         IPartitioner p = StorageService.getPartitioner();
-        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, LOCATION_CF);
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
@@ -99,8 +97,8 @@ public class SystemTable
 
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = new IdentityQueryFilter(LOCATION_KEY, new QueryPath(LOCATION_CF));
-        ColumnFamily cf = table.getColumnFamilyStore(LOCATION_CF).getColumnFamily(filter);
+        QueryFilter filter = new IdentityQueryFilter(LOCATION_KEY, new QueryPath(STATUS_CF));
+        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
 
         IPartitioner p = StorageService.getPartitioner();
         if (cf == null)
@@ -110,7 +108,7 @@ public class SystemTable
             int generation = 1;
 
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
-            cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.LOCATION_CF);
+            cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
             cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token)));
             cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)) );
             rm.add(cf);
@@ -128,7 +126,7 @@ public class SystemTable
         int gen = BasicUtilities.byteArrayToInt(generation.value()) + 1;
         
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
-        cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.LOCATION_CF);
+        cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
         Column generation2 = new Column(GENERATION, BasicUtilities.intToByteArray(gen), generation.timestamp() + 1);
         cf.addColumn(generation2);
         rm.add(cf);
