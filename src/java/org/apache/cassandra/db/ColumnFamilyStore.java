@@ -834,8 +834,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (compactionFileLocation == null)
         {
             SSTableReader maxFile = getMaxSizeFile(sstables);
-            sstables.remove(maxFile);
-            return doFileCompaction(sstables);
+            List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
+            smallerSSTables.remove(maxFile);
+            return doFileCompaction(smallerSSTables);
         }
 
         long startTime = System.currentTimeMillis();
