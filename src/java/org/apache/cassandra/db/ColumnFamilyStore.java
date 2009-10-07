@@ -1016,8 +1016,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (compactionFileLocation == null)
         {
             String maxFile = getMaxSizeFile(files);
-            files.remove(maxFile);
-            return doFileCompaction(files, minBufferSize);
+            List<String> smallerSSTables = new ArrayList<String>(files);
+            smallerSSTables.remove(maxFile);
+            return doFileCompaction(smallerSSTables, minBufferSize);
         }
 
         String newfile = null;
