@@ -379,16 +379,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges)
     {
-        if (logger_.isDebugEnabled())
-          logger_.debug("Constructing range to endpoint map ...");
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
-        for ( Range range : ranges )
+        for (Range range : ranges)
         {
             EndPoint[] endpoints = nodePicker_.getReadStorageEndPoints(range.right());
-            rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
+            // create a new ArrayList since a bunch of methods like to mutate the endpointmap List
+            rangeToEndPointMap.put(range, new ArrayList<EndPoint>(Arrays.asList(endpoints)));
         }
-        if (logger_.isDebugEnabled())
-          logger_.debug("Done constructing range to endpoint map ...");
         return rangeToEndPointMap;
     }
     
@@ -512,6 +509,22 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public String getLoadString()
     {
         return FileUtils.stringifyFileSize(FileUtils.getUsedDiskSpace());
+    }
+
+    public Map<String, String> getLoadMap()
+    {
+        Map<String, String> map = new HashMap<String, String>();
+        for (Map.Entry<EndPoint,Double> entry : storageLoadBalancer_.getLoadInfo().entrySet())
+        {
+            map.put(entry.getKey().getHost(), FileUtils.stringifyFileSize(entry.getValue()));
+        }
+        // gossiper doesn't bother sending to itself, so if there are no other nodes around
+        // we need to cheat to get load information for the local node
+        if (!map.containsKey(getLocalControlEndPoint().getHost()))
+        {
+            map.put(getLocalControlEndPoint().getHost(), getLoadString());
+        }
+        return map;
     }
 
     /*

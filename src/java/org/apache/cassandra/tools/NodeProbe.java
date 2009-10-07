@@ -205,17 +205,19 @@ public class NodeProbe
         Collections.sort(ranges);
         Set<String> liveNodes = ssProxy.getLiveNodes();
         Set<String> deadNodes = ssProxy.getUnreachableNodes();
+        Map<String, String> loadMap = ssProxy.getLoadMap();
 
         // Print range-to-endpoint mapping
         int counter = 0;
         outs.print(String.format("%-14s", "Address"));
         outs.print(String.format("%-11s", "Status"));
+        outs.print(String.format("%-14s", "Load"));
         outs.print(String.format("%-43s", "Range"));
         outs.println("Ring");
         // emphasize that we're showing the right part of each range
         if (ranges.size() > 1)
         {
-            outs.println(String.format("%-14s%-11s%-43s", "", "", ranges.get(0).left()));
+            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left()));
         }
         // normal range & node info
         for (Range range : ranges) {
@@ -223,12 +225,17 @@ public class NodeProbe
             String primaryEndpoint = endpoints.get(0);
 
             outs.print(String.format("%-14s", primaryEndpoint));
+
             String status = liveNodes.contains(primaryEndpoint)
-                            ? "Up"
-                            : deadNodes.contains(primaryEndpoint)
-                              ? "Down"
-                              : "?";
+                          ? "Up"
+                          : deadNodes.contains(primaryEndpoint)
+                            ? "Down"
+                            : "?";
             outs.print(String.format("%-11s", status));
+
+            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
+            outs.print(String.format("%-14s", load));
+
             outs.print(String.format("%-43s", range.right()));
 
             String asciiRingArt;

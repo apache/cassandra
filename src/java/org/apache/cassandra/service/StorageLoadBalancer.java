@@ -338,6 +338,11 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
         return null;
     }
+
+    public Map<EndPoint, Double> getLoadInfo()
+    {
+        return loadInfo_;
+    }
 }
 
 class MoveMessage implements Serializable

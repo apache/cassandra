@@ -64,6 +64,9 @@ public interface StorageServiceMBean
     /** Human-readable load value */
     public String getLoadString();
 
+    /** Human-readable load value.  Keys are IP addresses. */
+    public Map<String, String> getLoadMap();
+
     /**
      * Return the generation value for this node.
      *
