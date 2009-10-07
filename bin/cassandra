@@ -102,17 +102,12 @@ launch_service()
 {
     pidpath=$1
     foreground=$2
-    bootstrap=$3
     cassandra_parms="-Dcassandra -Dstorage-config=$CASSANDRA_CONF"
 
     if [ "x$pidpath" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
     fi
     
-    if [ "x$bootstrap" != "x" ]; then
-        cassandra_parms="$cassandra_parms -Dbootstrap=$bootstrap"
-    fi
-
     # The cassandra-foreground option will tell CassandraDaemon not
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
@@ -143,10 +138,6 @@ while true; do
             foreground="yes"
             shift
         ;;
-        -b)
-            bootstrap="true"
-            shift
-        ;;
         -h)
             echo "Usage: $0 [-f] [-h] [-p pidfile] [-b]"
             exit 0
@@ -163,7 +154,7 @@ while true; do
 done
 
 # Start up the service
-launch_service "$pidfile" "$foreground" "$bootstrap"
+launch_service "$pidfile" "$foreground"
 
 exit $?
 

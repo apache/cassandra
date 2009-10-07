@@ -137,11 +137,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public static StorageService instance()
     {
-        String bs = System.getProperty("bootstrap");
-        boolean bootstrap = bs != null && bs.contains("true");
-
         if (instance_ == null)
         {
+            boolean bootstrap = !(DatabaseDescriptor.getSeeds().contains(getLocalControlEndPoint().getHost()) || SystemTable.isBootstrapped());
+
             synchronized (StorageService.class)
             {
                 if (instance_ == null)
@@ -205,6 +204,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             logger_.debug("Removed " + s.getHost() + " as a bootstrap source");
         if (bootstrapSet.isEmpty())
         {
+            SystemTable.setBootstrapped();
             isBootstrapMode = false;
             updateTokenMetadata(storageMetadata_.getToken(), StorageService.tcpAddr_, false);
 

@@ -27,9 +27,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BasicUtilities;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.net.EndPoint;
 
 public class SystemTable
@@ -38,6 +40,7 @@ public class SystemTable
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     private static final String LOCATION_KEY = "L";
     private static final String BOOTSTRAP_KEY = "Bootstrap";
+    private static final byte[] BOOTSTRAP = utf8("B");
     private static final byte[] TOKEN = utf8("Token");
     private static final byte[] GENERATION = utf8("Generation");
     private static StorageMetadata metadata;
@@ -133,6 +136,38 @@ public class SystemTable
         rm.apply();
         metadata = new StorageMetadata(token, gen);
         return metadata;
+    }
+
+    public static boolean isBootstrapped()
+    {
+        Table table = null;
+        try
+        {
+            table = Table.open(Table.SYSTEM_TABLE);
+            QueryFilter filter = new NamesQueryFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
+            ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+            return cf != null;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void setBootstrapped()
+    {
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
+        cf.addColumn(new Column(BOOTSTRAP, new byte[] {1}, System.currentTimeMillis()));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
+        rm.add(cf);
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static class StorageMetadata
