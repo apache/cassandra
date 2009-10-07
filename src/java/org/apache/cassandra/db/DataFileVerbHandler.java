@@ -53,7 +53,7 @@ public class DataFileVerbHandler implements IVerbHandler
                 dos.writeUTF(sstable.getFilename());
             }
             Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bos.toByteArray());
-            MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
+            MessagingService.instance().sendOneWay(response, message.getFrom());
         }
         catch (IOException ex)
         {

@@ -18,13 +18,8 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -79,7 +74,7 @@ public class TokenUpdater
                                                  bos.toByteArray());
 
         System.out.println("Sending a token update message to " + target);
-        MessagingService.getMessagingInstance().sendOneWay(tokenUpdateMessage, target);
+        MessagingService.instance().sendOneWay(tokenUpdateMessage, target);
         Thread.sleep(TokenUpdater.waitTime_);
         System.out.println("Done sending the update message");
 

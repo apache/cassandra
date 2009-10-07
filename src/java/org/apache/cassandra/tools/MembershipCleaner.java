@@ -26,7 +26,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Serializable;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.EndPoint;
@@ -74,7 +73,7 @@ public class MembershipCleaner
         }
         
         System.out.println("Sending a membership clean message to " + target);
-        MessagingService.getMessagingInstance().sendOneWay(mbrshipCleanerMessage, target);
+        MessagingService.instance().sendOneWay(mbrshipCleanerMessage, target);
         Thread.sleep(MembershipCleaner.waitTime_);
         System.out.println("Done sending the update message");
     }

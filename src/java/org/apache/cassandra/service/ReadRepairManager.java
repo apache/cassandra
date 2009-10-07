@@ -18,17 +18,11 @@
 
 package org.apache.cassandra.service;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.concurrent.locks.*;
 
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
-import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.Header;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Cachetable;
@@ -72,7 +66,7 @@ class ReadRepairManager
 		{
 			String[] pieces = FBUtilities.strip(target, ":");
 			EndPoint to = new EndPoint(pieces[0], Integer.parseInt(pieces[1]));
-			MessagingService.getMessagingInstance().sendOneWay(message, to);			
+			MessagingService.instance().sendOneWay(message, to);
 		}
 
 	}

@@ -173,7 +173,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
             if (logger_.isDebugEnabled())
               logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
-            MessagingService.getMessagingInstance().sendOneWay(message, target);                
+            MessagingService.instance().sendOneWay(message, target);
             if (logger_.isDebugEnabled())
               logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();

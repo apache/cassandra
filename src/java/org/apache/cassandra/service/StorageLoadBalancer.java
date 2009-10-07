@@ -155,7 +155,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         public void doVerb(Message message)
         {
             Message reply = message.getReply(StorageService.getLocalStorageEndPoint(), new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
-            MessagingService.getMessagingInstance().sendOneWay(reply, message.getFrom());
+            MessagingService.instance().sendOneWay(reply, message.getFrom());
             if ( isMoveable_.get() )
             {
                 // MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];
@@ -190,7 +190,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         /* register the load balancer stage */
         StageManager.registerStage(StorageLoadBalancer.lbStage_, new SingleThreadedStage(StorageLoadBalancer.lbStage_));
         /* register the load balancer verb handler */
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
+        MessagingService.instance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
     }
 
     public void start()

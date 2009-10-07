@@ -71,7 +71,7 @@ public class MembershipCleanerVerbHandler implements IVerbHandler
                 
                 if (logger_.isDebugEnabled())
                   logger_.debug("Sending a membership clean message to " + targetNode);
-                MessagingService.getMessagingInstance().sendOneWay(message, targetNode);
+                MessagingService.instance().sendOneWay(message, targetNode);
                 break;
             }                        
         }

@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import java.util.Collection;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
@@ -97,7 +96,7 @@ public class HintedHandOffManager
         RowMutation rm = new RowMutation(tableName, purgedRow);
         Message message = rm.makeRowMutationMessage();
         QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(1, new WriteResponseResolver());
-        MessagingService.getMessagingInstance().sendRR(message, new EndPoint[]{ endPoint }, quorumResponseHandler);
+        MessagingService.instance().sendRR(message, new EndPoint[]{ endPoint }, quorumResponseHandler);
 
         return quorumResponseHandler.get();
     }

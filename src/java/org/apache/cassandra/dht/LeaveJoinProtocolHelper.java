@@ -218,7 +218,7 @@ class LeaveJoinProtocolHelper
             Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(bsMetadataMessage); 
             if (logger_.isDebugEnabled())
               logger_.debug("Sending the BootstrapMetadataMessage to " + source);
-            MessagingService.getMessagingInstance().sendOneWay(message, source);
+            MessagingService.instance().sendOneWay(message, source);
             StorageService.instance().addBootstrapSource(source);
         }
     }

@@ -43,14 +43,8 @@ import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
-import org.apache.thrift.TException;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
@@ -263,19 +257,19 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
 
         /* register the verb handlers */
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.tokenVerbHandler_, new TokenUpdateVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.binaryVerbHandler_, new BinaryVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mutationVerbHandler_, new RowMutationVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.readRepairVerbHandler_, new ReadRepairVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.readVerbHandler_, new ReadVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootStrapInitiateVerbHandler_, new Table.BootStrapInitiateVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootStrapInitiateDoneVerbHandler_, new StorageService.BootstrapInitiateDoneVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootStrapTerminateVerbHandler_, new StreamManager.BootstrapTerminateVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.dataFileVerbHandler_, new DataFileVerbHandler() );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );        
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.rangeVerbHandler_, new RangeVerbHandler());
-        MessagingService.getMessagingInstance().registerVerbHandlers(StorageService.bootstrapTokenVerbHandler_, new IVerbHandler()
+        MessagingService.instance().registerVerbHandlers(tokenVerbHandler_, new TokenUpdateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(binaryVerbHandler_, new BinaryVerbHandler());
+        MessagingService.instance().registerVerbHandlers(mutationVerbHandler_, new RowMutationVerbHandler());
+        MessagingService.instance().registerVerbHandlers(readRepairVerbHandler_, new ReadRepairVerbHandler());
+        MessagingService.instance().registerVerbHandlers(readVerbHandler_, new ReadVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootStrapInitiateVerbHandler_, new Table.BootStrapInitiateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootStrapInitiateDoneVerbHandler_, new StorageService.BootstrapInitiateDoneVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootStrapTerminateVerbHandler_, new StreamManager.BootstrapTerminateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(dataFileVerbHandler_, new DataFileVerbHandler() );
+        MessagingService.instance().registerVerbHandlers(mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
+        MessagingService.instance().registerVerbHandlers(bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );
+        MessagingService.instance().registerVerbHandlers(rangeVerbHandler_, new RangeVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new IVerbHandler()
         {
             public void doVerb(Message message)
             {
@@ -290,7 +284,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 {
                     throw new AssertionError();
                 }
-                MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
+                MessagingService.instance().sendOneWay(response, message.getFrom());
             }
         });
         
@@ -323,9 +317,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
         udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
         /* Listen for application messages */
-        MessagingService.getMessagingInstance().listen(tcpAddr_);
+        MessagingService.instance().listen(tcpAddr_);
         /* Listen for control messages */
-        MessagingService.getMessagingInstance().listenUDP(udpAddr_);
+        MessagingService.instance().listenUDP(udpAddr_);
 
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
@@ -394,7 +388,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         Message message = new Message(getLocalStorageEndPoint(), "", bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
         BootstrapTokenCallback btc = new BootstrapTokenCallback();
-        MessagingService.getMessagingInstance().sendRR(message, maxEndpoint, btc);
+        MessagingService.instance().sendRR(message, maxEndpoint, btc);
         return btc.getToken();
     }
 
@@ -826,7 +820,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
             if (logger_.isDebugEnabled())
               logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
-            MessagingService.getMessagingInstance().sendOneWay(message, target);                
+            MessagingService.instance().sendOneWay(message, target);
             if (logger_.isDebugEnabled())
               logger_.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();

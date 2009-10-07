@@ -93,7 +93,7 @@ class ConsistencyManager implements Runnable
             Message message = readCommand.makeReadMessage();
             if (logger_.isDebugEnabled())
               logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-			MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), responseHandler);
+			MessagingService.instance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), responseHandler);
 		}
 	}
 	
@@ -161,7 +161,7 @@ class ConsistencyManager implements Runnable
 			Message message = readCommandDigestOnly.makeReadMessage();
             if (logger_.isDebugEnabled())
               logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-            MessagingService.getMessagingInstance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), new DigestResponseHandler());
+            MessagingService.instance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), new DigestResponseHandler());
 		}
 		catch (IOException ex)
 		{

@@ -196,7 +196,7 @@ public class Table
             /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
             StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
             Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
-            MessagingService.getMessagingInstance().sendOneWay(message, to);
+            MessagingService.instance().sendOneWay(message, to);
             /* If we're done with everything for this host, remove from bootstrap sources */
             if (StreamContextManager.isDone(to.getHost()))
                 StorageService.instance().removeBootstrapSource(to);
@@ -246,7 +246,7 @@ public class Table
                 if (logger_.isDebugEnabled())
                   logger_.debug("Sending a bootstrap initiate done message ...");
                 Message doneMessage = new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
-                MessagingService.getMessagingInstance().sendOneWay(doneMessage, message.getFrom());
+                MessagingService.instance().sendOneWay(doneMessage, message.getFrom());
             }
             catch ( IOException ex )
             {

@@ -50,6 +50,7 @@ public class MessagingService implements IMessagingService
     public static final String responseVerbHandler_ = "RESPONSE";
     /* Stage for responses. */
     public static final String responseStage_ = "RESPONSE-STAGE";
+
     private enum ReservedVerbs_ {
     };
     
@@ -93,7 +94,7 @@ public class MessagingService implements IMessagingService
         return version_;
     }
 
-    public static IMessagingService getMessagingInstance()
+    public static IMessagingService instance()
     {   
     	if ( bShutdown_ )
     	{

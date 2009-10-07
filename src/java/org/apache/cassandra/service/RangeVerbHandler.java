@@ -42,7 +42,7 @@ public class RangeVerbHandler implements IVerbHandler
             Message response = rangeReply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + rangeReply + " to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.getMessagingInstance().sendOneWay(response, message.getFrom());
+            MessagingService.instance().sendOneWay(response, message.getFrom());
         }
         catch (Exception e)
         {

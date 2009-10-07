@@ -33,7 +33,7 @@ public class MessageDeliveryTask implements Runnable
     public void run()
     { 
         String verb = message_.getVerb();
-        IVerbHandler verbHandler = MessagingService.getMessagingInstance().getVerbHandler(verb);
+        IVerbHandler verbHandler = MessagingService.instance().getVerbHandler(verb);
         if ( verbHandler != null )
         {
             verbHandler.doVerb(message_);

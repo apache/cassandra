@@ -122,7 +122,7 @@ public class StorageProxy implements StorageProxyMBean
                 EndPoint endpoint = entry.getKey();
                 if (logger.isDebugEnabled())
                     logger.debug("insert writing key " + rm.key() + " to " + message.getMessageId() + "@" + endpoint);
-                MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
+                MessagingService.instance().sendOneWay(message, endpoint);
 			}
 		}
         catch (IOException e)
@@ -161,7 +161,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpointMap.keySet(), ", ") + "]");
 
             // Get all the targets and stick them in an array
-            MessagingService.getMessagingInstance().sendRR(message, primaryNodes.toArray(new EndPoint[primaryNodes.size()]), quorumResponseHandler);
+            MessagingService.instance().sendRR(message, primaryNodes.toArray(new EndPoint[primaryNodes.size()]), quorumResponseHandler);
             if (!quorumResponseHandler.get())
                 throw new UnavailableException();
             if (primaryNodes.size() < endpointMap.size()) // Do we need to bother with Hinted Handoff?
@@ -170,7 +170,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (e.getKey() != e.getValue()) // Hinted Handoff to target
                     {
-                        MessagingService.getMessagingInstance().sendOneWay(message, e.getKey());
+                        MessagingService.instance().sendOneWay(message, e.getKey());
                     }
                 }
             }
@@ -251,7 +251,7 @@ public class StorageProxy implements StorageProxyMBean
             if (logger.isDebugEnabled())
                 logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
             message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-            iars.add(MessagingService.getMessagingInstance().sendRR(message, endPoint));
+            iars.add(MessagingService.instance().sendRR(message, endPoint));
         }
 
         for (IAsyncResult iar: iars)
@@ -378,7 +378,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading digest for " + command + " from " + messageDigestOnly.getMessageId() + "@" + digestPoint);
             }
-            MessagingService.getMessagingInstance().sendRR(messages, endPoints, quorumResponseHandler);
+            MessagingService.instance().sendRR(messages, endPoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndPoints.add(endPoints);
         }
@@ -407,7 +407,7 @@ public class StorageProxy implements StorageProxyMBean
                             readResponseResolverRepair);
                     logger.info("DigestMismatchException: " + ex.getMessage());
                     Message messageRepair = command.makeReadMessage();
-                    MessagingService.getMessagingInstance().sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
+                    MessagingService.instance().sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
                     {
                         row = quorumResponseHandlerRepair.get();
@@ -478,7 +478,7 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.getMessage();
             if (logger.isDebugEnabled())
                 logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            IAsyncResult iar = MessagingService.getMessagingInstance().sendRR(message, endPoint);
+            IAsyncResult iar = MessagingService.instance().sendRR(message, endPoint);
 
             // read response
             byte[] responseBody;

@@ -38,45 +38,7 @@ public class FBUtilities
 {
     private static Logger logger_ = Logger.getLogger(FBUtilities.class);
 
-    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
-    
     private static InetAddress localInetAddress_;
-
-    public static String getTimestamp()
-    {
-        Date date = new Date();
-        DateFormat df  = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
-        return df.format(date);
-    }
-    
-    public static String getTimestamp(long value)
-    {
-        Date date = new Date(value);
-        DateFormat df  = new SimpleDateFormat("MM/dd/yyyy HH:mm:ss");
-        return df.format(date);
-    }
-
-    public static int getBits(int x, int p, int n)
-    {
-         return ( x >>> (p + 1 - n)) & ~(~0 << n);
-    }
-
-    public static String getCurrentThreadStackTrace()
-    {
-        Throwable throwable = new Throwable();
-        StackTraceElement[] ste = throwable.getStackTrace();
-        StringBuilder sbuf = new StringBuilder();
-
-        for ( int i = ste.length - 1; i > 0; --i )
-        {
-            sbuf.append(ste[i].getClassName())
-            	.append(".")
-            	.append(ste[i].getMethodName())
-            	.append("/");
-        }
-        sbuf.deleteCharAt(sbuf.length() - 1);
-        return sbuf.toString();
-    }
 
     public static String[] strip(String string, String token)
     {
@@ -87,50 +49,6 @@ public class FBUtilities
             result.add( (String)st.nextElement() );
         }
         return result.toArray( new String[0] );
-    }
-
-    public static byte[] serializeToStream(Object o)
-    {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        byte[] bytes = new byte[0];
-        try
-        {
-    		ObjectOutputStream oos = new ObjectOutputStream(bos);
-            oos.writeObject(o);
-            oos.flush();
-    		bytes = bos.toByteArray();
-    		oos.close();
-    		bos.close();
-        }
-        catch ( IOException e )
-        {
-            LogUtil.getLogger(FBUtilities.class.getName()).info( LogUtil.throwableToString(e) );
-        }
-		return bytes;
-    }
-
-    public static Object deserializeFromStream(byte[] bytes)
-    {
-        Object o = null;
-		ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
-        try
-        {
-    		ObjectInputStream ois = new ObjectInputStream(bis);
-            try
-            {
-    		    o = ois.readObject();
-            }
-            catch ( ClassNotFoundException e )
-            {
-            }
-    		ois.close();
-    		bis.close();
-        }
-        catch ( IOException e )
-        {
-            LogUtil.getLogger(FBUtilities.class.getName()).info( LogUtil.throwableToString(e) );
-        }
-		return o;
     }
 
     public static InetAddress getLocalAddress() throws UnknownHostException
@@ -148,17 +66,6 @@ public class FBUtilities
             inetAddr = InetAddress.getByName(DatabaseDescriptor.getListenAddress());
         }
         return inetAddr.getHostAddress();
-    }
-
-    public static boolean isHostLocalHost(InetAddress host)
-    {
-        try {
-            return getLocalAddress().equals(host);
-        }
-        catch ( UnknownHostException e )
-        {
-            return false;
-        }
     }
 
     public static byte[] toByteArray(int i)
@@ -223,14 +130,6 @@ public class FBUtilities
         else return 1;
     }
 
-    public static String stackTrace(Throwable e)
-    {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter( sw );
-        e.printStackTrace(pw);
-        return sw.toString();
-    }
-
     public static BigInteger hash(String data)
     {
         byte[] result = hash(HashingSchemes.MD5, data.getBytes());
@@ -254,11 +153,6 @@ public class FBUtilities
     	return result;
 	}
 
-    public static boolean isEqual(byte[] digestA, byte[] digestB)
-    {
-        return MessageDigest.isEqual(digestA, digestB);
-    }
-
     // The given byte array is compressed onto the specified stream.
     // The method does not close the stream. The caller will have to do it.
     public static void compressToStream(byte[] input, ByteArrayOutputStream bos) throws IOException
@@ -278,21 +172,6 @@ public class FBUtilities
             int count = compressor.deflate(buf);
             bos.write(buf, 0, count);
         }
-    }
-
-
-    public static byte[] compress(byte[] input) throws IOException
-    {
-        // Create an expandable byte array to hold the compressed data.
-        // You cannot use an array that's the same size as the orginal because
-        // there is no guarantee that the compressed data will be smaller than
-        // the uncompressed data.
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(input.length);
-        compressToStream(input,bos);
-        bos.close();
-
-        // Get the compressed data
-        return bos.toByteArray();
     }
 
 
@@ -317,58 +196,6 @@ public class FBUtilities
         // Get the decompressed data
         return bos.toByteArray();
     }
-
-    public static byte[] decompress(byte[] compressedData) throws IOException, DataFormatException
-    {
-    	return decompress(compressedData, 0, compressedData.length);
-    }
-
-     public static byte[] xor(byte[] b1, byte[] b2)
-     {
-         assert b1 != null;
-         assert b2 != null;
-    	 byte[] bLess;
-    	 byte[] bMore;
-
-    	 if(b1.length > b2.length)
-    	 {
-    		 bLess = b2;
-    		 bMore = b1;
-    	 }
-    	 else
-    	 {
-    		 bLess = b1;
-    		 bMore = b2;
-    	 }
-
-    	 for(int i = 0 ; i< bLess.length; i++ )
-    	 {
-    		 bMore[i] = (byte)(bMore[i] ^ bLess[i]);
-    	 }
-
-    	 return bMore;
-     }
-
-     public static int getUTF8Length(String string)
-     {
-     	/*
-     	 * We store the string as UTF-8 encoded, so when we calculate the length, it
-     	 * should be converted to UTF-8.
-     	 */
-     	String utfName  = string;
-     	int length = utfName.length();
-     	try
-     	{
-     		//utfName  = new String(string.getBytes("UTF-8"));
-     		length = string.getBytes("UTF-8").length;
-     	}
-     	catch (UnsupportedEncodingException e)
-     	{
-     		LogUtil.getLogger(FBUtilities.class.getName()).info(LogUtil.throwableToString(e));
-     	}
-
-     	return length;
-     }
 
     public static void writeByteArray(byte[] bytes, DataOutput out) throws IOException
     {
