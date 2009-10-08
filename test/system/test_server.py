@@ -554,3 +554,13 @@ class TestMutations(CassandraTester):
         for key in keys:
             assert rows.has_key(key) == True
             assert columns == rows[key]
+
+    def test_describe_keyspace(self):
+        """ Test keyspace description """
+        kspaces = client.get_string_list_property("keyspaces")
+        assert len(kspaces) == 3, kspaces
+        ks1 = client.describe_keyspace("Keyspace1")
+        assert ks1.keys() == ['Super1', 'Standard1', 'Standard2', 'Super2', 'StandardLong2', 'StandardLong1']
+        sysks = client.describe_keyspace("system")
+
+

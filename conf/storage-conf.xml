@@ -58,6 +58,9 @@
        ~
        ~ (To get the closest approximation to 0.3-style supercolumns, you
        ~ would use CompareWith=UTF8Type CompareSubcolumnsWith=LongType.)
+       ~
+       ~ An optional `Comment` attribute may be used to attach additional
+       ~ human-readable information about the column family to its definition.
       -->
       <ColumnFamily CompareWith="BytesType" Name="Standard1"/>
       <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
@@ -65,7 +68,8 @@
       <ColumnFamily ColumnType="Super"
                     CompareWith="UTF8Type"
                     CompareSubcolumnsWith="UTF8Type"
-                    Name="Super1"/>
+                    Name="Super1"
+                    Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
     </Keyspace>
   </Keyspaces>
 

@@ -539,31 +539,13 @@ public class CassandraServer implements Cassandra.Iface
             throw new NotFoundException();
         }
 
-        Iterator iter = tableMetaData.entrySet().iterator();
-        while (iter.hasNext())
+        for (Map.Entry<String, CFMetaData> stringCFMetaDataEntry : tableMetaData.entrySet())
         {
-            Map.Entry<String, CFMetaData> pairs = (Map.Entry<String, CFMetaData>) iter.next();
-            CFMetaData columnFamilyMetaData = pairs.getValue();
-
-            String desc = "";
-
+            CFMetaData columnFamilyMetaData = stringCFMetaDataEntry.getValue();
 
             Map<String, String> columnMap = new HashMap<String, String>();
-            desc = columnFamilyMetaData.n_columnMap + "(" + columnFamilyMetaData.n_columnKey + ", " + columnFamilyMetaData.n_columnValue + ", " + columnFamilyMetaData.n_columnTimestamp + ")";
-            if (columnFamilyMetaData.columnType.equals("Super"))
-            {
-                columnMap.put("Type", "Super");
-                desc = columnFamilyMetaData.n_superColumnMap + "(" + columnFamilyMetaData.n_superColumnKey + ", " + desc + ")";
-            }
-            else
-            {
-                columnMap.put("Type", "Standard");
-            }
-
-            desc = columnFamilyMetaData.tableName + "." + columnFamilyMetaData.cfName + "(" +
-                   columnFamilyMetaData.n_rowKey + ", " + desc + ")";
-
-            columnMap.put("Desc", desc);
+            columnMap.put("Type", columnFamilyMetaData.columnType);
+            columnMap.put("Desc", columnFamilyMetaData.comment == null ? columnFamilyMetaData.pretty() : columnFamilyMetaData.comment);
             columnMap.put("CompareWith", columnFamilyMetaData.comparator.getClass().getName());
             if (columnFamilyMetaData.columnType.equals("Super"))
             {

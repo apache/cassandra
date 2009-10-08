@@ -75,17 +75,6 @@ public class DatabaseDescriptor
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
     private static int bmtThreshold_ = 256;
 
-    // Default descriptive names for introspection. The user can override
-    // these choices in the config file. These are not case sensitive.
-    // Hence, these are stored in UPPER case for easy comparison.
-    private static String d_rowKey_           = "ROW_KEY";
-    private static String d_superColumnMap_   = "SUPER_COLUMN_MAP";
-    private static String d_superColumnKey_   = "SUPER_COLUMN_KEY";
-    private static String d_columnMap_        = "COLUMN_MAP";
-    private static String d_columnKey_        = "COLUMN_KEY";
-    private static String d_columnValue_      = "COLUMN_VALUE";
-    private static String d_columnTimestamp_  = "COLUMN_TIMESTAMP";
-
     /*
      * A map from table names to the set of column families for the table and the
      * corresponding meta data for that column family.
@@ -439,11 +428,6 @@ public class DatabaseDescriptor
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
 
-                // get name of the rowKey for this table
-                String n_rowKey = xmlUtils.getNodeValue(xqlTable + "RowKey");
-                if (n_rowKey == null)
-                    n_rowKey = d_rowKey_;
-
                 //NodeList columnFamilies = xmlUtils.getRequestedNodeList(table, "ColumnFamily");
                 int size2 = columnFamilies.getLength();
 
@@ -487,29 +471,7 @@ public class DatabaseDescriptor
 
                     // Parse out user-specified logical names for the various dimensions
                     // of a the column family from the config.
-                    String n_superColumnMap = xmlUtils.getNodeValue(xqlCF + "SuperColumnMap");
-                    if (n_superColumnMap == null)
-                        n_superColumnMap = d_superColumnMap_;
-
-                    String n_superColumnKey = xmlUtils.getNodeValue(xqlCF + "SuperColumnKey");
-                    if (n_superColumnKey == null)
-                        n_superColumnKey = d_superColumnKey_;
-
-                    String n_columnMap = xmlUtils.getNodeValue(xqlCF + "ColumnMap");
-                    if (n_columnMap == null)
-                        n_columnMap = d_columnMap_;
-
-                    String n_columnKey = xmlUtils.getNodeValue(xqlCF + "ColumnKey");
-                    if (n_columnKey == null)
-                        n_columnKey = d_columnKey_;
-
-                    String n_columnValue = xmlUtils.getNodeValue(xqlCF + "ColumnValue");
-                    if (n_columnValue == null)
-                        n_columnValue = d_columnValue_;
-
-                    String n_columnTimestamp = xmlUtils.getNodeValue(xqlCF + "ColumnTimestamp");
-                    if (n_columnTimestamp == null)
-                        n_columnTimestamp = d_columnTimestamp_;
+                    String cfComment = xmlUtils.getNodeValue(xqlCF + "Comment");
 
                     // now populate the column family meta data and
                     // insert it into the table dictionary.
@@ -517,21 +479,11 @@ public class DatabaseDescriptor
 
                     cfMetaData.tableName = tName;
                     cfMetaData.cfName = cfName;
+                    cfMetaData.comment = cfComment;
 
                     cfMetaData.columnType = columnType;
                     cfMetaData.comparator = columnComparator;
                     cfMetaData.subcolumnComparator = subcolumnComparator;
-
-                    cfMetaData.n_rowKey = n_rowKey;
-                    cfMetaData.n_columnMap = n_columnMap;
-                    cfMetaData.n_columnKey = n_columnKey;
-                    cfMetaData.n_columnValue = n_columnValue;
-                    cfMetaData.n_columnTimestamp = n_columnTimestamp;
-                    if ("Super".equals(columnType))
-                    {
-                        cfMetaData.n_superColumnKey = n_superColumnKey;
-                        cfMetaData.n_superColumnMap = n_superColumnMap;
-                    }
 
                     tableToCFMetaDataMap_.get(tName).put(cfName, cfMetaData);
                 }
@@ -542,15 +494,20 @@ public class DatabaseDescriptor
             Map<String, CFMetaData> systemMetadata = new HashMap<String, CFMetaData>();
 
             CFMetaData data = new CFMetaData();
+            data.cfName = SystemTable.STATUS_CF;
             data.columnType = "Standard";
             data.comparator = new UTF8Type();
-            systemMetadata.put(SystemTable.STATUS_CF, data);
+            data.comment = "persistent metadata for the local node";
+            systemMetadata.put(data.cfName, data);
 
             data = new CFMetaData();
+            data.cfName = HintedHandOffManager.HINTS_CF;
             data.columnType = "Super";
             data.comparator = new UTF8Type();
             data.subcolumnComparator = new BytesType();
-            systemMetadata.put(HintedHandOffManager.HINTS_CF, data);
+            data.comment = "hinted handoff data";
+            systemMetadata.put(data.cfName, data);
+
             tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
 
             /* make sure we have a directory for each table */

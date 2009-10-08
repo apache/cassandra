@@ -27,29 +27,13 @@ public class CFMetaData
     public String columnType;           // type: super, standard, etc.
     public AbstractType comparator;       // name sorted, time stamp sorted etc.
     public AbstractType subcolumnComparator; // like comparator, for supercolumns
-
-    // The user chosen names (n_) for various parts of data in a column family.
-    public String n_rowKey;               
-    public String n_superColumnMap;     // only used if this is a super column family
-    public String n_superColumnKey;     // only used if this is a super column family
-    public String n_columnMap;
-    public String n_columnKey;
-    public String n_columnValue;
-    public String n_columnTimestamp;
+    public String comment; // for humans only
 
     // a quick and dirty pretty printer for describing the column family...
     public String pretty()
     {
-        String desc;
-        desc = n_columnMap + "(" + n_columnKey + ", " + n_columnValue + ", " + n_columnTimestamp + ")";
-        if ("Super".equals(columnType))
-        {
-            desc = n_superColumnMap + "(" + n_superColumnKey + ", " + desc + ")"; 
-        }
-        desc = tableName + "." + cfName + "(" + n_rowKey + ", " + desc + ")\n";
-        
-        desc += "Column Family Type: " + columnType + "\n" +
-                "Columns Sorted By: " + comparator + "\n";
-        return desc;
+        return tableName + "." + cfName + "\n"
+               + "Column Family Type: " + columnType + "\n"
+               + "Columns Sorted By: " + comparator + "\n";
     }
 }
