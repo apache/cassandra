@@ -558,6 +558,10 @@ public class DatabaseDescriptor
 
             /* Load the seeds for node contact points */
             String[] seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
+            if (seeds.length <= 0)
+            {
+                throw new ConfigurationException("A minimum of one seed is required.");
+            }
             for( int i = 0; i < seeds.length; ++i )
             {
                 seeds_.add( seeds[i] );
