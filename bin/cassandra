@@ -102,6 +102,7 @@ launch_service()
 {
     pidpath=$1
     foreground=$2
+    props=$3
     cassandra_parms="-Dcassandra -Dstorage-config=$CASSANDRA_CONF"
 
     if [ "x$pidpath" != "x" ]; then
@@ -112,11 +113,11 @@ launch_service()
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
+        $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props \
                 org.apache.cassandra.service.CassandraDaemon
     # Startup CassandraDaemon, background it, and write the pid.
     else
-        exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH \
+        exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props \
                     org.apache.cassandra.service.CassandraDaemon <&- &
         [ ! -z $pidpath ] && printf "%d" $! > $pidpath
     fi
@@ -125,7 +126,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt fhp:b "$@"`
+args=`getopt fhp:bD: "$@"`
 eval set -- "$args"
 
 while true; do
@@ -142,6 +143,10 @@ while true; do
             echo "Usage: $0 [-f] [-h] [-p pidfile] [-b]"
             exit 0
         ;;
+        -D)
+            properties="$properties -D$2"
+            shift 2
+        ;;
         --)
             shift
             break
@@ -154,7 +159,7 @@ while true; do
 done
 
 # Start up the service
-launch_service "$pidfile" "$foreground"
+launch_service "$pidfile" "$foreground" "$properties"
 
 exit $?
 
