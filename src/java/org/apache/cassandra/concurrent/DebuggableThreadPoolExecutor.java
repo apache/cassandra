@@ -84,6 +84,17 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         }
     }
 
+    /**
+     * Get the number of completed tasks
+     */
+    public long getCompletedTasks()
+    {
+        return getCompletedTaskCount();
+    }
+
+    /**
+     * Get the number of tasks waiting to be executed
+     */
     public long getPendingTasks()
     {
         return getTaskCount() - getCompletedTaskCount();

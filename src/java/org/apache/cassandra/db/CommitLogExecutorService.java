@@ -26,6 +26,8 @@ import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -34,6 +36,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 public class CommitLogExecutorService extends AbstractExecutorService implements CommitLogExecutorServiceMBean
 {
     BlockingQueue<CheaterFutureTask> queue;
+
+    private volatile long completedTaskCount = 0;
 
     public CommitLogExecutorService()
     {
@@ -49,6 +53,7 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
                         while (true)
                         {
                             processWithSyncBatch();
+                            completedTaskCount++;
                         }
                     }
                     else
@@ -56,6 +61,7 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
                         while (true)
                         {
                             process();
+                            completedTaskCount++;
                         }
                     }
                 }
@@ -78,7 +84,28 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
         }
     }
 
-    public long getPendingTasks() {
+
+    /**
+     * Get the current number of running tasks
+     */
+    public int getActiveCount()
+    {
+        return 1;
+    }
+
+    /**
+     * Get the number of completed tasks
+     */
+    public long getCompletedTasks()
+    {   
+        return completedTaskCount;
+    }
+
+    /**
+     * Get the number of tasks waiting to be executed
+     */
+    public long getPendingTasks()
+    {
         return queue.size();
     }
 
@@ -132,6 +159,7 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
             incompleteTasks.get(i).set(taskValues.get(i));
         }
     }
+
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value)

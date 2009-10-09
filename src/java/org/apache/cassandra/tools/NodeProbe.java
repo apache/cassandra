@@ -390,13 +390,23 @@ public class NodeProbe
         ObjectName query;
         try
         {
+            outs.print(String.format("%-25s", "Pool Name"));
+            outs.print(String.format("%10s", "Active"));
+            outs.print(String.format("%10s", "Pending"));
+            outs.print(String.format("%15s", "Completed"));
+            outs.println();
+
             query = new ObjectName("org.apache.cassandra.concurrent:type=*");
             Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
             for (ObjectName objectName : result)
             {
                 String poolName = objectName.getKeyProperty("type");
                 IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, IExecutorMBean.class);
-                outs.println(poolName + ", pending tasks=" + threadPoolProxy.getPendingTasks());
+                outs.print(String.format("%-25s", poolName));
+                outs.print(String.format("%10d", threadPoolProxy.getActiveCount()));
+                outs.print(String.format("%10d", threadPoolProxy.getPendingTasks()));
+                outs.print(String.format("%15d", threadPoolProxy.getCompletedTasks()));
+                outs.println();
             }
         }
         catch (MalformedObjectNameException e)
@@ -464,7 +474,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, cluster, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, tpstats, flush_binary, " +
+                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, tpstats, flush_binary, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
