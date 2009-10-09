@@ -351,8 +351,9 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     public void startBroadcasting()
     {
-        /* starts a load timer thread */
-        loadTimer_.schedule(new LoadDisseminator(), BROADCAST_INTERVAL, BROADCAST_INTERVAL);
+        // send the first broadcast "right away" (i.e., in 2 gossip heartbeats, when we should have someone to talk to);
+        // after that send every BROADCAST_INTERVAL.
+        loadTimer_.schedule(new LoadDisseminator(), 2 * Gossiper.intervalInMillis_, BROADCAST_INTERVAL);
     }
 
     /** wait for node information to be available.  if the rest of the cluster just came up,

@@ -37,6 +37,7 @@ package org.apache.cassandra.dht;
  import org.apache.commons.lang.ArrayUtils;
 
  import org.apache.cassandra.locator.TokenMetadata;
+ import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;
  import org.apache.cassandra.net.io.StreamContextManager;
  import org.apache.cassandra.net.io.IStreamComplete;
@@ -208,6 +209,7 @@ public class BootStrapper implements Runnable
 
             if (!maxEndpoint.equals(StorageService.getLocalStorageEndPoint()))
             {
+                StorageService.instance().retrofitPorts(Arrays.asList(maxEndpoint));
                 Token<?> t = getBootstrapTokenFrom(maxEndpoint);
                 logger_.info("Setting token to " + t + " to assume load from " + maxEndpoint.getHost());
                 ss.updateToken(t);

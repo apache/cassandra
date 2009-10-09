@@ -73,7 +73,7 @@ public abstract class AbstractReplicationStrategy
      * This method changes the ports of the endpoints from
      * the control port to the storage ports.
     */
-    protected void retrofitPorts(List<EndPoint> eps)
+    public void retrofitPorts(List<EndPoint> eps)
     {
         for ( EndPoint ep : eps )
         {

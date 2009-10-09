@@ -95,7 +95,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     final static String GOSSIP_DIGEST_ACK_VERB = "GAV";
     /* GA2V - abbreviation for GOSSIP-DIGEST-ACK2-VERB */
     final static String GOSSIP_DIGEST_ACK2_VERB = "GA2V";
-    final static int intervalInMillis_ = 1000;
+    public final static int intervalInMillis_ = 1000;
     private static Logger logger_ = Logger.getLogger(Gossiper.class);
     static Gossiper gossiper_;
 
@@ -522,6 +522,8 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                     {
                         reqdEndPointState = new EndPointState(epState.getHeartBeatState());
                     }
+                    if (logger_.isTraceEnabled())
+                        logger_.trace("Adding state " + key + ": " + appState.getState());
                     reqdEndPointState.addApplicationState(key, appState);
                 }
             }

@@ -226,12 +226,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.instance().registerVerbHandlers(mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.instance().registerVerbHandlers(rangeVerbHandler_, new RangeVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
+        MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance().registerVerbHandlers(bootstrapMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );
         MessagingService.instance().registerVerbHandlers(bootStrapInitiateVerbHandler_, new BootStrapper.BootStrapInitiateVerbHandler());
         MessagingService.instance().registerVerbHandlers(bootStrapInitiateDoneVerbHandler_, new BootStrapper.BootstrapInitiateDoneVerbHandler());
         MessagingService.instance().registerVerbHandlers(bootStrapTerminateVerbHandler_, new BootStrapper.BootstrapTerminateVerbHandler());
-        MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
-        
+
         StageManager.registerStage(StorageService.mutationStage_,
                                    new MultiThreadedStage(StorageService.mutationStage_, DatabaseDescriptor.getConcurrentWriters()));
         StageManager.registerStage(StorageService.readStage_,
@@ -266,15 +266,24 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         StorageLoadBalancer.instance().startBroadcasting();
 
-        if (isBootstrapMode)
-        {
-            BootStrapper.startBootstrap();
-        }
-
+        // have to start the gossip service before we can see any info on other nodes.  this is necessary
+        // for bootstrap to get the load info it needs.
+        // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance().register(this);
         Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
-        /* Make sure this token gets gossiped around. */
-        tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
+
+        if (isBootstrapMode)
+        {
+            BootStrapper.startBootstrap(); // handles token update
+        }
+        else
+        {
+            tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
+        }
+
+        // Gossip my token.
+        // note that before we do this we've (a) finalized what the token is actually going to be, and
+        // (b) added a bootstrap state (done by startBootstrap)
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
     }
@@ -933,6 +942,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Map<EndPoint, EndPoint> getHintedStorageEndpointMap(String key)
     {
         return nodePicker_.getHintedStorageEndPoints(partitioner_.getToken(key));
+    }
+
+    public void retrofitPorts(List<EndPoint> eps)
+    {
+        nodePicker_.retrofitPorts(eps);
     }
 
     /**
