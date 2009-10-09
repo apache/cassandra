@@ -130,8 +130,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     /* map where key is the endpoint and value is the state associated with the endpoint */
     Map<EndPoint, EndPointState> endPointStateMap_ = new Hashtable<EndPoint, EndPointState>();
 
-    /* private CTOR */
-    Gossiper()
+    private Gossiper()
     {
         aVeryLongTime_ = 259200 * 1000;
         /* register with the Failure Detector for receiving Failure detector events */

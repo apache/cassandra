@@ -164,18 +164,6 @@ class LeaveJoinProtocolHelper
         sendMessagesToBootstrapSources(rangeInfo);
     }
     
-    // TODO: Once we're sure we don't need global bootstrap -- clean this code up 
-    // so it is easier to understand what messages are being sent. Local bootstrap should
-    // look much simpler
-    protected static void assignWorkForLocalBootstrap(Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget) throws IOException
-    {
-        Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo = getWorkMap(rangesWithSourceTarget);
-        Map<EndPoint, Map<EndPoint, List<Range>>> filteredRanges = filterRangesForTargetEndPoint(rangeInfo,
-                                                                                                 StorageService.getLocalStorageEndPoint());
-        sendMessagesToBootstrapSources(filteredRanges);
-    }
-
-    
     /**
      * This method takes the Src -> (Tgt-> List of ranges) maps and retains those entries 
      * that are relevant to bootstrapping the target endpoint

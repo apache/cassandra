@@ -29,6 +29,7 @@ import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -48,7 +49,7 @@ import org.apache.cassandra.net.MessagingService;
  * keys at an Endpoint. Monitor load information for a 5 minute
  * interval and then do load balancing operations if necessary.
  */
-final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
+public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 {
     class LoadBalancer implements Runnable
     {
@@ -70,14 +71,14 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             /*
             int threshold = (int)(StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad());
             int myLoad = localLoad();            
-            EndPoint predecessor = storageService_.getPredecessor(StorageService.getLocalStorageEndPoint());
+            EndPoint predecessor = StorageService.instance().getPredecessor(StorageService.getLocalStorageEndPoint());
             if (logger_.isDebugEnabled())
               logger_.debug("Trying to relocate the predecessor " + predecessor);
             boolean value = tryThisNode(myLoad, threshold, predecessor);
             if ( !value )
             {
                 loadInfo2_.remove(predecessor);
-                EndPoint successor = storageService_.getSuccessor(StorageService.getLocalStorageEndPoint());
+                EndPoint successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
                 if (logger_.isDebugEnabled())
                   logger_.debug("Trying to relocate the successor " + successor);
                 value = tryThisNode(myLoad, threshold, successor);
@@ -165,6 +166,16 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
     }
 
+    private static final long BROADCAST_INTERVAL = 5 * 60 * 1000L;
+
+    private static StorageLoadBalancer instance_;
+
+    public static synchronized StorageLoadBalancer instance()
+    {
+        return instance_ == null ? (instance_ = new StorageLoadBalancer()) : instance_;
+    }
+
+
     private static final Logger logger_ = Logger.getLogger(StorageLoadBalancer.class);
     private static final String lbStage_ = "LOAD-BALANCER-STAGE";
     private static final String moveMessageVerbHandler_ = "MOVE-MESSAGE-VERB-HANDLER";
@@ -173,7 +184,6 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     /* If a node's load is this factor more than the average, it is considered Heavy */
     private static final double TOPHEAVY_RATIO = 1.5;
 
-    private StorageService storageService_;
     /* this indicates whether this node is already helping someone else */
     private AtomicBoolean isMoveable_ = new AtomicBoolean(false);
     private Map<EndPoint, Double> loadInfo_ = new HashMap<EndPoint, Double>();
@@ -184,18 +194,13 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     /* This thread pool is used by target node to leave the ring. */
     private ExecutorService lbOperations_ = new DebuggableThreadPoolExecutor("LB-TARGET");
 
-    StorageLoadBalancer(StorageService storageService)
-    {
-        storageService_ = storageService;
-        /* register the load balancer stage */
-        StageManager.registerStage(StorageLoadBalancer.lbStage_, new SingleThreadedStage(StorageLoadBalancer.lbStage_));
-        /* register the load balancer verb handler */
-        MessagingService.instance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
-    }
+    /* Timer is used to disseminate load information */
+    private Timer loadTimer_ = new Timer(false);
 
-    public void start()
+    private StorageLoadBalancer()
     {
-        /* Register with the Gossiper for EndPointState notifications */
+        StageManager.registerStage(StorageLoadBalancer.lbStage_, new SingleThreadedStage(StorageLoadBalancer.lbStage_));
+        MessagingService.instance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
         Gossiper.instance().register(this);
     }
 
@@ -227,7 +232,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         if ( !isMoveable_.get() )
             return false;
         int myload = localLoad();
-        EndPoint successor = storageService_.getSuccessor(StorageService.getLocalStorageEndPoint());
+        EndPoint successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
         LoadInfo li = loadInfo2_.get(successor);
         // "load" is NULL means that the successor node has not
         // yet gossiped its load information. We should return
@@ -290,7 +295,7 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
         else
         {
-            EndPoint successor = storageService_.getSuccessor(target);
+            EndPoint successor = StorageService.instance().getSuccessor(target);
             double sLoad = loadInfo2_.get(successor);
             double targetLoad = loadInfo2_.get(target);
             return (sLoad + targetLoad) <= threshold;
@@ -299,11 +304,11 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private boolean isANeighbour(EndPoint neighbour)
     {
-        EndPoint predecessor = storageService_.getPredecessor(StorageService.getLocalStorageEndPoint());
+        EndPoint predecessor = StorageService.instance().getPredecessor(StorageService.getLocalStorageEndPoint());
         if ( predecessor.equals(neighbour) )
             return true;
 
-        EndPoint successor = storageService_.getSuccessor(StorageService.getLocalStorageEndPoint());
+        EndPoint successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
         if ( successor.equals(neighbour) )
             return true;
 
@@ -342,6 +347,31 @@ final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     public Map<EndPoint, Double> getLoadInfo()
     {
         return loadInfo_;
+    }
+
+    public void startBroadcasting()
+    {
+        /* starts a load timer thread */
+        loadTimer_.schedule(new LoadDisseminator(), BROADCAST_INTERVAL, BROADCAST_INTERVAL);
+    }
+
+    /** wait for node information to be available.  if the rest of the cluster just came up,
+        this could be up to threshold_ ms (currently 5 minutes). */
+    public void waitForLoadInfo()
+    {
+        try
+        {
+            while (loadInfo_.isEmpty())
+            {
+                Thread.sleep(100);
+            }
+            // one more sleep in case there are some stragglers
+            Thread.sleep(BootStrapper.INITIAL_DELAY);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 }
 

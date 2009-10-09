@@ -26,14 +26,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.BootstrapInitiateMessage;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.IStreamComplete;
@@ -153,163 +150,6 @@ public class Table
         public static String getColumnFamilyIDString()
         {
             return FBUtilities.mapToString(tableMetadataMap_);
-        }
-    }
-
-    /**
-     * This is the callback handler that is invoked when we have
-     * completely been bootstrapped for a single file by a remote host.
-     *
-     * TODO if we move this into CFS we could make addSSTables private, improving encapsulation.
-    */
-    public static class BootstrapCompletionHandler implements IStreamComplete
-    {                
-        public void onStreamCompletion(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus) throws IOException
-        {                        
-            /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
-            if (streamContext.getTargetFile().contains("-Data.db"))
-            {
-                String tableName = streamContext.getTable();
-                File file = new File( streamContext.getTargetFile() );
-                String fileName = file.getName();
-                String [] temp = fileName.split("-");
-                
-                //Open the file to see if all parts are now here
-                SSTableReader sstable = null;
-                try 
-                {
-                    sstable = SSTableWriter.renameAndOpen(streamContext.getTargetFile());
-                    
-                    //TODO add a sanity check that this sstable has all its parts and is ok
-                    Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
-                    logger_.info("Bootstrap added " + sstable.getFilename());
-                }
-                catch (IOException e)
-                {
-                    logger_.error("Not able to bootstrap with file " + streamContext.getTargetFile(), e);                    
-                }
-            }
-            
-            EndPoint to = new EndPoint(host, DatabaseDescriptor.getStoragePort());
-            if (logger_.isDebugEnabled())
-              logger_.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + to);
-            /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
-            StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
-            Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
-            MessagingService.instance().sendOneWay(message, to);
-            /* If we're done with everything for this host, remove from bootstrap sources */
-            if (StreamContextManager.isDone(to.getHost()))
-                StorageService.instance().removeBootstrapSource(to);
-        }
-    }
-
-    public static class BootStrapInitiateVerbHandler implements IVerbHandler
-    {
-        /*
-         * Here we handle the BootstrapInitiateMessage. Here we get the
-         * array of StreamContexts. We get file names for the column
-         * families associated with the files and replace them with the
-         * file names as obtained from the column family store on the
-         * receiving end.
-        */
-        public void doVerb(Message message)
-        {
-            byte[] body = message.getMessageBody();
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length); 
-            
-            try
-            {
-                BootstrapInitiateMessage biMsg = BootstrapInitiateMessage.serializer().deserialize(bufIn);
-                StreamContextManager.StreamContext[] streamContexts = biMsg.getStreamContext();                
-                
-                Map<String, String> fileNames = getNewNames(streamContexts);
-                /*
-                 * For each of stream context's in the incoming message
-                 * generate the new file names and store the new file names
-                 * in the StreamContextManager.
-                */
-                for (StreamContextManager.StreamContext streamContext : streamContexts )
-                {                    
-                    StreamContextManager.StreamStatus streamStatus = new StreamContextManager.StreamStatus(streamContext.getTargetFile(), streamContext.getExpectedBytes() );
-                    String file = getNewFileNameFromOldContextAndNames(fileNames, streamContext);
-                    
-                    //String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName + "-Data.db";
-                    if (logger_.isDebugEnabled())
-                      logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
-                    streamContext.setTargetFile(file);
-                    addStreamContext(message.getFrom().getHost(), streamContext, streamStatus);                                            
-                }    
-                                             
-                StreamContextManager.registerStreamCompletionHandler(message.getFrom().getHost(), new Table.BootstrapCompletionHandler());
-                /* Send a bootstrap initiation done message to execute on default stage. */
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Sending a bootstrap initiate done message ...");
-                Message doneMessage = new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
-                MessagingService.instance().sendOneWay(doneMessage, message.getFrom());
-            }
-            catch ( IOException ex )
-            {
-                logger_.info(LogUtil.throwableToString(ex));
-            }
-        }
-        
-        String getNewFileNameFromOldContextAndNames(Map<String, String> fileNames,
-                StreamContextManager.StreamContext streamContext)
-        {
-            File sourceFile = new File( streamContext.getTargetFile() );
-            String[] piece = FBUtilities.strip(sourceFile.getName(), "-");
-            String cfName = piece[0];
-            String ssTableNum = piece[1];
-            String typeOfFile = piece[2];             
-
-            String newFileNameExpanded = fileNames.get( streamContext.getTable() + "-" + cfName + "-" + ssTableNum );
-            //Drop type (Data.db) from new FileName
-            String newFileName = newFileNameExpanded.replace("Data.db", typeOfFile);
-            String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName ;
-            return file;
-        }
-
-        Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts) throws IOException
-        {
-            /* 
-             * Mapping for each file with unique CF-i ---> new file name. For eg.
-             * for a file with name <CF>-<i>-Data.db there is a corresponding
-             * <CF>-<i>-Index.db. We maintain a mapping from <CF>-<i> to a newly
-             * generated file name.
-            */
-            Map<String, String> fileNames = new HashMap<String, String>();
-            /* Get the distinct entries from StreamContexts i.e have one entry per Data/Index/Filter file set */
-            Set<String> distinctEntries = new HashSet<String>();
-            for ( StreamContextManager.StreamContext streamContext : streamContexts )
-            {
-                String[] pieces = FBUtilities.strip(new File(streamContext.getTargetFile()).getName(), "-");
-                distinctEntries.add(streamContext.getTable() + "-" + pieces[0] + "-" + pieces[1] );
-            }
-            
-            /* Generate unique file names per entry */
-            for ( String distinctEntry : distinctEntries )
-            {
-                String tableName;
-                String[] peices = FBUtilities.strip(distinctEntry, "-");
-                tableName = peices[0];
-                Table table = Table.open( tableName );
-                Map<String, ColumnFamilyStore> columnFamilyStores = table.getColumnFamilyStores();
-
-                ColumnFamilyStore cfStore = columnFamilyStores.get(peices[1]);
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Generating file name for " + distinctEntry + " ...");
-                fileNames.put(distinctEntry, cfStore.getTempSSTableFileName());
-            }
-            
-            return fileNames;
-        }
-
-        private void addStreamContext(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
-        {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Adding stream context " + streamContext + " for " + host + " ...");
-            StreamContextManager.addStreamContext(host, streamContext, streamStatus);
         }
     }
     

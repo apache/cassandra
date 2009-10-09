@@ -22,15 +22,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
+import javax.management.*;
 
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,12 +39,10 @@ import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
-import org.apache.commons.lang.ArrayUtils;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -60,9 +54,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
     private final static String nodeId_ = "NODE-IDENTIFIER";
-    private final static String BOOTSTRAP_MODE = "BOOTSTRAP-MODE";
-    /* Gossip load after every 5 mins. */
-    private static final long threshold_ = 5 * 60 * 1000L;
+    public final static String BOOTSTRAP_MODE = "BOOTSTRAP-MODE";
     
     /* All stage identifiers */
     public final static String mutationStage_ = "ROW-MUTATION-STAGE";
@@ -79,14 +71,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String bootStrapTerminateVerbHandler_ = "BOOTSTRAP-TERMINATE-VERB-HANDLER";
     public final static String dataFileVerbHandler_ = "DATA-FILE-VERB-HANDLER";
     public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
-    public final static String bsMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
+    public final static String bootstrapMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
     public final static String bootstrapTokenVerbHandler_ = "SPLITS-VERB-HANDLER";
 
-    private static volatile StorageService instance_;
     private static EndPoint tcpAddr_;
     private static EndPoint udpAddr_;
-    private static IPartitioner partitioner_;
+    private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
+
+
+    private static volatile StorageService instance_;
 
     public static EndPoint getLocalStorageEndPoint()
     {
@@ -110,25 +104,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Range getLocalPrimaryRange()
     {
         return getPrimaryRangeForEndPoint(getLocalStorageEndPoint());
-    }
-
-    static
-    {
-        partitioner_ = DatabaseDescriptor.getPartitioner();
-    }
-
-
-    public static class BootstrapInitiateDoneVerbHandler implements IVerbHandler
-    {
-        private static Logger logger_ = Logger.getLogger( BootstrapInitiateDoneVerbHandler.class );
-
-        public void doVerb(Message message)
-        {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Received a bootstrap initiate done message ...");
-            /* Let the Stream Manager do his thing. */
-            StreamManager.instance(message.getFrom()).start();            
-        }
     }
 
     /*
@@ -170,17 +145,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private TokenMetadata tokenMetadata_ = new TokenMetadata();
     private SystemTable.StorageMetadata storageMetadata_;
 
-    /* Timer is used to disseminate load information */
-    private Timer loadTimer_ = new Timer(false);
-
-    /* This thread pool is used to do the bootstrap for a new node */
-    private ExecutorService bootStrapper_ = new DebuggableThreadPoolExecutor("BOOT-STRAPPER");
-    
     /* This thread pool does consistency checks when the client doesn't care about consistency */
-    private ExecutorService consistencyManager_;
+    private ExecutorService consistencyManager_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
+                                                                                   DatabaseDescriptor.getConsistencyThreads(),
+                                                                                   Integer.MAX_VALUE,
+                                                                                   TimeUnit.SECONDS,
+                                                                                   new LinkedBlockingQueue<Runnable>(),
+                                                                                   new NamedThreadFactory("CONSISTENCY-MANAGER"));
 
-    /* This is the entity that tracks load information of all nodes in the cluster */
-    private StorageLoadBalancer storageLoadBalancer_;
     /* We use this interface to determine where replicas need to be placed */
     private AbstractReplicationStrategy nodePicker_;
     /* Are we starting this node in bootstrap mode? */
@@ -229,28 +201,19 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
     }
 
-    /*
-     * Registers with Management Server
-     */
-    private void init()
+    public StorageService()
     {
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            mbs.registerMBean(this, new ObjectName(
-                    "org.apache.cassandra.service:type=StorageService"));
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.service:type=StorageService"));
         }
         catch (Exception e)
         {
-            logger_.error(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
-    }
 
-    public StorageService()
-    {
         bootstrapSet = new HashSet<EndPoint>();
-        init();
-        storageLoadBalancer_ = new StorageLoadBalancer(this);
         endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
 
         /* register the verb handlers */
@@ -259,37 +222,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.instance().registerVerbHandlers(mutationVerbHandler_, new RowMutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(readRepairVerbHandler_, new ReadRepairVerbHandler());
         MessagingService.instance().registerVerbHandlers(readVerbHandler_, new ReadVerbHandler());
-        MessagingService.instance().registerVerbHandlers(bootStrapInitiateVerbHandler_, new Table.BootStrapInitiateVerbHandler());
-        MessagingService.instance().registerVerbHandlers(bootStrapInitiateDoneVerbHandler_, new StorageService.BootstrapInitiateDoneVerbHandler());
-        MessagingService.instance().registerVerbHandlers(bootStrapTerminateVerbHandler_, new StreamManager.BootstrapTerminateVerbHandler());
         MessagingService.instance().registerVerbHandlers(dataFileVerbHandler_, new DataFileVerbHandler() );
         MessagingService.instance().registerVerbHandlers(mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
-        MessagingService.instance().registerVerbHandlers(bsMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );
         MessagingService.instance().registerVerbHandlers(rangeVerbHandler_, new RangeVerbHandler());
-        MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new IVerbHandler()
-        {
-            public void doVerb(Message message)
-            {
-                List<String> tokens = getSplits(2);
-                assert tokens.size() == 3 : tokens.size();
-                Message response;
-                try
-                {
-                    response = message.getReply(getLocalStorageEndPoint(), tokens.get(1).getBytes("UTF-8"));
-                }
-                catch (UnsupportedEncodingException e)
-                {
-                    throw new AssertionError();
-                }
-                MessagingService.instance().sendOneWay(response, message.getFrom());
-            }
-        });
-        
-        /* register the stage for the mutations */
-        consistencyManager_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
-                                                               DatabaseDescriptor.getConsistencyThreads(),
-                                                               Integer.MAX_VALUE, TimeUnit.SECONDS,
-                                                               new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory("CONSISTENCY-MANAGER"));
+        // see BootStrapper for a summary of how the bootstrap verbs interact
+        MessagingService.instance().registerVerbHandlers(bootstrapMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );
+        MessagingService.instance().registerVerbHandlers(bootStrapInitiateVerbHandler_, new BootStrapper.BootStrapInitiateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootStrapInitiateDoneVerbHandler_, new BootStrapper.BootstrapInitiateDoneVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootStrapTerminateVerbHandler_, new BootStrapper.BootstrapTerminateVerbHandler());
+        MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
         
         StageManager.registerStage(StorageService.mutationStage_,
                                    new MultiThreadedStage(StorageService.mutationStage_, DatabaseDescriptor.getConcurrentWriters()));
@@ -323,69 +264,19 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
 
-        /* starts a load timer thread */
-        loadTimer_.schedule( new LoadDisseminator(), StorageService.threshold_, StorageService.threshold_);
-        
+        StorageLoadBalancer.instance().startBroadcasting();
+
         if (isBootstrapMode)
         {
-            logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
-            // wait for node information to be available.  if the rest of the cluster just came up,
-            // this could be up to threshold_ ms (currently 5 minutes).
-            try
-            {
-                while (storageLoadBalancer_.getLoadInfo().isEmpty())
-                {
-                    Thread.sleep(100);
-                }
-                // one more sleep in case there are some stragglers
-                Thread.sleep(BootStrapper.INITIAL_DELAY);
-            }
-            catch (InterruptedException e)
-            {
-                throw new AssertionError(e);
-            }
-
-            // if initialtoken was specified, use that.  otherwise, pick a token to assume half the load of the most-loaded node.
-            if (DatabaseDescriptor.getInitialToken() == null)
-            {
-                double maxLoad = 0;
-                EndPoint maxEndpoint = null;
-                for (Map.Entry<EndPoint,Double> entry : storageLoadBalancer_.getLoadInfo().entrySet())
-                {
-                    if (maxEndpoint == null || entry.getValue() > maxLoad)
-                    {
-                        maxEndpoint = entry.getKey();
-                        maxLoad = entry.getValue();
-                    }
-                }
-                if (!maxEndpoint.equals(getLocalStorageEndPoint()))
-                {
-                    Token<?> t = getBootstrapTokenFrom(maxEndpoint);
-                    logger_.info("Setting token to " + t + " to assume load from " + maxEndpoint.getHost());
-                    updateToken(t);
-                }
-            }
-
-            BootStrapper bs = new BootStrapper(new EndPoint[] {getLocalStorageEndPoint()}, storageMetadata_.getToken());
-            bootStrapper_.submit(bs);
-            Gossiper.instance().addApplicationState(BOOTSTRAP_MODE, new ApplicationState(""));
+            BootStrapper.startBootstrap();
         }
 
-        storageLoadBalancer_.start();
         Gossiper.instance().register(this);
         Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
         /* Make sure this token gets gossiped around. */
         tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
-    }
-
-    private Token<?> getBootstrapTokenFrom(EndPoint maxEndpoint)
-    {
-        Message message = new Message(getLocalStorageEndPoint(), "", bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
-        BootstrapTokenCallback btc = new BootstrapTokenCallback();
-        MessagingService.instance().sendRR(message, maxEndpoint, btc);
-        return btc.getToken();
     }
 
     public boolean isBootstrapMode()
@@ -587,7 +478,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Map<String, String> getLoadMap()
     {
         Map<String, String> map = new HashMap<String, String>();
-        for (Map.Entry<EndPoint,Double> entry : storageLoadBalancer_.getLoadInfo().entrySet())
+        for (Map.Entry<EndPoint,Double> entry : StorageLoadBalancer.instance().getLoadInfo().entrySet())
         {
             map.put(entry.getKey().getHost(), FileUtils.stringifyFileSize(entry.getValue()));
         }
@@ -665,6 +556,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         HintedHandOffManager.instance().deliverHints(endpoint);
     }
 
+    public Token getLocalToken()
+    {
+        return tokenMetadata_.getToken(tcpAddr_);
+    }
+
     /* This methods belong to the MBean interface */
     
     public String getToken(EndPoint ep)
@@ -680,7 +576,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public String getToken()
     {
-        return tokenMetadata_.getToken(StorageService.tcpAddr_).toString();
+        return getLocalToken().toString();
     }
 
     public Set<String> getLiveNodes()
@@ -1115,42 +1011,5 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         tokens.add(range.right().toString());
         return tokens;
-    }
-
-    class BootstrapTokenCallback implements IAsyncCallback
-    {
-        private volatile Token<?> token;
-        private final Condition condition = new SimpleCondition();
-
-        public Token<?> getToken()
-        {
-            try
-            {
-                condition.await();
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
-            return token;
-        }
-
-        public void response(Message msg)
-        {
-            try
-            {
-                token = partitioner_.getTokenFactory().fromString(new String(msg.getMessageBody(), "UTF-8"));
-            }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new AssertionError();
-            }
-            condition.signalAll();
-        }
-
-        public void attachContext(Object o)
-        {
-            throw new UnsupportedOperationException();
-        }
     }
 }

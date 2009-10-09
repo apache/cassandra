@@ -16,7 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.db;
+package org.apache.cassandra.dht;
 
 import static junit.framework.Assert.assertEquals;
 import static org.junit.Assert.*;
@@ -38,39 +38,6 @@ import org.junit.Test;
 
 public class BootstrapTest
 {
-    /**
-     * Writes out a bunch of keys into an SSTable, then runs anticompaction on a range.
-     * Checks to see if anticompaction returns true.
-     */
-    private void testAntiCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
-    {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
-       
-        for (int j = 0; j < insertsPerTable; j++) 
-        {
-            String key = String.valueOf(j);
-            RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
-            rm.apply();
-        }
-        
-        store.forceBlockingFlush();
-        List<Range> ranges  = new ArrayList<Range>();
-        IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
-        Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
-        ranges.add(r);
-
-        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150));
-        assert fileList.size() >= 1;
-    }
-
-    @Test
-    public void testAntiCompaction1() throws IOException, ExecutionException, InterruptedException
-    {
-        testAntiCompaction("Standard1", 100);
-    }
-    
     @Test
     public void testGetNewNames() throws IOException
     {
@@ -78,7 +45,7 @@ public class BootstrapTest
         streamContexts[0] = new StreamContextManager.StreamContext("/foo/Standard1-500-Data.db", 100, "Keyspace1");
         streamContexts[1] = new StreamContextManager.StreamContext("/foo/Standard1-500-Index.db", 100, "Keyspace1");
         streamContexts[2] = new StreamContextManager.StreamContext("/foo/Standard1-500-Filter.db", 100, "Keyspace1");
-        Table.BootStrapInitiateVerbHandler bivh = new Table.BootStrapInitiateVerbHandler();
+        BootStrapper.BootStrapInitiateVerbHandler bivh = new BootStrapper.BootStrapInitiateVerbHandler();
         Map<String, String> fileNames = bivh.getNewNames(streamContexts);
         String result = fileNames.get("Keyspace1-Standard1-500");
         assertEquals(true, result.contains("Standard1"));
@@ -89,6 +56,4 @@ public class BootstrapTest
         assertTrue( new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, streamContexts[1])).getName().matches("Standard1-tmp-\\d+-Index.db"));
         assertTrue( new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, streamContexts[2])).getName().matches("Standard1-tmp-\\d+-Filter.db"));
     }
-
-    
 }

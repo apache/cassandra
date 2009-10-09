@@ -39,45 +39,7 @@ import org.apache.log4j.Logger;
 public final class StreamManager
 {   
     private static Logger logger_ = Logger.getLogger( StreamManager.class );
-    
-    public static class BootstrapTerminateVerbHandler implements IVerbHandler
-    {
-        private static Logger logger_ = Logger.getLogger( BootstrapTerminateVerbHandler.class );
-
-        public void doVerb(Message message)
-        {
-            byte[] body = message.getMessageBody();
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length);
-
-            try
-            {
-                StreamContextManager.StreamStatusMessage streamStatusMessage = StreamContextManager.StreamStatusMessage.serializer().deserialize(bufIn);
-                StreamContextManager.StreamStatus streamStatus = streamStatusMessage.getStreamStatus();
-                                               
-                switch( streamStatus.getAction() )
-                {
-                    case DELETE:                              
-                        StreamManager.instance(message.getFrom()).finish(streamStatus.getFile());
-                        break;
-
-                    case STREAM:
-                        if (logger_.isDebugEnabled())
-                          logger_.debug("Need to re-stream file " + streamStatus.getFile());
-                        StreamManager.instance(message.getFrom()).repeat();
-                        break;
-
-                    default:
-                        break;
-                }
-            }
-            catch ( IOException ex )
-            {
-                logger_.info(LogUtil.throwableToString(ex));
-            }
-        }
-    }
-    
+        
     private static Map<EndPoint, StreamManager> streamManagers_ = new HashMap<EndPoint, StreamManager>();
     
     public static StreamManager instance(EndPoint to)
@@ -111,7 +73,7 @@ public final class StreamManager
         }
     }
     
-    void start()
+    public void start()
     {
         if ( filesToStream_.size() > 0 )
         {
@@ -122,13 +84,13 @@ public final class StreamManager
         }
     }
     
-    void repeat()
+    public void repeat()
     {
         if ( filesToStream_.size() > 0 )
             start();
     }
     
-    void finish(String file) throws IOException
+    public void finish(String file) throws IOException
     {
         File f = new File(file);
         if (logger_.isDebugEnabled())

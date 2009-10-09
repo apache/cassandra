@@ -31,6 +31,10 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -95,4 +99,37 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         TableTest.reTest(store, r);
     }
+
+    /**
+     * Writes out a bunch of keys into an SSTable, then runs anticompaction on a range.
+     * Checks to see if anticompaction returns true.
+     */
+    private void testAntiCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
+
+        for (int j = 0; j < insertsPerTable; j++)
+        {
+            String key = String.valueOf(j);
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
+            rm.apply();
+        }
+
+        store.forceBlockingFlush();
+        List<Range> ranges  = new ArrayList<Range>();
+        IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
+        Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
+        ranges.add(r);
+
+        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150));
+        assert fileList.size() >= 1;
+    }
+
+    @Test
+    public void testAntiCompaction1() throws IOException, ExecutionException, InterruptedException
+    {
+        testAntiCompaction("Standard1", 100);
+    }    
 }

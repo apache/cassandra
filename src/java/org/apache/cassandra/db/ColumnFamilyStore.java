@@ -340,7 +340,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return new File(DatabaseDescriptor.getDataFileLocationForTable(table_), fname).getAbsolutePath();
     }
 
-    String getTempSSTableFileName()
+    public String getTempSSTableFileName()
     {
         return String.format("%s-%s-%s-Data.db",
                              columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
@@ -559,7 +559,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ filename - filename just flushed to disk
      * param @ bf - bloom filter which indicates the keys that are in this file.
     */
-    void addSSTable(SSTableReader sstable)
+    public void addSSTable(SSTableReader sstable)
     {
         ssTables_.add(sstable);
         CompactionManager.instance().submit(this);
