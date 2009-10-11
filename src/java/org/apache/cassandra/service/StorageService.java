@@ -254,7 +254,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         storageMetadata_ = SystemTable.initMetadata();
         tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
         udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
-        isBootstrapMode = !(DatabaseDescriptor.getSeeds().contains(udpAddr_.getHost()) || SystemTable.isBootstrapped());
+        isBootstrapMode = DatabaseDescriptor.isAutoBootstrap()
+                          && !(DatabaseDescriptor.getSeeds().contains(udpAddr_.getHost()) || SystemTable.isBootstrapped());
 
         /* Listen for application messages */
         MessagingService.instance().listen(tcpAddr_);
@@ -278,6 +279,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
         else
         {
+            SystemTable.setBootstrapped();
             tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
         }
 

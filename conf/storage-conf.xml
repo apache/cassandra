@@ -28,6 +28,24 @@
   <ClusterName>Test Cluster</ClusterName>
 
   <!--
+   ~ Turn on to make new [non-seed] nodes automatically migrate the right data 
+   ~ to themselves.  (If no InitialToken is specified, they will pick one 
+   ~ such that they will get half the range of the most-loaded node.)
+   ~ If a node starts up without bootstrapping, it will mark itself bootstrapped
+   ~ so that you can't subsequently accidently bootstrap a node with
+   ~ data on it.  (You can reset this by wiping your data and commitlog
+   ~ directories.)
+   ~
+   ~ Off by default so that new clusters and upgraders from 0.4 don't
+   ~ bootstrap immediately.  You should turn this on when you start adding
+   ~ new nodes to a cluster that already has data on it.  (If you are upgrading
+   ~ from 0.4, start your cluster with it off once before changing it to true.
+   ~ Otherwise, no data will be lost but you will incur a lot of unnecessary
+   ~ I/O before your cluster starts up.)
+  -->
+  <AutoBootstrap>false</AutoBootstrap>
+
+  <!--
    ~ Keyspaces and ColumnFamilies:
    ~ A ColumnFamily is the Cassandra concept closest to a relational
    ~ table.  Keyspaces are separate groups of ColumnFamilies.  Except in

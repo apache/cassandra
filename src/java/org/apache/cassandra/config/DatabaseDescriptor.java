@@ -118,6 +118,7 @@ public class DatabaseDescriptor
     private static int commitLogSyncPeriodMS_;
 
     private static boolean snapshotBeforeCompaction_;
+    private static boolean autoBootstrap_ = false;
 
     static
     {
@@ -319,6 +320,22 @@ public class DatabaseDescriptor
                 else
                 {
                     throw new ConfigurationException("Unrecognized value for SnapshotBeforeCompaction.  Use 'true' or 'false'.");
+                }
+            }
+
+            /* snapshot-before-compaction.  defaults to false */
+            String autoBootstrap = xmlUtils.getNodeValue("/Storage/AutoBootstrap");
+            if (autoBootstrap != null)
+            {
+                if (autoBootstrap.equalsIgnoreCase("true") || autoBootstrap.equalsIgnoreCase("false"))
+                {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("setting autoBootstrap to " + autoBootstrap);
+                    autoBootstrap_ = Boolean.valueOf(autoBootstrap);
+                }
+                else
+                {
+                    throw new ConfigurationException("Unrecognized value for AutoBootstrap.  Use 'true' or 'false'.");
                 }
             }
 
@@ -953,5 +970,10 @@ public class DatabaseDescriptor
     public static boolean isSnapshotBeforeCompaction()
     {
         return snapshotBeforeCompaction_;
+    }
+
+    public static boolean isAutoBootstrap()
+    {
+        return autoBootstrap_;
     }
 }
