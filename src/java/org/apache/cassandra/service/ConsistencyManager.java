@@ -109,7 +109,7 @@ class ConsistencyManager implements Runnable
 			majority_ = (responseCount >> 1) + 1;  
 		}
 		
-		public void response(Message message)
+		public synchronized void response(Message message)
 		{
 			if (logger_.isDebugEnabled())
 			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());
