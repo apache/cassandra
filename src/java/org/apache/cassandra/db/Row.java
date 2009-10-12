@@ -199,7 +199,7 @@ public class Row
 
     public String toString()
     {
-        return "Row(" + key_ + " [" + StringUtils.join(columnFamilies_.values(), ", ") + ")]";
+        return "Row(" + key_ + " [" + StringUtils.join(columnFamilies_.values(), ", ") + "])";
     }
 }
 

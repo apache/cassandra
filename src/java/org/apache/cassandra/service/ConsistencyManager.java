@@ -46,14 +46,14 @@ class ConsistencyManager implements Runnable
 	class DigestResponseHandler implements IAsyncCallback
 	{
 		List<Message> responses_ = new ArrayList<Message>();
-		
+
 		public synchronized void response(Message msg)
 		{
 			responses_.add(msg);
-			if ( responses_.size() == ConsistencyManager.this.replicas_.size() )
-				handleDigestResponses();
-		}
-        
+            if (responses_.size() == ConsistencyManager.this.replicas_.size())
+                handleDigestResponses();
+        }
+
         public void attachContext(Object o)
         {
             throw new UnsupportedOperationException("This operation is not currently supported.");
@@ -61,27 +61,27 @@ class ConsistencyManager implements Runnable
 		
 		private void handleDigestResponses()
 		{
-			DataInputBuffer bufIn = new DataInputBuffer();
-			for( Message response : responses_ )
-			{
-				byte[] body = response.getMessageBody();            
-	            bufIn.reset(body, body.length);
-	            try
-	            {	               
-	                ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
-	                byte[] digest = result.digest();
-	                if( !Arrays.equals(row_.digest(), digest) )
-					{
-	                	doReadRepair();
-	                	break;
-					}
-	            }
-	            catch( IOException ex )
-	            {
-	            	logger_.info(LogUtil.throwableToString(ex));
-	            }
-			}
-		}
+            DataInputBuffer bufIn = new DataInputBuffer();
+            for (Message response : responses_)
+            {
+                try
+                {
+                    byte[] body = response.getMessageBody();
+                    bufIn.reset(body, body.length);
+                    ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
+                    byte[] digest = result.digest();
+                    if (!Arrays.equals(row_.digest(), digest))
+                    {
+                        doReadRepair();
+                        break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException("Error handling responses for " + row_, e);
+                }
+            }
+        }
 		
 		private void doReadRepair() throws IOException
 		{
@@ -114,12 +114,12 @@ class ConsistencyManager implements Runnable
 			if (logger_.isDebugEnabled())
 			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());
 			responses_.add(message);
-			if ( responses_.size() == majority_ )
-			{
-				String messageId = message.getMessageId();
-				readRepairTable_.put(messageId, messageId, this);				
-			}
-		}
+            if (responses_.size() == majority_)
+            {
+                String messageId = message.getMessageId();
+                readRepairTable_.put(messageId, messageId, this);
+            }
+        }
         
         public void attachContext(Object o)
         {
