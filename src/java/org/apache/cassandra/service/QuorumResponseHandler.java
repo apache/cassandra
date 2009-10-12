@@ -31,17 +31,17 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.SimpleCondition;
+
 import org.apache.log4j.Logger;
 
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     private static Logger logger_ = Logger.getLogger( QuorumResponseHandler.class );
-    private Lock lock_ = new ReentrantLock();
-    private Condition condition_;
+    private SimpleCondition condition_ = new SimpleCondition();
     private int responseCount_;
     private List<Message> responses_ = new ArrayList<Message>();
     private IResponseResolver<T> responseResolver_;
-    private AtomicBoolean done_ = new AtomicBoolean(false);
     private long startTime_;
 
     public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver) throws InvalidRequestException
@@ -50,7 +50,6 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             throw new InvalidRequestException("Cannot block for more than the replication factor of " + DatabaseDescriptor.getReplicationFactor());
         if (responseCount < 1)
             throw new InvalidRequestException("Cannot block for less than one replica");
-        condition_ = lock_.newCondition();
         responseCount_ = responseCount;
         responseResolver_ =  responseResolver;
         startTime_ = System.currentTimeMillis();
@@ -58,31 +57,20 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     
     public T get() throws TimeoutException, DigestMismatchException, IOException
     {
-        lock_.lock();
         try
         {
-            boolean bVal = true;
+            long timeout = System.currentTimeMillis() - startTime_ + DatabaseDescriptor.getRpcTimeout();
+            boolean success;
             try
             {
-                if (!done_.get())
-                {
-                    long timeout = System.currentTimeMillis() - startTime_ + DatabaseDescriptor.getRpcTimeout();
-                    if (timeout > 0)
-                    {
-                        bVal = condition_.await(timeout, TimeUnit.MILLISECONDS);
-                    }
-                    else
-                    {
-                        bVal = false;
-                    }
-                }
+                success = condition_.await(timeout, TimeUnit.MILLISECONDS);
             }
             catch (InterruptedException ex)
             {
                 throw new AssertionError(ex);
             }
 
-            if (!bVal && !done_.get())
+            if (!success)
             {
                 StringBuilder sb = new StringBuilder("");
                 for (Message message : responses_)
@@ -94,7 +82,6 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
         }
         finally
         {
-            lock_.unlock();
             for (Message response : responses_)
             {
                 MessagingService.removeRegisteredCallback(response.getMessageId());
@@ -106,22 +93,13 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     
     public void response(Message message)
     {
-        lock_.lock();
-        try
+        if (condition_.isSignaled())
+            return;
+
+        responses_.add(message);
+        if (responses_.size() >= responseCount_ && responseResolver_.isDataPresent(responses_))
         {
-            if (!done_.get())
-            {
-                responses_.add(message);
-                if (responses_.size() >= responseCount_ && responseResolver_.isDataPresent(responses_))
-                {
-                    done_.set(true);
-                    condition_.signal();
-                }
-            }
-        }
-        finally
-        {
-            lock_.unlock();
+            condition_.signal();
         }
     }
 }

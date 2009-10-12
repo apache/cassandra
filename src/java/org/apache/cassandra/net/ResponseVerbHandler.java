@@ -28,19 +28,22 @@ class ResponseVerbHandler implements IVerbHandler
     {     
         String messageId = message.getMessageId();        
         IAsyncCallback cb = MessagingService.getRegisteredCallback(messageId);
-        if ( cb != null )
+        if (cb != null)
         {
             if (logger_.isDebugEnabled())
-              logger_.debug("Processing response on a callback from " + message.getMessageId() + "@" + message.getFrom());
-            cb.response(message);
+                logger_.debug("Processing response on a callback from " + message.getMessageId() + "@" + message.getFrom());
+            synchronized (cb)
+            {
+                cb.response(message);
+            }
         }
         else
-        {            
+        {
             IAsyncResult ar = MessagingService.getAsyncResult(messageId);
-            if ( ar != null )
+            if (ar != null)
             {
                 if (logger_.isDebugEnabled())
-                  logger_.debug("Processing response on an async result from " + message.getMessageId() + "@" + message.getFrom());
+                    logger_.debug("Processing response on an async result from " + message.getMessageId() + "@" + message.getFrom());
                 ar.result(message);
             }
         }

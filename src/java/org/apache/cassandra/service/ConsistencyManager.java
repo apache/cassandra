@@ -47,7 +47,7 @@ class ConsistencyManager implements Runnable
 	{
 		List<Message> responses_ = new ArrayList<Message>();
 
-		public synchronized void response(Message msg)
+		public void response(Message msg)
 		{
 			responses_.add(msg);
             if (responses_.size() == ConsistencyManager.this.replicas_.size())
@@ -104,7 +104,7 @@ class ConsistencyManager implements Runnable
 			majority_ = (responseCount >> 1) + 1;  
 		}
 		
-		public synchronized void response(Message message)
+		public void response(Message message)
 		{
 			if (logger_.isDebugEnabled())
 			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());

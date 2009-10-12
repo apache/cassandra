@@ -9,12 +9,25 @@ import java.util.Date;
 // _after_ signal(), it will work as desired.)
 public class SimpleCondition implements Condition
 {
-    volatile boolean set;
+    boolean set;
 
     public synchronized void await() throws InterruptedException
     {
         while (!set)
             wait();
+    }
+
+    public synchronized boolean await(long time, TimeUnit unit) throws InterruptedException
+    {
+        // micro/nanoseconds not supported
+        assert unit == TimeUnit.DAYS || unit == TimeUnit.HOURS || unit == TimeUnit.MINUTES || unit == TimeUnit.SECONDS || unit == TimeUnit.MILLISECONDS;
+
+        long end = System.currentTimeMillis() + unit.convert(time, TimeUnit.MILLISECONDS);
+        while (!set && end > System.currentTimeMillis())
+        {
+            TimeUnit.MILLISECONDS.timedWait(this, end - System.currentTimeMillis());
+        }
+        return set;
     }
 
     public synchronized void signal()
@@ -29,17 +42,17 @@ public class SimpleCondition implements Condition
         notifyAll();
     }
 
+    public synchronized boolean isSignaled()
+    {
+        return set;
+    }
+
     public void awaitUninterruptibly()
     {
         throw new UnsupportedOperationException();
     }
 
     public long awaitNanos(long nanosTimeout) throws InterruptedException
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean await(long time, TimeUnit unit) throws InterruptedException
     {
         throw new UnsupportedOperationException();
     }
