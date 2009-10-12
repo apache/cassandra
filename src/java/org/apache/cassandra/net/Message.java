@@ -18,19 +18,12 @@
 
 package org.apache.cassandra.net;
 
-import java.lang.reflect.Array;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.util.*;
+import java.util.Map;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
 
 public class Message implements java.io.Serializable
 {    
@@ -47,16 +40,14 @@ public class Message implements java.io.Serializable
         return serializer_;
     }
     
-    Header header_;
-    private byte[] body_;
-    
-    protected Message(String id, EndPoint from, String messageType, String verb, byte[] body)
+    final Header header_;
+    private final byte[] body_;
+
+    Message(Header header, byte[] body)
     {
-        this(new Header(id, from, messageType, verb), body);
-    }
-    
-    protected Message(Header header, byte[] body)
-    {
+        assert header != null;
+        assert body != null;
+
         header_ = header;
         body_ = body;
     }
@@ -100,11 +91,6 @@ public class Message implements java.io.Serializable
     {
         return body_;
     }
-    
-    public void setMessageBody(byte[] body)
-    {
-        body_ = body;
-    }
 
     public EndPoint getFrom()
     {
@@ -132,13 +118,9 @@ public class Message implements java.io.Serializable
     }    
 
     public Message getReply(EndPoint from, byte[] args)
-    {        
-        Message response = new Message(getMessageId(),
-                                       from,
-                                       MessagingService.responseStage_,
-                                       MessagingService.responseVerbHandler_,
-                                       args);
-        return response;
+    {
+        Header header = new Header(getMessageId(), from, MessagingService.responseStage_, MessagingService.responseVerbHandler_);
+        return new Message(header, args);
     }
     
     public String toString()
