@@ -1080,7 +1080,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
             ColumnFamily cf = getColumnFamily(nameFilter);
-            if (cf == null)
+            if (cf == null || cf.getColumnCount() == 0)
                 return cf;
 
             assert cf.getSortedColumns().size() == 1;

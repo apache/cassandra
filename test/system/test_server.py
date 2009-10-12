@@ -367,7 +367,7 @@ class TestMutations(CassandraTester):
         _insert_simple()
         _insert_super()
 
-        # Remove the key1:Standard1 cf:
+        # Remove the key1:Standard1 cf; verify super is unaffected
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1'), 3, ConsistencyLevel.ONE)
         assert _big_slice('Keyspace1', 'key1', ColumnParent('Standard1')) == []
         _verify_super()
@@ -380,6 +380,11 @@ class TestMutations(CassandraTester):
         client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 4, ConsistencyLevel.ONE)
         assert _big_slice('Keyspace1', 'key1', ColumnParent('Standard1')) == \
             [ColumnOrSuperColumn(column=Column('c1', 'value1', 4))]
+
+        # check removing the entire super cf, too.
+        client.remove('Keyspace1', 'key1', ColumnPath('Super1'), 3, ConsistencyLevel.ONE)
+        assert _big_slice('Keyspace1', 'key1', ColumnParent('Super1')) == []
+        assert _big_slice('Keyspace1', 'key1', ColumnParent('Super1', 'sc1')) == []
 
 
     def test_super_cf_remove_column(self):
