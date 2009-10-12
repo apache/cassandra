@@ -53,11 +53,6 @@ class ConsistencyManager implements Runnable
             if (responses_.size() == ConsistencyManager.this.replicas_.size())
                 handleDigestResponses();
         }
-
-        public void attachContext(Object o)
-        {
-            throw new UnsupportedOperationException("This operation is not currently supported.");
-        }
 		
 		private void handleDigestResponses()
 		{
@@ -120,12 +115,7 @@ class ConsistencyManager implements Runnable
                 readRepairTable_.put(messageId, messageId, this);
             }
         }
-        
-        public void attachContext(Object o)
-        {
-            throw new UnsupportedOperationException("This operation is not currently supported.");
-        }
-		
+
 		public void callMe(String key, String value)
 		{
             try

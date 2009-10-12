@@ -113,21 +113,6 @@ public interface IMessagingService
      * @return an reference to message id used to match with the result
      */
     public String sendRR(Message[] messages, EndPoint[] to, IAsyncCallback cb);
-    
-    /**
-     * Send a message to a given endpoint. The ith element in the <code>messages</code>
-     * array is sent to the ith element in the <code>to</code> array.This method assumes
-     * there is a one-one mapping between the <code>messages</code> array and
-     * the <code>to</code> array. Otherwise an  IllegalArgumentException will be thrown.
-     * The idea is that multi-groups of messages are grouped as one logical message
-     * whose results are harnessed via the <i>IAsyncResult</i>
-     * @param messages groups of grouped messages.
-     * @param to destination for the groups of messages
-     * @param cb the callback handler to be invoked for the responses
-     * @return the group id which is basically useless - it is only returned for API's
-     *         to look compatible.
-     */
-    public String sendRR(Message[][] messages, EndPoint[][] to, IAsyncCallback cb);
 
     /**
      * Send a message to a given endpoint. This method adheres to the fire and forget

@@ -21,14 +21,8 @@ package org.apache.cassandra.net;
 public interface IAsyncCallback 
 {
 	/**
-	 * @param msg responses to be returned
+	 * @param msg response received.
+     * Calls to response() are serialized by ResponseVerbHandler.
 	 */
 	public void response(Message msg);
-    
-    /**
-     * Attach some application specific context to the
-     * callback.
-     * @param o application specific context
-     */
-    public void attachContext(Object o);
 }

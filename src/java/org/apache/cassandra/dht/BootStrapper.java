@@ -282,11 +282,6 @@ public class BootStrapper implements Runnable
             }
             condition.signalAll();
         }
-
-        public void attachContext(Object o)
-        {
-            throw new UnsupportedOperationException();
-        }
     }
 
     public static class BootStrapInitiateVerbHandler implements IVerbHandler

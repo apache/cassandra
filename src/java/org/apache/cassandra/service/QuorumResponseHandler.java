@@ -124,9 +124,4 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             lock_.unlock();
         }
     }
-    
-    public void attachContext(Object o)
-    {
-        throw new UnsupportedOperationException("This operation is not supported in this version of the callback handler");
-    }
 }
