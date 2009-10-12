@@ -7,6 +7,7 @@
  * Fix for discarding unneeded commitlog segments (CASSANDRA-459)
  * Add SnapshotBeforeCompaction configuration option (CASSANDRA-426)
  * Fix compaction abort under insufficient disk space (CASSANDRA-473)
+ * Fix reading subcolumn slice from tombstoned CF (CASSANDRA-484)
 
 
 0.4.0
