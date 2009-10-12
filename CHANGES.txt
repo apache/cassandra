@@ -17,6 +17,7 @@
  * Add SnapshotBeforeCompaction configuration option (CASSANDRA-426)
  * Fix compaction abort under insufficient disk space (CASSANDRA-473)
  * Fix reading subcolumn slice from tombstoned CF (CASSANDRA-484)
+ * Fix race condition in RVH causing occasional NPE (CASSANDRA-478)
 
 
 0.4.0

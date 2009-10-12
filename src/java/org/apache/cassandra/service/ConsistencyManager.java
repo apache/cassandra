@@ -47,7 +47,7 @@ class ConsistencyManager implements Runnable
 	{
 		List<Message> responses_ = new ArrayList<Message>();
 		
-		public void response(Message msg)
+		public synchronized void response(Message msg)
 		{
 			responses_.add(msg);
 			if ( responses_.size() == ConsistencyManager.this.replicas_.size() )
