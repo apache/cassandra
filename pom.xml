@@ -25,7 +25,7 @@
 
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra</artifactId>
-  <version>0.4.0-dev</version>
+  <version>0.4.1</version>
   <packaging>jar</packaging>
   <name>Cassandra</name>
   <inceptionYear>2009</inceptionYear>
@@ -144,6 +144,16 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.5.8</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-log4j12</artifactId>
+      <version>1.5.8</version>
+    </dependency>
+    <dependency>
       <groupId>org.antlr</groupId>
       <artifactId>antlr-runtime</artifactId>
       <version>3.1.3</version>
@@ -159,13 +169,6 @@
 
     <!-- Dependencies which I could not find in the maven repos -->
     <dependency>
-      <groupId>clhm</groupId>
-      <artifactId>clhm</artifactId>
-      <version>20090629</version>
-      <scope>system</scope>
-      <systemPath>${basedir}/lib/clhm-20090629.jar</systemPath>
-    </dependency>
-    <dependency>
       <groupId>high-scale-lib</groupId>
       <artifactId>high-scale-lib</artifactId>
       <version>UNKNOWN</version>
@@ -173,18 +176,18 @@
       <systemPath>${basedir}/lib/high-scale-lib.jar</systemPath>
     </dependency>
     <dependency>
+      <groupId>flexjson</groupId>
+      <artifactId>flexjson</artifactId>
+      <version>1.7</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/flexjson-1.7.jar</systemPath>
+    </dependency>
+    <dependency>
       <groupId>libthrift</groupId>
       <artifactId>libthrift</artifactId>
       <version>UNKNOWN</version>
       <scope>system</scope>
-      <systemPath>${basedir}/lib/libthrift.jar</systemPath>
-    </dependency>
-    <dependency>
-      <groupId>commons-javaflow</groupId>
-      <artifactId>commons-javaflow</artifactId>
-      <version>1.0-SNAPSHOT</version>
-      <scope>system</scope>
-      <systemPath>${basedir}/lib/commons-javaflow-1.0-SNAPSHOT.jar</systemPath>
+      <systemPath>${basedir}/lib/libthrift-r808609.jar</systemPath>
     </dependency>
 
     <!-- Testing Dependencies -->
@@ -278,6 +281,9 @@
             </property>
           </systemProperties>
           <forkMode>always</forkMode>
+          <excludes>
+            <exclude>**/TestRingCache.java</exclude>
+          </excludes>
         </configuration>
       </plugin>
 
