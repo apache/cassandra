@@ -289,6 +289,11 @@ class TestMutations(CassandraTester):
     def test_bad_calls(self):
         # supercolumn in a non-super CF
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', 'x', 'y'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
+        # empty key
+        _expect_exception(lambda: client.get('Keyspace1', '', ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE), InvalidRequestException)
+        cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
+                 'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
+        _expect_exception(lambda: client.batch_insert('Keyspace1', '', cfmap, ConsistencyLevel.ONE), InvalidRequestException)
         # get doesn't specify column name
         _expect_exception(lambda: client.get('Keyspace1', 'key1', ColumnPath('Standard1'), ConsistencyLevel.ONE), InvalidRequestException)
         # supercolumn in a non-super CF

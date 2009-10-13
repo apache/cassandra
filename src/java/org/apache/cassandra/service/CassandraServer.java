@@ -80,11 +80,6 @@ public class CassandraServer implements Cassandra.Iface
 
         Map<String, ColumnFamily> columnFamilyKeyMap = new HashMap<String,ColumnFamily>();
 
-        for (ReadCommand command: commands)
-        {
-            ThriftValidation.validateKey(command.key);
-        }
-
         if (consistency_level == ConsistencyLevel.ZERO)
         {
             throw new InvalidRequestException("Consistency level zero may not be applied to read operations");
@@ -238,13 +233,19 @@ public class CassandraServer implements Cassandra.Iface
         if (predicate.column_names != null)
         {
             for (String key: keys)
+            {
+                ThriftValidation.validateKey(key);
                 commands.add(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names));
+            }
             ThriftValidation.validateColumns(keyspace, column_parent, predicate.column_names);
         }
         else
         {
             for (String key: keys)
+            {
+                ThriftValidation.validateKey(key);
                 commands.add(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count));
+            }
             ThriftValidation.validateRange(keyspace, column_parent, range);
         }
 
@@ -318,6 +319,7 @@ public class CassandraServer implements Cassandra.Iface
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         for (String key: keys)
         {
+            ThriftValidation.validateKey(key);
             commands.add(new SliceByNamesReadCommand(table, key, path, nameAsList));
         }
 
@@ -380,6 +382,7 @@ public class CassandraServer implements Cassandra.Iface
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         for (String key: keys)
         {
+            ThriftValidation.validateKey(key);
             commands.add(new SliceFromReadCommand(table, key, column_parent, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE));
         }
 
@@ -409,7 +412,7 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPath(table, column_path);
 
-        RowMutation rm = new RowMutation(table, key.trim());
+        RowMutation rm = new RowMutation(table, key);
         try
         {
             rm.add(new QueryPath(column_path), value, timestamp);
@@ -426,6 +429,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
+        ThriftValidation.validateKey(key);
 
         for (String cfName : cfmap.keySet())
         {
@@ -453,9 +457,10 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("remove");
+        ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(table, column_path);
         
-        RowMutation rm = new RowMutation(table, key.trim());
+        RowMutation rm = new RowMutation(table, key);
         rm.delete(new QueryPath(column_path), timestamp);
 
         doInsert(consistency_level, rm);
