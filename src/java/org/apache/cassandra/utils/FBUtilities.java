@@ -220,7 +220,7 @@ public class FBUtilities
         byte[] bytes = new byte[str.length()/2];
         for (int i = 0; i < bytes.length; i++)
         {
-            bytes[i] = (byte)Integer.parseInt(str.substring(i, i+2), 16);
+            bytes[i] = (byte)Integer.parseInt(str.substring(i*2, i*2+2), 16);
         }
         return bytes;
     }
