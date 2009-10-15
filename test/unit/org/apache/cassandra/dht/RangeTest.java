@@ -24,17 +24,24 @@ public class RangeTest {
     @Test
     public void testRange() {
         Range left = new Range(new BigIntegerToken("0"), new BigIntegerToken("100"));
-		assert left.contains(new BigIntegerToken("0"));
+        assert !left.contains(new BigIntegerToken("0"));
         assert left.contains(new BigIntegerToken("10"));
-        assert !left.contains(new BigIntegerToken("-1"));
-        assert !left.contains(new BigIntegerToken("100"));
+        assert left.contains(new BigIntegerToken("100"));
         assert !left.contains(new BigIntegerToken("101"));
+    }
 
-        Range right = new Range(new BigIntegerToken("100"), new BigIntegerToken("0"));
-        assert right.contains(new BigIntegerToken("100"));
-        assert right.contains(new BigIntegerToken("200"));
-        assert right.contains(new BigIntegerToken("-10"));
-        assert !right.contains(new BigIntegerToken("0"));
-        assert !right.contains(new BigIntegerToken("1"));
+    @Test
+    public void testWrappingRange() {
+        Range range = new Range(new BigIntegerToken("0"), new BigIntegerToken("0"));
+        assert range.contains(new BigIntegerToken("0"));
+        assert range.contains(new BigIntegerToken("10"));
+        assert range.contains(new BigIntegerToken("100"));
+        assert range.contains(new BigIntegerToken("101"));
+
+        range = new Range(new BigIntegerToken("100"), new BigIntegerToken("0"));
+        assert range.contains(new BigIntegerToken("0"));
+        assert !range.contains(new BigIntegerToken("1"));
+        assert !range.contains(new BigIntegerToken("100"));
+        assert range.contains(new BigIntegerToken("200"));
     }
 }

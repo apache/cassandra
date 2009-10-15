@@ -30,9 +30,8 @@ import org.apache.cassandra.io.ICompactSerializer;
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
  *
- * A Range is responsible for the tokens between [left, right).
+ * A Range is responsible for the tokens between (left, right].
  */
-
 public class Range implements Comparable<Range>, Serializable
 {
     private static ICompactSerializer<Range> serializer_;
@@ -81,31 +80,27 @@ public class Range implements Comparable<Range>, Serializable
      */
     public boolean contains(Token bi)
     {
-        if ( left_.compareTo(right_) > 0 )
+        if ( isWrapAround(this) )
         {
             /* 
-             * left is greater than right we are wrapping around.
-             * So if the interval is [a,b) where a > b then we have
-             * 3 cases one of which holds for any given token k.
-             * (1) k > a -- return true
-             * (2) k < b -- return true
-             * (3) b < k < a -- return false
-            */
-            if ( bi.compareTo(left_) >= 0 )
+             * We are wrapping around, so the interval is (a,b] where a >= b,
+             * then we have 3 cases which hold for any given token k:
+             * (1) a < k -- return true
+             * (2) k <= b -- return true
+             * (3) b < k <= a -- return false
+             */
+            if ( bi.compareTo(left_) > 0 )
                 return true;
-            else return right_.compareTo(bi) > 0;
+            else
+                return right_.compareTo(bi) >= 0;
         }
-        else if ( left_.compareTo(right_) < 0 )
+        else
         {
             /*
-             * This is the range [a, b) where a < b. 
-            */
-            return ( bi.compareTo(left_) >= 0 && right_.compareTo(bi) > 0 );
+             * This is the range (a, b] where a < b. 
+             */
+            return ( bi.compareTo(left_) > 0 && right_.compareTo(bi) >= 0 );
         }        
-        else
-    	{
-    		return true;
-    	}    	
     }
 
     /**
@@ -115,7 +110,7 @@ public class Range implements Comparable<Range>, Serializable
      */
     private static boolean isWrapAround(Range range)
     {
-        return range.left_.compareTo(range.right_) > 0;
+        return range.left_.compareTo(range.right_) >= 0;
     }
     
     public int compareTo(Range rhs)
@@ -123,7 +118,7 @@ public class Range implements Comparable<Range>, Serializable
         /* 
          * If the range represented by the "this" pointer
          * is a wrap around then it is the smaller one.
-        */
+         */
         if ( isWrapAround(this) )
             return -1;
         
