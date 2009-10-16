@@ -233,4 +233,9 @@ class TcpConnectionManager
             lock_.unlock();
         }
     }
+
+    List<TcpConnection> getConnections()
+    {
+        return allConnections_;
+    }
 }
