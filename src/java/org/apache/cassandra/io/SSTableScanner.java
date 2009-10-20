@@ -64,6 +64,7 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
                 return;
             }
             file.seek(position);
+            row = null;
         }
         catch (IOException e)
         {
