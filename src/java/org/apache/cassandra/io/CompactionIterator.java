@@ -11,15 +11,18 @@ import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
 
 public class CompactionIterator extends ReducingIterator<IteratingRow, CompactionIterator.CompactedRow> implements Closeable
 {
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
+    private final int gcBefore;
 
     @SuppressWarnings("unchecked")
-    public CompactionIterator(Iterable<SSTableReader> sstables) throws IOException
+    public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore) throws IOException
     {
         super(getCollatingIterator(sstables));
+        this.gcBefore = gcBefore;
     }
 
     @SuppressWarnings("unchecked")
@@ -81,7 +84,10 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
                     cf.addAll(row.getColumnFamily());
                 }
             }
-            ColumnFamily.serializer().serializeWithIndexes(cf, buffer);
+            ColumnFamily cfPurged = ColumnFamilyStore.removeDeleted(cf, gcBefore);
+            if (cfPurged == null)
+                return null;
+            ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
         }
         else
         {

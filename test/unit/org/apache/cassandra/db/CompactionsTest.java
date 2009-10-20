@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import static junit.framework.Assert.assertEquals;
 
 public class CompactionsTest extends CleanupHelper
@@ -64,5 +65,47 @@ public class CompactionsTest extends CleanupHelper
             store.doCompaction(2, store.getSSTables().size());
         }
         assertEquals(inserted.size(), table.getColumnFamilyStore("Standard1").getKeyRange("", "", 10000).keys.size());
+    }
+
+    @Test
+    public void testCompactionPurge() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+
+        String key = "key1";
+        RowMutation rm;
+
+        CompactionManager.instance().disableCompactions();
+
+        // inserts
+        rm = new RowMutation("Keyspace1", key);
+        for (int i = 0; i < 10; i++)
+        {
+            rm.add(new QueryPath("Standard1", null, String.valueOf(i).getBytes()), new byte[0], 0);
+        }
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // deletes
+        for (int i = 0; i < 10; i++)
+        {
+            rm = new RowMutation("Keyspace1", key);
+            rm.delete(new QueryPath("Standard1", null, String.valueOf(i).getBytes()), 1);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+
+        // resurrect one row
+        rm = new RowMutation("Keyspace1", key);
+        rm.add(new QueryPath("Standard1", null, String.valueOf(5).getBytes()), new byte[0], 2);
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // compact and test that all columns but the resurrected one is completely gone
+        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
+        ColumnFamily cf = table.getColumnFamilyStore("Standard1").getColumnFamily(new IdentityQueryFilter(key, new QueryPath("Standard1")));
+        assert cf.getColumnCount() == 1;
+        assert cf.getColumn(String.valueOf(5).getBytes()) != null;
     }
 }

@@ -47,6 +47,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.PredicateUtils;
+import org.apache.commons.collections.iterators.FilterIterator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -473,7 +475,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (int)(System.currentTimeMillis() / 1000) - DatabaseDescriptor.getGcGraceInSeconds();
     }
 
-    static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
+    public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
     {
         if (cf == null)
         {
@@ -664,7 +666,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             sstables = ssTables_.getSSTables();
         }
-        doFileCompaction(sstables);
+
+        if (sstables.size() > 1)
+            doFileCompaction(sstables);
     }
 
     /*
@@ -773,7 +777,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer = null;
-        CompactionIterator ci = new CompactionIterator(sstables);
+        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore());
 
         try
         {
@@ -819,6 +823,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return results;
     }
 
+    private int doFileCompaction(Collection<SSTableReader> sstables) throws IOException
+    {
+        return doFileCompaction(sstables, getDefaultGCBefore());
+    }
+
     /*
     * This function does the actual compaction for files.
     * It maintains a priority queue of with the first key from each file
@@ -830,7 +839,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     * to get the latest data.
     *
     */
-    private int doFileCompaction(Collection<SSTableReader> sstables) throws IOException
+    int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore) throws IOException
     {
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             Table.open(table_).snapshot("compact-" + columnFamily_);
@@ -855,7 +864,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer;
-        CompactionIterator ci = new CompactionIterator(sstables);
+        CompactionIterator ci = new CompactionIterator(sstables, gcBefore); // retain a handle so we can call close()
+        Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
         {
@@ -868,9 +878,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
 
-            while (ci.hasNext())
+            while (nni.hasNext())
             {
-                CompactionIterator.CompactedRow row = ci.next();
+                CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
                 writer.append(row.key, row.buffer);
                 totalkeysWritten++;
             }

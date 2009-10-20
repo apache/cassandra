@@ -173,4 +173,12 @@ public abstract class SSTable
             return key + ":" + position;
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return getClass().getName() + "(" +
+               "path='" + path + '\'' +
+               ')';
+    }
 }
