@@ -81,34 +81,6 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    protected EndPoint getNextAvailableEndPoint(EndPoint startPoint, List<EndPoint> topN, List<EndPoint> liveNodes)
-    {
-        EndPoint endPoint = null;
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List tokens = new ArrayList(tokenToEndPointMap.keySet());
-        Collections.sort(tokens);
-        Token token = tokenMetadata_.getToken(startPoint);
-        int index = Collections.binarySearch(tokens, token);
-        if(index < 0)
-        {
-            index = (index + 1) * (-1);
-            if (index >= tokens.size())
-                index = 0;
-        }
-        int totalNodes = tokens.size();
-        int startIndex = (index+1)%totalNodes;
-        for (int i = startIndex, count = 1; count < totalNodes ; ++count, i = (i+1)%totalNodes)
-        {
-            EndPoint tmpEndPoint = tokenToEndPointMap.get(tokens.get(i));
-            if(FailureDetector.instance().isAlive(tmpEndPoint) && !topN.contains(tmpEndPoint) && !liveNodes.contains(tmpEndPoint))
-            {
-                endPoint = tmpEndPoint;
-                break;
-            }
-        }
-        return endPoint;
-    }
-
     private Map<EndPoint, EndPoint> getHintedMapForEndpoints(EndPoint[] topN)
     {
         List<EndPoint> liveList = new ArrayList<EndPoint>();
@@ -123,7 +95,29 @@ public abstract class AbstractReplicationStrategy
             }
             else
             {
-                EndPoint endPoint = getNextAvailableEndPoint(topN[i], Arrays.asList(topN), liveList);
+                EndPoint endPoint = null;
+                Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+                List tokens = new ArrayList(tokenToEndPointMap.keySet());
+                Collections.sort(tokens);
+                Token token = tokenMetadata_.getToken(topN[i]);
+                int index = Collections.binarySearch(tokens, token);
+                if(index < 0)
+                {
+                    index = (index + 1) * (-1);
+                    if (index >= tokens.size())
+                        index = 0;
+                }
+                int totalNodes = tokens.size();
+                int startIndex = (index+1)%totalNodes;
+                for (int i1 = startIndex, count = 1; count < totalNodes ; ++count, i1 = (i1 +1)%totalNodes)
+                {
+                    EndPoint tmpEndPoint = tokenToEndPointMap.get(tokens.get(i1));
+                    if(FailureDetector.instance().isAlive(tmpEndPoint) && !Arrays.asList(topN).contains(tmpEndPoint) && !liveList.contains(tmpEndPoint))
+                    {
+                        endPoint = tmpEndPoint;
+                        break;
+                    }
+                }
                 if(endPoint != null)
                 {
                     map.put(endPoint, topN[i]);
