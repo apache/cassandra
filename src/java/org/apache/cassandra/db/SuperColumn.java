@@ -201,14 +201,7 @@ public final class SuperColumn implements IColumn, IColumnContainer
      */
     public void putColumn(IColumn column)
     {
-        if (!(column instanceof SuperColumn))
-        {
-            throw new UnsupportedOperationException("Only Super column objects should be put here");
-        }
-        if (!Arrays.equals(name_, column.name()))
-        {
-            throw new IllegalArgumentException("The name should match the name of the current column or super column");
-        }
+        assert column instanceof SuperColumn;
 
         for (IColumn subColumn : column.getSubColumns())
         {
