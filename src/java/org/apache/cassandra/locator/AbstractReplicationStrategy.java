@@ -18,12 +18,7 @@
 */
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 
@@ -31,6 +26,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.EndPoint;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * This class contains a helper method that will be used by
@@ -83,51 +79,48 @@ public abstract class AbstractReplicationStrategy
 
     private Map<EndPoint, EndPoint> getHintedMapForEndpoints(EndPoint[] topN)
     {
-        List<EndPoint> liveList = new ArrayList<EndPoint>();
+        Set<EndPoint> usedEndpoints = new HashSet<EndPoint>();
         Map<EndPoint, EndPoint> map = new HashMap<EndPoint, EndPoint>();
 
-        for( int i = 0 ; i < topN.length ; i++)
+        for (EndPoint ep : topN)
         {
-            if( FailureDetector.instance().isAlive(topN[i]))
+            if (FailureDetector.instance().isAlive(ep))
             {
-                map.put(topN[i], topN[i]);
-                liveList.add(topN[i]) ;
+                map.put(ep, ep);
+                usedEndpoints.add(ep);
             }
             else
             {
-                EndPoint endPoint = null;
+                // find another endpoint to store a hint on.  prefer endpoints that aren't already in use
+                EndPoint hintLocation = null;
                 Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
                 List tokens = new ArrayList(tokenToEndPointMap.keySet());
                 Collections.sort(tokens);
-                Token token = tokenMetadata_.getToken(topN[i]);
+                Token token = tokenMetadata_.getToken(ep);
                 int index = Collections.binarySearch(tokens, token);
-                if(index < 0)
+                if (index < 0)
                 {
                     index = (index + 1) * (-1);
-                    if (index >= tokens.size())
+                    if (index >= tokens.size()) // handle wrap
                         index = 0;
                 }
                 int totalNodes = tokens.size();
-                int startIndex = (index+1)%totalNodes;
-                for (int i1 = startIndex, count = 1; count < totalNodes ; ++count, i1 = (i1 +1)%totalNodes)
+                int startIndex = (index + 1) % totalNodes;
+                for (int i = startIndex, count = 1; count < totalNodes; ++count, i = (i + 1) % totalNodes)
                 {
-                    EndPoint tmpEndPoint = tokenToEndPointMap.get(tokens.get(i1));
-                    if(FailureDetector.instance().isAlive(tmpEndPoint) && !Arrays.asList(topN).contains(tmpEndPoint) && !liveList.contains(tmpEndPoint))
+                    EndPoint tmpEndPoint = tokenToEndPointMap.get(tokens.get(i));
+                    if (FailureDetector.instance().isAlive(tmpEndPoint) && !Arrays.asList(topN).contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
                     {
-                        endPoint = tmpEndPoint;
+                        hintLocation = tmpEndPoint;
                         break;
                     }
                 }
-                if(endPoint != null)
-                {
-                    map.put(endPoint, topN[i]);
-                    liveList.add(endPoint) ;
-                }
-                else
-                {
-                    // log a warning , maybe throw an exception
-                    logger_.warn("Unable to find a live Endpoint we might be out of live nodes , This is dangerous !!!!");
-                }
+                // if all endpoints are already in use, might as well store it locally to save the network trip
+                if (hintLocation == null)
+                    hintLocation = StorageService.getLocalControlEndPoint();
+
+                map.put(hintLocation, ep);
+                usedEndpoints.add(hintLocation);
             }
         }
         return map;
