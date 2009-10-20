@@ -164,7 +164,7 @@ public class HintedHandOffManager
                     String endpointStr = new String(endpoint.name(), "UTF-8");
                     if (sendMessage(endpointStr, tableName, keyStr))
                     {
-                        deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
+                        deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
                         deleted++;
                     }
                 }
@@ -214,7 +214,7 @@ public class HintedHandOffManager
                         }
                         else
                         {
-                            deleteEndPoint(hintEndPoint.name(), tableName, keyColumn.name(), keyColumn.timestamp());
+                            deleteEndPoint(hintEndPoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
                         }
                         break;
                     }
