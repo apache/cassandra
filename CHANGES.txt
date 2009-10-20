@@ -1,3 +1,9 @@
+0.4.2
+ * Add validation disallowing null keys (CASSANDRA-486)
+ * Fix race conditions in TCPConnectionManager (CASSANDRA-487)
+ * Fix using non-utf8-aware comparison as a sanity check.
+   (CASSANDRA-493)
+
 0.4.1
  * Fix FlushPeriod columnfamily configuration regression
    (CASSANDRA-455)
