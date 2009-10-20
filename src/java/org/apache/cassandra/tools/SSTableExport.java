@@ -18,15 +18,17 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Collection;
 import java.util.Iterator;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IteratingRow;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableScanner;
@@ -44,6 +46,7 @@ import org.apache.commons.cli.PosixParser;
 public class SSTableExport
 {
     private static final String OUTFILE_OPTION = "f";
+    private static final String KEY_OPTION = "k";
     private static Options options;
     private static CommandLine cmd;
     
@@ -53,6 +56,12 @@ public class SSTableExport
         Option optOutfile = new Option(OUTFILE_OPTION, true, "output file");
         optOutfile.setRequired(false);
         options.addOption(optOutfile);
+        
+        Option optKey = new Option(KEY_OPTION, true, "Row key");
+        // Number of times -k <key> can be passed on the command line.
+        optKey.setArgs(500);
+        optKey.setRequired(false);
+        options.addOption(optKey);
     }
     
     private static String quote(String val)
@@ -112,6 +121,72 @@ public class SSTableExport
         }
      
         return json.toString();
+    }
+    
+    /**
+     * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
+     * 
+     * @param ssTableFile the SSTable to export the rows from
+     * @param outs PrintStream to write the output to
+     * @param keys the keys corresponding to the rows to export
+     * @throws IOException on failure to read/write input/output
+     */
+    public static void export(String ssTableFile, PrintStream outs, String[] keys)
+    throws IOException
+    {
+        SSTableReader reader = SSTableReader.open(ssTableFile);
+        SSTableScanner scanner = reader.getScanner();
+        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
+        int i = 0;
+        
+        outs.println("{");
+        
+        for (String key : keys)
+        {
+            DecoratedKey<?> dk = partitioner.decorateKey(key);
+            scanner.seekTo(dk);
+            
+            i++;
+            
+            if (scanner.hasNext())
+            {
+                IteratingRow row = scanner.next();
+                try
+                {
+                    String jsonOut = serializeRow(row);
+                    if (i != 1)
+                        outs.println(",");
+                    outs.print("  " + jsonOut);
+                }
+                catch (IOException ioexc)
+                {
+                    System.err.println("WARNING: Corrupt row " + key + " (skipping).");
+                    continue;
+                }
+                catch (OutOfMemoryError oom)
+                {
+                    System.err.println("ERROR: Out of memory deserializing row " + key);
+                    continue;
+                }
+            }
+        }
+        
+        outs.println("\n}");
+        outs.flush();
+    }
+    
+    /**
+     * Export specific rows from an SSTable and write the resulting JSON to a file.
+     * 
+     * @param ssTableFile the SSTable to export the rows from
+     * @param outFile file to write output to
+     * @param keys the keys corresponding to the rows to export
+     * @throws IOException on failure to read/write input/output
+     */
+    public static void export(String ssTableFile, String outFile, String[] keys) throws IOException
+    {
+        PrintStream outs = new PrintStream(outFile);
+        export(ssTableFile, outs, keys);
     }
     
     /**
@@ -189,7 +264,8 @@ public class SSTableExport
      */
     public static void main(String[] args) throws IOException
     {
-        String usage = String.format("Usage: %s [-f outfile] <sstable>%n", SSTableExport.class.getName());
+        String usage = String.format("Usage: %s [-f outfile] <sstable> [-k key [-k key [...]]]%n",
+                SSTableExport.class.getName());
         
         CommandLineParser parser = new PosixParser();
         try
@@ -203,7 +279,7 @@ public class SSTableExport
         }
         
         String outFile = cmd.getOptionValue(OUTFILE_OPTION);
-        
+
         if (cmd.getArgs().length != 1)
         {
             System.err.println("You must supply exactly one sstable");
@@ -211,13 +287,21 @@ public class SSTableExport
             System.exit(1);
         }
         
+        String[] keys = cmd.getOptionValues(KEY_OPTION);
+        
         if (outFile != null)
         {
-            export(cmd.getArgs()[0], outFile);
+            if ((keys != null) && (keys.length > 0))
+                export(cmd.getArgs()[0], outFile, keys);
+            else
+                export(cmd.getArgs()[0], outFile);
         }
         else
         {
-            export(cmd.getArgs()[0]);
+            if ((keys != null) && (keys.length > 0))
+                export(cmd.getArgs()[0], System.out, keys);
+            else
+                export(cmd.getArgs()[0]);
         }
         System.exit(0);
     }
