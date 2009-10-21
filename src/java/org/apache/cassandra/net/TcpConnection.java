@@ -29,6 +29,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.io.FastSerializer;
@@ -51,8 +53,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private TcpReader tcpReader_;    
     private ReadWorkItem readWork_ = new ReadWorkItem(); 
     private Queue<ByteBuffer> pendingWrites_ = new ConcurrentLinkedQueue<ByteBuffer>();
-    private EndPoint localEp_;
-    private EndPoint remoteEp_;
+    private InetAddress localEp_;
+    private InetAddress remoteEp_;
     boolean inUse_ = false;
          
     /* 
@@ -67,7 +69,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private Condition condition_;
     
     // used from getConnection - outgoing
-    TcpConnection(TcpConnectionManager pool, EndPoint from, EndPoint to) throws IOException
+    TcpConnection(TcpConnectionManager pool, InetAddress from, InetAddress to) throws IOException
     {          
         socketChannel_ = SocketChannel.open();            
         socketChannel_.configureBlocking(false);        
@@ -75,8 +77,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         
         localEp_ = from;
         remoteEp_ = to;
-        
-        if ( !socketChannel_.connect( remoteEp_.getInetAddress() ) )
+
+        if (!socketChannel_.connect(new InetSocketAddress(remoteEp_, DatabaseDescriptor.getStoragePort())))
         {
             key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_CONNECT);
         }
@@ -89,7 +91,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     /*
      * Used for streaming purposes has no pooling semantics.
     */
-    TcpConnection(EndPoint from, EndPoint to) throws IOException
+    TcpConnection(InetAddress from, InetAddress to) throws IOException
     {
         socketChannel_ = SocketChannel.open();               
         socketChannel_.configureBlocking(false);       
@@ -97,7 +99,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         localEp_ = from;
         remoteEp_ = to;
         
-        if ( !socketChannel_.connect( remoteEp_.getInetAddress() ) )
+        if (!socketChannel_.connect(new InetSocketAddress(remoteEp_, DatabaseDescriptor.getStoragePort())))
         {
             key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_CONNECT);
         }
@@ -114,7 +116,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
      * This method is invoked by the TcpConnectionHandler to accept incoming TCP connections.
      * Accept the connection and then register interest for reads.
     */
-    static void acceptConnection(SocketChannel socketChannel, EndPoint localEp, boolean isIncoming) throws IOException
+    static void acceptConnection(SocketChannel socketChannel, InetAddress localEp, boolean isIncoming) throws IOException
     {
         TcpConnection tcpConnection = new TcpConnection(socketChannel, localEp, true);
         tcpConnection.registerReadInterest();
@@ -126,7 +128,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     }
     
     // used for incoming connections
-    TcpConnection(SocketChannel socketChannel, EndPoint localEp, boolean isIncoming) throws IOException
+    TcpConnection(SocketChannel socketChannel, InetAddress localEp, boolean isIncoming) throws IOException
     {       
         socketChannel_ = socketChannel;
         socketChannel_.configureBlocking(false);                           
@@ -134,17 +136,17 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         localEp_ = localEp;
     }
     
-    EndPoint getLocalEp()
+    InetAddress getLocalEp()
     {
         return localEp_;
     }
     
-    public void setLocalEp(EndPoint localEp)
+    public void setLocalEp(InetAddress localEp)
     {
         localEp_ = localEp;
     }
 
-    public EndPoint getEndPoint() 
+    public InetAddress getEndPoint()
     {
         return remoteEp_;
     }
@@ -453,7 +455,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                         /* first message received */
                         if (remoteEp_ == null)
                         {
-                            remoteEp_ = new EndPoint(socketChannel_.socket().getInetAddress().getHostAddress(), DatabaseDescriptor.getStoragePort());
+                            remoteEp_ = socketChannel_.socket().getInetAddress();
                             // put connection into pool if possible
                             pool_ = MessagingService.getConnectionPool(localEp_, remoteEp_);                            
                             pool_.addToPool(TcpConnection.this);                            

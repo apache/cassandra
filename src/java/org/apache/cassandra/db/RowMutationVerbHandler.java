@@ -21,7 +21,7 @@ package org.apache.cassandra.db;
 import java.io.*;
 
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
@@ -49,12 +49,12 @@ public class RowMutationVerbHandler implements IVerbHandler
             byte[] hintedBytes = message.getHeader(RowMutation.HINT);
             if ( hintedBytes != null && hintedBytes.length > 0 )
             {
-            	EndPoint hint = EndPoint.getByAddress(hintedBytes);
+            	InetAddress hint = InetAddress.getByAddress(hintedBytes);
                 if (logger_.isDebugEnabled())
                   logger_.debug("Adding hint for " + hint);
                 /* add necessary hints to this mutation */
                 RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.getTable());
-                hintedMutation.addHints(rm.key(), hint.getHost());
+                hintedMutation.addHints(rm.key(), hintedBytes);
                 hintedMutation.apply();
             }
 

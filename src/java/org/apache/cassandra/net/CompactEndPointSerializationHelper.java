@@ -19,18 +19,19 @@
 package org.apache.cassandra.net;
 
 import java.io.*;
+import java.net.InetAddress;
 
 public class CompactEndPointSerializationHelper
 {
-    public static void serialize(EndPoint endPoint, DataOutputStream dos) throws IOException
+    public static void serialize(InetAddress endPoint, DataOutputStream dos) throws IOException
     {        
         dos.write(endPoint.getAddress());
     }
     
-    public static EndPoint deserialize(DataInputStream dis) throws IOException
+    public static InetAddress deserialize(DataInputStream dis) throws IOException
     {     
-        byte[] bytes = new byte[6];
+        byte[] bytes = new byte[4];
         dis.readFully(bytes, 0, bytes.length);
-        return EndPoint.getByAddress(bytes);
+        return InetAddress.getByAddress(bytes);
     }
 }

@@ -27,14 +27,12 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.Cachetable;
-import org.apache.cassandra.utils.ICacheExpungeHook;
-import org.apache.cassandra.utils.ICachetable;
-import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.*;
+
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
@@ -82,13 +80,13 @@ class ConsistencyManager implements Runnable
 		{
 			IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
             /* Add the local storage endpoint to the replicas_ list */
-            replicas_.add(StorageService.getLocalStorageEndPoint());
+            replicas_.add(FBUtilities.getLocalAddress());
 			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
             ReadCommand readCommand = constructReadMessage(false);
             Message message = readCommand.makeReadMessage();
             if (logger_.isDebugEnabled())
               logger_.debug("Performing read repair for " + readCommand_.key + " to " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-			MessagingService.instance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), responseHandler);
+			MessagingService.instance().sendRR(message, replicas_.toArray(new InetAddress[replicas_.size()]), responseHandler);
 		}
 	}
 	
@@ -133,10 +131,10 @@ class ConsistencyManager implements Runnable
 	private static long scheduledTimeMillis_ = 600;
 	private static ICachetable<String, String> readRepairTable_ = new Cachetable<String, String>(scheduledTimeMillis_);
 	private final Row row_;
-	protected final List<EndPoint> replicas_;
+	protected final List<InetAddress> replicas_;
 	private final ReadCommand readCommand_;
 
-    public ConsistencyManager(Row row, List<EndPoint> replicas, ReadCommand readCommand)
+    public ConsistencyManager(Row row, List<InetAddress> replicas, ReadCommand readCommand)
     {
         row_ = row;
         replicas_ = replicas;
@@ -151,7 +149,7 @@ class ConsistencyManager implements Runnable
 			Message message = readCommandDigestOnly.makeReadMessage();
             if (logger_.isDebugEnabled())
               logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-            MessagingService.instance().sendRR(message, replicas_.toArray(new EndPoint[replicas_.size()]), new DigestResponseHandler());
+            MessagingService.instance().sendRR(message, replicas_.toArray(new InetAddress[replicas_.size()]), new DigestResponseHandler());
 		}
 		catch (IOException ex)
 		{

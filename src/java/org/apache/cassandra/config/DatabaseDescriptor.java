@@ -35,6 +35,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.net.InetAddress;
 
 public class DatabaseDescriptor
 {
@@ -52,12 +53,12 @@ public class DatabaseDescriptor
     private static int controlPort_ = 7001;
     private static int thriftPort_ = 9160;
     private static boolean thriftFramed_ = false;
-    private static String listenAddress_; // leave null so we can fall through to getLocalHost
-    private static String thriftAddress_;
+    private static InetAddress listenAddress_; // leave null so we can fall through to getLocalHost
+    private static InetAddress thriftAddress_;
     private static String clusterName_ = "Test";
     private static int replicationFactor_ = 3;
     private static long rpcTimeoutInMillis_ = 2000;
-    private static Set<String> seeds_ = new HashSet<String>();
+    private static Set<InetAddress> seeds_ = new HashSet<InetAddress>();
     /* Keeps the list of data file directories */
     private static String[] dataFileDirectories_;
     /* Current index into the above list of directories */
@@ -276,12 +277,12 @@ public class DatabaseDescriptor
             /* Local IP or hostname to bind services to */
             String listenAddress = xmlUtils.getNodeValue("/Storage/ListenAddress");
             if ( listenAddress != null)
-                listenAddress_ = listenAddress;
+                listenAddress_ = InetAddress.getByName(listenAddress);
             
             /* Local IP or hostname to bind thrift server to */
             String thriftAddress = xmlUtils.getNodeValue("/Storage/ThriftAddress");
             if ( thriftAddress != null )
-                thriftAddress_ = thriftAddress;
+                thriftAddress_ = InetAddress.getByName(thriftAddress);
             
             /* UDP port for control messages */
             port = xmlUtils.getNodeValue("/Storage/ControlPort");
@@ -538,7 +539,7 @@ public class DatabaseDescriptor
             }
             for( int i = 0; i < seeds.length; ++i )
             {
-                seeds_.add( seeds[i] );
+                seeds_.add(InetAddress.getByName(seeds[i]));
             }
         }
         catch (ConfigurationException e)
@@ -843,7 +844,7 @@ public class DatabaseDescriptor
         logFileDirectory_ = logLocation;
     }
 
-    public static Set<String> getSeeds()
+    public static Set<InetAddress> getSeeds()
     {
         return seeds_;
     }
@@ -918,12 +919,12 @@ public class DatabaseDescriptor
         }
     }
 
-    public static String getListenAddress()
+    public static InetAddress getListenAddress()
     {
         return listenAddress_;
     }
     
-    public static String getThriftAddress()
+    public static InetAddress getThriftAddress()
     {
         return thriftAddress_;
     }

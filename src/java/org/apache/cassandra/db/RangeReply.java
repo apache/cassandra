@@ -26,7 +26,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeReply
 {
@@ -49,7 +49,7 @@ public class RangeReply
             dob.writeUTF(key);
         }
         byte[] data = Arrays.copyOf(dob.getData(), dob.getLength());
-        return originalMessage.getReply(StorageService.getLocalStorageEndPoint(), data);
+        return originalMessage.getReply(FBUtilities.getLocalAddress(), data);
     }
 
     @Override

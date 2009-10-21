@@ -26,10 +26,10 @@ import java.io.IOException;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 
-
-/**
+ /**
  * This class encapsulates the message that needs to be sent
  * to nodes that handoff data. The message contains information
  * about the node to be bootstrapped and the ranges with which
@@ -53,7 +53,7 @@ class BootstrapMetadataMessage
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         BootstrapMetadataMessage.serializer().serialize(bsMetadataMessage, dos);
-        return new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootstrapMetadataVerbHandler_, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), "", StorageService.bootstrapMetadataVerbHandler_, bos.toByteArray() );
     }        
     
     protected BootstrapMetadata[] bsMetadata_ = new BootstrapMetadata[0];

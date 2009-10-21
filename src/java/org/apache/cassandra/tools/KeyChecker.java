@@ -25,7 +25,7 @@ import java.io.RandomAccessFile;
 
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
@@ -40,9 +40,9 @@ public class KeyChecker
      */
     private static boolean checkIfProcessKey(String key)
     {
-        EndPoint[] endPoints = StorageService.instance().getReadStorageEndPoints(key);
-        EndPoint localEndPoint = StorageService.getLocalStorageEndPoint();
-        for(EndPoint endPoint : endPoints)
+        InetAddress[] endPoints = StorageService.instance().getReadStorageEndPoints(key);
+        InetAddress localEndPoint = FBUtilities.getLocalAddress();
+        for(InetAddress endPoint : endPoints)
         {
             if(endPoint.equals(localEndPoint))
                 return true;
@@ -65,7 +65,7 @@ public class KeyChecker
         /* Sleep for proper discovery */
         Thread.sleep(240000);
         /* Create the file for the missing keys */
-        RandomAccessFile raf = new RandomAccessFile( "Missing-" + FBUtilities.getHostAddress() + ".dat", "rw");
+        RandomAccessFile raf = new RandomAccessFile( "Missing-" + FBUtilities.getLocalAddress() + ".dat", "rw");
         
         /* Start reading the file that contains the keys */
         BufferedReader bufReader = new BufferedReader( new InputStreamReader( new FileInputStream(args[0]) ), KeyChecker.bufSize_ );

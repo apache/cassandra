@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 /**
  * Implemented by the Gossiper to either convict/suspect an endpoint
@@ -32,11 +32,11 @@ public interface IFailureDetectionEventListener
      * Convict the specified endpoint.
      * @param ep endpoint to be convicted
      */
-    public void convict(EndPoint ep);
+    public void convict(InetAddress ep);
     
     /**
      * Suspect the specified endpoint.
      * @param ep endpoint to be suspected.
      */
-    public void suspect(EndPoint ep);    
+    public void suspect(InetAddress ep);
 }

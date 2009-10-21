@@ -21,7 +21,7 @@ package org.apache.cassandra.net.sink;
 import java.util.*;
 import java.io.IOException;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 
 public class SinkManager

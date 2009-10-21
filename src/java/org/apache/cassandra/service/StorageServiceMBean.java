@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 
 public interface StorageServiceMBean
@@ -83,17 +83,6 @@ public interface StorageServiceMBean
      * Trigger a cleanup of keys on all tables.
      */
     public void forceTableCleanup() throws IOException;
-
-    /**
-     * Stream the files in the bootstrap directory over to the
-     * node being bootstrapped. This is used in case of normal
-     * bootstrap failure. Use a tool to re-calculate the cardinality
-     * at a later point at the destination.
-     * @param directories colon separated list of directories from where 
-     *                files need to be picked up.
-     * @param target endpoint receiving data.
-    */
-    public void forceHandoff(List<String> directories, String target) throws IOException;
 
     /**
      * Takes the snapshot for a given table.

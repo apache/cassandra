@@ -22,14 +22,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
+import java.net.InetAddress;
+
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.log4j.Logger;
 
 /*
@@ -40,9 +40,9 @@ public final class StreamManager
 {   
     private static Logger logger_ = Logger.getLogger( StreamManager.class );
         
-    private static Map<EndPoint, StreamManager> streamManagers_ = new HashMap<EndPoint, StreamManager>();
+    private static Map<InetAddress, StreamManager> streamManagers_ = new HashMap<InetAddress, StreamManager>();
     
-    public static StreamManager instance(EndPoint to)
+    public static StreamManager instance(InetAddress to)
     {
         StreamManager streamManager = streamManagers_.get(to);
         if ( streamManager == null )
@@ -54,10 +54,10 @@ public final class StreamManager
     }
     
     private List<File> filesToStream_ = new ArrayList<File>();
-    private EndPoint to_;
+    private InetAddress to_;
     private long totalBytesToStream_ = 0L;
     
-    private StreamManager(EndPoint to)
+    private StreamManager(InetAddress to)
     {
         to_ = to;
     }
@@ -80,7 +80,7 @@ public final class StreamManager
             File file = filesToStream_.get(0);
             if (logger_.isDebugEnabled())
               logger_.debug("Streaming file " + file + " ...");
-            MessagingService.instance().stream(file.getAbsolutePath(), 0L, file.length(), StorageService.getLocalStorageEndPoint(), to_);
+            MessagingService.instance().stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to_);
         }
     }
     

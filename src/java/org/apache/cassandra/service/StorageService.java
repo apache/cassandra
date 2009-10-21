@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.net.InetAddress;
 import javax.management.*;
 
 import org.apache.cassandra.concurrent.*;
@@ -34,8 +34,6 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
-import org.apache.cassandra.net.io.StreamContextManager;
-import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -70,27 +68,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String bootStrapInitiateDoneVerbHandler_ = "BOOTSTRAP-INITIATE-DONE-VERB-HANDLER";
     public final static String bootStrapTerminateVerbHandler_ = "BOOTSTRAP-TERMINATE-VERB-HANDLER";
     public final static String dataFileVerbHandler_ = "DATA-FILE-VERB-HANDLER";
-    public final static String mbrshipCleanerVerbHandler_ = "MBRSHIP-CLEANER-VERB-HANDLER";
     public final static String bootstrapMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
     public final static String bootstrapTokenVerbHandler_ = "SPLITS-VERB-HANDLER";
 
-    private static EndPoint tcpAddr_;
-    private static EndPoint udpAddr_;
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
 
-
     private static volatile StorageService instance_;
-
-    public static EndPoint getLocalStorageEndPoint()
-    {
-        return tcpAddr_;
-    }
-
-    public static EndPoint getLocalControlEndPoint()
-    {
-        return udpAddr_;
-    }
 
     public static IPartitioner<?> getPartitioner() {
         return partitioner_;
@@ -98,12 +82,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public Set<Range> getLocalRanges()
     {
-        return getRangesForEndPoint(getLocalStorageEndPoint());
+        return getRangesForEndPoint(FBUtilities.getLocalAddress());
     }
 
     public Range getLocalPrimaryRange()
     {
-        return getPrimaryRangeForEndPoint(getLocalStorageEndPoint());
+        return getPrimaryRangeForEndPoint(FBUtilities.getLocalAddress());
     }
 
     /*
@@ -157,16 +141,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private AbstractReplicationStrategy replicationStrategy_;
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
-    private Set<EndPoint> bootstrapSet;
+    private Set<InetAddress> bootstrapSet;
   
-    public synchronized void addBootstrapSource(EndPoint s)
+    public synchronized void addBootstrapSource(InetAddress s)
     {
         if (logger_.isDebugEnabled())
             logger_.debug("Added " + s + " as a bootstrap source");
         bootstrapSet.add(s);
     }
     
-    public synchronized boolean removeBootstrapSource(EndPoint s)
+    public synchronized boolean removeBootstrapSource(InetAddress s)
     {
         bootstrapSet.remove(s);
 
@@ -176,7 +160,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             SystemTable.setBootstrapped();
             isBootstrapMode = false;
-            updateTokenMetadata(storageMetadata_.getToken(), StorageService.tcpAddr_, false);
+            updateTokenMetadata(storageMetadata_.getToken(), FBUtilities.getLocalAddress(), false);
 
             logger_.info("Bootstrap completed! Now serving reads.");
             /* Tell others you're not bootstrapping anymore */
@@ -185,7 +169,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return isBootstrapMode;
     }
 
-    private void updateTokenMetadata(Token token, EndPoint endpoint, boolean isBootstraping)
+    private void updateTokenMetadata(Token token, InetAddress endpoint, boolean isBootstraping)
     {
         tokenMetadata_.update(token, endpoint, isBootstraping);
         if (!isBootstraping)
@@ -213,7 +197,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             throw new RuntimeException(e);
         }
 
-        bootstrapSet = new HashSet<EndPoint>();
+        bootstrapSet = new HashSet<InetAddress>();
         endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
 
         /* register the verb handlers */
@@ -223,7 +207,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.instance().registerVerbHandlers(readRepairVerbHandler_, new ReadRepairVerbHandler());
         MessagingService.instance().registerVerbHandlers(readVerbHandler_, new ReadVerbHandler());
         MessagingService.instance().registerVerbHandlers(dataFileVerbHandler_, new DataFileVerbHandler() );
-        MessagingService.instance().registerVerbHandlers(mbrshipCleanerVerbHandler_, new MembershipCleanerVerbHandler() );
         MessagingService.instance().registerVerbHandlers(rangeVerbHandler_, new RangeVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
@@ -252,15 +235,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public void start() throws IOException
     {
         storageMetadata_ = SystemTable.initMetadata();
-        tcpAddr_ = new EndPoint(FBUtilities.getHostAddress(), DatabaseDescriptor.getStoragePort());
-        udpAddr_ = new EndPoint(FBUtilities.getHostAddress(), DatabaseDescriptor.getControlPort());
         isBootstrapMode = DatabaseDescriptor.isAutoBootstrap()
-                          && !(DatabaseDescriptor.getSeeds().contains(udpAddr_.getHost()) || SystemTable.isBootstrapped());
+                          && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped());
 
         /* Listen for application messages */
-        MessagingService.instance().listen(tcpAddr_);
+        MessagingService.instance().listen(FBUtilities.getLocalAddress());
         /* Listen for control messages */
-        MessagingService.instance().listenUDP(udpAddr_);
+        MessagingService.instance().listenUDP(FBUtilities.getLocalAddress());
 
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
@@ -271,7 +252,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // for bootstrap to get the load info it needs.
         // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance().register(this);
-        Gossiper.instance().start(udpAddr_, storageMetadata_.getGeneration());
+        Gossiper.instance().start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration());
 
         if (isBootstrapMode)
         {
@@ -280,7 +261,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         else
         {
             SystemTable.setBootstrapped();
-            tokenMetadata_.update(storageMetadata_.getToken(), StorageService.tcpAddr_, isBootstrapMode);
+            tokenMetadata_.update(storageMetadata_.getToken(), FBUtilities.getLocalAddress(), isBootstrapMode);
         }
 
         // Gossip my token.
@@ -301,7 +282,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /* TODO: used for testing */
-    public void updateTokenMetadataUnsafe(Token token, EndPoint endpoint)
+    public void updateTokenMetadataUnsafe(Token token, InetAddress endpoint)
     {
         tokenMetadata_.update(token, endpoint);
     }
@@ -312,13 +293,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
     
     /*
-     * Given an EndPoint this method will report if the
+     * Given an InetAddress this method will report if the
      * endpoint is in the same data center as the local
      * storage endpoint.
     */
-    public boolean isInSameDataCenter(EndPoint endpoint) throws IOException
+    public boolean isInSameDataCenter(InetAddress endpoint) throws IOException
     {
-        return endPointSnitch_.isInSameDataCenter(StorageService.tcpAddr_, endpoint);
+        return endPointSnitch_.isInSameDataCenter(FBUtilities.getLocalAddress(), endpoint);
     }
     
     /*
@@ -326,7 +307,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * sure that the N replicas are in sync. We do this in the
      * background when we do not care much about consistency.
      */
-    public void doConsistencyCheck(Row row, List<EndPoint> endpoints, ReadCommand command)
+    public void doConsistencyCheck(Row row, List<InetAddress> endpoints, ReadCommand command)
     {
         Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, command);
         consistencyManager_.submit(consistencySentinel);
@@ -335,11 +316,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Map<Range, List<String>> getRangeToEndPointMap()
     {
         /* Get the token to endpoint map. */
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         /* All the ranges for the tokens */
         Range[] ranges = getAllRanges(tokenToEndPointMap.keySet());
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
-        for (Map.Entry<Range,List<EndPoint>> entry : constructRangeToEndPointMap(ranges).entrySet())
+        for (Map.Entry<Range,List<InetAddress>> entry : constructRangeToEndPointMap(ranges).entrySet())
         {
             map.put(entry.getKey(), stringify(entry.getValue()));
         }
@@ -352,14 +333,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param ranges
      * @return mapping of ranges to the replicas responsible for them.
     */
-    public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges)
+    public Map<Range, List<InetAddress>> constructRangeToEndPointMap(Range[] ranges)
     {
-        Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
+        Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            EndPoint[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right());
+            InetAddress[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right());
             // create a new ArrayList since a bunch of methods like to mutate the endpointmap List
-            rangeToEndPointMap.put(range, new ArrayList<EndPoint>(Arrays.asList(endpoints)));
+            rangeToEndPointMap.put(range, new ArrayList<InetAddress>(Arrays.asList(endpoints)));
         }
         return rangeToEndPointMap;
     }
@@ -371,15 +352,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param tokenToEndPointMap mapping of token to endpoints.
      * @return mapping of ranges to the replicas responsible for them.
     */
-    public Map<Range, List<EndPoint>> constructRangeToEndPointMap(Range[] ranges, Map<Token, EndPoint> tokenToEndPointMap)
+    public Map<Range, List<InetAddress>> constructRangeToEndPointMap(Range[] ranges, Map<Token, InetAddress> tokenToEndPointMap)
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Constructing range to endpoint map ...");
-        Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
+        Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for ( Range range : ranges )
         {
-            EndPoint[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right(), tokenToEndPointMap);
-            rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
+            InetAddress[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right(), tokenToEndPointMap);
+            rangeToEndPointMap.put(range, new ArrayList<InetAddress>( Arrays.asList(endpoints) ) );
         }
         if (logger_.isDebugEnabled())
           logger_.debug("Done constructing range to endpoint map ...");
@@ -391,9 +372,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      *  we are interested in new tokens as a result of a new node or an
      *  existing node moving to a new location on the ring.
     */
-    public void onChange(EndPoint endpoint, EndPointState epState)
+    public void onChange(InetAddress endpoint, EndPointState epState)
     {
-        EndPoint ep = new EndPoint(endpoint.getHost(), DatabaseDescriptor.getStoragePort());
         /* node identifier for this endpoint on the identifier space */
         ApplicationState nodeIdState = epState.getApplicationState(StorageService.nodeId_);
         /* Check if this has a bootstrapping state message */
@@ -401,14 +381,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (bootstrapState)
         {
             if (logger_.isDebugEnabled())
-                logger_.debug(ep + " is in bootstrap state.");
+                logger_.debug(endpoint + " is in bootstrap state.");
         }
         if (nodeIdState != null)
         {
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
             if (logger_.isDebugEnabled())
               logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + nodeIdState.getState());
-            Token oldToken = tokenMetadata_.getToken(ep);
+            Token oldToken = tokenMetadata_.getToken(endpoint);
 
             if ( oldToken != null )
             {
@@ -421,8 +401,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 if ( !oldToken.equals(newToken) )
                 {
                     if (logger_.isDebugEnabled())
-                      logger_.debug("Relocation for endpoint " + ep);
-                    updateTokenMetadata(newToken, ep, bootstrapState);
+                      logger_.debug("Relocation for endpoint " + endpoint);
+                    updateTokenMetadata(newToken, endpoint, bootstrapState);
                 }
                 else
                 {
@@ -431,7 +411,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                      * Deliver the hints that we have for this endpoint.
                     */
                     if (logger_.isDebugEnabled())
-                      logger_.debug("Sending hinted data to " + ep);
+                      logger_.debug("Sending hinted data to " + endpoint);
                     deliverHints(endpoint);
                 }
             }
@@ -440,7 +420,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 /*
                  * This is a new node and we just update the token map.
                 */
-                updateTokenMetadata(newToken, ep, bootstrapState);
+                updateTokenMetadata(newToken, endpoint, bootstrapState);
             }
         }
         else
@@ -452,8 +432,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             if ( epState.isAlive() && tokenMetadata_.isKnownEndPoint(endpoint) )
             {
                 if (logger_.isDebugEnabled())
-                  logger_.debug("EndPoint " + ep + " just recovered from a partition. Sending hinted data.");
-                deliverHints(ep);
+                  logger_.debug("InetAddress " + endpoint + " just recovered from a partition. Sending hinted data.");
+                deliverHints(endpoint);
             }
         }
     }
@@ -472,15 +452,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Map<String, String> getLoadMap()
     {
         Map<String, String> map = new HashMap<String, String>();
-        for (Map.Entry<EndPoint,Double> entry : StorageLoadBalancer.instance().getLoadInfo().entrySet())
+        for (Map.Entry<InetAddress,Double> entry : StorageLoadBalancer.instance().getLoadInfo().entrySet())
         {
-            map.put(entry.getKey().getHost(), FileUtils.stringifyFileSize(entry.getValue()));
+            map.put(entry.getKey().getHostAddress(), FileUtils.stringifyFileSize(entry.getValue()));
         }
         // gossiper doesn't bother sending to itself, so if there are no other nodes around
         // we need to cheat to get load information for the local node
-        if (!map.containsKey(getLocalControlEndPoint().getHost()))
+        if (!map.containsKey(FBUtilities.getLocalAddress().getHostAddress()))
         {
-            map.put(getLocalControlEndPoint().getHost(), getLoadString());
+            map.put(FBUtilities.getLocalAddress().getHostAddress(), getLoadString());
         }
         return map;
     }
@@ -496,7 +476,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         /* update the token on disk */
         SystemTable.updateToken(token);
         /* Update the token maps */
-        tokenMetadata_.update(token, StorageService.tcpAddr_);
+        tokenMetadata_.update(token, FBUtilities.getLocalAddress());
         /* Gossip this new token for the local storage instance */
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(token));
         Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
@@ -509,7 +489,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      *  @param endpoint remove the token state associated with this 
      *         endpoint.
      */
-    public void removeTokenState(EndPoint endpoint) 
+    public void removeTokenState(InetAddress endpoint)
     {
         tokenMetadata_.remove(endpoint);
         /* Remove the state from the Gossiper */
@@ -520,14 +500,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * Deliver hints to the specified node when it has crashed
      * and come back up/ marked as alive after a network partition
     */
-    public final void deliverHints(EndPoint endpoint)
+    public final void deliverHints(InetAddress endpoint)
     {
         HintedHandOffManager.instance().deliverHints(endpoint);
     }
 
     public Token getLocalToken()
     {
-        return tokenMetadata_.getToken(tcpAddr_);
+        return tokenMetadata_.getToken(FBUtilities.getLocalAddress());
     }
 
     /* This methods belong to the MBean interface */
@@ -547,29 +527,29 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return stringify(Gossiper.instance().getUnreachableMembers());
     }
 
-    private Set<String> stringify(Set<EndPoint> endPoints)
+    private Set<String> stringify(Set<InetAddress> endPoints)
     {
         Set<String> stringEndPoints = new HashSet<String>();
-        for (EndPoint ep : endPoints)
+        for (InetAddress ep : endPoints)
         {
-            stringEndPoints.add(ep.getHost());
+            stringEndPoints.add(ep.getHostAddress());
         }
         return stringEndPoints;
     }
 
-    private List<String> stringify(List<EndPoint> endPoints)
+    private List<String> stringify(List<InetAddress> endPoints)
     {
         List<String> stringEndPoints = new ArrayList<String>();
-        for (EndPoint ep : endPoints)
+        for (InetAddress ep : endPoints)
         {
-            stringEndPoints.add(ep.getHost());
+            stringEndPoints.add(ep.getHostAddress());
         }
         return stringEndPoints;
     }
 
     public int getCurrentGenerationNumber()
     {
-        return Gossiper.instance().getCurrentGenerationNumber(udpAddr_);
+        return Gossiper.instance().getCurrentGenerationNumber(FBUtilities.getLocalAddress());
     }
 
     public void forceTableCleanup() throws IOException
@@ -590,51 +570,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Table table = Table.open(tName);
             table.forceCompaction();
         }        
-    }
-    
-    public void forceHandoff(List<String> dataDirectories, String host) throws IOException
-    {       
-        List<File> filesList = new ArrayList<File>();
-        List<StreamContextManager.StreamContext> streamContexts = new ArrayList<StreamContextManager.StreamContext>();
-        
-        for (String dataDir : dataDirectories)
-        {
-            File directory = new File(dataDir);
-            Collections.addAll(filesList, directory.listFiles());            
-        
-
-            for (File tableDir : directory.listFiles())
-            {
-                String tableName = tableDir.getName();
-
-                for (File file : tableDir.listFiles())
-                {
-                    streamContexts.add(new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), tableName));
-                    if (logger_.isDebugEnabled())
-                      logger_.debug("Stream context metadata " + streamContexts);
-                }
-            }
-        }
-        
-        if ( streamContexts.size() > 0 )
-        {
-            EndPoint target = new EndPoint(host, DatabaseDescriptor.getStoragePort());
-            /* Set up the stream manager with the files that need to streamed */
-            final StreamContextManager.StreamContext[] contexts = streamContexts.toArray(new StreamContextManager.StreamContext[streamContexts.size()]);
-            StreamManager.instance(target).addFilesToStream(contexts);
-            /* Send the bootstrap initiate message */
-            final StreamContextManager.StreamContext[] bootContexts = streamContexts.toArray(new StreamContextManager.StreamContext[streamContexts.size()]);
-            BootstrapInitiateMessage biMessage = new BootstrapInitiateMessage(bootContexts);
-            Message message = BootstrapInitiateMessage.makeBootstrapInitiateMessage(biMessage);
-            if (logger_.isDebugEnabled())
-              logger_.debug("Sending a bootstrap initiate message to " + target + " ...");
-            MessagingService.instance().sendOneWay(message, target);
-            if (logger_.isDebugEnabled())
-              logger_.debug("Waiting for transfer to " + target + " to complete");
-            StreamManager.instance(target).waitForStreamCompletion();
-            if (logger_.isDebugEnabled())
-              logger_.debug("Done with transfer to " + target);  
-        }
     }
 
     /**
@@ -705,7 +640,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method returns the predecessor of the endpoint ep on the identifier
      * space.
      */
-    EndPoint getPredecessor(EndPoint ep)
+    InetAddress getPredecessor(InetAddress ep)
     {
         Token token = tokenMetadata_.getToken(ep);
         return tokenMetadata_.getEndPoint(replicationStrategy_.getPredecessor(token, tokenMetadata_.cloneTokenEndPointMap()));
@@ -715,7 +650,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This method returns the successor of the endpoint ep on the identifier
      * space.
      */
-    public EndPoint getSuccessor(EndPoint ep)
+    public InetAddress getSuccessor(InetAddress ep)
     {
         Token token = tokenMetadata_.getToken(ep);
         return tokenMetadata_.getEndPoint(replicationStrategy_.getSuccessor(token, tokenMetadata_.cloneTokenEndPointMap()));
@@ -726,7 +661,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param ep endpoint we are interested in.
      * @return range for the specified endpoint.
      */
-    public Range getPrimaryRangeForEndPoint(EndPoint ep)
+    public Range getPrimaryRangeForEndPoint(InetAddress ep)
     {
         Token right = tokenMetadata_.getToken(ep);
         return replicationStrategy_.getPrimaryRangeFor(right, tokenMetadata_.cloneTokenEndPointMap());
@@ -737,7 +672,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param ep endpoint we are interested in.
      * @return ranges for the specified endpoint.
      */
-    Set<Range> getRangesForEndPoint(EndPoint ep)
+    Set<Range> getRangesForEndPoint(InetAddress ep)
     {
         return replicationStrategy_.getRangeMap().get(ep);
     }
@@ -771,11 +706,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint
      * @return value - the endpoint responsible for this key
      */
-    public EndPoint getPrimary(String key)
+    public InetAddress getPrimary(String key)
     {
-        EndPoint endpoint = StorageService.tcpAddr_;
+        InetAddress endpoint = FBUtilities.getLocalAddress();
         Token token = partitioner_.getToken(key);
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         if (tokens.size() > 0)
         {
@@ -809,8 +744,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public boolean isPrimary(String key)
     {
-        EndPoint endpoint = getPrimary(key);
-        return StorageService.tcpAddr_.equals(endpoint);
+        InetAddress endpoint = getPrimary(key);
+        return FBUtilities.getLocalAddress().equals(endpoint);
     }
 
     /**
@@ -820,7 +755,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public EndPoint[] getReadStorageEndPoints(String key)
+    public InetAddress[] getReadStorageEndPoints(String key)
     {
         return replicationStrategy_.getReadStorageEndPoints(partitioner_.getToken(key));
     }    
@@ -832,12 +767,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<EndPoint> getLiveReadStorageEndPoints(String key)
+    public List<InetAddress> getLiveReadStorageEndPoints(String key)
     {
-    	List<EndPoint> liveEps = new ArrayList<EndPoint>();
-    	EndPoint[] endpoints = getReadStorageEndPoints(key);
+    	List<InetAddress> liveEps = new ArrayList<InetAddress>();
+    	InetAddress[] endpoints = getReadStorageEndPoints(key);
     	
-    	for ( EndPoint endpoint : endpoints )
+    	for ( InetAddress endpoint : endpoints )
     	{
     		if ( FailureDetector.instance().isAlive(endpoint) )
     			liveEps.add(endpoint);
@@ -853,7 +788,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public Map<EndPoint, EndPoint> getHintedStorageEndpointMap(String key, EndPoint[] naturalEndpoints)
+    public Map<InetAddress, InetAddress> getHintedStorageEndpointMap(String key, InetAddress[] naturalEndpoints)
     {
         return replicationStrategy_.getHintedStorageEndPoints(partitioner_.getToken(key), naturalEndpoints);
     }
@@ -862,12 +797,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This function finds the most suitable endpoint given a key.
      * It checks for locality and alive test.
      */
-	public EndPoint findSuitableEndPoint(String key) throws IOException, UnavailableException
+	public InetAddress findSuitableEndPoint(String key) throws IOException, UnavailableException
 	{
-		EndPoint[] endpoints = getReadStorageEndPoints(key);
-		for(EndPoint endPoint: endpoints)
+		InetAddress[] endpoints = getReadStorageEndPoints(key);
+		for(InetAddress endPoint: endpoints)
 		{
-			if(endPoint.equals(StorageService.getLocalStorageEndPoint()))
+            if(endPoint.equals(FBUtilities.getLocalAddress()))
 			{
 				return endPoint;
 			}
@@ -889,7 +824,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 			if ( FailureDetector.instance().isAlive(endpoints[j]))
 			{
 				if (logger_.isDebugEnabled())
-				  logger_.debug("EndPoint " + endpoints[j] + " is alive so get data from it.");
+				  logger_.debug("InetAddress " + endpoints[j] + " is alive so get data from it.");
 				return endpoints[j];
 			}
 		}
@@ -897,7 +832,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         throw new UnavailableException(); // no nodes that could contain key are alive
 	}
 
-	Map<Token, EndPoint> getLiveEndPointMap()
+	Map<Token, InetAddress> getLiveEndPointMap()
 	{
 	    return tokenMetadata_.cloneTokenEndPointMap();
 	}

@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 
 import java.io.*;
 import java.net.SocketException;
+import java.net.InetAddress;
 
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.LogUtil;
@@ -32,10 +33,10 @@ class FileStreamTask implements Runnable
     private String file_;
     private long startPosition_;
     private long total_;
-    private EndPoint from_;
-    private EndPoint to_;
+    private InetAddress from_;
+    private InetAddress to_;
     
-    FileStreamTask(String file, long startPosition, long total, EndPoint from, EndPoint to)
+    FileStreamTask(String file, long startPosition, long total, InetAddress from, InetAddress to)
     {
         file_ = file;
         startPosition_ = startPosition;

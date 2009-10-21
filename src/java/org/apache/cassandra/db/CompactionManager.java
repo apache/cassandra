@@ -34,7 +34,7 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 public class CompactionManager implements CompactionManagerMBean
 {
@@ -75,9 +75,9 @@ public class CompactionManager implements CompactionManagerMBean
     {
         private ColumnFamilyStore columnFamilyStore_;
         private List<Range> ranges_;
-        private EndPoint target_;
+        private InetAddress target_;
 
-        FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target)
+        FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges, InetAddress target)
         {
             columnFamilyStore_ = columnFamilyStore;
             ranges_ = ranges;
@@ -187,7 +187,7 @@ public class CompactionManager implements CompactionManagerMBean
         compactor_.submit(new CleanupCompactor(columnFamilyStore));
     }
 
-    public Future<List<SSTableReader>> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges, EndPoint target)
+    public Future<List<SSTableReader>> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges, InetAddress target)
     {
         return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges, target) );
     }

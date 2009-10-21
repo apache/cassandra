@@ -31,13 +31,13 @@ package org.apache.cassandra.dht;
  import java.io.IOException;
  import java.io.UnsupportedEncodingException;
  import java.io.File;
+ import java.net.InetAddress;
 
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
 
  import org.apache.cassandra.locator.TokenMetadata;
- import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;
  import org.apache.cassandra.net.io.StreamContextManager;
  import org.apache.cassandra.net.io.IStreamComplete;
@@ -77,12 +77,12 @@ public class BootStrapper implements Runnable
     private static final ExecutorService bootstrapExecutor_ = new DebuggableThreadPoolExecutor("BOOT-STRAPPER");
 
     /* endpoints that need to be bootstrapped */
-    protected EndPoint[] targets_ = new EndPoint[0];
+    protected InetAddress[] targets_ = new InetAddress[0];
     /* tokens of the nodes being bootstrapped. */
     protected final Token[] tokens_;
     protected TokenMetadata tokenMetadata_ = null;
 
-    public BootStrapper(EndPoint[] target, Token... token)
+    public BootStrapper(InetAddress[] target, Token... token)
     {
         targets_ = target;
         tokens_ = token;
@@ -116,7 +116,7 @@ public class BootStrapper implements Runnable
     Map<Range, List<BootstrapSourceTarget>> getRangesWithSourceTarget()
     {
         /* copy the token to endpoint map */
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         /* remove the tokens associated with the endpoints being bootstrapped */                
         for (Token token : tokens_)
         {
@@ -133,9 +133,9 @@ public class BootStrapper implements Runnable
         */                
         Map<Range, List<Range>> splitRanges = LeaveJoinProtocolHelper.getRangeSplitRangeMapping(oldRanges, tokens_);                                                      
         /* Calculate the list of nodes that handle the old ranges */
-        Map<Range, List<EndPoint>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges, tokenToEndPointMap);
+        Map<Range, List<InetAddress>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges, tokenToEndPointMap);
         /* Mapping of split ranges to the list of endpoints responsible for the range */                
-        Map<Range, List<EndPoint>> replicasForSplitRanges = new HashMap<Range, List<EndPoint>>();                                
+        Map<Range, List<InetAddress>> replicasForSplitRanges = new HashMap<Range, List<InetAddress>>();
         Set<Range> rangesSplit = splitRanges.keySet();                
         for ( Range splitRange : rangesSplit )
         {
@@ -151,11 +151,11 @@ public class BootStrapper implements Runnable
         for ( Range splitRange : rangesSplit )
         {
             List<Range> subRanges = splitRanges.get(splitRange);
-            List<EndPoint> replicas = replicasForSplitRanges.get(splitRange);
+            List<InetAddress> replicas = replicasForSplitRanges.get(splitRange);
             for ( Range subRange : subRanges )
             {
                 /* Make sure we clone or else we are hammered. */
-                oldRangeToEndPointMap.put(subRange, new ArrayList<EndPoint>(replicas));
+                oldRangeToEndPointMap.put(subRange, new ArrayList<InetAddress>(replicas));
             }
         }                
         
@@ -166,15 +166,15 @@ public class BootStrapper implements Runnable
         if (logger_.isDebugEnabled())
           logger_.debug("Total number of new ranges " + newRanges.length);
         /* Calculate the list of nodes that handle the new ranges */
-        Map<Range, List<EndPoint>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges);
+        Map<Range, List<InetAddress>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges);
         /* Calculate ranges that need to be sent and from whom to where */
         Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = LeaveJoinProtocolHelper.getRangeSourceTargetInfo(oldRangeToEndPointMap, newRangeToEndPointMap);
         return rangesWithSourceTarget;
     }
 
-    private static Token<?> getBootstrapTokenFrom(EndPoint maxEndpoint)
+    private static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
     {
-        Message message = new Message(StorageService.getLocalStorageEndPoint(), "", StorageService.bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
+        Message message = new Message(FBUtilities.getLocalAddress(), "", StorageService.bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
         BootstrapTokenCallback btc = new BootstrapTokenCallback();
         MessagingService.instance().sendRR(message, maxEndpoint, btc);
         return btc.getToken();
@@ -193,8 +193,8 @@ public class BootStrapper implements Runnable
         if (DatabaseDescriptor.getInitialToken() == null)
         {
             double maxLoad = 0;
-            EndPoint maxEndpoint = null;
-            for (Map.Entry<EndPoint,Double> entry : slb.getLoadInfo().entrySet())
+            InetAddress maxEndpoint = null;
+            for (Map.Entry<InetAddress,Double> entry : slb.getLoadInfo().entrySet())
             {
                 if (maxEndpoint == null || entry.getValue() > maxLoad)
                 {
@@ -207,16 +207,15 @@ public class BootStrapper implements Runnable
                 throw new RuntimeException("No bootstrap sources found");
             }
 
-            if (!maxEndpoint.equals(StorageService.getLocalStorageEndPoint()))
+            if (!maxEndpoint.equals(FBUtilities.getLocalAddress()))
             {
-                EndPoint maxStorageEndpoint = new EndPoint(maxEndpoint.getHost(), DatabaseDescriptor.getStoragePort());
-                Token<?> t = getBootstrapTokenFrom(maxStorageEndpoint);
+                Token<?> t = getBootstrapTokenFrom(maxEndpoint);
                 logger_.info("Setting token to " + t + " to assume load from " + maxEndpoint);
                 ss.updateToken(t);
             }
         }
 
-        BootStrapper bs = new BootStrapper(new EndPoint[] {StorageService.getLocalStorageEndPoint()}, ss.getLocalToken());
+        BootStrapper bs = new BootStrapper(new InetAddress[] { FBUtilities.getLocalAddress() }, ss.getLocalToken());
         bootstrapExecutor_.submit(bs);
         Gossiper.instance().addApplicationState(StorageService.BOOTSTRAP_MODE, new ApplicationState(""));
     }
@@ -231,7 +230,7 @@ public class BootStrapper implements Runnable
             Message response;
             try
             {
-                response = message.getReply(ss.getLocalStorageEndPoint(), tokens.get(1).getBytes("UTF-8"));
+                response = message.getReply(FBUtilities.getLocalAddress(), tokens.get(1).getBytes("UTF-8"));
             }
             catch (UnsupportedEncodingException e)
             {
@@ -319,14 +318,14 @@ public class BootStrapper implements Runnable
                     if (logger_.isDebugEnabled())
                       logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);
-                    addStreamContext(message.getFrom().getHost(), streamContext, streamStatus);
+                    addStreamContext(message.getFrom(), streamContext, streamStatus);
                 }
 
-                StreamContextManager.registerStreamCompletionHandler(message.getFrom().getHost(), new BootstrapCompletionHandler());
+                StreamContextManager.registerStreamCompletionHandler(message.getFrom(), new BootstrapCompletionHandler());
                 /* Send a bootstrap initiation done message to execute on default stage. */
                 if (logger_.isDebugEnabled())
                   logger_.debug("Sending a bootstrap initiate done message ...");
-                Message doneMessage = new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
+                Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
                 MessagingService.instance().sendOneWay(doneMessage, message.getFrom());
             }
             catch ( IOException ex )
@@ -384,7 +383,7 @@ public class BootStrapper implements Runnable
             return fileNames;
         }
 
-        private void addStreamContext(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
+        private void addStreamContext(InetAddress host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
         {
             if (logger_.isDebugEnabled())
               logger_.debug("Adding stream context " + streamContext + " for " + host + " ...");
@@ -400,7 +399,7 @@ public class BootStrapper implements Runnable
     */
     private static class BootstrapCompletionHandler implements IStreamComplete
     {
-        public void onStreamCompletion(String host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus) throws IOException
+        public void onStreamCompletion(InetAddress host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus) throws IOException
         {
             /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
             if (streamContext.getTargetFile().contains("-Data.db"))
@@ -426,16 +425,15 @@ public class BootStrapper implements Runnable
                 }
             }
 
-            EndPoint to = new EndPoint(host, DatabaseDescriptor.getStoragePort());
             if (logger_.isDebugEnabled())
-              logger_.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + to);
+              logger_.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + host);
             /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
             StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
             Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
-            MessagingService.instance().sendOneWay(message, to);
+            MessagingService.instance().sendOneWay(message, host);
             /* If we're done with everything for this host, remove from bootstrap sources */
-            if (StreamContextManager.isDone(to.getHost()))
-                StorageService.instance().removeBootstrapSource(to);
+            if (StreamContextManager.isDone(host))
+                StorageService.instance().removeBootstrapSource(host);
         }
     }
 

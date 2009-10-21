@@ -36,7 +36,7 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -105,9 +105,9 @@ public class RowMutation implements Serializable
         return modifications_.values();
     }
 
-    void addHints(String key, String host) throws IOException
+    void addHints(String key, byte[] host) throws IOException
     {
-        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, key.getBytes("UTF-8"), host.getBytes("UTF-8"));
+        QueryPath path = new QueryPath(HintedHandOffManager.HINTS_CF, key.getBytes("UTF-8"), host);
         add(path, ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis());
     }
 
@@ -224,9 +224,7 @@ public class RowMutation implements Serializable
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos);
-        EndPoint local = StorageService.getLocalStorageEndPoint();
-        EndPoint from = (local != null) ? local : new EndPoint(FBUtilities.getHostAddress(), 7000);
-        return new Message(from, StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
     }
 
     public static RowMutation getRowMutation(String table, String key, Map<String, List<ColumnOrSuperColumn>> cfmap)

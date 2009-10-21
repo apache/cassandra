@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 
 
@@ -42,20 +42,20 @@ class GossipDigestAckMessage
     }
     
     List<GossipDigest> gDigestList_ = new ArrayList<GossipDigest>();
-    Map<EndPoint, EndPointState> epStateMap_ = new HashMap<EndPoint, EndPointState>();
+    Map<InetAddress, EndPointState> epStateMap_ = new HashMap<InetAddress, EndPointState>();
     
     static ICompactSerializer<GossipDigestAckMessage> serializer()
     {
         return serializer_;
     }
     
-    GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<EndPoint, EndPointState> epStateMap)
+    GossipDigestAckMessage(List<GossipDigest> gDigestList, Map<InetAddress, EndPointState> epStateMap)
     {
         gDigestList_ = gDigestList;
         epStateMap_ = epStateMap;
     }
     
-    void addGossipDigest(EndPoint ep, int generation, int version)
+    void addGossipDigest(InetAddress ep, int generation, int version)
     {
         gDigestList_.add( new GossipDigest(ep, generation, version) );
     }
@@ -65,7 +65,7 @@ class GossipDigestAckMessage
         return gDigestList_;
     }
     
-    Map<EndPoint, EndPointState> getEndPointStateMap()
+    Map<InetAddress, EndPointState> getEndPointStateMap()
     {
         return epStateMap_;
     }
@@ -87,7 +87,7 @@ class GossipDigestAckMessageSerializer implements ICompactSerializer<GossipDiges
 
     public GossipDigestAckMessage deserialize(DataInputStream dis) throws IOException
     {
-        Map<EndPoint, EndPointState> epStateMap = new HashMap<EndPoint, EndPointState>();
+        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>();
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(dis);                
         boolean bContinue = dis.readBoolean();
 

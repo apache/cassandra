@@ -27,7 +27,6 @@ import java.io.Serializable;
 import javax.xml.bind.annotation.XmlElement;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -52,9 +51,7 @@ public class RowMutationMessage implements Serializable
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         RowMutationMessage.serializer().serialize(this, dos);
-        EndPoint local = StorageService.getLocalStorageEndPoint();
-        EndPoint from = ( local != null ) ? local : new EndPoint(FBUtilities.getHostAddress(), 7000);
-        return new Message(from, StorageService.mutationStage_, verbHandlerName, bos.toByteArray());         
+        return new Message(FBUtilities.getLocalAddress(), StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
     }
     
     @XmlElement(name="RowMutation")

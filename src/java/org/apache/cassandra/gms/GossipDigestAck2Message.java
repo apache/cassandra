@@ -23,7 +23,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.*;
 
 
@@ -40,19 +40,19 @@ class GossipDigestAck2Message
         serializer_ = new GossipDigestAck2MessageSerializer();
     }
     
-    Map<EndPoint, EndPointState> epStateMap_ = new HashMap<EndPoint, EndPointState>();
+    Map<InetAddress, EndPointState> epStateMap_ = new HashMap<InetAddress, EndPointState>();
 
     public static ICompactSerializer<GossipDigestAck2Message> serializer()
     {
         return serializer_;
     }
     
-    GossipDigestAck2Message(Map<EndPoint, EndPointState> epStateMap)
+    GossipDigestAck2Message(Map<InetAddress, EndPointState> epStateMap)
     {
         epStateMap_ = epStateMap;
     }
         
-    Map<EndPoint, EndPointState> getEndPointStateMap()
+    Map<InetAddress, EndPointState> getEndPointStateMap()
     {
          return epStateMap_;
     }
@@ -68,7 +68,7 @@ class GossipDigestAck2MessageSerializer implements ICompactSerializer<GossipDige
 
     public GossipDigestAck2Message deserialize(DataInputStream dis) throws IOException
     {
-        Map<EndPoint, EndPointState> epStateMap = EndPointStatesSerializationHelper.deserialize(dis);
+        Map<InetAddress, EndPointState> epStateMap = EndPointStatesSerializationHelper.deserialize(dis);
         return new GossipDigestAck2Message(epStateMap);        
     }
 }

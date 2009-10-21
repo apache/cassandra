@@ -24,12 +24,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.net.io.*;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class BootstrapInitiateMessage implements Serializable
 {
@@ -50,7 +49,7 @@ public class BootstrapInitiateMessage implements Serializable
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         BootstrapInitiateMessage.serializer().serialize(biMessage, dos);
-        return new Message( StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapInitiateVerbHandler_, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), "", StorageService.bootStrapInitiateVerbHandler_, bos.toByteArray() );
     }
     
     protected StreamContextManager.StreamContext[] streamContexts_ = new StreamContextManager.StreamContext[0];

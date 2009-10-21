@@ -24,10 +24,13 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
+import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.log4j.Logger;
 
 public class StreamContextManager
@@ -42,7 +45,6 @@ public class StreamContextManager
     
     public static class StreamContext implements Serializable
     {
-        private static Logger logger_ = Logger.getLogger(StreamContextManager.StreamContext.class);
         private static ICompactSerializer<StreamContext> serializer_;
         
         static
@@ -218,7 +220,7 @@ public class StreamContextManager
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream( bos );
             StreamStatusMessage.serializer().serialize(streamStatusMessage, dos);
-            return new Message(StorageService.getLocalStorageEndPoint(), "", StorageService.bootStrapTerminateVerbHandler_, bos.toByteArray());
+            return new Message(FBUtilities.getLocalAddress(), "", StorageService.bootStrapTerminateVerbHandler_, bos.toByteArray());
         }
         
         protected StreamContextManager.StreamStatus streamStatus_;
@@ -249,13 +251,13 @@ public class StreamContextManager
     }
         
     /* Maintain a stream context per host that is the source of the stream */
-    public static final Map<String, List<StreamContext>> ctxBag_ = new Hashtable<String, List<StreamContext>>();  
+    public static final Map<InetAddress, List<StreamContext>> ctxBag_ = new Hashtable<InetAddress, List<StreamContext>>();
     /* Maintain in this map the status of the streams that need to be sent back to the source */
-    public static final Map<String, List<StreamStatus>> streamStatusBag_ = new Hashtable<String, List<StreamStatus>>();
+    public static final Map<InetAddress, List<StreamStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<StreamStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
-    public static final Map<String, IStreamComplete> streamNotificationHandlers_ = new HashMap<String, IStreamComplete>();
+    public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
     
-    public synchronized static StreamContext getStreamContext(String key)
+    public synchronized static StreamContext getStreamContext(InetAddress key)
     {        
         List<StreamContext> context = ctxBag_.get(key);
         if ( context == null )
@@ -266,7 +268,7 @@ public class StreamContextManager
         return streamContext;
     }
     
-    public synchronized static StreamStatus getStreamStatus(String key)
+    public synchronized static StreamStatus getStreamStatus(InetAddress key)
     {
         List<StreamStatus> status = streamStatusBag_.get(key);
         if ( status == null )
@@ -281,27 +283,27 @@ public class StreamContextManager
      * This method helps determine if the StreamCompletionHandler needs
      * to be invoked for the data being streamed from a source. 
     */
-    public synchronized static boolean isDone(String key)
+    public synchronized static boolean isDone(InetAddress key)
     {
         return (ctxBag_.get(key) == null);
     }
     
-    public synchronized static IStreamComplete getStreamCompletionHandler(String key)
+    public synchronized static IStreamComplete getStreamCompletionHandler(InetAddress key)
     {
         return streamNotificationHandlers_.get(key);
     }
     
-    public synchronized static void removeStreamCompletionHandler(String key)
+    public synchronized static void removeStreamCompletionHandler(InetAddress key)
     {
         streamNotificationHandlers_.remove(key);
     }
     
-    public synchronized static void registerStreamCompletionHandler(String key, IStreamComplete streamComplete)
+    public synchronized static void registerStreamCompletionHandler(InetAddress key, IStreamComplete streamComplete)
     {
         streamNotificationHandlers_.put(key, streamComplete);
     }
     
-    public synchronized static void addStreamContext(String key, StreamContext streamContext, StreamStatus streamStatus)
+    public synchronized static void addStreamContext(InetAddress key, StreamContext streamContext, StreamStatus streamStatus)
     {
         /* Record the stream context */
         List<StreamContext> context = ctxBag_.get(key);        

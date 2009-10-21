@@ -29,7 +29,7 @@ package org.apache.cassandra.dht;
  import org.apache.log4j.Logger;
 
  import org.apache.cassandra.locator.TokenMetadata;
- import org.apache.cassandra.net.EndPoint;
+ import java.net.InetAddress;
  import org.apache.cassandra.service.StorageService;
  import org.apache.cassandra.utils.LogUtil;
 
@@ -45,13 +45,13 @@ public class LeaveJoinProtocolImpl implements Runnable
     private static Logger logger_ = Logger.getLogger(LeaveJoinProtocolImpl.class);    
     
     /* endpoints that are to be moved. */
-    protected EndPoint[] targets_ = new EndPoint[0];
+    protected InetAddress[] targets_ = new InetAddress[0];
     /* position where they need to be moved */
     protected final Token[] tokens_;
     /* token metadata information */
     protected TokenMetadata tokenMetadata_ = null;
 
-    public LeaveJoinProtocolImpl(EndPoint[] targets, Token[] tokens)
+    public LeaveJoinProtocolImpl(InetAddress[] targets, Token[] tokens)
     {
         targets_ = targets;
         tokens_ = tokens;
@@ -65,16 +65,16 @@ public class LeaveJoinProtocolImpl implements Runnable
             if (logger_.isDebugEnabled())
               logger_.debug("Beginning leave/join process for ...");                                                               
             /* copy the token to endpoint map */
-            Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+            Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
             /* copy the endpoint to token map */
-            Map<EndPoint, Token> endpointToTokenMap = tokenMetadata_.cloneEndPointTokenMap();
+            Map<InetAddress, Token> endpointToTokenMap = tokenMetadata_.cloneEndPointTokenMap();
             
             Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
             Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
             if (logger_.isDebugEnabled())
               logger_.debug("Total number of old ranges " + oldRanges.length);
             /* Calculate the list of nodes that handle the old ranges */
-            Map<Range, List<EndPoint>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges);
+            Map<Range, List<InetAddress>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges);
             
             /* Remove the tokens of the nodes leaving the ring */
             Set<Token> tokens = getTokensForLeavingNodes();
@@ -98,7 +98,7 @@ public class LeaveJoinProtocolImpl implements Runnable
                 tokenToEndPointMap.put(tokens_[i], targets_[i]);
             }            
             /* Calculate the list of nodes that handle the new ranges */            
-            Map<Range, List<EndPoint>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges, tokenToEndPointMap);
+            Map<Range, List<InetAddress>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges, tokenToEndPointMap);
             /* Remove any expanded ranges and replace them with ranges whose aggregate is the expanded range in the new configuration. */
             removeExpandedRangesFromNewConfiguration(newRangeToEndPointMap, expandedRangeToOldRangeMap);
             /* Calculate ranges that need to be sent and from whom to where */
@@ -132,7 +132,7 @@ public class LeaveJoinProtocolImpl implements Runnable
      * @param rangesAfterNodesJoin ranges after the nodes have joined at
      *        their respective position.
      */
-    private void addSplitRangesToOldConfiguration(Map<Range, List<EndPoint>> oldRangeToEndPointMap, Range[] rangesAfterNodesJoin)
+    private void addSplitRangesToOldConfiguration(Map<Range, List<InetAddress>> oldRangeToEndPointMap, Range[] rangesAfterNodesJoin)
     {
         /* 
          * Find the ranges that are split. Maintain a mapping between
@@ -140,7 +140,7 @@ public class LeaveJoinProtocolImpl implements Runnable
         */                
         Map<Range, List<Range>> splitRanges = LeaveJoinProtocolHelper.getRangeSplitRangeMapping(oldRangeToEndPointMap.keySet().toArray( new Range[0] ), tokens_);
         /* Mapping of split ranges to the list of endpoints responsible for the range */                
-        Map<Range, List<EndPoint>> replicasForSplitRanges = new HashMap<Range, List<EndPoint>>();                                
+        Map<Range, List<InetAddress>> replicasForSplitRanges = new HashMap<Range, List<InetAddress>>();
         Set<Range> rangesSplit = splitRanges.keySet();                
         for ( Range splitRange : rangesSplit )
         {
@@ -156,11 +156,11 @@ public class LeaveJoinProtocolImpl implements Runnable
         for ( Range splitRange : rangesSplit )
         {
             List<Range> subRanges = splitRanges.get(splitRange);
-            List<EndPoint> replicas = replicasForSplitRanges.get(splitRange);
+            List<InetAddress> replicas = replicasForSplitRanges.get(splitRange);
             for ( Range subRange : subRanges )
             {
                 /* Make sure we clone or else we are hammered. */
-                oldRangeToEndPointMap.put(subRange, new ArrayList<EndPoint>(replicas));
+                oldRangeToEndPointMap.put(subRange, new ArrayList<InetAddress>(replicas));
             }
         }
     }
@@ -175,10 +175,10 @@ public class LeaveJoinProtocolImpl implements Runnable
      * @param expandedRangeToOldRangeMap mapping between the expanded ranges
      *        and the ranges whose aggregate is the expanded range.
      */
-    private void removeExpandedRangesFromNewConfiguration(Map<Range, List<EndPoint>> newRangeToEndPointMap, Map<Range, List<Range>> expandedRangeToOldRangeMap)
+    private void removeExpandedRangesFromNewConfiguration(Map<Range, List<InetAddress>> newRangeToEndPointMap, Map<Range, List<Range>> expandedRangeToOldRangeMap)
     {
         /* Get the replicas for the expanded ranges */
-        Map<Range, List<EndPoint>> replicasForExpandedRanges = new HashMap<Range, List<EndPoint>>();
+        Map<Range, List<InetAddress>> replicasForExpandedRanges = new HashMap<Range, List<InetAddress>>();
         Set<Range> expandedRanges = expandedRangeToOldRangeMap.keySet();
         for ( Range expandedRange : expandedRanges )
         {            
@@ -189,10 +189,10 @@ public class LeaveJoinProtocolImpl implements Runnable
         for ( Range expandedRange : expandedRanges )
         {
             List<Range> subRanges = expandedRangeToOldRangeMap.get(expandedRange);
-            List<EndPoint> replicas = replicasForExpandedRanges.get(expandedRange);          
+            List<InetAddress> replicas = replicasForExpandedRanges.get(expandedRange);
             for ( Range subRange : subRanges )
             {
-                newRangeToEndPointMap.put(subRange, new ArrayList<EndPoint>(replicas));
+                newRangeToEndPointMap.put(subRange, new ArrayList<InetAddress>(replicas));
             }
         }        
     }
@@ -200,7 +200,7 @@ public class LeaveJoinProtocolImpl implements Runnable
     private Set<Token> getTokensForLeavingNodes()
     {
         Set<Token> tokens = new HashSet<Token>();
-        for ( EndPoint target : targets_ )
+        for ( InetAddress target : targets_ )
         {
             tokens.add(tokenMetadata_.getToken(target));
         }        
@@ -277,16 +277,16 @@ public class LeaveJoinProtocolImpl implements Runnable
     public static void main(String[] args) throws Throwable
     {
         StorageService ss = StorageService.instance();
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("3"), new EndPoint("A", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("6"), new EndPoint("B", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("9"), new EndPoint("C", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("12"), new EndPoint("D", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("15"), new EndPoint("E", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("18"), new EndPoint("F", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("21"), new EndPoint("G", 7000));
-        ss.updateTokenMetadataUnsafe(new BigIntegerToken("24"), new EndPoint("H", 7000));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("3"), InetAddress.getByName("A"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("6"), InetAddress.getByName("B"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("9"), InetAddress.getByName("C"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("12"), InetAddress.getByName("D"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("15"), InetAddress.getByName("E"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("18"), InetAddress.getByName("F"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("21"), InetAddress.getByName("G"));
+        ss.updateTokenMetadataUnsafe(new BigIntegerToken("24"), InetAddress.getByName("H"));
         
-        Runnable runnable = new LeaveJoinProtocolImpl( new EndPoint[]{new EndPoint("C", 7000), new EndPoint("D", 7000)}, new Token[]{new BigIntegerToken("22"), new BigIntegerToken("23")} );
+        Runnable runnable = new LeaveJoinProtocolImpl( new InetAddress[]{InetAddress.getByName("C"), InetAddress.getByName("D")}, new Token[]{new BigIntegerToken("22"), new BigIntegerToken("23")} );
         runnable.run();
     }
 }

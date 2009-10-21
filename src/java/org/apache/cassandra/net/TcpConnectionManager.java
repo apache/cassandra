@@ -21,6 +21,7 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.locks.*;
+import java.net.InetAddress;
 
 import org.apache.log4j.Logger;
 
@@ -28,15 +29,15 @@ class TcpConnectionManager
 {
     private Lock lock_ = new ReentrantLock();
     private List<TcpConnection> allConnections_;
-    private EndPoint localEp_;
-    private EndPoint remoteEp_;
+    private InetAddress localEp_;
+    private InetAddress remoteEp_;
     private int maxSize_;
 
     private int inUse_;
 
     // TODO! this whole thing is a giant no-op, since "contains" only relies on TcpConnection.equals, which
     // is true for any (local, remote) pairs.  So there is only ever at most one TcpConnection per Manager!
-    TcpConnectionManager(int initialSize, int growthFactor, int maxSize, EndPoint localEp, EndPoint remoteEp)
+    TcpConnectionManager(int initialSize, int growthFactor, int maxSize, InetAddress localEp, InetAddress remoteEp)
     {
         maxSize_ = maxSize;
         localEp_ = localEp;
@@ -187,12 +188,12 @@ class TcpConnectionManager
         }
     }
 
-    EndPoint getLocalEndPoint()
+    InetAddress getLocalEndPoint()
     {
         return localEp_;
     }
 
-    EndPoint getRemoteEndPoint()
+    InetAddress getRemoteEndPoint()
     {
         return remoteEp_;
     }

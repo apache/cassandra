@@ -21,7 +21,7 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Set;
+import java.net.InetAddress;
 
 import org.apache.log4j.Logger;
 
@@ -55,14 +55,14 @@ public class CassandraDaemon
     private void setup() throws IOException, TTransportException
     {
         int listenPort = DatabaseDescriptor.getThriftPort();
-        String listenAddr = DatabaseDescriptor.getThriftAddress();
+        InetAddress listenAddr = DatabaseDescriptor.getThriftAddress();
         
         /* 
          * If ThriftAddress was left completely unconfigured, then assume
-         * the same default as ListenAddress, (InetAddress.getLocalHost).
+         * the same default as ListenAddress
          */
         if (listenAddr == null)
-            listenAddr = FBUtilities.getHostAddress();
+            listenAddr = FBUtilities.getLocalAddress();
         
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
         {

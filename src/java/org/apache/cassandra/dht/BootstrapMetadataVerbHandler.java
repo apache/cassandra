@@ -27,7 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -93,7 +93,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
      * locally for each range and then stream them using
      * the Bootstrap protocol to the target endpoint.
     */
-    private void doTransfer(EndPoint target, List<Range> ranges) throws IOException
+    private void doTransfer(InetAddress target, List<Range> ranges) throws IOException
     {
         if ( ranges.size() == 0 )
         {
@@ -146,7 +146,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
      * Stream the files in the bootstrap directory over to the
      * node being bootstrapped.
     */
-    private void doHandoff(EndPoint target, List<String> fileList, String table) throws IOException
+    private void doHandoff(InetAddress target, List<String> fileList, String table) throws IOException
     {
         List<File> filesList = new ArrayList<File>();
         for(String file : fileList)

@@ -31,7 +31,7 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -61,7 +61,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         long startTime = System.currentTimeMillis();
 		Row retRow = null;
 		List<Row> rowList = new ArrayList<Row>();
-		List<EndPoint> endPoints = new ArrayList<EndPoint>();
+		List<InetAddress> endPoints = new ArrayList<InetAddress>();
 		String key = null;
 		String table = null;
 		byte[] digest = new byte[0];

@@ -27,7 +27,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.junit.Test;
 
 public class GossipDigestTest
@@ -36,7 +36,7 @@ public class GossipDigestTest
     @Test
     public void test() throws IOException
     {
-        EndPoint endPoint = new EndPoint("127.0.0.1", 3333);
+        InetAddress endPoint = InetAddress.getByName("127.0.0.1");
         int generation = 0;
         int maxVersion = 123;
         GossipDigest expected = new GossipDigest(endPoint, generation, maxVersion);

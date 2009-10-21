@@ -23,26 +23,28 @@ import static org.junit.Assert.*;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
 public class BootStrapperTest {
     @Test
-    public void testSourceTargetComputation() 
+    public void testSourceTargetComputation() throws UnknownHostException
     {
         int numOldNodes = 3;
         IPartitioner p = generateOldTokens(numOldNodes);
         
         Token newToken = p.getDefaultToken();
-        EndPoint newEndPoint = new EndPoint("1.2.3.10",100);
+        InetAddress newEndPoint = InetAddress.getByName("1.2.3.10");
  
         /* New token needs to be part of the map for the algorithm
          * to calculate the ranges correctly
          */
         StorageService.instance().updateTokenMetadataUnsafe(newToken, newEndPoint);
 
-        BootStrapper b = new BootStrapper(new EndPoint[]{newEndPoint}, newToken );
+        BootStrapper b = new BootStrapper(new InetAddress[]{newEndPoint}, newToken );
         Map<Range,List<BootstrapSourceTarget>> res = b.getRangesWithSourceTarget();
         
         int transferCount = 0;
@@ -55,23 +57,23 @@ public class BootStrapperTest {
         }
         /* Only 1 transfer from old node to new node */
         assertEquals(1, transferCount);
-        Map<EndPoint, Map<EndPoint,List<Range>>> temp = LeaveJoinProtocolHelper.getWorkMap(res);
+        Map<InetAddress, Map<InetAddress,List<Range>>> temp = LeaveJoinProtocolHelper.getWorkMap(res);
         assertEquals(1, temp.keySet().size());
         assertEquals(1, temp.entrySet().size());
 
-        Map<EndPoint,Map<EndPoint,List<Range>>> res2 = LeaveJoinProtocolHelper.filterRangesForTargetEndPoint(temp, newEndPoint);
+        Map<InetAddress,Map<InetAddress,List<Range>>> res2 = LeaveJoinProtocolHelper.filterRangesForTargetEndPoint(temp, newEndPoint);
         /* After filtering, still only 1 transfer */
         assertEquals(1, res2.keySet().size());
         assertEquals(1, res2.entrySet().size());
-        assertTrue(((Map<EndPoint,List<Range>>)res2.values().toArray()[0]).containsKey(newEndPoint));
+        assertTrue(((Map<InetAddress,List<Range>>)res2.values().toArray()[0]).containsKey(newEndPoint));
     }
 
-    private IPartitioner generateOldTokens(int numOldNodes)
+    private IPartitioner generateOldTokens(int numOldNodes) throws UnknownHostException
     {
         IPartitioner p = new RandomPartitioner();
         for (int i = 0 ; i< numOldNodes; i++)
         {
-            EndPoint e  = new EndPoint("127.0.0."+i, 100);
+            InetAddress e = InetAddress.getByName("127.0.0." + i);
             Token t = p.getDefaultToken();
             StorageService.instance().updateTokenMetadataUnsafe(t, e);
         }

@@ -26,7 +26,9 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import org.apache.cassandra.service.Cassandra;
 import org.apache.cassandra.service.CassandraServer;
 import org.apache.cassandra.service.StorageService;
@@ -52,7 +54,10 @@ public class RingCache
 
     public RingCache()
     {
-        seeds_ = DatabaseDescriptor.getSeeds();
+        for (InetAddress seed : DatabaseDescriptor.getSeeds())
+        {
+            seeds_.add(seed.getHostAddress());
+        }
         refreshEndPointMap();
     }
 
@@ -69,14 +74,21 @@ public class RingCache
 
                 Map<String,String> tokenToHostMap = (Map<String,String>) new JSONTokener(client.get_string_property(CassandraServer.TOKEN_MAP)).nextValue();
                 
-                HashMap<Token, EndPoint> tokenEndpointMap = new HashMap<Token, EndPoint>();
-                Map<EndPoint, Token> endpointTokenMap = new HashMap<EndPoint, Token>();
+                HashMap<Token, InetAddress> tokenEndpointMap = new HashMap<Token, InetAddress>();
+                Map<InetAddress, Token> endpointTokenMap = new HashMap<InetAddress, Token>();
                 for (Map.Entry<String,String> entry : tokenToHostMap.entrySet())
                 {
                     Token token = StorageService.getPartitioner().getTokenFactory().fromString(entry.getKey());
                     String host = entry.getValue();
-                    tokenEndpointMap.put(token, new EndPoint(host, port_));
-                    endpointTokenMap.put(new EndPoint(host, port_), token);
+                    try
+                    {
+                        tokenEndpointMap.put(token, InetAddress.getByName(host));
+                        endpointTokenMap.put(InetAddress.getByName(host), token);
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new AssertionError(e); // host strings are IPs
+                    }
                 }
 
                 TokenMetadata tokenMetadata = new TokenMetadata(tokenEndpointMap, endpointTokenMap, null);
@@ -100,7 +112,7 @@ public class RingCache
         }
     }
 
-    public EndPoint[] getEndPoint(String key)
+    public InetAddress[] getEndPoint(String key)
     {
         return nodePicker_.getReadStorageEndPoints(partitioner_.getToken(key));
     }

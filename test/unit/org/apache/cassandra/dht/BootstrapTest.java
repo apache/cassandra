@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.io.SSTableReader;
 

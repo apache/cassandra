@@ -26,7 +26,7 @@ import java.util.List;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 
 
@@ -50,10 +50,10 @@ class BootstrapMetadata
         return serializer_;
     }
     
-    protected EndPoint target_;
+    protected InetAddress target_;
     protected List<Range> ranges_;
     
-    BootstrapMetadata(EndPoint target, List<Range> ranges)
+    BootstrapMetadata(InetAddress target, List<Range> ranges)
     {
         target_ = target;
         ranges_ = ranges;
@@ -87,7 +87,7 @@ class BootstrapMetadataSerializer implements ICompactSerializer<BootstrapMetadat
 
     public BootstrapMetadata deserialize(DataInputStream dis) throws IOException
     {            
-        EndPoint target = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress target = CompactEndPointSerializationHelper.deserialize(dis);
         int size = dis.readInt();
         List<Range> ranges = (size == 0) ? null : new ArrayList<Range>();
         for( int i = 0; i < size; ++i )

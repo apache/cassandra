@@ -31,7 +31,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
@@ -123,7 +123,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
         ranges.add(r);
 
-        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, new EndPoint("127.0.0.1", 9150));
+        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, InetAddress.getByName("127.0.0.1"));
         assert fileList.size() >= 1;
     }
 

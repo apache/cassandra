@@ -30,7 +30,7 @@ import javax.management.ObjectName;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.BoundedStatsDeque;
@@ -75,7 +75,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         return failureDetector_;
     }
     
-    private Map<EndPoint, ArrivalWindow> arrivalSamples_ = new Hashtable<EndPoint, ArrivalWindow>();
+    private Map<InetAddress, ArrivalWindow> arrivalSamples_ = new Hashtable<InetAddress, ArrivalWindow>();
     private List<IFailureDetectionEventListener> fdEvntListeners_ = new ArrayList<IFailureDetectionEventListener>();
     
     public FailureDetector()
@@ -117,7 +117,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
      * 
      * @param ep for which the arrival window needs to be dumped.
      */
-    private void dumpInterArrivalTimes(EndPoint ep)
+    private void dumpInterArrivalTimes(InetAddress ep)
     {
         long now = System.currentTimeMillis();
         if ( (now - FailureDetector.creationTime_) <= FailureDetector.uptimeThreshold_ )
@@ -135,26 +135,19 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
     }
     
-    public boolean isAlive(EndPoint ep)
+    public boolean isAlive(InetAddress ep)
     {
-        try
-        {
-            /* If the endpoint in question is the local endpoint return true. */
-            String localHost = FBUtilities.getHostAddress();
-            if ( localHost.equals( ep.getHost() ) )
-                    return true;
-        }
-        catch( UnknownHostException ex )
-        {
-            logger_.info( LogUtil.throwableToString(ex) );
-        }
+       /* If the endpoint in question is the local endpoint return true. */
+        InetAddress localHost = FBUtilities.getLocalAddress();
+        if (localHost.equals(ep))
+            return true;
+
     	/* Incoming port is assumed to be the Storage port. We need to change it to the control port */
-    	EndPoint ep2 = new EndPoint(ep.getHost(), DatabaseDescriptor.getControlPort());        
-        EndPointState epState = Gossiper.instance().getEndPointStateForEndPoint(ep2);
+        EndPointState epState = Gossiper.instance().getEndPointStateForEndPoint(ep);
         return epState.isAlive();
     }
     
-    public void report(EndPoint ep)
+    public void report(InetAddress ep)
     {
         if (logger_.isTraceEnabled())
             logger_.trace("reporting " + ep);
@@ -168,7 +161,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         heartbeatWindow.add(now);
     }
     
-    public void interpret(EndPoint ep)
+    public void interpret(InetAddress ep)
     {
         ArrivalWindow hbWnd = arrivalSamples_.get(ep);
         if ( hbWnd == null )
@@ -214,10 +207,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        Set<EndPoint> eps = arrivalSamples_.keySet();
+        Set<InetAddress> eps = arrivalSamples_.keySet();
         
         sb.append("-----------------------------------------------------------------------");
-        for ( EndPoint ep : eps )
+        for ( InetAddress ep : eps )
         {
             ArrivalWindow hWnd = arrivalSamples_.get(ep);
             sb.append(ep + " : ");

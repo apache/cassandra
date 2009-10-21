@@ -25,7 +25,7 @@ import java.util.Map;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 /**
  * This class returns the nodes responsible for a given
@@ -40,7 +40,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    public InetAddress[] getReadStorageEndPoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
     {
         int startIndex;
         List<Token> tokenList = new ArrayList<Token>();
@@ -74,9 +74,9 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
                     foundCount++;
             }
         }
-        List<EndPoint> list = new ArrayList<EndPoint>();
+        List<InetAddress> list = new ArrayList<InetAddress>();
         for (Token t: tokenList)
             list.add(tokenToEndPointMap.get(t));
-        return retrofitPorts(list).toArray(new EndPoint[list.size()]);
+        return list.toArray(new InetAddress[list.size()]);
     }
 }

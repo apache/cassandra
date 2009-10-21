@@ -23,6 +23,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.GuidGenerator;
@@ -43,13 +44,13 @@ public class Header implements java.io.Serializable
         return serializer_;
     }
 
-    private EndPoint from_;
+    private InetAddress from_;
     private String type_;
     private String verb_;
     private String messageId_;
     protected Map<String, byte[]> details_ = new Hashtable<String, byte[]>();
     
-    Header(String id, EndPoint from, String messageType, String verb)
+    Header(String id, InetAddress from, String messageType, String verb)
     {
         messageId_ = id;
         from_ = from;
@@ -57,13 +58,13 @@ public class Header implements java.io.Serializable
         verb_ = verb;        
     }
     
-    Header(String id, EndPoint from, String messageType, String verb, Map<String, byte[]> details)
+    Header(String id, InetAddress from, String messageType, String verb, Map<String, byte[]> details)
     {
         this(id, from, messageType, verb);
         details_ = details;
     }
 
-    Header(EndPoint from, String messageType, String verb)
+    Header(InetAddress from, String messageType, String verb)
     {
         messageId_ = Integer.toString(idGen_.incrementAndGet());
         from_ = from;
@@ -71,7 +72,7 @@ public class Header implements java.io.Serializable
         verb_ = verb;
     }        
 
-    EndPoint getFrom()
+    InetAddress getFrom()
     {
         return from_;
     }
@@ -153,7 +154,7 @@ class HeaderSerializer implements ICompactSerializer<Header>
     public Header deserialize(DataInputStream dis) throws IOException
     {
         String id = dis.readUTF();
-        EndPoint from = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress from = CompactEndPointSerializationHelper.deserialize(dis);
         String type = dis.readUTF();
         String verb = dis.readUTF();
         

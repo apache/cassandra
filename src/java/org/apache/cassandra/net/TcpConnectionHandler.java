@@ -28,9 +28,9 @@ import org.apache.log4j.Logger;
 public class TcpConnectionHandler extends SelectionKeyHandler
 {
     private static Logger logger_ = Logger.getLogger(TcpConnectionHandler.class);
-    EndPoint localEp_;    
+    InetAddress localEp_;
     
-    public TcpConnectionHandler(EndPoint localEp) 
+    public TcpConnectionHandler(InetAddress localEp)
     {
         localEp_ = localEp;
     }

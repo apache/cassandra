@@ -24,7 +24,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.*;
 
 /**
@@ -40,7 +40,7 @@ public class GossipDigest implements Comparable<GossipDigest>
         serializer_ = new GossipDigestSerializer();
     }
     
-    EndPoint endPoint_;
+    InetAddress endPoint_;
     int generation_;
     int maxVersion_;
 
@@ -49,14 +49,14 @@ public class GossipDigest implements Comparable<GossipDigest>
         return serializer_;
     }
     
-    GossipDigest(EndPoint endPoint, int generation, int maxVersion)
+    GossipDigest(InetAddress endPoint, int generation, int maxVersion)
     {
         endPoint_ = endPoint;
         generation_ = generation; 
         maxVersion_ = maxVersion;
     }
     
-    EndPoint getEndPoint()
+    InetAddress getEndPoint()
     {
         return endPoint_;
     }
@@ -101,7 +101,7 @@ class GossipDigestSerializer implements ICompactSerializer<GossipDigest>
 
     public GossipDigest deserialize(DataInputStream dis) throws IOException
     {
-        EndPoint endPoint = CompactEndPointSerializationHelper.deserialize(dis);
+        InetAddress endPoint = CompactEndPointSerializationHelper.deserialize(dis);
         int generation = dis.readInt();
         int version = dis.readInt();
         return new GossipDigest(endPoint, generation, version);

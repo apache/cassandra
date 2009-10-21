@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.util.concurrent.locks.*;
 
 import org.apache.cassandra.db.RowMutationMessage;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Cachetable;
@@ -53,20 +55,26 @@ class ReadRepairManager
 	 * This is the internal class which actually
 	 * implements the global hook function called by the read repair manager
 	 */
-	static class ReadRepairPerformer implements
-			ICacheExpungeHook<String, Message>
+	static class ReadRepairPerformer implements ICacheExpungeHook<String, Message>
 	{
 		/*
 		 * The hook function which takes the end point and the row mutation that 
 		 * needs to be sent to the end point in order 
 		 * to perform read repair.
 		 */
-		public void callMe(String target,
-				Message message)
+		public void callMe(String target, Message message)
 		{
 			String[] pieces = FBUtilities.strip(target, ":");
-			EndPoint to = new EndPoint(pieces[0], Integer.parseInt(pieces[1]));
-			MessagingService.instance().sendOneWay(message, to);
+            InetAddress to = null;
+            try
+            {
+                to = InetAddress.getByName(pieces[0]);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+            MessagingService.instance().sendOneWay(message, to);
 		}
 
 	}
@@ -101,7 +109,7 @@ class ReadRepairManager
 	 * @param target endpoint on which the read repair should happen
 	 * @param rowMutationMessage the row mutation message that has the repaired row.
 	 */
-	public void schedule(EndPoint target, RowMutationMessage rowMutationMessage)
+	public void schedule(InetAddress target, RowMutationMessage rowMutationMessage)
 	{
         try
         {

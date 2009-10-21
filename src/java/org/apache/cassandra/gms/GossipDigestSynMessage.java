@@ -25,7 +25,7 @@ import java.util.*;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.utils.Log4jLogger;
 import org.apache.log4j.Logger;
 import org.apache.cassandra.utils.*;
@@ -115,15 +115,15 @@ class EndPointStatesSerializationHelper
 {
     private static Log4jLogger logger_ = new Log4jLogger(EndPointStatesSerializationHelper.class.getName());
     
-    static boolean serialize(Map<EndPoint, EndPointState> epStateMap, DataOutputStream dos) throws IOException
+    static boolean serialize(Map<InetAddress, EndPointState> epStateMap, DataOutputStream dos) throws IOException
     {
         boolean bVal = true;
         int estimate = 0;                
         int size = epStateMap.size();
         dos.writeInt(size);
     
-        Set<EndPoint> eps = epStateMap.keySet();
-        for( EndPoint ep : eps )
+        Set<InetAddress> eps = epStateMap.keySet();
+        for( InetAddress ep : eps )
         {
             if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
             {
@@ -142,10 +142,10 @@ class EndPointStatesSerializationHelper
         return bVal;
     }
 
-    static Map<EndPoint, EndPointState> deserialize(DataInputStream dis) throws IOException
+    static Map<InetAddress, EndPointState> deserialize(DataInputStream dis) throws IOException
     {
         int size = dis.readInt();            
-        Map<EndPoint, EndPointState> epStateMap = new HashMap<EndPoint, EndPointState>();
+        Map<InetAddress, EndPointState> epStateMap = new HashMap<InetAddress, EndPointState>();
         
         for ( int i = 0; i < size; ++i )
         {
@@ -155,7 +155,7 @@ class EndPointStatesSerializationHelper
                 break;
             }
             // int length = dis.readInt();            
-            EndPoint ep = CompactEndPointSerializationHelper.deserialize(dis);
+            InetAddress ep = CompactEndPointSerializationHelper.deserialize(dis);
             EndPointState epState = EndPointState.serializer().deserialize(dis);            
             epStateMap.put(ep, epState);
         }        

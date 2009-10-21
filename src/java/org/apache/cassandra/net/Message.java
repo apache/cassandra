@@ -22,6 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
@@ -52,7 +53,7 @@ public class Message implements java.io.Serializable
         body_ = body;
     }
 
-    public Message(EndPoint from, String messageType, String verb, byte[] body)
+    public Message(InetAddress from, String messageType, String verb, byte[] body)
     {
         this(new Header(from, messageType, verb), body);
     }    
@@ -92,7 +93,7 @@ public class Message implements java.io.Serializable
         return body_;
     }
 
-    public EndPoint getFrom()
+    public InetAddress getFrom()
     {
         return header_.getFrom();
     }
@@ -117,7 +118,7 @@ public class Message implements java.io.Serializable
         header_.setMessageId(id);
     }    
 
-    public Message getReply(EndPoint from, byte[] args)
+    public Message getReply(InetAddress from, byte[] args)
     {
         Header header = new Header(getMessageId(), from, MessagingService.responseStage_, MessagingService.responseVerbHandler_);
         return new Message(header, args);

@@ -19,6 +19,7 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.net.InetAddress;
 
 import javax.xml.bind.JAXBException;
 
@@ -45,7 +46,7 @@ public interface IMessagingService
      * Deregister all verbhandlers corresponding to localEndPoint.
      * @param localEndPoint
      */
-    public void deregisterAllVerbHandlers(EndPoint localEndPoint);
+    public void deregisterAllVerbHandlers(InetAddress localEndPoint);
     
     /**
      * Deregister a verbhandler corresponding to the verb from the
@@ -56,16 +57,16 @@ public interface IMessagingService
     
     /**
      * Listen on the specified port.
-     * @param ep EndPoint whose port to listen on.
+     * @param ep InetAddress whose port to listen on.
      * @param isHttp specify if the port is an Http port.     
      */
-    public void listen(EndPoint ep) throws IOException;
+    public void listen(InetAddress ep) throws IOException;
     
     /**
      * Listen on the specified port.
-     * @param ep EndPoint whose port to listen on.     
+     * @param ep InetAddress whose port to listen on.
      */
-    public void listenUDP(EndPoint ep);
+    public void listenUDP(InetAddress ep);
     
     /**
      * Send a message to a given endpoint. 
@@ -74,7 +75,7 @@ public interface IMessagingService
      * @return an reference to an IAsyncResult which can be queried for the
      * response
      */
-    public IAsyncResult sendRR(Message message, EndPoint to);
+    public IAsyncResult sendRR(Message message, InetAddress to);
 
     /**
      * Send a message to the given set of endpoints and informs the MessagingService
@@ -85,7 +86,7 @@ public interface IMessagingService
      * @param cb callback interface which is used to pass the responses
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message message, EndPoint[] to, IAsyncCallback cb);
+    public String sendRR(Message message, InetAddress[] to, IAsyncCallback cb);
     
     /**
      * Send a message to a given endpoint. This method specifies a callback
@@ -97,7 +98,7 @@ public interface IMessagingService
      *           suggest that a timeout occurred to the invoker of the send().
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message message, EndPoint to, IAsyncCallback cb);
+    public String sendRR(Message message, InetAddress to, IAsyncCallback cb);
 
     /**
      * Send a message to a given endpoint. The ith element in the <code>messages</code>
@@ -112,7 +113,7 @@ public interface IMessagingService
      *           suggest that a timeout occured to the invoker of the send().
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(Message[] messages, EndPoint[] to, IAsyncCallback cb);
+    public String sendRR(Message[] messages, InetAddress[] to, IAsyncCallback cb);
 
     /**
      * Send a message to a given endpoint. This method adheres to the fire and forget
@@ -120,7 +121,7 @@ public interface IMessagingService
      * @param message messages to be sent.
      * @param to endpoint to which the message needs to be sent
      */
-    public void sendOneWay(Message message, EndPoint to);
+    public void sendOneWay(Message message, InetAddress to);
         
     /**
      * Send a message to a given endpoint. This method adheres to the fire and forget
@@ -128,7 +129,7 @@ public interface IMessagingService
      * @param message messages to be sent.
      * @param to endpoint to which the message needs to be sent
      */
-    public void sendUdpOneWay(Message message, EndPoint to);
+    public void sendUdpOneWay(Message message, InetAddress to);
     
     /**
      * Stream a file from source to destination. This is highly optimized
@@ -138,7 +139,7 @@ public interface IMessagingService
      * @param total number of bytes to stream
      * @param to endpoint to which we need to stream the file.
     */
-    public void stream(String file, long startPosition, long total, EndPoint from, EndPoint to);
+    public void stream(String file, long startPosition, long total, InetAddress from, InetAddress to);
 
     /**
      * This method returns the verb handler associated with the registered

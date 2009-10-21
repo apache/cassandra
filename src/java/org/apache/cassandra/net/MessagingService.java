@@ -28,6 +28,8 @@ import org.apache.log4j.Logger;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.SocketException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -63,10 +65,10 @@ public class MessagingService implements IMessagingService
     private static ICachetable<String, IAsyncResult> taskCompletionMap_;
     
     /* Manages the table of endpoints it is listening on */
-    private static Set<EndPoint> endPoints_;
+    private static Set<InetAddress> endPoints_;
     
     /* List of sockets we are listening on */
-    private static Map<EndPoint, SelectionKey> listenSockets_ = new HashMap<EndPoint, SelectionKey>();
+    private static Map<InetAddress, SelectionKey> listenSockets_ = new HashMap<InetAddress, SelectionKey>();
     
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<String, IVerbHandler> verbHandlers_;
@@ -128,7 +130,7 @@ public class MessagingService implements IMessagingService
             reservedVerbs_.put(verbs.toString(), verbs.toString());
         }
         verbHandlers_ = new HashMap<String, IVerbHandler>();        
-        endPoints_ = new HashSet<EndPoint>();
+        endPoints_ = new HashSet<InetAddress>();
         /*
          * Leave callbacks in the cachetable long enough that any related messages will arrive
          * before the callback is evicted from the table. The concurrency level is set at 128
@@ -180,11 +182,11 @@ public class MessagingService implements IMessagingService
         return result;
     }
     
-    public void listen(EndPoint localEp) throws IOException
+    public void listen(InetAddress localEp) throws IOException
     {        
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         ServerSocket ss = serverChannel.socket();            
-        ss.bind(localEp.getInetAddress());
+        ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
         serverChannel.configureBlocking(false);
         
         SelectionKeyHandler handler = new TcpConnectionHandler(localEp);
@@ -194,14 +196,14 @@ public class MessagingService implements IMessagingService
         listenSockets_.put(localEp, key);             
     }
     
-    public void listenUDP(EndPoint localEp)
+    public void listenUDP(InetAddress localEp)
     {
         UdpConnection connection = new UdpConnection();
         if (logger_.isDebugEnabled())
           logger_.debug("Starting to listen on " + localEp);
         try
         {
-            connection.init(localEp.getPort());
+            connection.init(localEp);
             endPoints_.add(localEp);     
         }
         catch ( IOException e )
@@ -210,7 +212,7 @@ public class MessagingService implements IMessagingService
         }
     }
     
-    public static TcpConnectionManager getConnectionPool(EndPoint from, EndPoint to)
+    public static TcpConnectionManager getConnectionPool(InetAddress from, InetAddress to)
     {
         String key = from + ":" + to;
         TcpConnectionManager cp = poolTable_.get(key);
@@ -236,7 +238,7 @@ public class MessagingService implements IMessagingService
         return cp;
     }
 
-    public static TcpConnection getConnection(EndPoint from, EndPoint to) throws IOException
+    public static TcpConnection getConnection(InetAddress from, InetAddress to) throws IOException
     {
         return getConnectionPool(from, to).getConnection();
     }
@@ -255,7 +257,7 @@ public class MessagingService implements IMessagingService
     	verbHandlers_.put(type, verbHandler);
     }
     
-    public void deregisterAllVerbHandlers(EndPoint localEndPoint)
+    public void deregisterAllVerbHandlers(InetAddress localEndPoint)
     {
         Iterator keys = verbHandlers_.keySet().iterator();
         String key = null;
@@ -283,7 +285,7 @@ public class MessagingService implements IMessagingService
         return handler;
     }
 
-    public String sendRR(Message message, EndPoint[] to, IAsyncCallback cb)
+    public String sendRR(Message message, InetAddress[] to, IAsyncCallback cb)
     {
         String messageId = message.getMessageId();                        
         callbackMap_.put(messageId, cb);
@@ -294,7 +296,7 @@ public class MessagingService implements IMessagingService
         return messageId;
     }
     
-    public String sendRR(Message message, EndPoint to, IAsyncCallback cb)
+    public String sendRR(Message message, InetAddress to, IAsyncCallback cb)
     {        
         String messageId = message.getMessageId();
         callbackMap_.put(messageId, cb);
@@ -302,7 +304,7 @@ public class MessagingService implements IMessagingService
         return messageId;
     }
 
-    public String sendRR(Message[] messages, EndPoint[] to, IAsyncCallback cb)
+    public String sendRR(Message[] messages, InetAddress[] to, IAsyncCallback cb)
     {
         if ( messages.length != to.length )
         {
@@ -321,7 +323,7 @@ public class MessagingService implements IMessagingService
     /*
         Use this version for fire and forget style messaging.
     */
-    public void sendOneWay(Message message, EndPoint to)
+    public void sendOneWay(Message message, InetAddress to)
     {        
         // do local deliveries        
         if ( message.getFrom().equals(to) )
@@ -364,7 +366,7 @@ public class MessagingService implements IMessagingService
         }
     }
     
-    public IAsyncResult sendRR(Message message, EndPoint to)
+    public IAsyncResult sendRR(Message message, InetAddress to)
     {
         IAsyncResult iar = new AsyncResult();
         taskCompletionMap_.put(message.getMessageId(), iar);
@@ -372,7 +374,7 @@ public class MessagingService implements IMessagingService
         return iar;
     }
     
-    public void sendUdpOneWay(Message message, EndPoint to)
+    public void sendUdpOneWay(Message message, InetAddress to)
     {
         if (message.getFrom().equals(to)) {
             MessagingService.receive(message);
@@ -397,7 +399,7 @@ public class MessagingService implements IMessagingService
         }
     }
     
-    public void stream(String file, long startPosition, long total, EndPoint from, EndPoint to)
+    public void stream(String file, long startPosition, long total, InetAddress from, InetAddress to)
     {
         isStreaming_.set(true);
         /* Streaming asynchronously on streamExector_ threads. */

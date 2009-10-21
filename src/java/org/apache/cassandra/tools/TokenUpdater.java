@@ -23,7 +23,9 @@ import java.io.DataOutputStream;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SelectorManager;
@@ -61,20 +63,20 @@ public class TokenUpdater
             port = Integer.valueOf(ipPortPair[1]);
         }
 
-        EndPoint target = new EndPoint(ipPortPair[0], port);
+        InetSocketAddress target = new InetSocketAddress(ipPortPair[0], port);
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         Token.serializer().serialize(token, dos);
 
         /* Construct the token update message to be sent */
-        Message tokenUpdateMessage = new Message(new EndPoint(FBUtilities.getHostAddress(), port_),
+        Message tokenUpdateMessage = new Message(target.getAddress(),
                                                  "",
                                                  StorageService.tokenVerbHandler_,
                                                  bos.toByteArray());
 
         System.out.println("Sending a token update message to " + target);
-        MessagingService.instance().sendOneWay(tokenUpdateMessage, target);
+        MessagingService.instance().sendOneWay(tokenUpdateMessage, target.getAddress());
         Thread.sleep(TokenUpdater.waitTime_);
         System.out.println("Done sending the update message");
 

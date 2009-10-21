@@ -20,11 +20,11 @@ package org.apache.cassandra.locator;
 
 import java.net.*;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 public class EndPointSnitch implements IEndPointSnitch
 {
-    public boolean isOnSameRack(EndPoint host, EndPoint host2) throws UnknownHostException
+    public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException
     {
         /*
          * Look at the IP Address of the two hosts. Compare 
@@ -37,7 +37,7 @@ public class EndPointSnitch implements IEndPointSnitch
         return ( ip[2] == ip2[2] );
     }
     
-    public boolean isInSameDataCenter(EndPoint host, EndPoint host2) throws UnknownHostException
+    public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException
     {
         /*
          * Look at the IP Address of the two hosts. Compare 

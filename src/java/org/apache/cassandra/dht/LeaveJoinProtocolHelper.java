@@ -28,7 +28,7 @@ package org.apache.cassandra.dht;
 
  import org.apache.log4j.Logger;
 
- import org.apache.cassandra.net.EndPoint;
+ import java.net.InetAddress;
  import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -100,7 +100,7 @@ class LeaveJoinProtocolHelper
         return splitRanges;
     }
     
-    protected static Map<Range, List<BootstrapSourceTarget>> getRangeSourceTargetInfo(Map<Range, List<EndPoint>> oldRangeToEndPointMap, Map<Range, List<EndPoint>> newRangeToEndPointMap)
+    protected static Map<Range, List<BootstrapSourceTarget>> getRangeSourceTargetInfo(Map<Range, List<InetAddress>> oldRangeToEndPointMap, Map<Range, List<InetAddress>> newRangeToEndPointMap)
     {
         Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = new HashMap<Range, List<BootstrapSourceTarget>>();
         /*
@@ -114,12 +114,12 @@ class LeaveJoinProtocolHelper
         {
             if (logger_.isDebugEnabled())
               logger_.debug("Attempting to figure out the dudes who are bumped out for " + range + " ...");
-            List<EndPoint> oldEndPoints = oldRangeToEndPointMap.get(range);
-            List<EndPoint> newEndPoints = newRangeToEndPointMap.get(range);
+            List<InetAddress> oldEndPoints = oldRangeToEndPointMap.get(range);
+            List<InetAddress> newEndPoints = newRangeToEndPointMap.get(range);
             if ( newEndPoints != null )
             {                        
-                List<EndPoint> newEndPoints2 = new ArrayList<EndPoint>(newEndPoints);
-                for ( EndPoint newEndPoint : newEndPoints2 )
+                List<InetAddress> newEndPoints2 = new ArrayList<InetAddress>(newEndPoints);
+                for ( InetAddress newEndPoint : newEndPoints2 )
                 {
                     if ( oldEndPoints.contains(newEndPoint) )
                     {
@@ -137,8 +137,8 @@ class LeaveJoinProtocolHelper
         }
         for ( Range range : oldRangeSet )
         {                    
-            List<EndPoint> oldEndPoints = oldRangeToEndPointMap.get(range);
-            List<EndPoint> newEndPoints = newRangeToEndPointMap.get(range);
+            List<InetAddress> oldEndPoints = oldRangeToEndPointMap.get(range);
+            List<InetAddress> newEndPoints = newRangeToEndPointMap.get(range);
             List<BootstrapSourceTarget> srcTarget = rangesWithSourceTarget.get(range);
             if ( srcTarget == null )
             {
@@ -146,7 +146,7 @@ class LeaveJoinProtocolHelper
                 rangesWithSourceTarget.put(range, srcTarget);
             }
             int i = 0;
-            for ( EndPoint oldEndPoint : oldEndPoints )
+            for ( InetAddress oldEndPoint : oldEndPoints )
             {                        
                 srcTarget.add( new BootstrapSourceTarget(oldEndPoint, newEndPoints.get(i++)) );
             }
@@ -160,7 +160,7 @@ class LeaveJoinProtocolHelper
     */
     protected static void assignWork(Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget) throws IOException
     {
-        Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo = getWorkMap(rangesWithSourceTarget);
+        Map<InetAddress, Map<InetAddress, List<Range>>> rangeInfo = getWorkMap(rangesWithSourceTarget);
         sendMessagesToBootstrapSources(rangeInfo);
     }
     
@@ -168,15 +168,15 @@ class LeaveJoinProtocolHelper
      * This method takes the Src -> (Tgt-> List of ranges) maps and retains those entries 
      * that are relevant to bootstrapping the target endpoint
      */
-    protected static Map<EndPoint, Map<EndPoint, List<Range>>>
-    filterRangesForTargetEndPoint(Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo, EndPoint targetEndPoint)
+    protected static Map<InetAddress, Map<InetAddress, List<Range>>>
+    filterRangesForTargetEndPoint(Map<InetAddress, Map<InetAddress, List<Range>>> rangeInfo, InetAddress targetEndPoint)
     {
-        Map<EndPoint, Map<EndPoint, List<Range>>> filteredMap = new HashMap<EndPoint, Map<EndPoint,List<Range>>>();
-        for (Map.Entry<EndPoint, Map<EndPoint, List<Range>>> e: rangeInfo.entrySet())
+        Map<InetAddress, Map<InetAddress, List<Range>>> filteredMap = new HashMap<InetAddress, Map<InetAddress,List<Range>>>();
+        for (Map.Entry<InetAddress, Map<InetAddress, List<Range>>> e: rangeInfo.entrySet())
         {
-            EndPoint source = e.getKey();
-            Map<EndPoint, List<Range>> targets = e.getValue();
-            Map<EndPoint, List<Range>> filteredTargets = new HashMap<EndPoint, List<Range>>();
+            InetAddress source = e.getKey();
+            Map<InetAddress, List<Range>> targets = e.getValue();
+            Map<InetAddress, List<Range>> filteredTargets = new HashMap<InetAddress, List<Range>>();
             if (targets.get(targetEndPoint) != null)
                 filteredTargets.put(targetEndPoint, targets.get(targetEndPoint));
             if (filteredTargets.size() > 0)
@@ -185,16 +185,16 @@ class LeaveJoinProtocolHelper
         return filteredMap;
     }
 
-    private static void sendMessagesToBootstrapSources(Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo) throws IOException
+    private static void sendMessagesToBootstrapSources(Map<InetAddress, Map<InetAddress, List<Range>>> rangeInfo) throws IOException
     {
-        Set<EndPoint> sources = rangeInfo.keySet();
-        for ( EndPoint source : sources )
+        Set<InetAddress> sources = rangeInfo.keySet();
+        for ( InetAddress source : sources )
         {
-            Map<EndPoint, List<Range>> targetRangesMap = rangeInfo.get(source);
-            Set<EndPoint> targets = targetRangesMap.keySet();
+            Map<InetAddress, List<Range>> targetRangesMap = rangeInfo.get(source);
+            Set<InetAddress> targets = targetRangesMap.keySet();
             List<BootstrapMetadata> bsmdList = new ArrayList<BootstrapMetadata>();
             
-            for ( EndPoint target : targets )
+            for ( InetAddress target : targets )
             {
                 List<Range> rangeForTarget = targetRangesMap.get(target);
                 BootstrapMetadata bsMetadata = new BootstrapMetadata(target, rangeForTarget);
@@ -211,14 +211,14 @@ class LeaveJoinProtocolHelper
         }
     }
 
-    static Map<EndPoint, Map<EndPoint, List<Range>>> getWorkMap(
+    static Map<InetAddress, Map<InetAddress, List<Range>>> getWorkMap(
             Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget)
     {
         /*
          * Map whose key is the source node and the value is a map whose key is the
          * target and value is the list of ranges to be sent to it. 
         */
-        Map<EndPoint, Map<EndPoint, List<Range>>> rangeInfo = new HashMap<EndPoint, Map<EndPoint, List<Range>>>();
+        Map<InetAddress, Map<InetAddress, List<Range>>> rangeInfo = new HashMap<InetAddress, Map<InetAddress, List<Range>>>();
         Set<Range> ranges = rangesWithSourceTarget.keySet();
         
         for ( Range range : ranges )
@@ -226,10 +226,10 @@ class LeaveJoinProtocolHelper
             List<BootstrapSourceTarget> rangeSourceTargets = rangesWithSourceTarget.get(range);
             for ( BootstrapSourceTarget rangeSourceTarget : rangeSourceTargets )
             {
-                Map<EndPoint, List<Range>> targetRangeMap = rangeInfo.get(rangeSourceTarget.source_);
+                Map<InetAddress, List<Range>> targetRangeMap = rangeInfo.get(rangeSourceTarget.source_);
                 if ( targetRangeMap == null )
                 {
-                    targetRangeMap = new HashMap<EndPoint, List<Range>>();
+                    targetRangeMap = new HashMap<InetAddress, List<Range>>();
                     rangeInfo.put(rangeSourceTarget.source_, targetRangeMap);
                 }
                 List<Range> rangesToGive = targetRangeMap.get(rangeSourceTarget.target_);

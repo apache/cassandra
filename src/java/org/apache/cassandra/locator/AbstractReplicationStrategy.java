@@ -26,8 +26,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.EndPoint;
-import org.apache.cassandra.service.StorageService;
+import java.net.InetAddress;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class contains a helper method that will be used by
@@ -51,9 +52,9 @@ public abstract class AbstractReplicationStrategy
         storagePort_ = storagePort;
     }
 
-    public abstract EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap);
+    public abstract InetAddress[] getReadStorageEndPoints(Token token, Map<Token, InetAddress> tokenToEndPointMap);
 
-    public EndPoint[] getReadStorageEndPoints(Token token)
+    public InetAddress[] getReadStorageEndPoints(Token token)
     {
         return getReadStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());
     }
@@ -63,7 +64,7 @@ public abstract class AbstractReplicationStrategy
      * on which the data is being placed and the value is the
      * endpoint to which it should be forwarded.
      */
-    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token, EndPoint[] naturalEndpoints)
+    public Map<InetAddress, InetAddress> getHintedStorageEndPoints(Token token, InetAddress[] naturalEndpoints)
     {
         return getHintedMapForEndpoints(getWriteStorageEndPoints(token, naturalEndpoints));
     }
@@ -76,14 +77,14 @@ public abstract class AbstractReplicationStrategy
      *
      * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
      */
-    protected EndPoint[] getWriteStorageEndPoints(Token token, EndPoint[] naturalEndpoints)
+    public InetAddress[] getWriteStorageEndPoints(Token token, InetAddress[] naturalEndpoints)
     {
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Map<Token, EndPoint> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
-        ArrayList<EndPoint> list = new ArrayList<EndPoint>(Arrays.asList(naturalEndpoints));
+        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, InetAddress> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
+        ArrayList<InetAddress> list = new ArrayList<InetAddress>(Arrays.asList(getReadStorageEndPoints(token, tokenToEndPointMap)));
         for (Token t : bootstrapTokensToEndpointMap.keySet())
         {
-            EndPoint ep = bootstrapTokensToEndpointMap.get(t);
+            InetAddress ep = bootstrapTokensToEndpointMap.get(t);
             tokenToEndPointMap.put(t, ep);
             try
             {
@@ -101,29 +102,15 @@ public abstract class AbstractReplicationStrategy
                 tokenToEndPointMap.remove(t);
             }
         }
-        return retrofitPorts(list).toArray(new EndPoint[list.size()]);
+        return list.toArray(new InetAddress[list.size()]);
     }
 
-    /*
-     * This method changes the ports of the endpoints from
-     * the control port to the storage ports.
-    */
-    public List<EndPoint> retrofitPorts(List<EndPoint> eps)
+    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(InetAddress[] topN)
     {
-        List<EndPoint> retrofitted = new ArrayList<EndPoint>();
-        for ( EndPoint ep : eps )
-        {
-            retrofitted.add(new EndPoint(ep.getHost(), ep.getPort()));
-        }
-        return retrofitted;
-    }
+        Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
+        Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
 
-    private Map<EndPoint, EndPoint> getHintedMapForEndpoints(EndPoint[] topN)
-    {
-        Set<EndPoint> usedEndpoints = new HashSet<EndPoint>();
-        Map<EndPoint, EndPoint> map = new HashMap<EndPoint, EndPoint>();
-
-        for (EndPoint ep : topN)
+        for (InetAddress ep : topN)
         {
             if (FailureDetector.instance().isAlive(ep))
             {
@@ -133,8 +120,8 @@ public abstract class AbstractReplicationStrategy
             else
             {
                 // find another endpoint to store a hint on.  prefer endpoints that aren't already in use
-                EndPoint hintLocation = null;
-                Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+                InetAddress hintLocation = null;
+                Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
                 List tokens = new ArrayList(tokenToEndPointMap.keySet());
                 Collections.sort(tokens);
                 Token token = tokenMetadata_.getToken(ep);
@@ -149,7 +136,7 @@ public abstract class AbstractReplicationStrategy
                 int startIndex = (index + 1) % totalNodes;
                 for (int i = startIndex, count = 1; count < totalNodes; ++count, i = (i + 1) % totalNodes)
                 {
-                    EndPoint tmpEndPoint = tokenToEndPointMap.get(tokens.get(i));
+                    InetAddress tmpEndPoint = tokenToEndPointMap.get(tokens.get(i));
                     if (FailureDetector.instance().isAlive(tmpEndPoint) && !Arrays.asList(topN).contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
                     {
                         hintLocation = tmpEndPoint;
@@ -158,7 +145,7 @@ public abstract class AbstractReplicationStrategy
                 }
                 // if all endpoints are already in use, might as well store it locally to save the network trip
                 if (hintLocation == null)
-                    hintLocation = StorageService.getLocalControlEndPoint();
+                    hintLocation = FBUtilities.getLocalAddress();
 
                 map.put(hintLocation, ep);
                 usedEndpoints.add(hintLocation);
@@ -169,11 +156,11 @@ public abstract class AbstractReplicationStrategy
 
     // TODO this is pretty inefficient.
     // fixing this probably requires merging tokenmetadata into replicationstrategy, so we can cache/invalidate cleanly
-    protected Map<EndPoint, Set<Range>> getRangeMap(Map<Token, EndPoint> tokenMap)
+    protected Map<InetAddress, Set<Range>> getRangeMap(Map<Token, InetAddress> tokenMap)
     {
-        Map<EndPoint, Set<Range>> map = new HashMap<EndPoint, Set<Range>>();
+        Map<InetAddress, Set<Range>> map = new HashMap<InetAddress, Set<Range>>();
 
-        for (EndPoint ep : tokenMap.values())
+        for (InetAddress ep : tokenMap.values())
         {
             map.put(ep, new HashSet<Range>());
         }
@@ -181,7 +168,7 @@ public abstract class AbstractReplicationStrategy
         for (Token token : tokenMap.keySet())
         {
             Range range = getPrimaryRangeFor(token, tokenMap);
-            for (EndPoint ep : getReadStorageEndPoints(token, tokenMap))
+            for (InetAddress ep : getReadStorageEndPoints(token, tokenMap))
             {
                 map.get(ep).add(range);
             }
@@ -190,17 +177,17 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Map<EndPoint, Set<Range>> getRangeMap()
+    public Map<InetAddress, Set<Range>> getRangeMap()
     {
         return getRangeMap(tokenMetadata_.cloneTokenEndPointMap());
     }
 
-    public Range getPrimaryRangeFor(Token right, Map<Token, EndPoint> tokenToEndPointMap)
+    public Range getPrimaryRangeFor(Token right, Map<Token, InetAddress> tokenToEndPointMap)
     {
         return new Range(getPredecessor(right, tokenToEndPointMap), right);
     }
 
-    public Token getPredecessor(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    public Token getPredecessor(Token token, Map<Token, InetAddress> tokenToEndPointMap)
     {
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
@@ -208,7 +195,7 @@ public abstract class AbstractReplicationStrategy
         return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(--index));
     }
 
-    public Token getSuccessor(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    public Token getSuccessor(Token token, Map<Token, InetAddress> tokenToEndPointMap)
     {
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         Collections.sort(tokens);

@@ -19,23 +19,22 @@
 package org.apache.cassandra.net;
 
 import java.net.SocketAddress;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.*;
 import java.nio.channels.*;
-import java.util.*;
-import java.util.concurrent.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.net.io.ProtocolState;
-import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.concurrent.*;
+
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class UdpConnection extends SelectionKeyHandler
 {
@@ -44,8 +43,7 @@ public class UdpConnection extends SelectionKeyHandler
     private static final int protocol_ = 0xBADBEEF;
     
     private DatagramChannel socketChannel_;
-    private SelectionKey key_;    
-    private EndPoint localEndPoint_;
+    private SelectionKey key_;
     
     public void init() throws IOException
     {
@@ -54,17 +52,16 @@ public class UdpConnection extends SelectionKeyHandler
         socketChannel_.configureBlocking(false);        
     }
     
-    public void init(int port) throws IOException
+    public void init(InetAddress localEp) throws IOException
     {
-        localEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), port);
         socketChannel_ = DatagramChannel.open();
-        socketChannel_.socket().bind(localEndPoint_.getInetAddress());
+        socketChannel_.socket().bind(new InetSocketAddress(localEp, DatabaseDescriptor.getControlPort()));
         socketChannel_.socket().setReuseAddress(true);
         socketChannel_.configureBlocking(false);        
         key_ = SelectorManager.getUdpSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
     }
     
-    public boolean write(Message message, EndPoint to) throws IOException
+    public boolean write(Message message, InetAddress to) throws IOException
     {
         boolean bVal = true;                       
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -81,7 +78,7 @@ public class UdpConnection extends SelectionKeyHandler
             buffer.put(data);
             buffer.flip();
             
-            int n  = socketChannel_.send(buffer, to.getInetAddress());
+            int n  = socketChannel_.send(buffer, new InetSocketAddress(to, DatabaseDescriptor.getControlPort()));
             if ( n == 0 )
             {
                 bVal = false;

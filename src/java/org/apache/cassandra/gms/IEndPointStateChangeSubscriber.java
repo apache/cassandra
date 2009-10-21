@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 /**
  * This is called by an instance of the IEndPointStateChangePublisher to notify
@@ -38,5 +38,5 @@ public interface IEndPointStateChangeSubscriber
      * @param endpoint endpoint for which the state change occurred.
      * @param epState state that actually changed for the above endpoint.
      */
-    public void onChange(EndPoint endpoint, EndPointState epState);
+    public void onChange(InetAddress endpoint, EndPointState epState);
 }

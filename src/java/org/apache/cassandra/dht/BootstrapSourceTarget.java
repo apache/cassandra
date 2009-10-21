@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.dht;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 /**
  * This class encapsulates who is the source and the
@@ -26,10 +26,10 @@ import org.apache.cassandra.net.EndPoint;
  */
 class BootstrapSourceTarget
 {
-    protected EndPoint source_;
-    protected EndPoint target_;
+    protected InetAddress source_;
+    protected InetAddress target_;
     
-    BootstrapSourceTarget(EndPoint source, EndPoint target)
+    BootstrapSourceTarget(InetAddress source, InetAddress target)
     {
         source_ = source;
         target_ = target;

@@ -59,7 +59,9 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SelectorManager;
@@ -113,7 +115,16 @@ public class CassandraBulkLoader {
             for (String token : this.tokens)
             {
                 String[] values = token.split(":");
-                StorageService.instance().updateTokenMetadata(new BigIntegerToken(new BigInteger(values[0])),new EndPoint(values[1], 7000));
+                InetAddress address;
+                try
+                {
+                    address = InetAddress.getByName(values[1]);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                StorageService.instance().updateTokenMetadataUnsafe(new BigIntegerToken(new BigInteger(values[0])), address);
             }
         }
         public void close()
@@ -160,10 +171,10 @@ public class CassandraBulkLoader {
 
             /* Get serialized message to send to cluster */
             message = createMessage(Keyspace, key.toString(), CFName, columnFamilies);
-            for (EndPoint endpoint: StorageService.instance().getReadStorageEndPoints(key.toString()))
+            for (InetAddress endpoint: StorageService.instance().getReadStorageEndPoints(key.toString()))
             {
                 /* Send message to end point */
-                MessagingService.getMessagingInstance().sendOneWay(message, endpoint);
+                MessagingService.instance().sendOneWay(message, endpoint);
             }
             
             output.collect(key, new Text(" inserted into Cassandra node(s)"));
@@ -234,7 +245,7 @@ public class CassandraBulkLoader {
                 throw new RuntimeException(e);
             }
         }
-        rm = new RowMutation(Keyspace,StorageService.getPartitioner().decorateKey(Key));
+        rm = new RowMutation(Keyspace, Key);
         rm.add(baseColumnFamily);
 
         try

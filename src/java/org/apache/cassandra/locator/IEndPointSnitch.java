@@ -20,7 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 
 /**
@@ -38,7 +38,7 @@ public interface IEndPointSnitch
      * @return true if on the same rack false otherwise
      * @throws UnknownHostException
      */
-    public boolean isOnSameRack(EndPoint host, EndPoint host2) throws UnknownHostException;
+    public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException;
     
     /**
      * Helps determine if 2 nodes are in the same data center.
@@ -47,5 +47,5 @@ public interface IEndPointSnitch
      * @return true if in the same data center false otherwise
      * @throws UnknownHostException
      */
-    public boolean isInSameDataCenter(EndPoint host, EndPoint host2) throws UnknownHostException;
+    public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException;
 }

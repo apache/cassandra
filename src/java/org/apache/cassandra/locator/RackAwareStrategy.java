@@ -26,7 +26,7 @@ import java.util.Map;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 
@@ -44,10 +44,10 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    public InetAddress[] getReadStorageEndPoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
     {
         int startIndex;
-        List<EndPoint> list = new ArrayList<EndPoint>();
+        List<InetAddress> list = new ArrayList<InetAddress>();
         boolean bDataCenter = false;
         boolean bOtherRack = false;
         int foundCount = 0;
@@ -66,7 +66,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         foundCount++;
         if( replicas_ == 1 )
         {
-            return list.toArray(new EndPoint[list.size()]);
+            return list.toArray(new InetAddress[list.size()]);
         }
         startIndex = (index + 1)%totalNodes;
         IEndPointSnitch endPointSnitch = StorageService.instance().getEndPointSnitch();
@@ -117,6 +117,6 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                 foundCount++;
             }
         }
-        return retrofitPorts(list).toArray(new EndPoint[list.size()]);
+        return list.toArray(new InetAddress[list.size()]);
     }
 }

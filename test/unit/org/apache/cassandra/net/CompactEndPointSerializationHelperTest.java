@@ -1,6 +1,7 @@
 package org.apache.cassandra.net;
 
 import java.net.UnknownHostException;
+import java.net.InetAddress;
 
 import org.junit.Test;
 
@@ -11,10 +12,10 @@ public class CompactEndPointSerializationHelperTest
     @Test
     public void testSerialize() throws UnknownHostException
     {
-        EndPoint ep = new EndPoint(FBUtilities.getHostAddress(), 7000);
+        InetAddress ep = FBUtilities.getLocalAddress();
         byte[] bytes = ep.getAddress();
         System.out.println(bytes.length);
-        EndPoint ep2 = EndPoint.getByAddress(bytes);
+        InetAddress ep2 = InetAddress.getByAddress(bytes);
         System.out.println(ep2);
     }
 }

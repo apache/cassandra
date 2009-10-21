@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.util.Collection;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
@@ -32,7 +33,7 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
@@ -100,9 +101,8 @@ public class HintedHandOffManager
         return instance_;
     }
 
-    private static boolean sendMessage(String endpointAddress, String tableName, String key) throws DigestMismatchException, TimeoutException, IOException, InvalidRequestException
+    private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws DigestMismatchException, TimeoutException, IOException, InvalidRequestException
     {
-        EndPoint endPoint = new EndPoint(endpointAddress, DatabaseDescriptor.getStoragePort());
         if (!FailureDetector.instance().isAlive(endPoint))
         {
             return false;
@@ -113,7 +113,7 @@ public class HintedHandOffManager
         RowMutation rm = new RowMutation(tableName, row);
         Message message = rm.makeRowMutationMessage();
         QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(1, new WriteResponseResolver());
-        MessagingService.instance().sendRR(message, new EndPoint[]{ endPoint }, quorumResponseHandler);
+        MessagingService.instance().sendRR(message, new InetAddress[]{ endPoint }, quorumResponseHandler);
 
         return quorumResponseHandler.get();
     }
@@ -161,8 +161,7 @@ public class HintedHandOffManager
                 int deleted = 0;
                 for (IColumn endpoint : endpoints)
                 {
-                    String endpointStr = new String(endpoint.name(), "UTF-8");
-                    if (sendMessage(endpointStr, tableName, keyStr))
+                    if (sendMessage(InetAddress.getByAddress(endpoint.name()), tableName, keyStr))
                     {
                         deleteEndPoint(endpoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
                         deleted++;
@@ -181,12 +180,12 @@ public class HintedHandOffManager
           logger_.debug("Finished deliverAllHints");
     }
 
-    private static void deliverHintsToEndpoint(EndPoint endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
+    private static void deliverHintsToEndpoint(InetAddress endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Started hinted handoff for endPoint " + endPoint);
 
-        String targetEPBytes = endPoint.getHost();
+        byte[] targetEPBytes = endPoint.getAddress();
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recipients if the endpoint matches send
         // 3. Delete that recipient from the key if write was successful
@@ -206,7 +205,7 @@ public class HintedHandOffManager
                 Collection<IColumn> endpoints = keyColumn.getSubColumns();
                 for (IColumn hintEndPoint : endpoints)
                 {
-                    if (new String(hintEndPoint.name(), "UTF-8").equals(targetEPBytes) && sendMessage(endPoint.getHost(), null, keyStr))
+                    if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, null, keyStr))
                     {
                         if (endpoints.size() == 1)
                         {
@@ -256,7 +255,7 @@ public class HintedHandOffManager
      * When we learn that some endpoint is back up we deliver the data
      * to him via an event driven mechanism.
     */
-    public void deliverHints(final EndPoint to)
+    public void deliverHints(final InetAddress to)
     {
         Runnable r = new Runnable()
         {

@@ -34,10 +34,11 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndPointStateChangeSubscriber;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 /*
  * The load balancing algorithm here is an implementation of
@@ -71,14 +72,14 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             /*
             int threshold = (int)(StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad());
             int myLoad = localLoad();            
-            EndPoint predecessor = StorageService.instance().getPredecessor(StorageService.getLocalStorageEndPoint());
+            InetAddress predecessor = StorageService.instance().getPredecessor(StorageService.getLocalStorageEndPoint());
             if (logger_.isDebugEnabled())
               logger_.debug("Trying to relocate the predecessor " + predecessor);
             boolean value = tryThisNode(myLoad, threshold, predecessor);
             if ( !value )
             {
                 loadInfo2_.remove(predecessor);
-                EndPoint successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
+                InetAddress successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
                 if (logger_.isDebugEnabled())
                   logger_.debug("Trying to relocate the successor " + successor);
                 value = tryThisNode(myLoad, threshold, successor);
@@ -87,7 +88,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                     loadInfo2_.remove(successor);
                     while ( !loadInfo2_.isEmpty() )
                     {
-                        EndPoint target = findARandomLightNode();
+                        InetAddress target = findARandomLightNode();
                         if ( target != null )
                         {
                             if (logger_.isDebugEnabled())
@@ -123,7 +124,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
 
         /*
-        private boolean tryThisNode(int myLoad, int threshold, EndPoint target)
+        private boolean tryThisNode(int myLoad, int threshold, InetAddress target)
         {
             boolean value = false;
             LoadInfo li = loadInfo2_.get(target);
@@ -155,7 +156,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     {
         public void doVerb(Message message)
         {
-            Message reply = message.getReply(StorageService.getLocalStorageEndPoint(), new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
+            Message reply = message.getReply(FBUtilities.getLocalAddress(), new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
             MessagingService.instance().sendOneWay(reply, message.getFrom());
             if ( isMoveable_.get() )
             {
@@ -186,9 +187,9 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     /* this indicates whether this node is already helping someone else */
     private AtomicBoolean isMoveable_ = new AtomicBoolean(false);
-    private Map<EndPoint, Double> loadInfo_ = new HashMap<EndPoint, Double>();
+    private Map<InetAddress, Double> loadInfo_ = new HashMap<InetAddress, Double>();
     /* This map is a clone of the one above and is used for various calculations during LB operation */
-    private Map<EndPoint, Double> loadInfo2_ = new HashMap<EndPoint, Double>();
+    private Map<InetAddress, Double> loadInfo2_ = new HashMap<InetAddress, Double>();
     /* This thread pool is used for initiating load balancing operations */
     private ExecutorService lb_ = new DebuggableThreadPoolExecutor("LB-OPERATIONS");
     /* This thread pool is used by target node to leave the ring. */
@@ -204,7 +205,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         Gossiper.instance().register(this);
     }
 
-    public void onChange(EndPoint endpoint, EndPointState epState)
+    public void onChange(InetAddress endpoint, EndPointState epState)
     {
         // load information for this specified endpoint for load balancing 
         ApplicationState loadInfoState = epState.getApplicationState(LoadDisseminator.loadInfo_);
@@ -232,7 +233,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         if ( !isMoveable_.get() )
             return false;
         int myload = localLoad();
-        EndPoint successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
+        InetAddress successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
         LoadInfo li = loadInfo2_.get(successor);
         // "load" is NULL means that the successor node has not
         // yet gossiped its load information. We should return
@@ -249,17 +250,17 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private double localLoad()
     {
-        Double load = loadInfo2_.get(StorageService.getLocalStorageEndPoint());
+        Double load = loadInfo2_.get(FBUtilities.getLocalAddress());
         return load == null ? 0 : load;
     }
 
     private double averageSystemLoad()
     {
         int nodeCount = loadInfo2_.size();
-        Set<EndPoint> nodes = loadInfo2_.keySet();
+        Set<InetAddress> nodes = loadInfo2_.keySet();
 
         double systemLoad = 0;
-        for (EndPoint node : nodes)
+        for (InetAddress node : nodes)
         {
             systemLoad += loadInfo2_.get(node);
         }
@@ -274,7 +275,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         return ( localLoad() > ( StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad() ) );
     }
 
-    private boolean isMoveable(EndPoint target)
+    private boolean isMoveable(InetAddress target)
     {
         double threshold = StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad();
         if (isANeighbour(target))
@@ -295,20 +296,20 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
         else
         {
-            EndPoint successor = StorageService.instance().getSuccessor(target);
+            InetAddress successor = StorageService.instance().getSuccessor(target);
             double sLoad = loadInfo2_.get(successor);
             double targetLoad = loadInfo2_.get(target);
             return (sLoad + targetLoad) <= threshold;
         }
     }
 
-    private boolean isANeighbour(EndPoint neighbour)
+    private boolean isANeighbour(InetAddress neighbour)
     {
-        EndPoint predecessor = StorageService.instance().getPredecessor(StorageService.getLocalStorageEndPoint());
+        InetAddress predecessor = StorageService.instance().getPredecessor(FBUtilities.getLocalAddress());
         if ( predecessor.equals(neighbour) )
             return true;
 
-        EndPoint successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
+        InetAddress successor = StorageService.instance().getSuccessor(FBUtilities.getLocalAddress());
         if ( successor.equals(neighbour) )
             return true;
 
@@ -320,13 +321,13 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
      * random one of the lightly loaded nodes and use them as
      * a potential target for load balance.
     */
-    private EndPoint findARandomLightNode()
+    private InetAddress findARandomLightNode()
     {
-        List<EndPoint> potentialCandidates = new ArrayList<EndPoint>();
-        Set<EndPoint> allTargets = loadInfo2_.keySet();
+        List<InetAddress> potentialCandidates = new ArrayList<InetAddress>();
+        Set<InetAddress> allTargets = loadInfo2_.keySet();
         double avgLoad = averageSystemLoad();
 
-        for (EndPoint target : allTargets)
+        for (InetAddress target : allTargets)
         {
             double load = loadInfo2_.get(target);
             if (load < avgLoad)
@@ -344,7 +345,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         return null;
     }
 
-    public Map<EndPoint, Double> getLoadInfo()
+    public Map<InetAddress, Double> getLoadInfo()
     {
         return loadInfo_;
     }

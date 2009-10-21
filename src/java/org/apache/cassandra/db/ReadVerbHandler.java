@@ -24,7 +24,7 @@ import java.util.List;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -97,7 +97,7 @@ public class ReadVerbHandler implements IVerbHandler
             byte[] bytes = new byte[readCtx.bufOut_.getLength()];
             System.arraycopy(readCtx.bufOut_.getData(), 0, bytes, 0, bytes.length);
 
-            Message response = message.getReply(StorageService.getLocalStorageEndPoint(), bytes);
+            Message response = message.getReply(FBUtilities.getLocalAddress(), bytes);
             if (logger_.isDebugEnabled())
               logger_.debug("Read key " + readCommand.key + "; sending response to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.instance().sendOneWay(response, message.getFrom());
@@ -116,9 +116,9 @@ public class ReadVerbHandler implements IVerbHandler
     
     private void doReadRepair(Row row, ReadCommand readCommand)
     {
-        List<EndPoint> endpoints = StorageService.instance().getLiveReadStorageEndPoints(readCommand.key);
-        /* Remove the local storage endpoint from the list. */ 
-        endpoints.remove( StorageService.getLocalStorageEndPoint() );
+        List<InetAddress> endpoints = StorageService.instance().getLiveReadStorageEndPoints(readCommand.key);
+        /* Remove the local storage endpoint from the list. */
+        endpoints.remove(FBUtilities.getLocalAddress());
             
         if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
             StorageService.instance().doConsistencyCheck(row, endpoints, readCommand);

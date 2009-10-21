@@ -22,16 +22,13 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.DataInputStream;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Collections;
-
-import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeCommand
 {
@@ -56,7 +53,7 @@ public class RangeCommand
     {
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob);
-        return new Message(StorageService.getLocalStorageEndPoint(),
+        return new Message(FBUtilities.getLocalAddress(),
                            StorageService.readStage_,
                            StorageService.rangeVerbHandler_,
                            Arrays.copyOf(dob.getData(), dob.getLength()));

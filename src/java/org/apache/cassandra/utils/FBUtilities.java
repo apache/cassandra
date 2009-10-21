@@ -23,8 +23,6 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
@@ -51,21 +49,20 @@ public class FBUtilities
         return result.toArray( new String[0] );
     }
 
-    public static InetAddress getLocalAddress() throws UnknownHostException
+    public static InetAddress getLocalAddress()
     {
-	if ( localInetAddress_ == null )
-		localInetAddress_ = InetAddress.getLocalHost();
+        if (localInetAddress_ == null)
+            try
+            {
+                localInetAddress_ = DatabaseDescriptor.getListenAddress() == null
+                                    ? InetAddress.getLocalHost()
+                                    : DatabaseDescriptor.getListenAddress();
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
         return localInetAddress_;
-    }
-
-    public static String getHostAddress() throws UnknownHostException
-    {
-        InetAddress inetAddr = getLocalAddress();
-        if (DatabaseDescriptor.getListenAddress() != null)
-        {
-            inetAddr = InetAddress.getByName(DatabaseDescriptor.getListenAddress());
-        }
-        return inetAddr.getHostAddress();
     }
 
     public static byte[] toByteArray(int i)

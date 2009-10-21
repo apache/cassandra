@@ -36,7 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -272,7 +272,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * This method forces a compaction of the SSTables on disk. We wait
      * for the process to complete by waiting on a future pointer.
     */
-    List<SSTableReader> forceAntiCompaction(List<Range> ranges, EndPoint target)
+    List<SSTableReader> forceAntiCompaction(List<Range> ranges, InetAddress target)
     {
         assert ranges != null;
         Future<List<SSTableReader>> futurePtr = CompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target);
@@ -704,7 +704,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    List<SSTableReader> doAntiCompaction(List<Range> ranges, EndPoint target) throws IOException
+    List<SSTableReader> doAntiCompaction(List<Range> ranges, InetAddress target) throws IOException
     {
         return doFileAntiCompaction(ssTables_.getSSTables(), ranges, target);
     }
@@ -757,7 +757,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return
      * @throws IOException
      */
-    List<SSTableReader> doFileAntiCompaction(Collection<SSTableReader> sstables, Collection<Range> ranges, EndPoint target) throws IOException
+    List<SSTableReader> doFileAntiCompaction(Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target) throws IOException
     {
         logger_.info("AntiCompacting [" + StringUtils.join(sstables, ",") + "]");
         // Calculate the expected compacted filesize

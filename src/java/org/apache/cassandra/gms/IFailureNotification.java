@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 public interface IFailureNotification
 {   
-    public void suspect(EndPoint ep);
-    public void revive(EndPoint ep);
+    public void suspect(InetAddress ep);
+    public void revive(InetAddress ep);
 }

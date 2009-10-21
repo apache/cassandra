@@ -19,6 +19,7 @@
 package org.apache.cassandra.net.io;
 
 import java.net.InetSocketAddress;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
@@ -43,9 +44,8 @@ class ContentStreamState extends StartState
         super(stream); 
         SocketChannel socketChannel = stream.getStream();
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        String remoteHost = remoteAddress.getAddress().getHostAddress();        
-        streamContext_ = StreamContextManager.getStreamContext(remoteHost);   
-        streamStatus_ = StreamContextManager.getStreamStatus(remoteHost);
+        streamContext_ = StreamContextManager.getStreamContext(remoteAddress.getAddress());
+        streamStatus_ = StreamContextManager.getStreamStatus(remoteAddress.getAddress());
     }
     
     private void createFileChannel() throws IOException
@@ -63,7 +63,6 @@ class ContentStreamState extends StartState
     {        
         SocketChannel socketChannel = stream_.getStream();
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        String remoteHostIp = remoteAddress.getAddress().getHostAddress();
         createFileChannel();
         if ( streamContext_ != null )
         {  
@@ -77,7 +76,7 @@ class ContentStreamState extends StartState
             {
                 /* Ask the source node to re-stream this file. */
                 streamStatus_.setAction(StreamContextManager.StreamCompletionAction.STREAM);                
-                handleStreamCompletion(remoteHostIp);
+                handleStreamCompletion(remoteAddress.getAddress());
                 /* Delete the orphaned file. */
                 File file = new File(streamContext_.getTargetFile());
                 file.delete();
@@ -87,7 +86,7 @@ class ContentStreamState extends StartState
             {       
                 if (logger_.isDebugEnabled())
                     logger_.debug("Removing stream context " + streamContext_);                 
-                handleStreamCompletion(remoteHostIp);                              
+                handleStreamCompletion(remoteAddress.getAddress());                              
                 bytesRead_ = 0L;
                 fc_.close();
                 morphState();
@@ -97,7 +96,7 @@ class ContentStreamState extends StartState
         return new byte[0];
     }
     
-    private void handleStreamCompletion(String remoteHost) throws IOException
+    private void handleStreamCompletion(InetAddress remoteHost) throws IOException
     {
         /* 
          * Streaming is complete. If all the data that has to be received inform the sender via 

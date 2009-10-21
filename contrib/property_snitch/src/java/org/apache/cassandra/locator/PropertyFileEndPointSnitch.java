@@ -30,7 +30,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.locator.EndPointSnitch;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
@@ -84,7 +84,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
      * 
      * @return a array of string with the first index being the data center and the second being the rack
      */
-    public String[] getEndPointInfo(EndPoint endPoint) {
+    public String[] getEndPointInfo(InetAddress endPoint) {
         String key = endPoint.toString();
         String value = hostProperties.getProperty(key);
         if (value == null)
@@ -107,7 +107,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
      * @param endPoint the endPoint to process
      * @return string of data center
      */
-    public String getDataCenterForEndPoint(EndPoint endPoint) {
+    public String getDataCenterForEndPoint(InetAddress endPoint) {
         return getEndPointInfo(endPoint)[0];
     }
 
@@ -118,12 +118,12 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
      * 
      * @return string of rack
      */
-    public String getRackForEndPoint(EndPoint endPoint) {
+    public String getRackForEndPoint(InetAddress endPoint) {
         return getEndPointInfo(endPoint)[1];
     }
 
     @Override
-    public boolean isInSameDataCenter(EndPoint host, EndPoint host2)
+    public boolean isInSameDataCenter(InetAddress host, InetAddress host2)
             throws UnknownHostException {
         if (runInBaseMode) 
         {
@@ -133,7 +133,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     }
 
     @Override
-    public boolean isOnSameRack(EndPoint host, EndPoint host2)
+    public boolean isOnSameRack(InetAddress host, InetAddress host2)
             throws UnknownHostException {
         if (runInBaseMode) 
         {

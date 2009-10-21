@@ -28,11 +28,12 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.TimedStatsDeque;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
 
@@ -69,15 +70,15 @@ public class StorageProxy implements StorageProxyMBean
      * sent over the wire to N replicas where some of the replicas
      * may be hints.
      */
-    private static Map<EndPoint, Message> createWriteMessages(RowMutation rm, Map<EndPoint, EndPoint> endpointMap) throws IOException
+    private static Map<InetAddress, Message> createWriteMessages(RowMutation rm, Map<InetAddress, InetAddress> endpointMap) throws IOException
     {
-		Map<EndPoint, Message> messageMap = new HashMap<EndPoint, Message>();
+		Map<InetAddress, Message> messageMap = new HashMap<InetAddress, Message>();
 		Message message = rm.makeRowMutationMessage();
 
-		for (Map.Entry<EndPoint, EndPoint> entry : endpointMap.entrySet())
+		for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
 		{
-            EndPoint target = entry.getKey();
-            EndPoint hint = entry.getValue();
+            InetAddress target = entry.getKey();
+            InetAddress hint = entry.getValue();
             if ( !target.equals(hint) )
 			{
 				Message hintedMessage = rm.makeRowMutationMessage();
@@ -113,13 +114,14 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
 		try
 		{
-            EndPoint[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
-			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
-			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
-			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
+            InetAddress[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
+            // (This is the ZERO consistency level, so user doesn't care if we don't really have N destinations available.)
+			Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
+			Map<InetAddress, Message> messageMap = createWriteMessages(rm, endpointMap);
+			for (Map.Entry<InetAddress, Message> entry : messageMap.entrySet())
 			{
                 Message message = entry.getValue();
-                EndPoint endpoint = entry.getKey();
+                InetAddress endpoint = entry.getKey();
                 if (logger.isDebugEnabled())
                     logger.debug("insert writing key " + rm.key() + " to " + message.getMessageId() + "@" + endpoint);
                 MessagingService.instance().sendOneWay(message, endpoint);
@@ -149,10 +151,10 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
-            EndPoint[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
-			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
+            InetAddress[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
+            Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
             int blockFor = determineBlockFor(naturalEndpoints.length, endpointMap.size(), consistency_level);
-            List<EndPoint> primaryNodes = getUnhintedNodes(endpointMap);
+            List<InetAddress> primaryNodes = getUnhintedNodes(endpointMap);
             if (primaryNodes.size() < blockFor) // guarantee blockFor = W live nodes.
             {
                 throw new UnavailableException();
@@ -162,12 +164,12 @@ public class StorageProxy implements StorageProxyMBean
                 logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpointMap.keySet(), ", ") + "]");
 
             // Get all the targets and stick them in an array
-            MessagingService.instance().sendRR(message, primaryNodes.toArray(new EndPoint[primaryNodes.size()]), quorumResponseHandler);
+            MessagingService.instance().sendRR(message, primaryNodes.toArray(new InetAddress[primaryNodes.size()]), quorumResponseHandler);
             if (!quorumResponseHandler.get())
                 throw new UnavailableException();
             if (primaryNodes.size() < endpointMap.size()) // Do we need to bother with Hinted Handoff?
             {
-                for (Map.Entry<EndPoint, EndPoint> e : endpointMap.entrySet())
+                for (Map.Entry<InetAddress, InetAddress> e : endpointMap.entrySet())
                 {
                     if (e.getKey() != e.getValue()) // Hinted Handoff to target
                     {
@@ -187,10 +189,10 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static List<EndPoint> getUnhintedNodes(Map<EndPoint, EndPoint> endpointMap)
+    private static List<InetAddress> getUnhintedNodes(Map<InetAddress, InetAddress> endpointMap)
     {
-        List<EndPoint> liveEndPoints = new ArrayList<EndPoint>(endpointMap.size());
-        for (Map.Entry<EndPoint, EndPoint> e : endpointMap.entrySet())
+        List<InetAddress> liveEndPoints = new ArrayList<InetAddress>(endpointMap.size());
+        for (Map.Entry<InetAddress, InetAddress> e : endpointMap.entrySet())
         {
             if (e.getKey() == e.getValue())
             {
@@ -247,7 +249,7 @@ public class StorageProxy implements StorageProxyMBean
 
         for (ReadCommand command: commands)
         {
-            EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.key);
+            InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.key);
             Message message = command.makeReadMessage();
 
             if (logger.isDebugEnabled())
@@ -296,8 +298,8 @@ public class StorageProxy implements StorageProxyMBean
 
             for (ReadCommand command: commands)
             {
-                EndPoint[] endpoints = StorageService.instance().getReadStorageEndPoints(command.key);
-                boolean foundLocal = Arrays.asList(endpoints).contains(StorageService.getLocalStorageEndPoint());
+                InetAddress[] endpoints = StorageService.instance().getReadStorageEndPoints(command.key);
+                boolean foundLocal = Arrays.asList(endpoints).contains(FBUtilities.getLocalAddress());
                 //TODO: Throw InvalidRequest if we're in bootstrap mode?
                 if (foundLocal && !StorageService.instance().isBootstrapMode())
                 {
@@ -340,7 +342,7 @@ public class StorageProxy implements StorageProxyMBean
     private static List<Row> strongRead(List<ReadCommand> commands) throws IOException, TimeoutException, InvalidRequestException, UnavailableException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
-        List<EndPoint[]> commandEndPoints = new ArrayList<EndPoint[]>();
+        List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
         List<Row> rows = new ArrayList<Row>();
 
         int commandIndex = 0;
@@ -356,11 +358,11 @@ public class StorageProxy implements StorageProxyMBean
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
             QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver());
-            EndPoint dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-            List<EndPoint> endpointList = new ArrayList<EndPoint>(Arrays.asList(StorageService.instance().getReadStorageEndPoints(command.key)));
+            InetAddress dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
+            List<InetAddress> endpointList = new ArrayList<InetAddress>(Arrays.asList(StorageService.instance().getReadStorageEndPoints(command.key)));
             /* Remove the local storage endpoint from the list. */
             endpointList.remove(dataPoint);
-            EndPoint[] endPoints = new EndPoint[endpointList.size() + 1];
+            InetAddress[] endPoints = new InetAddress[endpointList.size() + 1];
             Message messages[] = new Message[endpointList.size() + 1];
 
             /*
@@ -374,7 +376,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.debug("strongread reading data for " + command + " from " + message.getMessageId() + "@" + dataPoint);
             for (int i = 1; i < endPoints.length; i++)
             {
-                EndPoint digestPoint = endpointList.get(i - 1);
+                InetAddress digestPoint = endpointList.get(i - 1);
                 endPoints[i] = digestPoint;
                 messages[i] = messageDigestOnly;
                 if (logger.isDebugEnabled())
@@ -440,9 +442,9 @@ public class StorageProxy implements StorageProxyMBean
         List<Row> rows = new ArrayList<Row>();
         for (ReadCommand command: commands)
         {
-            List<EndPoint> endpoints = StorageService.instance().getLiveReadStorageEndPoints(command.key);
+            List<InetAddress> endpoints = StorageService.instance().getLiveReadStorageEndPoints(command.key);
             /* Remove the local storage endpoint from the list. */
-            endpoints.remove(StorageService.getLocalStorageEndPoint());
+            endpoints.remove(FBUtilities.getLocalAddress());
             // TODO: throw a thrift exception if we do not have N nodes
 
             if (logger.isDebugEnabled())
@@ -471,9 +473,9 @@ public class StorageProxy implements StorageProxyMBean
         List<String> allKeys = new ArrayList<String>();
         RangeCommand command = rawCommand;
 
-        EndPoint endPoint = StorageService.instance().findSuitableEndPoint(command.startWith);
-        EndPoint startEndpoint = endPoint;
-        EndPoint wrapEndpoint = tokenMetadata.getFirstEndpoint();
+        InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.startWith);
+        InetAddress startEndpoint = endPoint;
+        InetAddress wrapEndpoint = tokenMetadata.getFirstEndpoint();
 
         do
         {

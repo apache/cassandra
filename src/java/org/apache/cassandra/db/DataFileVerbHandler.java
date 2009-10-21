@@ -26,8 +26,8 @@ import java.util.List;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.log4j.Logger;
 
@@ -52,7 +52,7 @@ public class DataFileVerbHandler implements IVerbHandler
             {
                 dos.writeUTF(sstable.getFilename());
             }
-            Message response = message.getReply( StorageService.getLocalStorageEndPoint(), bos.toByteArray());
+            Message response = message.getReply(FBUtilities.getLocalAddress(), bos.toByteArray());
             MessagingService.instance().sendOneWay(response, message.getFrom());
         }
         catch (IOException ex)

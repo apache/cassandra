@@ -32,7 +32,7 @@ import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
 
 public class SystemTable
 {
@@ -60,11 +60,11 @@ public class SystemTable
     /**
      * Record token being used by another node
      */
-    public static synchronized void updateToken(EndPoint ep, Token token) throws IOException
+    public static synchronized void updateToken(InetAddress ep, Token token) throws IOException
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(ep.getHost().getBytes("UTF-8"), p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
+        cf.addColumn(new Column(ep.getAddress(), p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
         rm.apply();

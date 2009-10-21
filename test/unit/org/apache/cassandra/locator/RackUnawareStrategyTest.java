@@ -31,12 +31,13 @@ import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.StringToken;
-import org.apache.cassandra.net.EndPoint;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class RackUnawareStrategyTest
 {
     @Test
-    public void testBigIntegerStorageEndPoints()
+    public void testBigIntegerStorageEndPoints() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
@@ -52,7 +53,7 @@ public class RackUnawareStrategyTest
     }
 
     @Test
-    public void testStringStorageEndPoints()
+    public void testStringStorageEndPoints() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
@@ -69,19 +70,19 @@ public class RackUnawareStrategyTest
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void testGetStorageEndPoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens)
+    private void testGetStorageEndPoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens) throws UnknownHostException
     {
-        List<EndPoint> hosts = new ArrayList<EndPoint>();
+        List<InetAddress> hosts = new ArrayList<InetAddress>();
         for (int i = 0; i < endPointTokens.length; i++)
         {
-            EndPoint ep = new EndPoint("127.0.0." + String.valueOf(i + 1), 7001);
+            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
             tmd.update(endPointTokens[i], ep);
             hosts.add(ep);
         }
 
         for (int i = 0; i < keyTokens.length; i++)
         {
-            EndPoint[] endPoints = strategy.getReadStorageEndPoints(keyTokens[i]);
+            InetAddress[] endPoints = strategy.getReadStorageEndPoints(keyTokens[i]);
             assertEquals(3, endPoints.length);
             for (int j = 0; j < endPoints.length; j++)
             {
@@ -91,7 +92,7 @@ public class RackUnawareStrategyTest
     }
     
     @Test
-    public void testGetStorageEndPointsDuringBootstrap()
+    public void testGetStorageEndPointsDuringBootstrap() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
@@ -106,24 +107,24 @@ public class RackUnawareStrategyTest
             keyTokens[i] = new BigIntegerToken(String.valueOf(10 * i + 5));
         }
         
-        List<EndPoint> hosts = new ArrayList<EndPoint>();
+        List<InetAddress> hosts = new ArrayList<InetAddress>();
         for (int i = 0; i < endPointTokens.length; i++)
         {
-            EndPoint ep = new EndPoint("127.0.0." + String.valueOf(i + 1), 7001);
+            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
             tmd.update(endPointTokens[i], ep);
             hosts.add(ep);
         }
         
         //Add bootstrap node id=6
         Token bsToken = new BigIntegerToken(String.valueOf(25));
-        EndPoint bootstrapEndPoint = new EndPoint("127.0.0.6", 7001);
+        InetAddress bootstrapEndPoint = InetAddress.getByName("127.0.0.6");
         tmd.update(bsToken, bootstrapEndPoint, true);
         
         for (int i = 0; i < keyTokens.length; i++)
         {
-            EndPoint[] endPoints = strategy.getWriteStorageEndPoints(keyTokens[i], strategy.getReadStorageEndPoints(keyTokens[i]));
+            InetAddress[] endPoints = strategy.getWriteStorageEndPoints(keyTokens[i], strategy.getReadStorageEndPoints(keyTokens[i]));
             assertTrue(endPoints.length >=3);
-            List<EndPoint> endPointsList = Arrays.asList(endPoints);
+            List<InetAddress> endPointsList = Arrays.asList(endPoints);
 
             for (int j = 0; j < 3; j++)
             {
