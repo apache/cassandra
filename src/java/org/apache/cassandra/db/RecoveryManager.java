@@ -44,7 +44,14 @@ public class RecoveryManager
     {
         String directory = DatabaseDescriptor.getLogFileLocation();
         File file = new File(directory);
-        return file.listFiles();
+        return file.listFiles(new FilenameFilter()
+        {
+            public boolean accept(File dir, String name)
+            {
+                // throw out anything that starts with dot.
+                return !name.matches("\\..*");
+            }
+        });
     }
 
     public static void doRecovery() throws IOException
