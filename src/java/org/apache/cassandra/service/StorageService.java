@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -154,7 +153,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                                                                                    new NamedThreadFactory("CONSISTENCY-MANAGER"));
 
     /* We use this interface to determine where replicas need to be placed */
-    private AbstractReplicationStrategy nodePicker_;
+    private AbstractReplicationStrategy replicationStrategy_;
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
     private Set<EndPoint> bootstrapSet;
@@ -241,7 +240,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
         try
         {
-            nodePicker_ = (AbstractReplicationStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+            replicationStrategy_ = (AbstractReplicationStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
         }
         catch (Exception e)
         {
@@ -357,7 +356,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
         for (Range range : ranges)
         {
-            EndPoint[] endpoints = nodePicker_.getReadStorageEndPoints(range.right());
+            EndPoint[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right());
             // create a new ArrayList since a bunch of methods like to mutate the endpointmap List
             rangeToEndPointMap.put(range, new ArrayList<EndPoint>(Arrays.asList(endpoints)));
         }
@@ -378,7 +377,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<EndPoint>> rangeToEndPointMap = new HashMap<Range, List<EndPoint>>();
         for ( Range range : ranges )
         {
-            EndPoint[] endpoints = nodePicker_.getReadStorageEndPoints(range.right(), tokenToEndPointMap);
+            EndPoint[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right(), tokenToEndPointMap);
             rangeToEndPointMap.put(range, new ArrayList<EndPoint>( Arrays.asList(endpoints) ) );
         }
         if (logger_.isDebugEnabled())
@@ -910,7 +909,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public EndPoint[] getReadStorageEndPoints(String key)
     {
-        return nodePicker_.getReadStorageEndPoints(partitioner_.getToken(key));
+        return replicationStrategy_.getReadStorageEndPoints(partitioner_.getToken(key));
     }    
     
     /**
@@ -943,12 +942,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public Map<EndPoint, EndPoint> getHintedStorageEndpointMap(String key)
     {
-        return nodePicker_.getHintedStorageEndPoints(partitioner_.getToken(key));
+        return replicationStrategy_.getHintedStorageEndPoints(partitioner_.getToken(key));
     }
 
     public void retrofitPorts(List<EndPoint> eps)
     {
-        nodePicker_.retrofitPorts(eps);
+        replicationStrategy_.retrofitPorts(eps);
     }
 
     /**
