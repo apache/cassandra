@@ -26,6 +26,8 @@ import java.io.RandomAccessFile;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
 import java.net.InetAddress;
+import java.util.List;
+
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.LogUtil;
@@ -40,7 +42,7 @@ public class KeyChecker
      */
     private static boolean checkIfProcessKey(String key)
     {
-        InetAddress[] endPoints = StorageService.instance().getReadStorageEndPoints(key);
+        List<InetAddress> endPoints = StorageService.instance().getNaturalEndpoints(key);
         InetAddress localEndPoint = FBUtilities.getLocalAddress();
         for(InetAddress endPoint : endPoints)
         {

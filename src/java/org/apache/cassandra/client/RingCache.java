@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.client;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -112,8 +110,8 @@ public class RingCache
         }
     }
 
-    public InetAddress[] getEndPoint(String key)
+    public List<InetAddress> getEndPoint(String key)
     {
-        return nodePicker_.getReadStorageEndPoints(partitioner_.getToken(key));
+        return nodePicker_.getNaturalEndpoints(partitioner_.getToken(key));
     }
 }

@@ -338,9 +338,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            InetAddress[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right());
-            // create a new ArrayList since a bunch of methods like to mutate the endpointmap List
-            rangeToEndPointMap.put(range, new ArrayList<InetAddress>(Arrays.asList(endpoints)));
+            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right()));
         }
         return rangeToEndPointMap;
     }
@@ -359,8 +357,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for ( Range range : ranges )
         {
-            InetAddress[] endpoints = replicationStrategy_.getReadStorageEndPoints(range.right(), tokenToEndPointMap);
-            rangeToEndPointMap.put(range, new ArrayList<InetAddress>( Arrays.asList(endpoints) ) );
+            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right(), tokenToEndPointMap));
         }
         if (logger_.isDebugEnabled())
           logger_.debug("Done constructing range to endpoint map ...");
@@ -755,9 +752,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public InetAddress[] getReadStorageEndPoints(String key)
+    public List<InetAddress> getNaturalEndpoints(String key)
     {
-        return replicationStrategy_.getReadStorageEndPoints(partitioner_.getToken(key));
+        return replicationStrategy_.getNaturalEndpoints(partitioner_.getToken(key));
     }    
     
     /**
@@ -767,10 +764,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<InetAddress> getLiveReadStorageEndPoints(String key)
+    public List<InetAddress> getLiveNaturalEndpoints(String key)
     {
     	List<InetAddress> liveEps = new ArrayList<InetAddress>();
-    	InetAddress[] endpoints = getReadStorageEndPoints(key);
+    	List<InetAddress> endpoints = getNaturalEndpoints(key);
     	
     	for ( InetAddress endpoint : endpoints )
     	{
@@ -788,9 +785,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public Map<InetAddress, InetAddress> getHintedStorageEndpointMap(String key, InetAddress[] naturalEndpoints)
+    public Map<InetAddress, InetAddress> getHintedEndpointMap(String key, List<InetAddress> naturalEndpoints)
     {
-        return replicationStrategy_.getHintedStorageEndPoints(partitioner_.getToken(key), naturalEndpoints);
+        return replicationStrategy_.getHintedEndpoints(partitioner_.getToken(key), naturalEndpoints);
     }
 
     /**
@@ -799,7 +796,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
 	public InetAddress findSuitableEndPoint(String key) throws IOException, UnavailableException
 	{
-		InetAddress[] endpoints = getReadStorageEndPoints(key);
+		List<InetAddress> endpoints = getNaturalEndpoints(key);
 		for(InetAddress endPoint: endpoints)
 		{
             if(endPoint.equals(FBUtilities.getLocalAddress()))
@@ -808,24 +805,24 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 			}
 		}
 		int j = 0;
-		for ( ; j < endpoints.length; ++j )
+		for ( ; j < endpoints.size(); ++j )
 		{
-			if ( StorageService.instance().isInSameDataCenter(endpoints[j]) && FailureDetector.instance().isAlive(endpoints[j]))
+			if ( StorageService.instance().isInSameDataCenter(endpoints.get(j)) && FailureDetector.instance().isAlive(endpoints.get(j)))
 			{
-				return endpoints[j];
+				return endpoints.get(j);
 			}
 		}
 		// We have tried to be really nice but looks like there are no servers 
 		// in the local data center that are alive and can service this request so 
 		// just send it to the first alive guy and see if we get anything.
 		j = 0;
-		for ( ; j < endpoints.length; ++j )
+		for ( ; j < endpoints.size(); ++j )
 		{
-			if ( FailureDetector.instance().isAlive(endpoints[j]))
+			if ( FailureDetector.instance().isAlive(endpoints.get(j)))
 			{
 				if (logger_.isDebugEnabled())
-				  logger_.debug("InetAddress " + endpoints[j] + " is alive so get data from it.");
-				return endpoints[j];
+				  logger_.debug("InetAddress " + endpoints.get(j) + " is alive so get data from it.");
+				return endpoints.get(j);
 			}
 		}
 

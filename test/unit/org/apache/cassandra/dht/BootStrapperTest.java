@@ -22,6 +22,7 @@ import static org.junit.Assert.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -44,7 +45,7 @@ public class BootStrapperTest {
          */
         StorageService.instance().updateTokenMetadataUnsafe(newToken, newEndPoint);
 
-        BootStrapper b = new BootStrapper(new InetAddress[]{newEndPoint}, newToken );
+        BootStrapper b = new BootStrapper(Arrays.asList(newEndPoint), newToken );
         Map<Range,List<BootstrapSourceTarget>> res = b.getRangesWithSourceTarget();
         
         int transferCount = 0;

@@ -113,7 +113,7 @@ public class HintedHandOffManager
         RowMutation rm = new RowMutation(tableName, row);
         Message message = rm.makeRowMutationMessage();
         QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(1, new WriteResponseResolver());
-        MessagingService.instance().sendRR(message, new InetAddress[]{ endPoint }, quorumResponseHandler);
+        MessagingService.instance().sendRR(message, new InetAddress[] { endPoint }, quorumResponseHandler);
 
         return quorumResponseHandler.get();
     }

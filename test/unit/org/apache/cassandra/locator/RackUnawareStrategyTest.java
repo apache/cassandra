@@ -37,7 +37,7 @@ import java.net.UnknownHostException;
 public class RackUnawareStrategyTest
 {
     @Test
-    public void testBigIntegerStorageEndPoints() throws UnknownHostException
+    public void testBigIntegerEndpoints() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
@@ -49,11 +49,11 @@ public class RackUnawareStrategyTest
             endPointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
         }
-        testGetStorageEndPoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
+        testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     @Test
-    public void testStringStorageEndPoints() throws UnknownHostException
+    public void testStringEndpoints() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
@@ -65,12 +65,12 @@ public class RackUnawareStrategyTest
             endPointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
             keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1))));
         }
-        testGetStorageEndPoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
+        testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void testGetStorageEndPoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens) throws UnknownHostException
+    private void testGetEndpoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens) throws UnknownHostException
     {
         List<InetAddress> hosts = new ArrayList<InetAddress>();
         for (int i = 0; i < endPointTokens.length; i++)
@@ -82,17 +82,17 @@ public class RackUnawareStrategyTest
 
         for (int i = 0; i < keyTokens.length; i++)
         {
-            InetAddress[] endPoints = strategy.getReadStorageEndPoints(keyTokens[i]);
-            assertEquals(3, endPoints.length);
-            for (int j = 0; j < endPoints.length; j++)
+            List<InetAddress> endPoints = strategy.getNaturalEndpoints(keyTokens[i]);
+            assertEquals(3, endPoints.size());
+            for (int j = 0; j < endPoints.size(); j++)
             {
-                assertEquals(endPoints[j], hosts.get((i + j + 1) % hosts.size()));
+                assertEquals(endPoints.get(j), hosts.get((i + j + 1) % hosts.size()));
             }
         }
     }
     
     @Test
-    public void testGetStorageEndPointsDuringBootstrap() throws UnknownHostException
+    public void testGetEndpointsDuringBootstrap() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
@@ -122,18 +122,17 @@ public class RackUnawareStrategyTest
         
         for (int i = 0; i < keyTokens.length; i++)
         {
-            InetAddress[] endPoints = strategy.getWriteStorageEndPoints(keyTokens[i], strategy.getReadStorageEndPoints(keyTokens[i]));
-            assertTrue(endPoints.length >=3);
-            List<InetAddress> endPointsList = Arrays.asList(endPoints);
+            List<InetAddress> endPoints = strategy.getWriteEndpoints(keyTokens[i], strategy.getNaturalEndpoints(keyTokens[i]));
+            assertTrue(endPoints.size() >= 3);
 
             for (int j = 0; j < 3; j++)
             {
                 //Check that the old nodes are definitely included
-                assertTrue(endPointsList.contains(hosts.get((i + j + 1) % hosts.size())));   
+                assertTrue(endPoints.contains(hosts.get((i + j + 1) % hosts.size())));
             }
             // for 5, 15, 25 this should include bootstrap node
             if (i < 3)
-                assertTrue(endPointsList.contains(bootstrapEndPoint));
+                assertTrue(endPoints.contains(bootstrapEndPoint));
         }
     }
 }

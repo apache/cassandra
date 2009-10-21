@@ -18,6 +18,8 @@
 package org.apache.cassandra.client;
 
 import java.net.InetAddress;
+import java.util.List;
+
 import org.apache.cassandra.service.Cassandra;
 import org.apache.cassandra.service.Column;
 import org.apache.cassandra.service.ColumnPath;
@@ -65,14 +67,14 @@ public class TestRingCache
             String row = "row" + nRows;
             ColumnPath col = new ColumnPath("Standard1", null, "col1".getBytes());
 
-            InetAddress endPoints[] = ringCache.getEndPoint(row);
+            List<InetAddress> endPoints = ringCache.getEndPoint(row);
             String hosts="";
-            for (int i=0; i<endPoints.length; i++)
-                hosts = hosts + ((i>0) ? "," : "") + endPoints[i];
-            System.out.println("hosts with key " + row + " : " + hosts + "; choose " + endPoints[0]);
+            for (int i = 0; i < endPoints.size(); i++)
+                hosts = hosts + ((i > 0) ? "," : "") + endPoints.get(i);
+            System.out.println("hosts with key " + row + " : " + hosts + "; choose " + endPoints.get(0));
         
             // now, read the row back directly from the host owning the row locally
-            setup(endPoints[0].getHostAddress(), DatabaseDescriptor.getThriftPort());
+            setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getThriftPort());
             thriftClient.insert(table, row, col, "val1".getBytes(), 1, 1);
             Column column=thriftClient.get(table, row, col, 1).column;
             System.out.println("read row " + row + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);

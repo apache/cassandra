@@ -52,11 +52,11 @@ public abstract class AbstractReplicationStrategy
         storagePort_ = storagePort;
     }
 
-    public abstract InetAddress[] getReadStorageEndPoints(Token token, Map<Token, InetAddress> tokenToEndPointMap);
+    public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, Map<Token, InetAddress> tokenToEndPointMap);
 
-    public InetAddress[] getReadStorageEndPoints(Token token)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token)
     {
-        return getReadStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());
+        return getNaturalEndpoints(token, tokenMetadata_.cloneTokenEndPointMap());
     }
     
     /*
@@ -64,9 +64,9 @@ public abstract class AbstractReplicationStrategy
      * on which the data is being placed and the value is the
      * endpoint to which it should be forwarded.
      */
-    public Map<InetAddress, InetAddress> getHintedStorageEndPoints(Token token, InetAddress[] naturalEndpoints)
+    public Map<InetAddress, InetAddress> getHintedEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
     {
-        return getHintedMapForEndpoints(getWriteStorageEndPoints(token, naturalEndpoints));
+        return getHintedMapForEndpoints(getWriteEndpoints(token, naturalEndpoints));
     }
 
     /**
@@ -77,11 +77,12 @@ public abstract class AbstractReplicationStrategy
      *
      * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
      */
-    public InetAddress[] getWriteStorageEndPoints(Token token, InetAddress[] naturalEndpoints)
+    public ArrayList<InetAddress> getWriteEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
     {
         Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         Map<Token, InetAddress> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
-        ArrayList<InetAddress> list = new ArrayList<InetAddress>(Arrays.asList(getReadStorageEndPoints(token, tokenToEndPointMap)));
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
+
         for (Token t : bootstrapTokensToEndpointMap.keySet())
         {
             InetAddress ep = bootstrapTokensToEndpointMap.get(t);
@@ -92,7 +93,7 @@ public abstract class AbstractReplicationStrategy
                 {
                     if (r.contains(token))
                     {
-                        list.add(ep);
+                        endpoints.add(ep);
                         break;
                     }
                 }
@@ -102,10 +103,11 @@ public abstract class AbstractReplicationStrategy
                 tokenToEndPointMap.remove(t);
             }
         }
-        return list.toArray(new InetAddress[list.size()]);
+
+        return endpoints;
     }
 
-    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(InetAddress[] topN)
+    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(Iterable<InetAddress> topN)
     {
         Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
         Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
@@ -168,7 +170,7 @@ public abstract class AbstractReplicationStrategy
         for (Token token : tokenMap.keySet())
         {
             Range range = getPrimaryRangeFor(token, tokenMap);
-            for (InetAddress ep : getReadStorageEndPoints(token, tokenMap))
+            for (InetAddress ep : getNaturalEndpoints(token, tokenMap))
             {
                 map.get(ep).add(range);
             }

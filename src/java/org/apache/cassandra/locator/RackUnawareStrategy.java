@@ -40,7 +40,7 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public InetAddress[] getReadStorageEndPoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
     {
         int startIndex;
         List<Token> tokenList = new ArrayList<Token>();
@@ -74,9 +74,9 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
                     foundCount++;
             }
         }
-        List<InetAddress> list = new ArrayList<InetAddress>();
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(tokenList.size());
         for (Token t: tokenList)
-            list.add(tokenToEndPointMap.get(t));
-        return list.toArray(new InetAddress[list.size()]);
+            endpoints.add(tokenToEndPointMap.get(t));
+        return endpoints;
     }
 }

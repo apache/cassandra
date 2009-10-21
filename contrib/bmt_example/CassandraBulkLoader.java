@@ -171,7 +171,7 @@ public class CassandraBulkLoader {
 
             /* Get serialized message to send to cluster */
             message = createMessage(Keyspace, key.toString(), CFName, columnFamilies);
-            for (InetAddress endpoint: StorageService.instance().getReadStorageEndPoints(key.toString()))
+            for (InetAddress endpoint: StorageService.instance().getNaturalEndPoints(key.toString()))
             {
                 /* Send message to end point */
                 MessagingService.instance().sendOneWay(message, endpoint);

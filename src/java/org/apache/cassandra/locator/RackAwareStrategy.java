@@ -44,10 +44,10 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public InetAddress[] getReadStorageEndPoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
     {
         int startIndex;
-        List<InetAddress> list = new ArrayList<InetAddress>();
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
         boolean bDataCenter = false;
         boolean bOtherRack = false;
         int foundCount = 0;
@@ -62,11 +62,11 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         }
         int totalNodes = tokens.size();
         // Add the node at the index by default
-        list.add(tokenToEndPointMap.get(tokens.get(index)));
+        endpoints.add(tokenToEndPointMap.get(tokens.get(index)));
         foundCount++;
-        if( replicas_ == 1 )
+        if (replicas_ == 1)
         {
-            return list.toArray(new InetAddress[list.size()]);
+            return endpoints;
         }
         startIndex = (index + 1)%totalNodes;
         IEndPointSnitch endPointSnitch = StorageService.instance().getEndPointSnitch();
@@ -81,7 +81,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     // If we have already found something in a diff datacenter no need to find another
                     if( !bDataCenter )
                     {
-                        list.add(tokenToEndPointMap.get(tokens.get(i)));
+                        endpoints.add(tokenToEndPointMap.get(tokens.get(i)));
                         bDataCenter = true;
                         foundCount++;
                     }
@@ -94,7 +94,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     // If we have already found something in a diff rack no need to find another
                     if( !bOtherRack )
                     {
-                        list.add(tokenToEndPointMap.get(tokens.get(i)));
+                        endpoints.add(tokenToEndPointMap.get(tokens.get(i)));
                         bOtherRack = true;
                         foundCount++;
                     }
@@ -111,12 +111,12 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         // loop through the list and add until we have N nodes.
         for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i+1)%totalNodes)
         {
-            if( ! list.contains(tokenToEndPointMap.get(tokens.get(i))))
+            if( ! endpoints.contains(tokenToEndPointMap.get(tokens.get(i))))
             {
-                list.add(tokenToEndPointMap.get(tokens.get(i)));
+                endpoints.add(tokenToEndPointMap.get(tokens.get(i)));
                 foundCount++;
             }
         }
-        return list.toArray(new InetAddress[list.size()]);
+        return endpoints;
     }
 }

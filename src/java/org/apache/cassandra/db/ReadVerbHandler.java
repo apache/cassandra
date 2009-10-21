@@ -116,7 +116,7 @@ public class ReadVerbHandler implements IVerbHandler
     
     private void doReadRepair(Row row, ReadCommand readCommand)
     {
-        List<InetAddress> endpoints = StorageService.instance().getLiveReadStorageEndPoints(readCommand.key);
+        List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(readCommand.key);
         /* Remove the local storage endpoint from the list. */
         endpoints.remove(FBUtilities.getLocalAddress());
             

@@ -114,9 +114,9 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
 		try
 		{
-            InetAddress[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
+            List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
             // (This is the ZERO consistency level, so user doesn't care if we don't really have N destinations available.)
-			Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
+			Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
 			Map<InetAddress, Message> messageMap = createWriteMessages(rm, endpointMap);
 			for (Map.Entry<InetAddress, Message> entry : messageMap.entrySet())
 			{
@@ -151,9 +151,9 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
-            InetAddress[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
-            Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
-            int blockFor = determineBlockFor(naturalEndpoints.length, endpointMap.size(), consistency_level);
+            List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
+            Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
+            int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
             List<InetAddress> primaryNodes = getUnhintedNodes(endpointMap);
             if (primaryNodes.size() < blockFor) // guarantee blockFor = W live nodes.
             {
@@ -298,7 +298,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (ReadCommand command: commands)
             {
-                InetAddress[] endpoints = StorageService.instance().getReadStorageEndPoints(command.key);
+                List<InetAddress> endpoints = StorageService.instance().getNaturalEndpoints(command.key);
                 boolean foundLocal = Arrays.asList(endpoints).contains(FBUtilities.getLocalAddress());
                 //TODO: Throw InvalidRequest if we're in bootstrap mode?
                 if (foundLocal && !StorageService.instance().isBootstrapMode())
@@ -359,7 +359,7 @@ public class StorageProxy implements StorageProxyMBean
 
             QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver());
             InetAddress dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-            List<InetAddress> endpointList = new ArrayList<InetAddress>(Arrays.asList(StorageService.instance().getReadStorageEndPoints(command.key)));
+            List<InetAddress> endpointList = StorageService.instance().getNaturalEndpoints(command.key);
             /* Remove the local storage endpoint from the list. */
             endpointList.remove(dataPoint);
             InetAddress[] endPoints = new InetAddress[endpointList.size() + 1];
@@ -442,7 +442,7 @@ public class StorageProxy implements StorageProxyMBean
         List<Row> rows = new ArrayList<Row>();
         for (ReadCommand command: commands)
         {
-            List<InetAddress> endpoints = StorageService.instance().getLiveReadStorageEndPoints(command.key);
+            List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(command.key);
             /* Remove the local storage endpoint from the list. */
             endpoints.remove(FBUtilities.getLocalAddress());
             // TODO: throw a thrift exception if we do not have N nodes

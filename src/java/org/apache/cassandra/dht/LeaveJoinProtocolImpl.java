@@ -18,13 +18,7 @@
 
 package org.apache.cassandra.dht;
 
- import java.util.ArrayList;
- import java.util.Collections;
- import java.util.HashMap;
- import java.util.HashSet;
- import java.util.List;
- import java.util.Map;
- import java.util.Set;
+ import java.util.*;
 
  import org.apache.log4j.Logger;
 
@@ -45,13 +39,13 @@ public class LeaveJoinProtocolImpl implements Runnable
     private static Logger logger_ = Logger.getLogger(LeaveJoinProtocolImpl.class);    
     
     /* endpoints that are to be moved. */
-    protected InetAddress[] targets_ = new InetAddress[0];
+    protected List<InetAddress> targets_;
     /* position where they need to be moved */
     protected final Token[] tokens_;
     /* token metadata information */
     protected TokenMetadata tokenMetadata_ = null;
 
-    public LeaveJoinProtocolImpl(InetAddress[] targets, Token[] tokens)
+    public LeaveJoinProtocolImpl(List<InetAddress> targets, Token[] tokens)
     {
         targets_ = targets;
         tokens_ = tokens;
@@ -92,10 +86,10 @@ public class LeaveJoinProtocolImpl implements Runnable
             /* Re-calculate the new ranges after the new token positions are added */
             Range[] newRanges = StorageService.instance().getAllRanges(oldTokens);
             /* Remove the old locations from tokenToEndPointMap and add the new locations they are moving to */
-            for ( int i = 0; i < targets_.length; ++i )
+            for ( int i = 0; i < targets_.size(); ++i )
             {
-                tokenToEndPointMap.remove( endpointToTokenMap.get(targets_[i]) );
-                tokenToEndPointMap.put(tokens_[i], targets_[i]);
+                tokenToEndPointMap.remove( endpointToTokenMap.get(targets_.get(i)) );
+                tokenToEndPointMap.put(tokens_[i], targets_.get(i));
             }            
             /* Calculate the list of nodes that handle the new ranges */            
             Map<Range, List<InetAddress>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges, tokenToEndPointMap);
@@ -286,7 +280,7 @@ public class LeaveJoinProtocolImpl implements Runnable
         ss.updateTokenMetadataUnsafe(new BigIntegerToken("21"), InetAddress.getByName("G"));
         ss.updateTokenMetadataUnsafe(new BigIntegerToken("24"), InetAddress.getByName("H"));
         
-        Runnable runnable = new LeaveJoinProtocolImpl( new InetAddress[]{InetAddress.getByName("C"), InetAddress.getByName("D")}, new Token[]{new BigIntegerToken("22"), new BigIntegerToken("23")} );
+        Runnable runnable = new LeaveJoinProtocolImpl(Arrays.asList(InetAddress.getByName("C"), InetAddress.getByName("D")), new Token[]{new BigIntegerToken("22"), new BigIntegerToken("23")});
         runnable.run();
     }
 }

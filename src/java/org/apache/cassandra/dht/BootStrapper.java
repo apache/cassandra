@@ -36,6 +36,7 @@ package org.apache.cassandra.dht;
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
+ import org.apache.commons.lang.StringUtils;
 
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.net.*;
@@ -77,14 +78,14 @@ public class BootStrapper implements Runnable
     private static final ExecutorService bootstrapExecutor_ = new DebuggableThreadPoolExecutor("BOOT-STRAPPER");
 
     /* endpoints that need to be bootstrapped */
-    protected InetAddress[] targets_ = new InetAddress[0];
+    protected List<InetAddress> targets_;
     /* tokens of the nodes being bootstrapped. */
     protected final Token[] tokens_;
     protected TokenMetadata tokenMetadata_ = null;
 
-    public BootStrapper(InetAddress[] target, Token... token)
+    public BootStrapper(List<InetAddress> targets, Token... token)
     {
-        targets_ = target;
+        targets_ = targets;
         tokens_ = token;
         tokenMetadata_ = StorageService.instance().getTokenMetadata();
     }
@@ -94,14 +95,14 @@ public class BootStrapper implements Runnable
         try
         {
             // Mark as not bootstrapping to calculate ranges correctly
-            for (int i=0; i< targets_.length; i++)
+            for (int i=0; i< targets_.size(); i++)
             {
-                tokenMetadata_.update(tokens_[i], targets_[i], false);
+                tokenMetadata_.update(tokens_[i], targets_.get(i), false);
             }
                                                                            
             Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = getRangesWithSourceTarget();
             if (logger_.isDebugEnabled())
-                    logger_.debug("Beginning bootstrap process for " + Arrays.toString(targets_) + " ...");
+                    logger_.debug("Beginning bootstrap process for [" + StringUtils.join(targets_, ", ") + "] ...");
             /* Send messages to respective folks to stream data over to the new nodes being bootstrapped */
             LeaveJoinProtocolHelper.assignWork(rangesWithSourceTarget);
 
@@ -215,7 +216,7 @@ public class BootStrapper implements Runnable
             }
         }
 
-        BootStrapper bs = new BootStrapper(new InetAddress[] { FBUtilities.getLocalAddress() }, ss.getLocalToken());
+        BootStrapper bs = new BootStrapper(Arrays.asList(FBUtilities.getLocalAddress()), ss.getLocalToken());
         bootstrapExecutor_.submit(bs);
         Gossiper.instance().addApplicationState(StorageService.BOOTSTRAP_MODE, new ApplicationState(""));
     }
