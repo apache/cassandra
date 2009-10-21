@@ -113,8 +113,8 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
 		try
 		{
-            // (This is the ZERO consistency level, so user doesn't care if we don't really have N destinations available.)
-			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key());
+            EndPoint[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
+			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
 			Map<EndPoint, Message> messageMap = createWriteMessages(rm, endpointMap);
 			for (Map.Entry<EndPoint, Message> entry : messageMap.entrySet())
 			{
@@ -149,8 +149,9 @@ public class StorageProxy implements StorageProxyMBean
         }
         try
         {
-            Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key());
-            int blockFor = determineBlockFor(consistency_level);
+            EndPoint[] naturalEndpoints = StorageService.instance().getReadStorageEndPoints(rm.key());
+			Map<EndPoint, EndPoint> endpointMap = StorageService.instance().getHintedStorageEndpointMap(rm.key(), naturalEndpoints);
+            int blockFor = determineBlockFor(naturalEndpoints.length, endpointMap.size(), consistency_level);
             List<EndPoint> primaryNodes = getUnhintedNodes(endpointMap);
             if (primaryNodes.size() < blockFor) // guarantee blockFor = W live nodes.
             {
@@ -199,20 +200,21 @@ public class StorageProxy implements StorageProxyMBean
         return liveEndPoints;
     }
 
-    private static int determineBlockFor(int consistency_level)
+    private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)
     {
+        int bootstrapTargets = hintedTargets - naturalTargets;
         int blockFor;
         if (consistency_level == ConsistencyLevel.ONE)
         {
-            blockFor = 1;
+            blockFor = 1 + bootstrapTargets;
         }
         else if (consistency_level == ConsistencyLevel.QUORUM)
         {
-            blockFor = (DatabaseDescriptor.getReplicationFactor() / 2) + 1;
+            blockFor = (naturalTargets / 2) + 1 + bootstrapTargets;
         }
         else if (consistency_level == ConsistencyLevel.ALL)
         {
-            blockFor = DatabaseDescriptor.getReplicationFactor();
+            blockFor = naturalTargets + bootstrapTargets;
         }
         else
         {

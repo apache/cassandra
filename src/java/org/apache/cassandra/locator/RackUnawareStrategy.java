@@ -40,52 +40,14 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getReadStorageEndPoints(Token token)
-    {
-        return getReadStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());
-    }
-    
-    public EndPoint[] getWriteStorageEndPoints(Token token)
-    {
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Map<Token, EndPoint> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
-        List<Token> tokenList = getStorageTokens(token, tokenToEndPointMap, bootstrapTokensToEndpointMap);
-        List<EndPoint> list = new ArrayList<EndPoint>();
-        for (Token t: tokenList)
-        {
-            EndPoint e = tokenToEndPointMap.get(t);
-            if (e == null) 
-                e = bootstrapTokensToEndpointMap.get(t); 
-            assert e != null;
-            list.add(e);
-        }
-        retrofitPorts(list);
-        return list.toArray(new EndPoint[list.size()]);            
-    }
-    
     public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
-    {
-        List<Token> tokenList = getStorageTokens(token, tokenToEndPointMap, null);
-        List<EndPoint> list = new ArrayList<EndPoint>();
-        for (Token t: tokenList)
-            list.add(tokenToEndPointMap.get(t));
-        retrofitPorts(list);
-        return list.toArray(new EndPoint[list.size()]);
-    }
-
-    private List<Token> getStorageTokens(Token token, Map<Token, EndPoint> tokenToEndPointMap, Map<Token, EndPoint> bootStrapTokenToEndPointMap)
     {
         int startIndex;
         List<Token> tokenList = new ArrayList<Token>();
         int foundCount = 0;
         List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
         List<Token> bsTokens = null;
-        
-        if (bootStrapTokenToEndPointMap != null)
-        {
-            bsTokens = new ArrayList<Token>(bootStrapTokenToEndPointMap.keySet());
-            tokens.addAll(bsTokens);
-        }
+
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
@@ -112,6 +74,10 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
                     foundCount++;
             }
         }
-        return tokenList;
+        List<EndPoint> list = new ArrayList<EndPoint>();
+        for (Token t: tokenList)
+            list.add(tokenToEndPointMap.get(t));
+        retrofitPorts(list);
+        return list.toArray(new EndPoint[list.size()]);
     }
 }

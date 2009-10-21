@@ -44,14 +44,13 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public EndPoint[] getReadStorageEndPoints(Token token)
+    public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
     {
         int startIndex;
         List<EndPoint> list = new ArrayList<EndPoint>();
         boolean bDataCenter = false;
         boolean bOtherRack = false;
         int foundCount = 0;
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         List tokens = new ArrayList(tokenToEndPointMap.keySet());
         Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
@@ -120,21 +119,5 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         }
         retrofitPorts(list);
         return list.toArray(new EndPoint[list.size()]);
-    }
-    
-    public EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap)
-    {
-        throw new UnsupportedOperationException("This operation is not currently supported");
-    }
-
-    public EndPoint[] getWriteStorageEndPoints(Token token)
-    {
-        throw new UnsupportedOperationException("Rack-aware bootstrapping not supported");
-    }
-
-    
-    public Map<EndPoint, EndPoint> getHintedStorageEndPointsForWrite(Token token)
-    {
-        throw new UnsupportedOperationException("Rack-aware bootstrapping not supported");
     }
 }

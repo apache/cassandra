@@ -129,7 +129,7 @@ public class Range implements Comparable<Range>, Serializable
     }
     
 
-    public static boolean isTokenInRanges(Token token, List<Range> ranges)
+    public static boolean isTokenInRanges(Token token, Iterable<Range> ranges)
     {
         assert ranges != null;
 

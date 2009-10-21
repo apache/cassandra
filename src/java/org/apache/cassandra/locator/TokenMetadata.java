@@ -244,4 +244,17 @@ public class TokenMetadata
         
         return sb.toString();
     }
+
+    public EndPoint getEndPoint(Token token)
+    {
+        lock_.readLock().lock();
+        try
+        {
+            return tokenToEndPointMap_.get(token);
+        }
+        finally
+        {
+            lock_.readLock().unlock();
+        }
+    }
 }

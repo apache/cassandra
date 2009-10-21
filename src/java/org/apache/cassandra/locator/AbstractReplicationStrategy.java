@@ -24,6 +24,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.EndPoint;
 import org.apache.cassandra.service.StorageService;
@@ -50,19 +51,58 @@ public abstract class AbstractReplicationStrategy
         storagePort_ = storagePort;
     }
 
-    public abstract EndPoint[] getWriteStorageEndPoints(Token token);
     public abstract EndPoint[] getReadStorageEndPoints(Token token, Map<Token, EndPoint> tokenToEndPointMap);
-    public abstract EndPoint[] getReadStorageEndPoints(Token token);
 
+    public EndPoint[] getReadStorageEndPoints(Token token)
+    {
+        return getReadStorageEndPoints(token, tokenMetadata_.cloneTokenEndPointMap());
+    }
+    
     /*
      * This method returns the hint map. The key is the endpoint
      * on which the data is being placed and the value is the
-     * endpoint which is in the top N.
-     * Get the map of top N to the live nodes currently.
+     * endpoint to which it should be forwarded.
      */
-    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token)
+    public Map<EndPoint, EndPoint> getHintedStorageEndPoints(Token token, EndPoint[] naturalEndpoints)
     {
-        return getHintedMapForEndpoints(getWriteStorageEndPoints(token));
+        return getHintedMapForEndpoints(getWriteStorageEndPoints(token, naturalEndpoints));
+    }
+
+    /**
+     * write endpoints may be different from read endpoints, because read endpoints only need care about the
+     * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping
+     * into the ring, and write data there too so that they stay up to date during the bootstrap process.
+     * Thus, this method may return more nodes than the Replication Factor.
+     *
+     * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
+     */
+    protected EndPoint[] getWriteStorageEndPoints(Token token, EndPoint[] naturalEndpoints)
+    {
+        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, EndPoint> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
+        ArrayList<EndPoint> list = new ArrayList<EndPoint>(Arrays.asList(naturalEndpoints));
+        for (Token t : bootstrapTokensToEndpointMap.keySet())
+        {
+            EndPoint ep = bootstrapTokensToEndpointMap.get(t);
+            tokenToEndPointMap.put(t, ep);
+            try
+            {
+                for (Range r : getRangeMap(tokenToEndPointMap).get(ep))
+                {
+                    if (r.contains(token))
+                    {
+                        list.add(ep);
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                tokenToEndPointMap.remove(t);
+            }
+        }
+        retrofitPorts(list);
+        return list.toArray(new EndPoint[list.size()]);
     }
 
     /*
@@ -124,5 +164,54 @@ public abstract class AbstractReplicationStrategy
             }
         }
         return map;
+    }
+
+    // TODO this is pretty inefficient.
+    // fixing this probably requires merging tokenmetadata into replicationstrategy, so we can cache/invalidate cleanly
+    protected Map<EndPoint, Set<Range>> getRangeMap(Map<Token, EndPoint> tokenMap)
+    {
+        Map<EndPoint, Set<Range>> map = new HashMap<EndPoint, Set<Range>>();
+
+        for (EndPoint ep : tokenMap.values())
+        {
+            map.put(ep, new HashSet<Range>());
+        }
+
+        for (Token token : tokenMap.keySet())
+        {
+            Range range = getPrimaryRangeFor(token, tokenMap);
+            for (EndPoint ep : getReadStorageEndPoints(token, tokenMap))
+            {
+                map.get(ep).add(range);
+            }
+        }
+
+        return map;
+    }
+
+    public Map<EndPoint, Set<Range>> getRangeMap()
+    {
+        return getRangeMap(tokenMetadata_.cloneTokenEndPointMap());
+    }
+
+    public Range getPrimaryRangeFor(Token right, Map<Token, EndPoint> tokenToEndPointMap)
+    {
+        return new Range(getPredecessor(right, tokenToEndPointMap), right);
+    }
+
+    public Token getPredecessor(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    {
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        Collections.sort(tokens);
+        int index = Collections.binarySearch(tokens, token);
+        return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(--index));
+    }
+
+    public Token getSuccessor(Token token, Map<Token, EndPoint> tokenToEndPointMap)
+    {
+        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        Collections.sort(tokens);
+        int index = Collections.binarySearch(tokens, token);
+        return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(++index));
     }
 }

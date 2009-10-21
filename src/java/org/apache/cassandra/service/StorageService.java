@@ -95,7 +95,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return partitioner_;
     }
 
-    public List<Range> getLocalRanges()
+    public Set<Range> getLocalRanges()
     {
         return getRangesForEndPoint(getLocalStorageEndPoint());
     }
@@ -384,23 +384,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
           logger_.debug("Done constructing range to endpoint map ...");
         return rangeToEndPointMap;
     }
-    
-    /**
-     * Construct a mapping from endpoint to ranges that endpoint is
-     * responsible for.
-     * @return the mapping from endpoint to the ranges it is responsible
-     * for.
-     */
-    public Map<EndPoint, List<Range>> constructEndPointToRangesMap()
-    {
-        Map<EndPoint, List<Range>> endPointToRangesMap = new HashMap<EndPoint, List<Range>>();
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        for (EndPoint mbr : tokenToEndPointMap.values())
-        {
-            endPointToRangesMap.put(mbr, getRangesForEndPoint(mbr));
-        }
-        return endPointToRangesMap;
-    }
 
     /**
      *  Called when there is a change in application state. In particular
@@ -531,31 +514,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         /* Remove the state from the Gossiper */
         Gossiper.instance().removeFromMembership(endpoint);
     }
-    
-    /*
-     * This method is invoked by the Loader process to force the
-     * node to move from its current position on the token ring, to
-     * a position to be determined based on the keys. This will help
-     * all nodes to start off perfectly load balanced. The array passed
-     * in is evaluated as follows by the loader process:
-     * If there are 10 keys in the system and a totality of 5 nodes
-     * then each node needs to have 2 keys i.e the array is made up
-     * of every 2nd key in the total list of keys.
-    */
-    public void relocate(String[] keys) throws IOException
-    {
-    	if ( keys.length > 0 )
-    	{
-            Token token = tokenMetadata_.getToken(StorageService.tcpAddr_);
-	        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-	        Token[] tokens = tokenToEndPointMap.keySet().toArray(new Token[tokenToEndPointMap.keySet().size()]);
-	        Arrays.sort(tokens);
-	        int index = Arrays.binarySearch(tokens, token) * (keys.length/tokens.length);
-            Token newToken = partitioner_.getToken(keys[index]);
-	        /* update the token */
-	        updateToken(newToken);
-    	}
-    }
 
     /**
      * Deliver hints to the specified node when it has crashed
@@ -572,17 +530,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /* This methods belong to the MBean interface */
-    
-    public String getToken(EndPoint ep)
-    {
-        // render a String representation of the Token corresponding to this endpoint
-        // for a human-facing UI.  If there is no such Token then we use "" since
-        // it is not a valid value either for BigIntegerToken or StringToken.
-        EndPoint ep2 = new EndPoint(ep.getHost(), DatabaseDescriptor.getStoragePort());
-        Token token = tokenMetadata_.getToken(ep2);
-        // if there is no token for an endpoint, return an empty string to denote that
-        return ( token == null ) ? "" : token.toString();
-    }
 
     public String getToken()
     {
@@ -760,13 +707,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     EndPoint getPredecessor(EndPoint ep)
     {
         Token token = tokenMetadata_.getToken(ep);
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
-        Collections.sort(tokens);
-        int index = Collections.binarySearch(tokens, token);
-        return (index == 0) ? tokenToEndPointMap.get(tokens
-                .get(tokens.size() - 1)) : tokenToEndPointMap.get(tokens
-                .get(--index));
+        return tokenMetadata_.getEndPoint(replicationStrategy_.getPredecessor(token, tokenMetadata_.cloneTokenEndPointMap()));
     }
 
     /*
@@ -776,13 +717,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public EndPoint getSuccessor(EndPoint ep)
     {
         Token token = tokenMetadata_.getToken(ep);
-        Map<Token, EndPoint> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
-        Collections.sort(tokens);
-        int index = Collections.binarySearch(tokens, token);
-        return (index == (tokens.size() - 1)) ? tokenToEndPointMap
-                .get(tokens.get(0))
-                : tokenToEndPointMap.get(tokens.get(++index));
+        return tokenMetadata_.getEndPoint(replicationStrategy_.getSuccessor(token, tokenMetadata_.cloneTokenEndPointMap()));
     }
 
     /**
@@ -793,9 +728,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public Range getPrimaryRangeForEndPoint(EndPoint ep)
     {
         Token right = tokenMetadata_.getToken(ep);
-        EndPoint predecessor = getPredecessor(ep);
-        Token left = tokenMetadata_.getToken(predecessor);
-        return new Range(left, right);
+        return replicationStrategy_.getPrimaryRangeFor(right, tokenMetadata_.cloneTokenEndPointMap());
     }
     
     /**
@@ -803,32 +736,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param ep endpoint we are interested in.
      * @return ranges for the specified endpoint.
      */
-    List<Range> getRangesForEndPoint(EndPoint ep)
+    Set<Range> getRangesForEndPoint(EndPoint ep)
     {
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add( getPrimaryRangeForEndPoint(ep) );
-        
-        EndPoint predecessor = ep;
-        int count = DatabaseDescriptor.getReplicationFactor() - 1;
-        for ( int i = 0; i < count; ++i )
-        {
-            predecessor = getPredecessor(predecessor);
-            ranges.add( getPrimaryRangeForEndPoint(predecessor) );
-        }
-        
-        return ranges;
+        return replicationStrategy_.getRangeMap().get(ep);
     }
-    
-    /**
-     * Get all ranges that span the ring as per
-     * current snapshot of the token distribution.
-     * @return all ranges in sorted order.
-     */
-    public Range[] getAllRanges()
-    {
-        return getAllRanges(tokenMetadata_.cloneTokenEndPointMap().keySet());
-    }
-    
+        
     /**
      * Get all ranges that span the ring given a set
      * of tokens. All ranges are in sorted order of 
@@ -940,9 +852,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public Map<EndPoint, EndPoint> getHintedStorageEndpointMap(String key)
+    public Map<EndPoint, EndPoint> getHintedStorageEndpointMap(String key, EndPoint[] naturalEndpoints)
     {
-        return replicationStrategy_.getHintedStorageEndPoints(partitioner_.getToken(key));
+        return replicationStrategy_.getHintedStorageEndPoints(partitioner_.getToken(key), naturalEndpoints);
     }
 
     public void retrofitPorts(List<EndPoint> eps)
