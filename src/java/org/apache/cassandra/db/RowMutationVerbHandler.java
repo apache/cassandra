@@ -49,7 +49,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             byte[] hintedBytes = message.getHeader(RowMutation.HINT);
             if ( hintedBytes != null && hintedBytes.length > 0 )
             {
-            	EndPoint hint = EndPoint.fromBytes(hintedBytes);
+            	EndPoint hint = EndPoint.getByAddress(hintedBytes);
                 if (logger_.isDebugEnabled())
                   logger_.debug("Adding hint for " + hint);
                 /* add necessary hints to this mutation */

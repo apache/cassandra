@@ -56,8 +56,7 @@ public class UdpConnection extends SelectionKeyHandler
     
     public void init(int port) throws IOException
     {
-        // TODO: get TCP port from config and add one.
-        localEndPoint_ = new EndPoint(port);
+        localEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), port);
         socketChannel_ = DatagramChannel.open();
         socketChannel_.socket().bind(localEndPoint_.getInetAddress());
         socketChannel_.socket().setReuseAddress(true);

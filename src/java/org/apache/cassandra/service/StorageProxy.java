@@ -81,9 +81,9 @@ public class StorageProxy implements StorageProxyMBean
             if ( !target.equals(hint) )
 			{
 				Message hintedMessage = rm.makeRowMutationMessage();
-				hintedMessage.addHeader(RowMutation.HINT, EndPoint.toBytes(hint) );
+				hintedMessage.addHeader(RowMutation.HINT, hint.getAddress());
 				if (logger.isDebugEnabled())
-				    logger.debug("Sending the hint of " + hint.getHost() + " to " + target.getHost());
+				    logger.debug("Sending the hint of " + hint + " to " + target);
 				messageMap.put(target, hintedMessage);
 			}
 			else

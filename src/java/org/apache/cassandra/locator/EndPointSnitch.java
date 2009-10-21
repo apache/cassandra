@@ -31,8 +31,8 @@ public class EndPointSnitch implements IEndPointSnitch
          * the 3rd octet. If they are the same then the hosts
          * are in the same rack else different racks. 
         */        
-        byte[] ip = getIPAddress(host.getHost());
-        byte[] ip2 = getIPAddress(host2.getHost());
+        byte[] ip = host.getAddress();
+        byte[] ip2 = host2.getAddress();
         
         return ( ip[2] == ip2[2] );
     }
@@ -44,15 +44,9 @@ public class EndPointSnitch implements IEndPointSnitch
          * the 2nd octet. If they are the same then the hosts
          * are in the same datacenter else different datacenter. 
         */
-        byte[] ip = getIPAddress(host.getHost());
-        byte[] ip2 = getIPAddress(host2.getHost());
+        byte[] ip = host.getAddress();
+        byte[] ip2 = host2.getAddress();
         
         return ( ip[1] == ip2[1] );
-    }
-    
-    private byte[] getIPAddress(String host) throws UnknownHostException
-    {
-        InetAddress ia = InetAddress.getByName(host);         
-        return ia.getAddress();
     }
 }

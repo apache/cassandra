@@ -67,8 +67,8 @@ public class TestRingCache
             EndPoint endPoints[] = ringCache.getEndPoint(row);
             String hosts="";
             for (int i=0; i<endPoints.length; i++)
-                hosts = hosts + ((i>0) ? "," : "") + endPoints[i].getHost();
-            System.out.println("hosts with key " + row + " : " + hosts + "; choose " + endPoints[0].getHost());
+                hosts = hosts + ((i>0) ? "," : "") + endPoints[i];
+            System.out.println("hosts with key " + row + " : " + hosts + "; choose " + endPoints[0]);
         
             // now, read the row back directly from the host owning the row locally
             setup(endPoints[0].getHost(), endPoints[0].getPort());

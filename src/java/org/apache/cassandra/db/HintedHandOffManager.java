@@ -184,7 +184,7 @@ public class HintedHandOffManager
     private static void deliverHintsToEndpoint(EndPoint endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
-          logger_.debug("Started hinted handoff for endPoint " + endPoint.getHost());
+          logger_.debug("Started hinted handoff for endPoint " + endPoint);
 
         String targetEPBytes = endPoint.getHost();
         // 1. Scan through all the keys that we need to handoff
@@ -223,7 +223,7 @@ public class HintedHandOffManager
         }
 
         if (logger_.isDebugEnabled())
-          logger_.debug("Finished hinted handoff for endpoint " + endPoint.getHost());
+          logger_.debug("Finished hinted handoff for endpoint " + endPoint);
     }
 
     public void scheduleHandoffsFor(final ColumnFamilyStore columnFamilyStore)

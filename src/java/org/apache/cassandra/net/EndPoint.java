@@ -29,11 +29,10 @@ import java.util.Map;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
 
-public class EndPoint implements Serializable, Comparable<EndPoint>
+public class EndPoint
 {
     // logging and profiling.
     private static Logger logger_ = Logger.getLogger(EndPoint.class);
-    private static final long serialVersionUID = -4962625949179835907L;
     private static Map<CharBuffer, String> hostNames_ = new HashMap<CharBuffer, String>();
 
     private String host_;
@@ -45,20 +44,6 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
     {
         assert host.matches("\\d+\\.\\d+\\.\\d+\\.\\d+") : host;
         host_ = host;
-        port_ = port;
-    }
-
-    // create a local endpoint id
-    public EndPoint(int port)
-    {
-        try
-        {
-            host_ = FBUtilities.getHostAddress();
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
         port_ = port;
     }
 
@@ -95,33 +80,22 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
         return (host_ + port_).hashCode();
     }
 
-    public int compareTo(EndPoint rhs)
-    {
-        return host_.compareTo(rhs.host_);
-    }
-
     public String toString()
     {
         return (host_ + ":" + port_);
     }
 
-    public static EndPoint fromString(String str)
-    {
-        String[] values = str.split(":");
-        return new EndPoint(values[0], Integer.parseInt(values[1]));
-    }
-
-    public static byte[] toBytes(EndPoint ep)
+    public byte[] getAddress()
     {
         ByteBuffer buffer = ByteBuffer.allocate(6);
-        byte[] iaBytes = ep.getInetAddress().getAddress().getAddress();
+        byte[] iaBytes = getInetAddress().getAddress().getAddress();
         buffer.put(iaBytes);
-        buffer.put(MessagingService.toByteArray((short) ep.getPort()));
+        buffer.put(MessagingService.toByteArray((short)getPort()));
         buffer.flip();
         return buffer.array();
     }
 
-    public static EndPoint fromBytes(byte[] bytes)
+    public static EndPoint getByAddress(byte[] bytes)
     {
         ByteBuffer buffer = ByteBuffer.allocate(4);
         System.arraycopy(bytes, 0, buffer.array(), 0, 4);

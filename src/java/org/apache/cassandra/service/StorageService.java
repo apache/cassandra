@@ -38,6 +38,7 @@ import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.tools.MembershipCleanerVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
@@ -161,7 +162,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public synchronized void addBootstrapSource(EndPoint s)
     {
         if (logger_.isDebugEnabled())
-            logger_.debug("Added " + s.getHost() + " as a bootstrap source");
+            logger_.debug("Added " + s + " as a bootstrap source");
         bootstrapSet.add(s);
     }
     
@@ -170,7 +171,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         bootstrapSet.remove(s);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Removed " + s.getHost() + " as a bootstrap source");
+            logger_.debug("Removed " + s + " as a bootstrap source");
         if (bootstrapSet.isEmpty())
         {
             SystemTable.setBootstrapped();
@@ -251,8 +252,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public void start() throws IOException
     {
         storageMetadata_ = SystemTable.initMetadata();
-        tcpAddr_ = new EndPoint(DatabaseDescriptor.getStoragePort());
-        udpAddr_ = new EndPoint(DatabaseDescriptor.getControlPort());
+        tcpAddr_ = new EndPoint(FBUtilities.getHostAddress(), DatabaseDescriptor.getStoragePort());
+        udpAddr_ = new EndPoint(FBUtilities.getHostAddress(), DatabaseDescriptor.getControlPort());
         isBootstrapMode = DatabaseDescriptor.isAutoBootstrap()
                           && !(DatabaseDescriptor.getSeeds().contains(udpAddr_.getHost()) || SystemTable.isBootstrapped());
 
@@ -400,7 +401,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (bootstrapState)
         {
             if (logger_.isDebugEnabled())
-                logger_.debug(ep.getHost() + " is in bootstrap state.");
+                logger_.debug(ep + " is in bootstrap state.");
         }
         if (nodeIdState != null)
         {
