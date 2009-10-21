@@ -45,7 +45,6 @@ JVM_OPTS=" \
         -XX:+AggressiveOpts \
         -XX:+UseParNewGC \
         -XX:+UseConcMarkSweepGC \
-        -XX:CMSInitiatingOccupancyFraction=1 \
         -XX:+CMSParallelRemarkEnabled \
         -XX:+HeapDumpOnOutOfMemoryError \
         -Dcom.sun.management.jmxremote.port=8080 \

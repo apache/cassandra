@@ -1,10 +1,25 @@
 0.5 dev
  * All non-seed nodes will attempt to bootstrap when started, until
    bootstrap successfully completes. -b option is removed.
+   (CASSANDRA-438)
  * Unless a token is manually specified in the configuration xml,
    a bootstraping node will use a token that gives it half the
    keys from the most-heavily-loaded node in the cluster,
-   instead of generating a random token.
+   instead of generating a random token. (CASSANDRA-385)
+ * Add ability to set compaction thresholds at runtime via
+   JMX / nodeprobe.  (CASSANDRA-465)
+ * Add "comment" field to ColumnFamily definition. (CASSANDRA-481)
+ * Additional JMX metrics (CASSANDRA-482)
+ * JSON based export and import tools (several tickets)
+ * Hinted Handoff fixes (several tickets)
+ 
+
+0.4.2
+ * Add validation disallowing null keys (CASSANDRA-486)
+ * Fix race conditions in TCPConnectionManager (CASSANDRA-487)
+ * Fix using non-utf8-aware comparison as a sanity check.
+   (CASSANDRA-493)
+ * Improve default garbage collector options (CASSANDRA-504)
 
 
 0.4.1
