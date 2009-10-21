@@ -178,7 +178,7 @@ public class CassandraDaemon
 
             daemon.start();
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             String msg = "Exception encountered during startup.";
             logger.error(msg, e);
