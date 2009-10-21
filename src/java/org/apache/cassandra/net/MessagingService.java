@@ -564,7 +564,7 @@ public class MessagingService implements IMessagingService
         return n;
     }
     
-    public static ByteBuffer packIt(byte[] bytes, boolean compress, boolean stream, boolean listening)
+    public static ByteBuffer packIt(byte[] bytes, boolean compress, boolean stream)
     {
         byte[] size = toByteArray(bytes.length);
         /* 
@@ -573,10 +573,7 @@ public class MessagingService implements IMessagingService
              the serializer type. The 3rd bit indicates if compression
              is turned on or off. It is turned off by default. The 4th
              bit indicates if we are in streaming mode. It is turned off
-             by default. The 5th bit is used to indicate that the sender
-             is not listening on any well defined port. This implies the 
-             receiver needs to cache the connection using the port on the 
-             socket. The following 3 bits are reserved for future use. 
+             by default. The 5th-8th bits are reserved for future use.
              The next 8 bits indicate a version number. Remaining 15 bits 
              are not used currently.            
         */
@@ -591,11 +588,7 @@ public class MessagingService implements IMessagingService
         if ( stream )
             n |= 8;
         
-        // set listening 5th bit
-        if ( listening )
-            n |= 16;
-        
-        // Setting up the version bit 
+        // Setting up the version bit
         n |= (version_ << 8);               
         /* Finished the protocol header setup */
                

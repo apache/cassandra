@@ -164,8 +164,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         byte[] data = serializer_.serialize(message);        
         if ( data.length > 0 )
         {    
-            boolean listening = !message.getFrom().equals(EndPoint.sentinelLocalEndPoint_);
-            ByteBuffer buffer = MessagingService.packIt( data , false, false, listening);   
+            ByteBuffer buffer = MessagingService.packIt(data , false, false);
             synchronized(this)
             {
                 if (!pendingWrites_.isEmpty() || !socketChannel_.isConnected())
@@ -445,7 +444,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             
             try
             {           
-                byte[] bytes = new byte[0];
+                byte[] bytes;
                 while ( (bytes = tcpReader_.read()).length > 0 )
                 {                       
                     ProtocolHeader pH = tcpReader_.getProtocolHeader();                    
@@ -453,9 +452,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                     {
                         /* first message received */
                         if (remoteEp_ == null)
-                        {             
-                            int port = ( pH.isListening_ ) ? DatabaseDescriptor.getStoragePort() : EndPoint.sentinelPort_;
-                            remoteEp_ = new EndPoint( socketChannel_.socket().getInetAddress().getHostAddress(), port );                            
+                        {
+                            remoteEp_ = new EndPoint(socketChannel_.socket().getInetAddress().getHostAddress(), DatabaseDescriptor.getStoragePort());
                             // put connection into pool if possible
                             pool_ = MessagingService.getConnectionPool(localEp_, remoteEp_);                            
                             pool_.addToPool(TcpConnection.this);                            

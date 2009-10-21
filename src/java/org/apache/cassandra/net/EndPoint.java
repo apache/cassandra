@@ -36,22 +36,6 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
     private static final long serialVersionUID = -4962625949179835907L;
     private static Map<CharBuffer, String> hostNames_ = new HashMap<CharBuffer, String>();
 
-    // use as a kind of magic number to send ourselves a message indicating listening state
-    protected static final int sentinelPort_ = 5555;
-    protected static EndPoint sentinelLocalEndPoint_;
-    
-    static
-    {
-        try
-        {
-            sentinelLocalEndPoint_ = new EndPoint(FBUtilities.getHostAddress(), EndPoint.sentinelPort_);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
     private String host_;
     private int port_;
 

@@ -27,6 +27,5 @@ public final class ProtocolHeader
     public int serializerType_;
     public boolean isCompressed_;
     public boolean isStreamingMode_;
-    public boolean isListening_;
     public int version_;
 }
