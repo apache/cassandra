@@ -66,14 +66,15 @@ class TcpConnectionManager
 
             TcpConnection least = getLeastLoaded();
 
-            if ( (least != null && least.pending() == 0) || allConnections_.size() == maxSize_) {
+            if ((least != null && least.pending() == 0) || allConnections_.size() == maxSize_)
+            {
                 least.inUse_ = true;
                 incUsed();
                 return least;
             }
 
             TcpConnection connection = new TcpConnection(this, localEp_, remoteEp_);
-            if ( connection != null && !contains(connection) )
+            if (connection != null && !contains(connection))
             {
                 addToPool(connection);
                 connection.inUse_ = true;
@@ -82,7 +83,7 @@ class TcpConnectionManager
             }
             else
             {
-                if ( connection != null )
+                if (connection != null)
                 {
                     connection.closeSocket();
                 }
@@ -102,7 +103,7 @@ class TcpConnectionManager
         try
         {
             Collections.sort(allConnections_);
-            connection = (allConnections_.size() > 0 ) ? allConnections_.get(0) : null;
+            connection = (allConnections_.size() > 0) ? allConnections_.get(0) : null;
         }
         finally
         {
@@ -144,10 +145,10 @@ class TcpConnectionManager
         lock_.lock();
         try
         {
-            if ( contains(connection) )
+            if (contains(connection))
                 return;
 
-            if ( allConnections_.size() < maxSize_ )
+            if (allConnections_.size() < maxSize_)
             {
                 allConnections_.add(connection);
             }
@@ -167,7 +168,7 @@ class TcpConnectionManager
         lock_.lock();
         try
         {
-            while ( allConnections_.size() > 0 )
+            while (allConnections_.size() > 0)
             {
                 TcpConnection connection = allConnections_.remove(0);
                 connection.closeSocket();
@@ -209,7 +210,7 @@ class TcpConnectionManager
         lock_.lock();
         try
         {
-            for ( TcpConnection connection : allConnections_ )
+            for (TcpConnection connection : allConnections_)
             {
                 total += connection.pending();
             }
