@@ -88,11 +88,6 @@ public class EndPoint implements Serializable, Comparable<EndPoint>
         return port_;
     }
 
-    public void setPort(int port)
-    {
-        port_ = port;
-    }
-
     public InetSocketAddress getInetAddress()
     {
         if (ia_ == null || ia_.isUnresolved())

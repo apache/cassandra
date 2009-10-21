@@ -77,7 +77,6 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         List<EndPoint> list = new ArrayList<EndPoint>();
         for (Token t: tokenList)
             list.add(tokenToEndPointMap.get(t));
-        retrofitPorts(list);
-        return list.toArray(new EndPoint[list.size()]);
+        return retrofitPorts(list).toArray(new EndPoint[list.size()]);
     }
 }

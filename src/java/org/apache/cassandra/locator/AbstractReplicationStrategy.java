@@ -101,20 +101,21 @@ public abstract class AbstractReplicationStrategy
                 tokenToEndPointMap.remove(t);
             }
         }
-        retrofitPorts(list);
-        return list.toArray(new EndPoint[list.size()]);
+        return retrofitPorts(list).toArray(new EndPoint[list.size()]);
     }
 
     /*
      * This method changes the ports of the endpoints from
      * the control port to the storage ports.
     */
-    public void retrofitPorts(List<EndPoint> eps)
+    public List<EndPoint> retrofitPorts(List<EndPoint> eps)
     {
+        List<EndPoint> retrofitted = new ArrayList<EndPoint>();
         for ( EndPoint ep : eps )
         {
-            ep.setPort(storagePort_);
+            retrofitted.add(new EndPoint(ep.getHost(), ep.getPort()));
         }
+        return retrofitted;
     }
 
     private Map<EndPoint, EndPoint> getHintedMapForEndpoints(EndPoint[] topN)

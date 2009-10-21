@@ -117,7 +117,6 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                 foundCount++;
             }
         }
-        retrofitPorts(list);
-        return list.toArray(new EndPoint[list.size()]);
+        return retrofitPorts(list).toArray(new EndPoint[list.size()]);
     }
 }

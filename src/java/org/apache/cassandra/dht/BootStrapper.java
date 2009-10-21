@@ -209,8 +209,8 @@ public class BootStrapper implements Runnable
 
             if (!maxEndpoint.equals(StorageService.getLocalStorageEndPoint()))
             {
-                StorageService.instance().retrofitPorts(Arrays.asList(maxEndpoint));
-                Token<?> t = getBootstrapTokenFrom(maxEndpoint);
+                EndPoint maxStorageEndpoint = new EndPoint(maxEndpoint.getHost(), DatabaseDescriptor.getStoragePort());
+                Token<?> t = getBootstrapTokenFrom(maxStorageEndpoint);
                 logger_.info("Setting token to " + t + " to assume load from " + maxEndpoint.getHost());
                 ss.updateToken(t);
             }

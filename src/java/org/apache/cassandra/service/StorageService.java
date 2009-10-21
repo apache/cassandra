@@ -857,11 +857,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return replicationStrategy_.getHintedStorageEndPoints(partitioner_.getToken(key), naturalEndpoints);
     }
 
-    public void retrofitPorts(List<EndPoint> eps)
-    {
-        replicationStrategy_.retrofitPorts(eps);
-    }
-
     /**
      * This function finds the most suitable endpoint given a key.
      * It checks for locality and alive test.
