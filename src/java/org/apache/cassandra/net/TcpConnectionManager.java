@@ -30,26 +30,23 @@ class TcpConnectionManager
     private List<TcpConnection> allConnections_;
     private EndPoint localEp_;
     private EndPoint remoteEp_;
-    private int initialSize_;
-    private int growthFactor_;
     private int maxSize_;
-    private long lastTimeUsed_;
-    private boolean isShut_;
 
     private int inUse_;
 
+    // TODO! this whole thing is a giant no-op, since "contains" only relies on TcpConnection.equals, which
+    // is true for any (local, remote) pairs.  So there is only ever at most one TcpConnection per Manager!
     TcpConnectionManager(int initialSize, int growthFactor, int maxSize, EndPoint localEp, EndPoint remoteEp)
     {
-        initialSize_ = initialSize;
-        growthFactor_ = growthFactor;
         maxSize_ = maxSize;
         localEp_ = localEp;
         remoteEp_ = remoteEp;
-        isShut_ = false;
-        lastTimeUsed_ = System.currentTimeMillis();
         allConnections_ = new ArrayList<TcpConnection>();
     }
 
+    /**
+     * returns the least loaded connection to remoteEp, creating a new connection if necessary
+     */
     TcpConnection getConnection() throws IOException
     {
         lock_.lock();
@@ -74,7 +71,7 @@ class TcpConnectionManager
             }
 
             TcpConnection connection = new TcpConnection(this, localEp_, remoteEp_);
-            if (connection != null && !contains(connection))
+            if (!contains(connection))
             {
                 addToPool(connection);
                 connection.inUse_ = true;
@@ -83,10 +80,7 @@ class TcpConnectionManager
             }
             else
             {
-                if (connection != null)
-                {
-                    connection.closeSocket();
-                }
+                connection.closeSocket();
                 return getLeastLoaded();
             }
         }
@@ -178,7 +172,6 @@ class TcpConnectionManager
         {
             lock_.unlock();
         }
-        isShut_ = true;
     }
 
     int getPoolSize()

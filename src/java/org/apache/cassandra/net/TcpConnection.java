@@ -288,10 +288,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             return false;
         
         TcpConnection rhs = (TcpConnection)o;        
-        if ( localEp_.equals(rhs.localEp_) && remoteEp_.equals(rhs.remoteEp_) )
-            return true;
-        else
-            return false;
+        return localEp_.equals(rhs.localEp_) && remoteEp_.equals(rhs.remoteEp_);
     }
     
     public int hashCode()
