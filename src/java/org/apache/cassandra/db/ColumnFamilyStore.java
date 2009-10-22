@@ -667,8 +667,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             sstables = ssTables_.getSSTables();
         }
 
-        if (sstables.size() > 1)
-            doFileCompaction(sstables);
+        doFileCompaction(sstables);
     }
 
     /*
@@ -838,6 +837,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     * that occur in multiple files and are the same then a resolution is done
     * to get the latest data.
     *
+    * The collection of sstables passed may be empty (but not null); even if
+    * it is not empty, it may compact down to nothing if all rows are deleted.
     */
     int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore) throws IOException
     {
@@ -869,9 +870,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            if (!ci.hasNext())
+            if (!nni.hasNext())
             {
-                logger_.warn("Nothing to compact (all files empty or corrupt). This should not happen.");
+                // don't mark compacted in the finally block, since if there _is_ nondeleted data,
+                // we need to sync it (via closeAndOpen) first, so there is no period during which
+                // a crash could cause data loss.
+                ssTables_.markCompacted(sstables);
                 return 0;
             }
 

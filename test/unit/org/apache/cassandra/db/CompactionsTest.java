@@ -70,19 +70,20 @@ public class CompactionsTest extends CleanupHelper
     @Test
     public void testCompactionPurge() throws IOException, ExecutionException, InterruptedException
     {
+        CompactionManager.instance().disableCompactions();
+
         Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        String cfName = "Standard1";
+        ColumnFamilyStore store = table.getColumnFamilyStore(cfName);
 
         String key = "key1";
         RowMutation rm;
-
-        CompactionManager.instance().disableCompactions();
 
         // inserts
         rm = new RowMutation("Keyspace1", key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(new QueryPath("Standard1", null, String.valueOf(i).getBytes()), new byte[0], 0);
+            rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
         }
         rm.apply();
         store.forceBlockingFlush();
@@ -91,21 +92,59 @@ public class CompactionsTest extends CleanupHelper
         for (int i = 0; i < 10; i++)
         {
             rm = new RowMutation("Keyspace1", key);
-            rm.delete(new QueryPath("Standard1", null, String.valueOf(i).getBytes()), 1);
+            rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
             rm.apply();
         }
         store.forceBlockingFlush();
 
         // resurrect one row
         rm = new RowMutation("Keyspace1", key);
-        rm.add(new QueryPath("Standard1", null, String.valueOf(5).getBytes()), new byte[0], 2);
+        rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], 2);
         rm.apply();
         store.forceBlockingFlush();
 
         // compact and test that all columns but the resurrected one is completely gone
         store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
-        ColumnFamily cf = table.getColumnFamilyStore("Standard1").getColumnFamily(new IdentityQueryFilter(key, new QueryPath("Standard1")));
+        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
         assert cf.getColumnCount() == 1;
         assert cf.getColumn(String.valueOf(5).getBytes()) != null;
+    }
+
+    @Test
+    public void testCompactionPurgeOneFile() throws IOException, ExecutionException, InterruptedException
+    {
+        CompactionManager.instance().disableCompactions();
+
+        Table table = Table.open("Keyspace1");
+        String cfName = "Standard2";
+        ColumnFamilyStore store = table.getColumnFamilyStore(cfName);
+
+        String key = "key1";
+        RowMutation rm;
+
+        // inserts
+        rm = new RowMutation("Keyspace1", key);
+        for (int i = 0; i < 5; i++)
+        {
+            rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
+        }
+        rm.apply();
+
+        // deletes
+        for (int i = 0; i < 5; i++)
+        {
+            rm = new RowMutation("Keyspace1", key);
+            rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+
+        assert store.getSSTables().size() == 1 : store.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
+
+        // compact and test that the row is completely gone
+        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
+        assert store.getSSTables().isEmpty();
+        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        assert cf == null : cf;
     }
 }

@@ -203,7 +203,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
         logger_.info("Writing " + this);
-        IPartitioner<?> partitioner = StorageService.getPartitioner();
         ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
         SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
 

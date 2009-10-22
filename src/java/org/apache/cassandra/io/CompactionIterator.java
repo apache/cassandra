@@ -70,31 +70,26 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         DecoratedKey key = rows.get(0).getKey();
-        if (rows.size() > 1)
+        assert rows.size() > 0;
+
+        ColumnFamily cf = null;
+        for (IteratingRow row : rows)
         {
-            ColumnFamily cf = null;
-            for (IteratingRow row : rows)
+            if (cf == null)
             {
-                if (cf == null)
-                {
-                    cf = row.getColumnFamily();
-                }
-                else
-                {
-                    cf.addAll(row.getColumnFamily());
-                }
+                cf = row.getColumnFamily();
             }
-            ColumnFamily cfPurged = ColumnFamilyStore.removeDeleted(cf, gcBefore);
-            if (cfPurged == null)
-                return null;
-            ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
-        }
-        else
-        {
-            assert rows.size() == 1;
-            rows.get(0).echoData(buffer);
+            else
+            {
+                cf.addAll(row.getColumnFamily());
+            }
         }
         rows.clear();
+
+        ColumnFamily cfPurged = ColumnFamilyStore.removeDeleted(cf, gcBefore);
+        if (cfPurged == null)
+            return null;
+        ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
         return new CompactedRow(key, buffer);
     }
 
