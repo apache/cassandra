@@ -4,6 +4,8 @@
  * Fix using non-utf8-aware comparison as a sanity check.
    (CASSANDRA-493)
  * Improve default garbage collector options (CASSANDRA-504)
+ * Add "nodeprobe flush" (CASSANDRA-505)
+
 
 0.4.1
  * Fix FlushPeriod columnfamily configuration regression
