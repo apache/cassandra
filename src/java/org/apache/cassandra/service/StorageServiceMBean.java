@@ -105,11 +105,13 @@ public interface StorageServiceMBean
     public void clearSnapshot() throws IOException;
 
     /**
-     * Flush all binary memtables for a table
+     * Flush all memtables for the given column families, or all columnfamilies for the given table
+     * if none are explicitly listed.
      * @param tableName
+     * @param columnFamilies
      * @throws IOException
      */
-    public void forceTableFlushBinary(String tableName) throws IOException;
+    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException;
 
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);

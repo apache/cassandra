@@ -613,7 +613,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             logger_.debug("Cleared out all snapshot directories");
     }
 
-    public void forceTableFlushBinary(String tableName) throws IOException
+    /**
+     * Flush all memtables for a table and column families.
+     * @param tableName
+     * @param columnFamilies
+     * @throws IOException
+     */
+    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException
     {
         if (DatabaseDescriptor.getTable(tableName) == null)
         {
@@ -621,15 +627,32 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
 
         Table table = Table.open(tableName);
-        Set<String> columnFamilies = table.getColumnFamilies();
+        Set<String> positiveColumnFamilies = table.getColumnFamilies();
+
+        // no columnFamilies means flush'em all.
+        if (columnFamilies == null || columnFamilies.length == 0)
+        {
+            columnFamilies = positiveColumnFamilies.toArray(new String[positiveColumnFamilies.size()]);
+        }
+
         for (String columnFamily : columnFamilies)
         {
-            ColumnFamilyStore cfStore = table.getColumnFamilyStore(columnFamily);
-            logger_.debug("Forcing flush on keyspace " + tableName + " on CF " + columnFamily);
-            cfStore.forceFlushBinary();
+
+            if (positiveColumnFamilies.contains(columnFamily))
+            {
+                ColumnFamilyStore cfStore = table.getColumnFamilyStore(columnFamily);
+                logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + columnFamily);
+                cfStore.forceFlushBinary();
+                logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + columnFamily);
+                cfStore.forceFlush();
+            }
+            else
+            {
+                // this means there was a cf passed in that is not recognized in the keyspace. report it and continue.
+                logger_.warn(String.format("Invalid column family specified: %s. Proceeding with others.", columnFamily));
+            }
         }
     }
-
 
     /* End of MBean interface methods */
     

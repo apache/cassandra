@@ -183,9 +183,9 @@ public class NodeProbe
         ssProxy.forceTableCompaction();
     }
 
-    public void forceTableFlushBinary(String tableName) throws IOException
+    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException
     {
-        ssProxy.forceTableFlushBinary(tableName);
+        ssProxy.forceTableFlush(tableName, columnFamilies);
     }
 
     /**
@@ -474,7 +474,7 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, tpstats, flush_binary, " +
+                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, tpstats, flush, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -550,7 +550,7 @@ public class NodeProbe
         {
             probe.printThreadPoolStats(System.out);
         }
-        else if (cmdName.equals("flush_binary"))
+        else if (cmdName.equals("flush"))
         {
             if (probe.getArgs().length < 2)
             {
@@ -558,7 +558,13 @@ public class NodeProbe
                 NodeProbe.printUsage();
                 System.exit(1);
             }
-            probe.forceTableFlushBinary(probe.getArgs()[1]);
+
+            String[] columnFamilies = new String[probe.getArgs().length - 2];
+            for (int i = 0; i < columnFamilies.length; i++)
+            {
+                columnFamilies[i] = probe.getArgs()[i + 2];
+            }   
+            probe.forceTableFlush(probe.getArgs()[1], columnFamilies);
         }
         else if (cmdName.equals("getcompactionthreshold"))
         {
