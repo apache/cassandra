@@ -42,7 +42,7 @@ public class SSTableTest extends CleanupHelper
 
         String key = Integer.toString(1);
         writer.append(writer.partitioner.decorateKey(key), bytes);
-        SSTableReader ssTable = writer.closeAndOpenReader();
+        SSTableReader ssTable = writer.closeAndOpenReader(0.01);
 
         // verify
         verifySingle(ssTable, bytes, key);
@@ -82,7 +82,7 @@ public class SSTableTest extends CleanupHelper
         {
             writer.append(writer.partitioner.decorateKey(key), map.get(key));
         }
-        SSTableReader ssTable = writer.closeAndOpenReader();
+        SSTableReader ssTable = writer.closeAndOpenReader(0.01);
 
         // verify
         verifyMany(ssTable, map);

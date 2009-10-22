@@ -217,8 +217,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
             /* Now write the key and value to disk */
             writer.append(key, buffer);
         }
-        buffer.close();
-        SSTableReader ssTable = writer.closeAndOpenReader();
+
+        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
         isFlushed_ = true;
         logger_.info("Completed flushing " + ssTable.getFilename());
         return ssTable;

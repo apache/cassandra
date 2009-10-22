@@ -36,6 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -133,10 +134,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static SSTableReader open(String dataFileName) throws IOException
     {
-        return open(dataFileName, StorageService.getPartitioner());
+        return open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
     }
 
-    public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
+    public static SSTableReader open(String dataFileName, IPartitioner partitioner, double cacheFraction) throws IOException
     {
         assert partitioner != null;
         assert openedFiles.get(dataFileName) == null;
@@ -145,6 +146,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
         sstable.loadIndexFile();
         sstable.loadBloomFilter();
+        if (cacheFraction > 0)
+        {
+            sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * cacheFraction));
+        }
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
 
@@ -153,7 +158,14 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     FileDeletingReference phantomReference;
 
-    SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter)
+    public static ConcurrentLinkedHashMap<DecoratedKey, Long> createKeyCache(int size)
+    {
+        return ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, size);
+    }
+
+    private ConcurrentLinkedHashMap<DecoratedKey, Long> keyCache;
+
+    SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter, ConcurrentLinkedHashMap<DecoratedKey, Long> keyCache)
     {
         super(filename, partitioner);
         this.indexPositions = indexPositions;
@@ -161,11 +173,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         phantomReference = new FileDeletingReference(this, finalizerQueue);
         finalizers.add(phantomReference);
         openedFiles.put(filename, this);
+        this.keyCache = keyCache;
     }
 
     private SSTableReader(String filename, IPartitioner partitioner)
     {
-        this(filename, partitioner, null, null);
+        this(filename, partitioner, null, null, null);
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -229,6 +242,14 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return -1;
+        if (keyCache != null)
+        {
+            Long cachedPosition = keyCache.get(decoratedKey);
+            if (cachedPosition != null)
+            {
+                return cachedPosition;
+            }
+        }
         long start = getIndexScanPosition(decoratedKey, partitioner);
         if (start < 0)
         {
@@ -256,6 +277,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 int v = partitioner.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
                 if (v == 0)
                 {
+                    if (keyCache != null)
+                        keyCache.put(decoratedKey, position);
                     return position;
                 }
                 if (v > 0)
@@ -335,7 +358,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         openedFiles.clear();
         for (SSTableReader sstable : sstables)
         {
-            SSTableReader.open(sstable.path, sstable.partitioner);
+            SSTableReader.open(sstable.path, sstable.partitioner, 0.01);
         }
     }
 

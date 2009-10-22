@@ -814,7 +814,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (writer != null)
         {
-            results.add(writer.closeAndOpenReader());
+            results.add(writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_)));
             String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
             long dTime = System.currentTimeMillis() - startTime;
             logger_.info(String.format(format, writer.getFilename(), getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));
@@ -890,7 +890,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ci.close();
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader();
+        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
         ssTables_.add(ssTable);
         ssTables_.markCompacted(sstables);
         CompactionManager.instance().submit(ColumnFamilyStore.this);

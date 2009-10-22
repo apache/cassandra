@@ -144,7 +144,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
             assert bytes.length > 0;
             writer.append(key, bytes);
         }
-        SSTableReader sstable = writer.closeAndOpenReader();
+        SSTableReader sstable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
         logger_.info("Completed flushing " + writer.getFilename());
         return sstable;
     }

@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
 public class SSTableWriter extends SSTable
 {
@@ -118,7 +119,7 @@ public class SSTableWriter extends SSTable
     /**
      * Renames temporary SSTable files to valid data, index, and bloom filter files
      */
-    public SSTableReader closeAndOpenReader() throws IOException
+    public SSTableReader closeAndOpenReader(double cacheFraction) throws IOException
     {
         // bloom filter
         FileOutputStream fos = new FileOutputStream(filterFilename());
@@ -139,7 +140,10 @@ public class SSTableWriter extends SSTable
         rename(filterFilename());
         path = rename(path); // important to do this last since index & filter file names are derived from it
 
-        return new SSTableReader(path, partitioner, indexPositions, bf);
+        ConcurrentLinkedHashMap<DecoratedKey, Long> keyCache = cacheFraction > 0
+                                                        ? SSTableReader.createKeyCache((int) (cacheFraction * keysWritten))
+                                                        : null;
+        return new SSTableReader(path, partitioner, indexPositions, bf, keyCache);
     }
 
     static String rename(String tmpFilename)
@@ -154,7 +158,7 @@ public class SSTableWriter extends SSTable
         SSTableWriter.rename(indexFilename(dataFileName));
         SSTableWriter.rename(filterFilename(dataFileName));
         dataFileName = SSTableWriter.rename(dataFileName);
-        return SSTableReader.open(dataFileName, StorageService.getPartitioner());
+        return SSTableReader.open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
     }
 
 }

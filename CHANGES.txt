@@ -12,6 +12,7 @@
  * Additional JMX metrics (CASSANDRA-482)
  * JSON based export and import tools (several tickets)
  * Hinted Handoff fixes (several tickets)
+ * Add key cache to improve read performance (CASSANDRA-423)
  
 
 0.4.2
