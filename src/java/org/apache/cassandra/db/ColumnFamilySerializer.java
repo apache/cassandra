@@ -51,29 +51,43 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
      * <column count>
      * <columns, serialized individually>
     */
-    public void serialize(ColumnFamily columnFamily, DataOutput dos) throws IOException
+    public void serialize(ColumnFamily columnFamily, DataOutput dos)
     {
-        dos.writeUTF(columnFamily.name());
-        dos.writeUTF(columnFamily.type_);
-        dos.writeUTF(columnFamily.getComparatorName());
-        dos.writeUTF(columnFamily.getSubComparatorName());
+        try
+        {
+            dos.writeUTF(columnFamily.name());
+            dos.writeUTF(columnFamily.type_);
+            dos.writeUTF(columnFamily.getComparatorName());
+            dos.writeUTF(columnFamily.getSubComparatorName());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
         serializeForSSTable(columnFamily, dos);
     }
 
-    public void serializeForSSTable(ColumnFamily columnFamily, DataOutput dos) throws IOException
+    public void serializeForSSTable(ColumnFamily columnFamily, DataOutput dos)
     {
-        dos.writeInt(columnFamily.localDeletionTime);
-        dos.writeLong(columnFamily.markedForDeleteAt);
-
-        Collection<IColumn> columns = columnFamily.getSortedColumns();
-        dos.writeInt(columns.size());
-        for ( IColumn column : columns )
+        try
         {
-            columnFamily.getColumnSerializer().serialize(column, dos);
+            dos.writeInt(columnFamily.localDeletionTime);
+            dos.writeLong(columnFamily.markedForDeleteAt);
+
+            Collection<IColumn> columns = columnFamily.getSortedColumns();
+            dos.writeInt(columns.size());
+            for (IColumn column : columns)
+            {
+                columnFamily.getColumnSerializer().serialize(column, dos);
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 
-    public void serializeWithIndexes(ColumnFamily columnFamily, DataOutput dos) throws IOException
+    public void serializeWithIndexes(ColumnFamily columnFamily, DataOutput dos)
     {
         ColumnIndexer.serialize(columnFamily, dos);
         serializeForSSTable(columnFamily, dos);

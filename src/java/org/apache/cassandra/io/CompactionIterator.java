@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
 
+import org.apache.log4j.Logger;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.utils.ReducingIterator;
@@ -15,6 +16,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 
 public class CompactionIterator extends ReducingIterator<IteratingRow, CompactionIterator.CompactedRow> implements Closeable
 {
+    private static Logger logger = Logger.getLogger(CompactionIterator.class);
+
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
     private final int gcBefore;
 
@@ -56,32 +59,30 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 
     protected CompactedRow getReduced()
     {
-        try
-        {
-            return getReducedRaw();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    protected CompactedRow getReducedRaw() throws IOException
-    {
+        assert rows.size() > 0;
         DataOutputBuffer buffer = new DataOutputBuffer();
         DecoratedKey key = rows.get(0).getKey();
-        assert rows.size() > 0;
 
         ColumnFamily cf = null;
         for (IteratingRow row : rows)
         {
+            ColumnFamily thisCF;
+            try
+            {
+                thisCF = row.getColumnFamily();
+            }
+            catch (IOException e)
+            {
+                logger.error("Skipping row " + key + " in " + row.getPath(), e);
+                continue;
+            }
             if (cf == null)
             {
-                cf = row.getColumnFamily();
+                cf = thisCF;
             }
             else
             {
-                cf.addAll(row.getColumnFamily());
+                cf.addAll(thisCF);
             }
         }
         rows.clear();
@@ -90,6 +91,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         if (cfPurged == null)
             return null;
         ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
+
         return new CompactedRow(key, buffer);
     }
 

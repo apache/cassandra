@@ -324,19 +324,25 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
         return comparator;
     }
 
-    public void serialize(IColumn column, DataOutput dos) throws IOException
+    public void serialize(IColumn column, DataOutput dos)
     {
     	SuperColumn superColumn = (SuperColumn)column;
         ColumnSerializer.writeName(column.name(), dos);
-        dos.writeInt(superColumn.getLocalDeletionTime());
-        dos.writeLong(superColumn.getMarkedForDeleteAt());
-
-        Collection<IColumn> columns  = column.getSubColumns();
-        dos.writeInt(columns.size());
-
-        for ( IColumn subColumn : columns )
+        try
         {
-            Column.serializer().serialize(subColumn, dos);
+            dos.writeInt(superColumn.getLocalDeletionTime());
+            dos.writeLong(superColumn.getMarkedForDeleteAt());
+
+            Collection<IColumn> columns = column.getSubColumns();
+            dos.writeInt(columns.size());
+            for (IColumn subColumn : columns)
+            {
+                Column.serializer().serialize(subColumn, dos);
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 

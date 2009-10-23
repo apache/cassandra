@@ -23,19 +23,25 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ColumnSerializer implements ICompactSerializer2<IColumn>
 {
-    public static void writeName(byte[] name, DataOutput out) throws IOException
+    public static void writeName(byte[] name, DataOutput out)
     {
         int length = name.length;
         assert length <= IColumn.MAX_NAME_LENGTH;
-        out.writeByte((length >> 8) & 0xFF);
-        out.writeByte(length & 0xFF);
-        out.write(name);
+        try
+        {
+            out.writeByte((length >> 8) & 0xFF);
+            out.writeByte(length & 0xFF);
+            out.write(name);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public static byte[] readName(DataInput in) throws IOException
@@ -48,12 +54,19 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         return bytes;
     }
 
-    public void serialize(IColumn column, DataOutput dos) throws IOException
+    public void serialize(IColumn column, DataOutput dos)
     {
         ColumnSerializer.writeName(column.name(), dos);
-        dos.writeBoolean(column.isMarkedForDelete());
-        dos.writeLong(column.timestamp());
-        FBUtilities.writeByteArray(column.value(), dos);
+        try
+        {
+            dos.writeBoolean(column.isMarkedForDelete());
+            dos.writeLong(column.timestamp());
+            FBUtilities.writeByteArray(column.value(), dos);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public Column deserialize(DataInput dis) throws IOException

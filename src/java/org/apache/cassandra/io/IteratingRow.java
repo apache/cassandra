@@ -56,6 +56,11 @@ public class IteratingRow extends AbstractIterator<IColumn> implements Comparabl
         return key;
     }
 
+    public String getPath()
+    {
+        return file.getPath();
+    }
+
     public void echoData(DataOutput out) throws IOException
     {
         file.seek(dataStart);

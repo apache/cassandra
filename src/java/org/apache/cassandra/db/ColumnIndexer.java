@@ -46,20 +46,27 @@ public class ColumnIndexer
 	 * @param dos data output stream
 	 * @throws IOException
 	 */
-    public static void serialize(ColumnFamily columnFamily, DataOutput dos) throws IOException
+    public static void serialize(ColumnFamily columnFamily, DataOutput dos)
 	{
         Collection<IColumn> columns = columnFamily.getSortedColumns();
         BloomFilter bf = createColumnBloomFilter(columns);                    
         /* Write out the bloom filter. */
-        DataOutputBuffer bufOut = new DataOutputBuffer(); 
-        BloomFilter.serializer().serialize(bf, bufOut);
-        /* write the length of the serialized bloom filter. */
-        dos.writeInt(bufOut.getLength());
-        /* write out the serialized bytes. */
-        dos.write(bufOut.getData(), 0, bufOut.getLength());
+        DataOutputBuffer bufOut = new DataOutputBuffer();
+        try
+        {
+            BloomFilter.serializer().serialize(bf, bufOut);
+            /* write the length of the serialized bloom filter. */
+            dos.writeInt(bufOut.getLength());
+            /* write out the serialized bytes. */
+            dos.write(bufOut.getData(), 0, bufOut.getLength());
 
-        /* Do the indexing */
-        doIndexing(columnFamily.getComparator(), columns, dos);
+            /* Do the indexing */
+            doIndexing(columnFamily.getComparator(), columns, dos);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
 	}
     
     /**
