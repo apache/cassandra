@@ -200,17 +200,6 @@ public class FBUtilities
         out.write(bytes);
     }
 
-    public static byte[] readByteArray(DataInput in) throws IOException
-    {
-        int length = in.readInt();
-        byte[] bytes = new byte[length];
-        if (length > 0)
-        {
-            in.readFully(bytes);
-        }
-        return bytes;
-    }
-    
     public static byte[] hexToBytes(String str)
     {
         assert str.length() % 2 == 0;

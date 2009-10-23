@@ -31,7 +31,7 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
     public static void writeName(byte[] name, DataOutput out)
     {
         int length = name.length;
-        assert length <= IColumn.MAX_NAME_LENGTH;
+        assert 0 <= length && length <= IColumn.MAX_NAME_LENGTH;
         try
         {
             out.writeByte((length >> 8) & 0xFF);
@@ -49,6 +49,8 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         int length = 0;
         length |= (in.readByte() & 0xFF) << 8;
         length |= in.readByte() & 0xFF;
+        if (!(0 <= length && length <= IColumn.MAX_NAME_LENGTH))
+            throw new IOException("Corrupt name length " + length);
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return bytes;
@@ -74,7 +76,16 @@ public class ColumnSerializer implements ICompactSerializer2<IColumn>
         byte[] name = ColumnSerializer.readName(dis);
         boolean delete = dis.readBoolean();
         long ts = dis.readLong();
-        byte[] value = FBUtilities.readByteArray(dis);
+        int length = dis.readInt();
+        if (length < 0)
+        {
+            throw new IOException("Corrupt (negative) value length encountered");
+        }
+        byte[] value = new byte[length];
+        if (length > 0)
+        {
+            dis.readFully(value);
+        }
         return new Column(name, value, ts, delete);
     }
 }

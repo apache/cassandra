@@ -350,7 +350,12 @@ class SuperColumnSerializer implements ICompactSerializer2<IColumn>
     {
         byte[] name = ColumnSerializer.readName(dis);
         SuperColumn superColumn = new SuperColumn(name, comparator);
-        superColumn.markForDeleteAt(dis.readInt(), dis.readLong());
+        int localDeleteTime = dis.readInt();
+        if (localDeleteTime != Integer.MIN_VALUE && localDeleteTime <= 0)
+        {
+            throw new IOException("Invalid localDeleteTime read: " + localDeleteTime);
+        }
+        superColumn.markForDeleteAt(localDeleteTime, dis.readLong());
 
         /* read the number of columns */
         int size = dis.readInt();
