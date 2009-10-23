@@ -140,7 +140,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void insertBlocking(RowMutation rm, int consistency_level) throws UnavailableException
     {
         long startTime = System.currentTimeMillis();
-        Message message = null;
+        Message message;
         try
         {
             message = rm.makeRowMutationMessage();
@@ -299,7 +299,7 @@ public class StorageProxy implements StorageProxyMBean
             for (ReadCommand command: commands)
             {
                 List<InetAddress> endpoints = StorageService.instance().getNaturalEndpoints(command.key);
-                boolean foundLocal = Arrays.asList(endpoints).contains(FBUtilities.getLocalAddress());
+                boolean foundLocal = endpoints.contains(FBUtilities.getLocalAddress());
                 //TODO: Throw InvalidRequest if we're in bootstrap mode?
                 if (foundLocal && !StorageService.instance().isBootstrapMode())
                 {
@@ -389,7 +389,7 @@ public class StorageProxy implements StorageProxyMBean
 
         for (QuorumResponseHandler<Row> quorumResponseHandler: quorumResponseHandlers)
         {
-            Row row = null;
+            Row row;
             ReadCommand command = commands.get(commandIndex);
             try
             {
