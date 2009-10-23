@@ -483,10 +483,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // in case of a timestamp tie, tombstones get priority over non-tombstones.
-        // we want this to be deterministic in general to avoid confusion;
-        // either way (tombstone or non- getting priority) would be fine,
-        // but we picked this way because it makes removing delivered hints
-        // easier for HintedHandoffManager.
+        // (we want this to be deterministic to avoid confusion.)
         for (byte[] cname : cf.getColumnNames())
         {
             IColumn c = cf.getColumnsMap().get(cname);
