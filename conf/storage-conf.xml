@@ -34,11 +34,6 @@
    ~ very unusual circumstances you will have one Keyspace per application.
 
    ~ There is an implicit keyspace named 'system' for Cassandra internals.
-
-   ~ The default ColumnSort is Time for standard column families.  For
-   ~ super column families, specifying ColumnSort is not supported; the 
-   ~ supercolumns themselves are always name-sorted and their subcolumns
-   ~ are always time-sorted.
   -->
   <Keyspaces>
     <Keyspace Name="Keyspace1">
