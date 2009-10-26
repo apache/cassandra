@@ -38,18 +38,24 @@ public class ConsistencyLevel {
   public static final int ZERO = 0;
   public static final int ONE = 1;
   public static final int QUORUM = 2;
-  public static final int ALL = 3;
+  public static final int DCQUORUM = 3;
+  public static final int DCQUORUMSYNC = 4;
+  public static final int ALL = 5;
 
   public static final IntRangeSet VALID_VALUES = new IntRangeSet(
     ZERO, 
     ONE, 
     QUORUM, 
+    DCQUORUM, 
+    DCQUORUMSYNC, 
     ALL );
 
   public static final Map<Integer, String> VALUES_TO_NAMES = new HashMap<Integer, String>() {{
     put(ZERO, "ZERO");
     put(ONE, "ONE");
     put(QUORUM, "QUORUM");
+    put(DCQUORUM, "DCQUORUM");
+    put(DCQUORUMSYNC, "DCQUORUMSYNC");
     put(ALL, "ALL");
   }};
 }

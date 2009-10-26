@@ -72,27 +72,27 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static Map<InetAddress, Message> createWriteMessages(RowMutation rm, Map<InetAddress, InetAddress> endpointMap) throws IOException
     {
-		Map<InetAddress, Message> messageMap = new HashMap<InetAddress, Message>();
-		Message message = rm.makeRowMutationMessage();
+        Map<InetAddress, Message> messageMap = new HashMap<InetAddress, Message>();
+        Message message = rm.makeRowMutationMessage();
 
-		for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
-		{
+        for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+        {
             InetAddress target = entry.getKey();
             InetAddress hint = entry.getValue();
             if ( !target.equals(hint) )
-			{
-				Message hintedMessage = rm.makeRowMutationMessage();
-				hintedMessage.addHeader(RowMutation.HINT, hint.getAddress());
-				if (logger.isDebugEnabled())
-				    logger.debug("Sending the hint of " + hint + " to " + target);
-				messageMap.put(target, hintedMessage);
-			}
-			else
-			{
-				messageMap.put(target, message);
-			}
-		}
-		return messageMap;
+            {
+                Message hintedMessage = rm.makeRowMutationMessage();
+                hintedMessage.addHeader(RowMutation.HINT, hint.getAddress());
+                if (logger.isDebugEnabled())
+                    logger.debug("Sending the hint of " + hint + " to " + target);
+                messageMap.put(target, hintedMessage);
+            }
+            else
+            {
+                messageMap.put(target, message);
+            }
+        }
+        return messageMap;
     }
     
     /**
@@ -103,7 +103,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param rm the mutation to be applied across the replicas
     */
     public static void insert(RowMutation rm)
-	{
+    {
         /*
          * Get the N nodes from storage service where the data needs to be
          * replicated
@@ -112,21 +112,21 @@ public class StorageProxy implements StorageProxyMBean
         */
 
         long startTime = System.currentTimeMillis();
-		try
-		{
+        try
+        {
             List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
             // (This is the ZERO consistency level, so user doesn't care if we don't really have N destinations available.)
-			Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
-			Map<InetAddress, Message> messageMap = createWriteMessages(rm, endpointMap);
-			for (Map.Entry<InetAddress, Message> entry : messageMap.entrySet())
-			{
+            Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
+            Map<InetAddress, Message> messageMap = createWriteMessages(rm, endpointMap);
+            for (Map.Entry<InetAddress, Message> entry : messageMap.entrySet())
+            {
                 Message message = entry.getValue();
                 InetAddress endpoint = entry.getKey();
                 if (logger.isDebugEnabled())
                     logger.debug("insert writing key " + rm.key() + " to " + message.getMessageId() + "@" + endpoint);
                 MessagingService.instance().sendOneWay(message, endpoint);
-			}
-		}
+            }
+        }
         catch (IOException e)
         {
             throw new RuntimeException("error inserting key " + rm.key(), e);
@@ -159,7 +159,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 throw new UnavailableException();
             }
-            QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(blockFor, new WriteResponseResolver());
+            QuorumResponseHandler<Boolean> quorumResponseHandler = StorageService.instance().getResponseHandler(new WriteResponseResolver(), blockFor, consistency_level);
             if (logger.isDebugEnabled())
                 logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpointMap.keySet(), ", ") + "]");
 
@@ -204,6 +204,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)
     {
+        // TODO this is broken for DC quorum / DC quorum sync
         int bootstrapTargets = hintedTargets - naturalTargets;
         int blockFor;
         if (consistency_level == ConsistencyLevel.ONE)
@@ -318,8 +319,8 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            assert consistency_level == ConsistencyLevel.QUORUM;
-            rows = strongRead(commands);
+            assert consistency_level >= ConsistencyLevel.QUORUM;
+            rows = strongRead(commands, consistency_level);
         }
 
         readStats.add(System.currentTimeMillis() - startTime);
@@ -339,7 +340,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static List<Row> strongRead(List<ReadCommand> commands) throws IOException, TimeoutException, InvalidRequestException, UnavailableException
+    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, TimeoutException, InvalidRequestException, UnavailableException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
@@ -357,7 +358,7 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.makeReadMessage();
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
-            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver());
+            QuorumResponseHandler<Row> quorumResponseHandler = StorageService.instance().getResponseHandler(new ReadResponseResolver(), DatabaseDescriptor.getQuorum(), consistency_level);
             InetAddress dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
             List<InetAddress> endpointList = StorageService.instance().getNaturalEndpoints(command.key);
             /* Remove the local storage endpoint from the list. */

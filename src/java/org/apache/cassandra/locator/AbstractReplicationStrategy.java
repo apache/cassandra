@@ -18,17 +18,20 @@
 */
 package org.apache.cassandra.locator;
 
+import java.net.InetAddress;
 import java.util.*;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import java.net.InetAddress;
-
+import org.apache.cassandra.service.IResponseResolver;
+import org.apache.cassandra.service.InvalidRequestException;
+import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * This class contains a helper method that will be used by
@@ -53,6 +56,11 @@ public abstract class AbstractReplicationStrategy
     }
 
     public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, Map<Token, InetAddress> tokenToEndPointMap);
+    
+    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level) throws InvalidRequestException
+    {
+        return new QuorumResponseHandler<T>(blockFor, responseResolver);
+    }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token)
     {

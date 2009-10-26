@@ -92,7 +92,9 @@ enum ConsistencyLevel {
     ZERO = 0,
     ONE = 1,
     QUORUM = 2,
-    ALL = 3,
+    DCQUORUM = 3,
+    DCQUORUMSYNC = 4,
+    ALL = 5,
 }
 
 struct ColumnParent {

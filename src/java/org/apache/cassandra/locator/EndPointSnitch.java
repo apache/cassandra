@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.locator;
 
-import java.net.*;
-
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class EndPointSnitch implements IEndPointSnitch
 {
@@ -30,13 +29,13 @@ public class EndPointSnitch implements IEndPointSnitch
          * Look at the IP Address of the two hosts. Compare 
          * the 3rd octet. If they are the same then the hosts
          * are in the same rack else different racks. 
-        */        
+        */
         byte[] ip = host.getAddress();
         byte[] ip2 = host2.getAddress();
-        
-        return ( ip[2] == ip2[2] );
+
+        return ip[2] == ip2[2];
     }
-    
+
     public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException
     {
         /*
@@ -46,7 +45,12 @@ public class EndPointSnitch implements IEndPointSnitch
         */
         byte[] ip = host.getAddress();
         byte[] ip2 = host2.getAddress();
-        
-        return ( ip[1] == ip2[1] );
+
+        return ip[1] == ip2[1];
+    }
+
+    public String getLocation(InetAddress endpoint) throws UnknownHostException
+    {
+        throw new UnknownHostException("Not Supported");
     }
 }

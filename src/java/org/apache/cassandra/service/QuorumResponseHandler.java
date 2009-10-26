@@ -37,10 +37,10 @@ import org.apache.log4j.Logger;
 
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {
-    private static Logger logger_ = Logger.getLogger( QuorumResponseHandler.class );
-    private SimpleCondition condition_ = new SimpleCondition();
+    protected static Logger logger_ = Logger.getLogger( QuorumResponseHandler.class );
+    protected SimpleCondition condition_ = new SimpleCondition();
     private int responseCount_;
-    private List<Message> responses_ = new ArrayList<Message>();
+    protected List<Message> responses_ = new ArrayList<Message>();
     private IResponseResolver<T> responseResolver_;
     private long startTime_;
 

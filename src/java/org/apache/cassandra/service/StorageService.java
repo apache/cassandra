@@ -289,7 +289,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public IEndPointSnitch getEndPointSnitch()
     {
-    	return endPointSnitch_;
+        return endPointSnitch_;
     }
     
     /*
@@ -577,10 +577,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void takeSnapshot(String tableName, String tag) throws IOException
     {
-    	if (DatabaseDescriptor.getTable(tableName) == null)
+        if (DatabaseDescriptor.getTable(tableName) == null)
         {
             throw new IOException("Table " + tableName + "does not exist");
-    	}
+        }
         Table tableInstance = Table.open(tableName);
         tableInstance.snapshot(tag);
     }
@@ -592,11 +592,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void takeAllSnapshot(String tag) throws IOException
     {
-    	for (String tableName: DatabaseDescriptor.getTables())
+        for (String tableName: DatabaseDescriptor.getTables())
         {
             Table tableInstance = Table.open(tableName);
             tableInstance.snapshot(tag);
-    	}
+        }
     }
 
     /**
@@ -604,11 +604,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void clearSnapshot() throws IOException
     {
-    	for (String tableName: DatabaseDescriptor.getTables())
+        for (String tableName: DatabaseDescriptor.getTables())
         {
             Table tableInstance = Table.open(tableName);
             tableInstance.clearSnapshot();
-    	}
+        }
         if (logger_.isDebugEnabled())
             logger_.debug("Cleared out all snapshot directories");
     }
@@ -789,16 +789,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public List<InetAddress> getLiveNaturalEndpoints(String key)
     {
-    	List<InetAddress> liveEps = new ArrayList<InetAddress>();
-    	List<InetAddress> endpoints = getNaturalEndpoints(key);
-    	
-    	for ( InetAddress endpoint : endpoints )
-    	{
-    		if ( FailureDetector.instance().isAlive(endpoint) )
-    			liveEps.add(endpoint);
-    	}
-    	
-    	return liveEps;
+        List<InetAddress> liveEps = new ArrayList<InetAddress>();
+        List<InetAddress> endpoints = getNaturalEndpoints(key);
+        
+        for ( InetAddress endpoint : endpoints )
+        {
+            if ( FailureDetector.instance().isAlive(endpoint) )
+                liveEps.add(endpoint);
+        }
+        
+        return liveEps;
     }
 
     /**
@@ -817,45 +817,45 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * This function finds the most suitable endpoint given a key.
      * It checks for locality and alive test.
      */
-	public InetAddress findSuitableEndPoint(String key) throws IOException, UnavailableException
-	{
-		List<InetAddress> endpoints = getNaturalEndpoints(key);
-		for(InetAddress endPoint: endpoints)
-		{
+    public InetAddress findSuitableEndPoint(String key) throws IOException, UnavailableException
+    {
+        List<InetAddress> endpoints = getNaturalEndpoints(key);
+        for(InetAddress endPoint: endpoints)
+        {
             if(endPoint.equals(FBUtilities.getLocalAddress()))
-			{
-				return endPoint;
-			}
-		}
-		int j = 0;
-		for ( ; j < endpoints.size(); ++j )
-		{
-			if ( StorageService.instance().isInSameDataCenter(endpoints.get(j)) && FailureDetector.instance().isAlive(endpoints.get(j)))
-			{
-				return endpoints.get(j);
-			}
-		}
-		// We have tried to be really nice but looks like there are no servers 
-		// in the local data center that are alive and can service this request so 
-		// just send it to the first alive guy and see if we get anything.
-		j = 0;
-		for ( ; j < endpoints.size(); ++j )
-		{
-			if ( FailureDetector.instance().isAlive(endpoints.get(j)))
-			{
-				if (logger_.isDebugEnabled())
-				  logger_.debug("InetAddress " + endpoints.get(j) + " is alive so get data from it.");
-				return endpoints.get(j);
-			}
-		}
+            {
+                return endPoint;
+            }
+        }
+        int j = 0;
+        for ( ; j < endpoints.size(); ++j )
+        {
+            if ( StorageService.instance().isInSameDataCenter(endpoints.get(j)) && FailureDetector.instance().isAlive(endpoints.get(j)))
+            {
+                return endpoints.get(j);
+            }
+        }
+        // We have tried to be really nice but looks like there are no servers 
+        // in the local data center that are alive and can service this request so 
+        // just send it to the first alive guy and see if we get anything.
+        j = 0;
+        for ( ; j < endpoints.size(); ++j )
+        {
+            if ( FailureDetector.instance().isAlive(endpoints.get(j)))
+            {
+                if (logger_.isDebugEnabled())
+                  logger_.debug("InetAddress " + endpoints.get(j) + " is alive so get data from it.");
+                return endpoints.get(j);
+            }
+        }
 
         throw new UnavailableException(); // no nodes that could contain key are alive
-	}
+    }
 
-	Map<Token, InetAddress> getLiveEndPointMap()
-	{
-	    return tokenMetadata_.cloneTokenEndPointMap();
-	}
+    Map<Token, InetAddress> getLiveEndPointMap()
+    {
+        return tokenMetadata_.cloneTokenEndPointMap();
+    }
 
     public void setLog4jLevel(String classQualifier, String rawLevel)
     {
@@ -889,5 +889,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         tokens.add(range.right().toString());
         return tokens;
+    }
+
+    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level) throws InvalidRequestException, UnavailableException
+    {
+        return replicationStrategy_.getResponseHandler(responseResolver, blockFor, consistency_level);
     }
 }
