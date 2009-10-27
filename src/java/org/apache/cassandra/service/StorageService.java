@@ -285,12 +285,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return tokenMetadata_;
     }
 
-    /* TODO: used for testing */
-    public void updateTokenMetadataUnsafe(Token token, InetAddress endpoint)
-    {
-        tokenMetadata_.update(token, endpoint);
-    }
-
     public IEndPointSnitch getEndPointSnitch()
     {
         return endPointSnitch_;

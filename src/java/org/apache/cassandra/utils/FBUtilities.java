@@ -64,7 +64,7 @@ public class FBUtilities
             }
         return localInetAddress_;
     }
-
+    
     public static byte[] toByteArray(int i)
     {
         byte[] bytes = new byte[4];

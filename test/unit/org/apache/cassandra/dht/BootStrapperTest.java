@@ -44,16 +44,15 @@ public class BootStrapperTest {
 
     private void testSourceTargetComputation(int numOldNodes) throws UnknownHostException
     {
+        StorageService ss = StorageService.instance();
+
         generateFakeEndpoints(numOldNodes);
         
         Token myToken = StorageService.getPartitioner().getDefaultToken();
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
- 
-        StorageService ss = StorageService.instance();
-        ss.updateTokenMetadataUnsafe(myToken, myEndpoint);
 
         TokenMetadata tmd = ss.getTokenMetadata();
-        assertEquals(numOldNodes + 1, tmd.cloneTokenEndPointMap().size());
+        assertEquals(numOldNodes, tmd.cloneTokenEndPointMap().size());
         BootStrapper b = new BootStrapper(ss.getReplicationStrategy(), myEndpoint, myToken, tmd);
         Map<Range, Set<InetAddress>> res = b.getRangesWithSources();
         
