@@ -43,10 +43,6 @@ class HeartBeatState
     AtomicInteger heartbeat_;
     int version_;
 
-    HeartBeatState()
-    {
-    }
-    
     HeartBeatState(int generation, int heartbeat)
     {
         this(generation, heartbeat, 0);
@@ -68,13 +64,7 @@ class HeartBeatState
     {
         return generation_;
     }
-    
-    void updateGeneration()
-    {
-        ++generation_;
-        version_ = VersionGenerator.getNextVersion();
-    }
-    
+
     int getHeartBeat()
     {
         return heartbeat_.get();
@@ -90,7 +80,7 @@ class HeartBeatState
     {
         return version_;
     }
-};
+}
 
 class HeartBeatStateSerializer implements ICompactSerializer<HeartBeatState>
 {

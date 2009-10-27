@@ -108,25 +108,28 @@ public class SystemTable
         {
             Token token = p.getDefaultToken();
             logger.info("Saved Token not found. Using " + token);
-            int generation = 1;
+            // seconds-since-epoch isn't a foolproof new generation
+            // (where foolproof is "guaranteed to be larger than the last one seen at this ip address"),
+            // but it's as close as sanely possible
+            int generation = (int) (System.currentTimeMillis() / 1000);
 
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
             cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token)));
-            cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)) );
+            cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)));
             rm.add(cf);
             rm.apply();
             metadata = new StorageMetadata(token, generation);
             return metadata;
         }
 
-        /* we crashed and came back up need to bump generation # */
+        /* we crashed and came back up: make sure new generation is greater than old */
         IColumn tokenColumn = cf.getColumn(TOKEN);
         Token token = p.getTokenFactory().fromByteArray(tokenColumn.value());
         logger.info("Saved Token found: " + token);
 
         IColumn generation = cf.getColumn(GENERATION);
-        int gen = BasicUtilities.byteArrayToInt(generation.value()) + 1;
+        int gen = Math.max(BasicUtilities.byteArrayToInt(generation.value()) + 1, (int) (System.currentTimeMillis() / 1000));
         
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);

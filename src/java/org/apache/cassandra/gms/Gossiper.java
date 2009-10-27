@@ -727,6 +727,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
             int remoteGeneration = remoteStatePtr.getHeartBeatState().getGeneration();
             int localGeneration = localStatePtr.getHeartBeatState().getGeneration();
+            assert remoteGeneration >= localGeneration; // SystemTable makes sure we never generate a smaller generation on start
 
             /* If the remoteGeneration is greater than localGeneration then apply state blindly */
             if ( remoteGeneration > localGeneration )
