@@ -670,7 +670,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     Set<Range> getRangesForEndPoint(InetAddress ep)
     {
-        return replicationStrategy_.getRangeMap().get(ep);
+        return replicationStrategy_.getAddressRanges().get(ep);
     }
         
     /**

@@ -23,6 +23,8 @@ import java.util.*;
 
 import org.apache.log4j.Logger;
 
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -97,7 +99,7 @@ public abstract class AbstractReplicationStrategy
             tokenToEndPointMap.put(t, ep);
             try
             {
-                for (Range r : getRangeMap(tokenToEndPointMap).get(ep))
+                for (Range r : getAddressRanges(tokenToEndPointMap).get(ep))
                 {
                     if (r.contains(token))
                     {
@@ -164,9 +166,9 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    // TODO this is pretty inefficient.
+    // TODO this is pretty inefficient. also the inverse (getRangeAddresses) below.
     // fixing this probably requires merging tokenmetadata into replicationstrategy, so we can cache/invalidate cleanly
-    protected Map<InetAddress, Set<Range>> getRangeMap(Map<Token, InetAddress> tokenMap)
+    public Map<InetAddress, Set<Range>> getAddressRanges(Map<Token, InetAddress> tokenMap)
     {
         Map<InetAddress, Set<Range>> map = new HashMap<InetAddress, Set<Range>>();
 
@@ -187,9 +189,27 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Map<InetAddress, Set<Range>> getRangeMap()
+    public Map<Range, Set<InetAddress>> getRangeAddresses(Map<Token, InetAddress> tokenMap)
     {
-        return getRangeMap(tokenMetadata_.cloneTokenEndPointMap());
+        Map<Range, Set<InetAddress>> map = new HashMap<Range, Set<InetAddress>>();
+
+        for (Token token : tokenMap.keySet())
+        {
+            Range range = getPrimaryRangeFor(token, tokenMap);
+            HashSet<InetAddress> addresses = new HashSet<InetAddress>();
+            for (InetAddress ep : getNaturalEndpoints(token, tokenMap))
+            {
+                addresses.add(ep);
+            }
+            map.put(range, addresses);
+        }
+
+        return map;
+    }
+
+    public Map<InetAddress, Set<Range>> getAddressRanges()
+    {
+        return getAddressRanges(tokenMetadata_.cloneTokenEndPointMap());
     }
 
     public Range getPrimaryRangeFor(Token right, Map<Token, InetAddress> tokenToEndPointMap)
