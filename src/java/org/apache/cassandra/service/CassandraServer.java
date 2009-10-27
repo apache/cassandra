@@ -208,7 +208,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException, NotFoundException, UnavailableException
+    throws InvalidRequestException, UnavailableException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
