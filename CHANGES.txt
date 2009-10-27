@@ -5,6 +5,7 @@
    (CASSANDRA-493)
  * Improve default garbage collector options (CASSANDRA-504)
  * Add "nodeprobe flush" (CASSANDRA-505)
+ * remove NotFoundException from get_slice throws list (CASSANDRA-518)
 
 
 0.4.1

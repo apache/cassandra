@@ -48,7 +48,7 @@ public class Cassandra {
 
     public ColumnOrSuperColumn get(String keyspace, String key, ColumnPath column_path, int consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TException;
 
-    public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TException;
+    public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
     public Map<String,ColumnOrSuperColumn> multiget(String keyspace, List<String> keys, ColumnPath column_path, int consistency_level) throws InvalidRequestException, UnavailableException, TException;
 
@@ -144,7 +144,7 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "get failed: unknown result");
     }
 
-    public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TException
+    public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level) throws InvalidRequestException, UnavailableException, TException
     {
       send_get_slice(keyspace, key, column_parent, predicate, consistency_level);
       return recv_get_slice();
@@ -164,7 +164,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public List<ColumnOrSuperColumn> recv_get_slice() throws InvalidRequestException, NotFoundException, UnavailableException, TException
+    public List<ColumnOrSuperColumn> recv_get_slice() throws InvalidRequestException, UnavailableException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -180,9 +180,6 @@ public class Cassandra {
       }
       if (result.ire != null) {
         throw result.ire;
-      }
-      if (result.nfe != null) {
-        throw result.nfe;
       }
       if (result.ue != null) {
         throw result.ue;
@@ -671,8 +668,6 @@ public class Cassandra {
           result.success = iface_.get_slice(args.keyspace, args.key, args.column_parent, args.predicate, args.consistency_level);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
-        } catch (NotFoundException nfe) {
-          result.nfe = nfe;
         } catch (UnavailableException ue) {
           result.ue = ue;
         } catch (Throwable th) {
@@ -2548,16 +2543,13 @@ public class Cassandra {
     private static final TStruct STRUCT_DESC = new TStruct("get_slice_result");
     private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
     private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
-    private static final TField NFE_FIELD_DESC = new TField("nfe", TType.STRUCT, (short)2);
     private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)3);
 
     public List<ColumnOrSuperColumn> success;
     public InvalidRequestException ire;
-    public NotFoundException nfe;
     public UnavailableException ue;
     public static final int SUCCESS = 0;
     public static final int IRE = 1;
-    public static final int NFE = 2;
     public static final int UE = 3;
 
     // isset id assignments
@@ -2567,8 +2559,6 @@ public class Cassandra {
           new ListMetaData(TType.LIST, 
               new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class))));
       put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
-          new FieldValueMetaData(TType.STRUCT)));
-      put(NFE, new FieldMetaData("nfe", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(UE, new FieldMetaData("ue", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
@@ -2584,13 +2574,11 @@ public class Cassandra {
     public get_slice_result(
       List<ColumnOrSuperColumn> success,
       InvalidRequestException ire,
-      NotFoundException nfe,
       UnavailableException ue)
     {
       this();
       this.success = success;
       this.ire = ire;
-      this.nfe = nfe;
       this.ue = ue;
     }
 
@@ -2607,9 +2595,6 @@ public class Cassandra {
       }
       if (other.isSetIre()) {
         this.ire = new InvalidRequestException(other.ire);
-      }
-      if (other.isSetNfe()) {
-        this.nfe = new NotFoundException(other.nfe);
       }
       if (other.isSetUe()) {
         this.ue = new UnavailableException(other.ue);
@@ -2673,30 +2658,6 @@ public class Cassandra {
       }
     }
 
-    public NotFoundException getNfe() {
-      return this.nfe;
-    }
-
-    public get_slice_result setNfe(NotFoundException nfe) {
-      this.nfe = nfe;
-      return this;
-    }
-
-    public void unsetNfe() {
-      this.nfe = null;
-    }
-
-    // Returns true if field nfe is set (has been asigned a value) and false otherwise
-    public boolean isSetNfe() {
-      return this.nfe != null;
-    }
-
-    public void setNfeIsSet(boolean value) {
-      if (!value) {
-        this.nfe = null;
-      }
-    }
-
     public UnavailableException getUe() {
       return this.ue;
     }
@@ -2739,14 +2700,6 @@ public class Cassandra {
         }
         break;
 
-      case NFE:
-        if (value == null) {
-          unsetNfe();
-        } else {
-          setNfe((NotFoundException)value);
-        }
-        break;
-
       case UE:
         if (value == null) {
           unsetUe();
@@ -2768,9 +2721,6 @@ public class Cassandra {
       case IRE:
         return getIre();
 
-      case NFE:
-        return getNfe();
-
       case UE:
         return getUe();
 
@@ -2786,8 +2736,6 @@ public class Cassandra {
         return isSetSuccess();
       case IRE:
         return isSetIre();
-      case NFE:
-        return isSetNfe();
       case UE:
         return isSetUe();
       default:
@@ -2823,15 +2771,6 @@ public class Cassandra {
         if (!(this_present_ire && that_present_ire))
           return false;
         if (!this.ire.equals(that.ire))
-          return false;
-      }
-
-      boolean this_present_nfe = true && this.isSetNfe();
-      boolean that_present_nfe = true && that.isSetNfe();
-      if (this_present_nfe || that_present_nfe) {
-        if (!(this_present_nfe && that_present_nfe))
-          return false;
-        if (!this.nfe.equals(that.nfe))
           return false;
       }
 
@@ -2873,14 +2812,6 @@ public class Cassandra {
         return lastComparison;
       }
       lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetNfe()).compareTo(isSetNfe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(nfe, typedOther.nfe);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -2932,14 +2863,6 @@ public class Cassandra {
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case NFE:
-            if (field.type == TType.STRUCT) {
-              this.nfe = new NotFoundException();
-              this.nfe.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
           case UE:
             if (field.type == TType.STRUCT) {
               this.ue = new UnavailableException();
@@ -2979,10 +2902,6 @@ public class Cassandra {
         oprot.writeFieldBegin(IRE_FIELD_DESC);
         this.ire.write(oprot);
         oprot.writeFieldEnd();
-      } else if (this.isSetNfe()) {
-        oprot.writeFieldBegin(NFE_FIELD_DESC);
-        this.nfe.write(oprot);
-        oprot.writeFieldEnd();
       } else if (this.isSetUe()) {
         oprot.writeFieldBegin(UE_FIELD_DESC);
         this.ue.write(oprot);
@@ -3010,14 +2929,6 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.ire);
-      }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("nfe:");
-      if (this.nfe == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.nfe);
       }
       first = false;
       if (!first) sb.append(", ");

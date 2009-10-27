@@ -121,7 +121,7 @@ service Cassandra {
                                       3:required ColumnParent column_parent, 
                                       4:required SlicePredicate predicate, 
                                       5:required ConsistencyLevel consistency_level=1)
-                              throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: UnavailableException ue),
+                              throws (1: InvalidRequestException ire, 3: UnavailableException ue),
 
   map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
                                            2:required list<string> keys, 
