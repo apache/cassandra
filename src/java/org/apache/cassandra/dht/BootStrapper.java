@@ -182,7 +182,7 @@ public class BootStrapper
             {
                 Token<?> t = getBootstrapTokenFrom(maxEndpoint);
                 logger.info("Setting token to " + t + " to assume load from " + maxEndpoint);
-                ss.updateToken(t);
+                ss.setToken(t);
             }
         }
 
@@ -193,7 +193,7 @@ public class BootStrapper
                 // Mark as not bootstrapping to calculate ranges correctly
                 for (int i=0; i< targets.size(); i++)
                 {
-                    tokenMetadata.update(tokens[i], targets.get(i), false);
+                    tokenMetadata.setBootstrapping(targets.get(i), false);
                 }
 
                 Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = getRangesWithSourceTarget();
@@ -210,7 +210,7 @@ public class BootStrapper
                 }
             }
         }).start();
-        Gossiper.instance().addApplicationState(StorageService.BOOTSTRAP_MODE, new ApplicationState(""));
+        Gossiper.instance().addApplicationState(StorageService.MODE, new ApplicationState(StorageService.MODE_MOVING));
     }
 
     public static class BootstrapTokenVerbHandler implements IVerbHandler

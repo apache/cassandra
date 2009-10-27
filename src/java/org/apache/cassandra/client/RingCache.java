@@ -36,6 +36,8 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 
 import flexjson.JSONTokener;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 /**
  *  A class for caching the ring map at the client. For usage example, see
@@ -72,8 +74,7 @@ public class RingCache
 
                 Map<String,String> tokenToHostMap = (Map<String,String>) new JSONTokener(client.get_string_property(CassandraServer.TOKEN_MAP)).nextValue();
                 
-                HashMap<Token, InetAddress> tokenEndpointMap = new HashMap<Token, InetAddress>();
-                Map<InetAddress, Token> endpointTokenMap = new HashMap<InetAddress, Token>();
+                BiMap<Token, InetAddress> tokenEndpointMap = HashBiMap.create();
                 for (Map.Entry<String,String> entry : tokenToHostMap.entrySet())
                 {
                     Token token = StorageService.getPartitioner().getTokenFactory().fromString(entry.getKey());
@@ -81,7 +82,6 @@ public class RingCache
                     try
                     {
                         tokenEndpointMap.put(token, InetAddress.getByName(host));
-                        endpointTokenMap.put(InetAddress.getByName(host), token);
                     }
                     catch (UnknownHostException e)
                     {
@@ -89,7 +89,7 @@ public class RingCache
                     }
                 }
 
-                TokenMetadata tokenMetadata = new TokenMetadata(tokenEndpointMap, endpointTokenMap, null);
+                TokenMetadata tokenMetadata = new TokenMetadata(tokenEndpointMap);
                 Class cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
                 Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
                 try

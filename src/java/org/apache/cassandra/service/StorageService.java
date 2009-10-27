@@ -41,6 +41,7 @@ import org.apache.cassandra.io.SSTableReader;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
+import org.apache.commons.lang.StringUtils;
 
 /*
  * This abstraction contains the token/identifier of this node
@@ -51,9 +52,12 @@ import org.apache.log4j.Level;
 public final class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
-    private final static String NODE_ID = "NODE-IDENTIFIER";
-    public final static String BOOTSTRAP_MODE = "BOOTSTRAP-MODE";
-    
+
+    private final static String NODE_ID = "NODE-ID";
+    public final static String MODE = "MODE";
+    public final static String MODE_MOVING = "move";
+    public final static String MODE_NORMAL = "run";
+
     /* All stage identifiers */
     public final static String mutationStage_ = "ROW-MUTATION-STAGE";
     public final static String readStage_ = "ROW-READ-STAGE";
@@ -150,39 +154,40 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         bootstrapSet.add(s);
     }
     
-    public synchronized boolean removeBootstrapSource(InetAddress s)
+    public synchronized void removeBootstrapSource(InetAddress s)
     {
         bootstrapSet.remove(s);
-
         if (logger_.isDebugEnabled())
             logger_.debug("Removed " + s + " as a bootstrap source");
+
         if (bootstrapSet.isEmpty())
         {
             SystemTable.setBootstrapped();
-            isBootstrapMode = false;
-            updateTokenMetadata(storageMetadata_.getToken(), FBUtilities.getLocalAddress(), false);
-
+            Gossiper.instance().addApplicationState(MODE, new ApplicationState(MODE_NORMAL));
             logger_.info("Bootstrap completed! Now serving reads.");
-            /* Tell others you're not bootstrapping anymore */
-            Gossiper.instance().deleteApplicationState(BOOTSTRAP_MODE);
         }
-        return isBootstrapMode;
     }
 
-    private void updateTokenMetadata(Token token, InetAddress endpoint, boolean isBootstraping)
+    private void updateForeignToken(Token token, InetAddress endpoint)
     {
-        tokenMetadata_.update(token, endpoint, isBootstraping);
-        if (!isBootstraping)
-        {
-            try
-            {
-                SystemTable.updateToken(endpoint, token);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
+        tokenMetadata_.update(token, endpoint);
+        SystemTable.updateToken(endpoint, token);
+    }
+
+    /** This method updates the local token on disk and starts broacasting it to others. */
+    public void setToken(Token token)
+    {
+        SystemTable.updateToken(token);
+        tokenMetadata_.update(token, FBUtilities.getLocalAddress());
+    }
+
+    public void setAndBroadcastToken(Token token)
+    {
+        if (logger_.isDebugEnabled())
+            logger_.debug("Setting token to " + token + " and gossiping it");
+        setToken(token);
+        ApplicationState state = new ApplicationState(partitioner_.getTokenFactory().toString(token));
+        Gossiper.instance().addApplicationState(StorageService.NODE_ID, state);
     }
 
     public StorageService()
@@ -256,19 +261,17 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         if (isBootstrapMode)
         {
+            logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
+            Gossiper.instance().addApplicationState(MODE, new ApplicationState(MODE_MOVING));
             new BootStrapper(Arrays.asList(FBUtilities.getLocalAddress()), getLocalToken()).startBootstrap(); // handles token update
         }
         else
         {
             SystemTable.setBootstrapped();
-            tokenMetadata_.update(storageMetadata_.getToken(), FBUtilities.getLocalAddress(), isBootstrapMode);
         }
+        setAndBroadcastToken(storageMetadata_.getToken());
 
-        // Gossip my token.
-        // note that before we do this we've (a) finalized what the token is actually going to be, and
-        // (b) added a bootstrap state (done by startBootstrap)
-        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
-        Gossiper.instance().addApplicationState(StorageService.NODE_ID, state);
+        assert tokenMetadata_.cloneTokenEndPointMap().size() > 0;
     }
 
     public boolean isBootstrapMode()
@@ -278,7 +281,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public TokenMetadata getTokenMetadata()
     {
-        return tokenMetadata_.cloneMe();
+        return tokenMetadata_;
     }
 
     /* TODO: used for testing */
@@ -374,12 +377,16 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         /* node identifier for this endpoint on the identifier space */
         ApplicationState nodeIdState = epState.getApplicationState(StorageService.NODE_ID);
         /* Check if this has a bootstrapping state message */
-        boolean bootstrapState = epState.getApplicationState(StorageService.BOOTSTRAP_MODE) != null;
-        if (bootstrapState)
+        ApplicationState modeState = epState.getApplicationState(StorageService.MODE);
+        if (modeState != null)
         {
+            String mode = modeState.getState();
             if (logger_.isDebugEnabled())
-                logger_.debug(endpoint + " is in bootstrap state.");
+                logger_.debug(endpoint + " is in " + mode + " mode");
+            boolean bootstrapState = mode.equals(MODE_MOVING);
+            tokenMetadata_.setBootstrapping(endpoint,  bootstrapState);
         }
+
         if (nodeIdState != null)
         {
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
@@ -399,7 +406,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 {
                     if (logger_.isDebugEnabled())
                       logger_.debug("Relocation for endpoint " + endpoint);
-                    updateTokenMetadata(newToken, endpoint, bootstrapState);
+                    updateForeignToken(newToken, endpoint);
                 }
                 else
                 {
@@ -417,7 +424,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 /*
                  * This is a new node and we just update the token map.
                 */
-                updateTokenMetadata(newToken, endpoint, bootstrapState);
+                updateForeignToken(newToken, endpoint);
             }
         }
         else
@@ -460,37 +467,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             map.put(FBUtilities.getLocalAddress().getHostAddress(), getLoadString());
         }
         return map;
-    }
-
-    /*
-     * This method updates the token on disk and modifies the cached
-     * StorageMetadata instance. This is only for the local endpoint.
-    */
-    public void updateToken(Token token) throws IOException
-    {
-        if (logger_.isDebugEnabled())
-          logger_.debug("Setting token to " + token);
-        /* update the token on disk */
-        SystemTable.updateToken(token);
-        /* Update the token maps */
-        tokenMetadata_.update(token, FBUtilities.getLocalAddress());
-        /* Gossip this new token for the local storage instance */
-        ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(token));
-        Gossiper.instance().addApplicationState(StorageService.NODE_ID, state);
-    }
-    
-    /*
-     * This method removes the state associated with this endpoint
-     * from the TokenMetadata instance.
-     * 
-     *  @param endpoint remove the token state associated with this 
-     *         endpoint.
-     */
-    public void removeTokenState(InetAddress endpoint)
-    {
-        tokenMetadata_.remove(endpoint);
-        /* Remove the state from the Gossiper */
-        Gossiper.instance().removeFromMembership(endpoint);
     }
 
     /**
@@ -705,6 +681,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     */
     public Range[] getAllRanges(Set<Token> tokens)
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("computing ranges for " + StringUtils.join(tokens, ", "));
         List<Range> ranges = new ArrayList<Range>();
         List<Token> allTokens = new ArrayList<Token>(tokens);
         Collections.sort(allTokens);
@@ -894,5 +872,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level) throws InvalidRequestException, UnavailableException
     {
         return replicationStrategy_.getResponseHandler(responseResolver, blockFor, consistency_level);
+    }
+
+    public AbstractReplicationStrategy getReplicationStrategy()
+    {
+        return replicationStrategy_;
     }
 }

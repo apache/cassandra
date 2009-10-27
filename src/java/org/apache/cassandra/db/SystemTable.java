@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.io.IOError;
 
 import org.apache.log4j.Logger;
 
@@ -60,20 +61,27 @@ public class SystemTable
     /**
      * Record token being used by another node
      */
-    public static synchronized void updateToken(InetAddress ep, Token token) throws IOException
+    public static synchronized void updateToken(InetAddress ep, Token token)
     {
         IPartitioner p = StorageService.getPartitioner();
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(ep.getAddress(), p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
-        rm.apply();
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 
     /**
      * This method is used to update the System Table with the new token for this node
     */
-    public static synchronized void updateToken(Token token) throws IOException
+    public static synchronized void updateToken(Token token)
     {
         assert metadata != null;
         IPartitioner p = StorageService.getPartitioner();
@@ -81,7 +89,14 @@ public class SystemTable
         cf.addColumn(new Column(SystemTable.TOKEN, p.getTokenFactory().toByteArray(token), System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         rm.add(cf);
-        rm.apply();
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
         metadata.setToken(token);
     }
     

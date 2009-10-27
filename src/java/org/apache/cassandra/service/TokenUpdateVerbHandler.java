@@ -38,10 +38,8 @@ public class TokenUpdateVerbHandler implements IVerbHandler
         bufIn.reset(body, body.length);
         try
         {
-            /* Deserialize to get the token for this endpoint. */
             Token token = Token.serializer().deserialize(bufIn);
-            logger_.info("Updating the token to [" + token + "]");
-            StorageService.instance().updateToken(token);
+            StorageService.instance().setAndBroadcastToken(token);
         }
         catch (IOException ex)
         {

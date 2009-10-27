@@ -118,7 +118,8 @@ public class RackUnawareStrategyTest
         //Add bootstrap node id=6
         Token bsToken = new BigIntegerToken(String.valueOf(25));
         InetAddress bootstrapEndPoint = InetAddress.getByName("127.0.0.6");
-        tmd.update(bsToken, bootstrapEndPoint, true);
+        tmd.setBootstrapping(bootstrapEndPoint, true);
+        tmd.update(bsToken, bootstrapEndPoint);
         
         for (int i = 0; i < keyTokens.length; i++)
         {

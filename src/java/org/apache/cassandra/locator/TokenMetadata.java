@@ -27,97 +27,96 @@ import java.net.InetAddress;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.UnavailableException;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
-    private Map<Token, InetAddress> tokenToEndPointMap;
-    /* Maintains a reverse index of endpoint to token in the cluster. */
-    private Map<InetAddress, Token> endPointToTokenMap;
+    private BiMap<Token, InetAddress> tokenToEndPointMap;
     /* Bootstrapping nodes and their tokens */
-    private Map<Token, InetAddress> bootstrapNodes;
+    private Set<InetAddress> bootstrapping;
+    private BiMap<Token, InetAddress> bootstrapTokenMap;
     
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
 
     public TokenMetadata()
     {
-        tokenToEndPointMap = new HashMap<Token, InetAddress>();
-        endPointToTokenMap = new HashMap<InetAddress, Token>();
-        this.bootstrapNodes = Collections.synchronizedMap(new HashMap<Token, InetAddress>());
+        this(null, null);
     }
 
-    public TokenMetadata(Map<Token, InetAddress> tokenToEndPointMap, Map<InetAddress, Token> endPointToTokenMap, Map<Token, InetAddress> bootstrapNodes)
+    public TokenMetadata(BiMap<Token, InetAddress> tokenToEndPointMap, BiMap<Token, InetAddress> bootstrapTokenMap)
     {
+        bootstrapping = new NonBlockingHashSet<InetAddress>();
+        if (tokenToEndPointMap == null)
+            tokenToEndPointMap = HashBiMap.create();
+        if (bootstrapTokenMap == null)
+            bootstrapTokenMap = HashBiMap.create();
         this.tokenToEndPointMap = tokenToEndPointMap;
-        this.endPointToTokenMap = endPointToTokenMap;
-        this.bootstrapNodes = bootstrapNodes;
+        this.bootstrapTokenMap = bootstrapTokenMap;
     }
-    
-    public TokenMetadata cloneMe()
+
+    public TokenMetadata(BiMap<Token, InetAddress> tokenEndpointMap)
     {
-        return new TokenMetadata(cloneTokenEndPointMap(), cloneEndPointTokenMap(), cloneBootstrapNodes());
+        this(tokenEndpointMap, null);
     }
-        
-    public void update(Token token, InetAddress endpoint)
+
+    public void setBootstrapping(InetAddress endpoint, boolean isBootstrapping)
     {
-        this.update(token, endpoint, false);
+        if (isBootstrapping)
+            bootstrapping.add(endpoint);
+        else
+            bootstrapping.remove(endpoint);
+
+        lock.writeLock().lock();
+        try
+        {
+            BiMap<Token, InetAddress> otherMap = bootstrapping.contains(endpoint) ? tokenToEndPointMap : bootstrapTokenMap;
+            Token t = otherMap.inverse().get(endpoint);
+            if (t != null)
+            {
+                Map<Token, InetAddress> map = bootstrapping.contains(endpoint) ? bootstrapTokenMap : tokenToEndPointMap;
+                map.put(t, endpoint);
+            }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
     }
+
     /**
      * Update the two maps in an safe mode. 
     */
-    public void update(Token token, InetAddress endpoint, boolean bootstrapState)
+    public void update(Token token, InetAddress endpoint)
     {
+        assert token != null;
+        assert endpoint != null;
+
         lock.writeLock().lock();
         try
         {
-            if (bootstrapState)
-            {
-                bootstrapNodes.put(token, endpoint);
-                this.remove(endpoint);
-            }
-            else
-            {
-                bootstrapNodes.remove(token); // If this happened to be there 
-                Token oldToken = endPointToTokenMap.get(endpoint);
-                if ( oldToken != null )
-                    tokenToEndPointMap.remove(oldToken);
-                tokenToEndPointMap.put(token, endpoint);
-                endPointToTokenMap.put(endpoint, token);
-            }
+            Map<Token, InetAddress> map = bootstrapping.contains(endpoint) ? bootstrapTokenMap : tokenToEndPointMap;
+            Map<Token, InetAddress> otherMap = bootstrapping.contains(endpoint) ? tokenToEndPointMap : bootstrapTokenMap;
+            map.put(token, endpoint);
+            otherMap.remove(token);
         }
         finally
         {
             lock.writeLock().unlock();
         }
     }
-    
-    /**
-     * Remove the entries in the two maps.
-     * @param endpoint
-     */
-    public void remove(InetAddress endpoint)
-    {
-        lock.writeLock().lock();
-        try
-        {            
-            Token oldToken = endPointToTokenMap.get(endpoint);
-            if ( oldToken != null )
-                tokenToEndPointMap.remove(oldToken);
-            endPointToTokenMap.remove(endpoint);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-    
+
     public Token getToken(InetAddress endpoint)
     {
+        assert endpoint != null;
+
         lock.readLock().lock();
         try
         {
-            return endPointToTokenMap.get(endpoint);
+            return tokenToEndPointMap.inverse().get(endpoint);
         }
         finally
         {
@@ -125,12 +124,14 @@ public class TokenMetadata
         }
     }
     
-    public boolean isKnownEndPoint(InetAddress ep)
+    public boolean isKnownEndPoint(InetAddress endpoint)
     {
+        assert endpoint != null;
+
         lock.readLock().lock();
         try
         {
-            return endPointToTokenMap.containsKey(ep);
+            return tokenToEndPointMap.inverse().containsKey(endpoint);
         }
         finally
         {
@@ -156,8 +157,10 @@ public class TokenMetadata
     }
     
 
-    public InetAddress getNextEndpoint(InetAddress endPoint) throws UnavailableException
+    public InetAddress getNextEndpoint(InetAddress endpoint) throws UnavailableException
     {
+        assert endpoint != null;
+
         lock.readLock().lock();
         try
         {
@@ -165,7 +168,7 @@ public class TokenMetadata
             if (tokens.isEmpty())
                 return null;
             Collections.sort(tokens);
-            int i = tokens.indexOf(endPointToTokenMap.get(endPoint)); // TODO binary search
+            int i = tokens.indexOf(tokenToEndPointMap.inverse().get(endpoint)); // TODO binary search
             int j = 1;
             InetAddress ep;
             while (!FailureDetector.instance().isAlive((ep = tokenToEndPointMap.get(tokens.get((i + j) % tokens.size())))))
@@ -188,7 +191,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {            
-            return new HashMap<Token, InetAddress>( bootstrapNodes );
+            return new HashMap<Token, InetAddress>(bootstrapTokenMap);
         }
         finally
         {
@@ -221,7 +224,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {            
-            return new HashMap<InetAddress, Token>(endPointToTokenMap);
+            return new HashMap<InetAddress, Token>(tokenToEndPointMap.inverse());
         }
         finally
         {
@@ -232,13 +235,13 @@ public class TokenMetadata
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        Set<InetAddress> eps = endPointToTokenMap.keySet();
-        
+        Set<InetAddress> eps = tokenToEndPointMap.inverse().keySet();
+
         for ( InetAddress ep : eps )
         {
             sb.append(ep);
             sb.append(":");
-            sb.append(endPointToTokenMap.get(ep));
+            sb.append(tokenToEndPointMap.inverse().get(ep));
             sb.append(System.getProperty("line.separator"));
         }
         
@@ -256,5 +259,11 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
+    }
+
+    public void clearUnsafe()
+    {
+        tokenToEndPointMap.clear();
+        bootstrapTokenMap.clear();
     }
 }

@@ -492,6 +492,8 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     synchronized EndPointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
+        if (logger_.isTraceEnabled())
+            logger_.trace("Scanning for state greater than " + version + " for " + forEndpoint);
         EndPointState epState = endPointStateMap_.get(forEndpoint);
         EndPointState reqdEndPointState = null;
 
@@ -922,12 +924,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         {
             epState.addApplicationState(key, appState);
         }
-    }
-    
-    public synchronized void deleteApplicationState(String key)
-    {
-        EndPointState epState = endPointStateMap_.get(localEndPoint_);
-        epState.deleteApplicationState(key);
     }
 
     public void stop()
