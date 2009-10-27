@@ -31,26 +31,26 @@ import org.apache.cassandra.service.UnavailableException;
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
-    private Map<Token, InetAddress> tokenToEndPointMap_;
+    private Map<Token, InetAddress> tokenToEndPointMap;
     /* Maintains a reverse index of endpoint to token in the cluster. */
-    private Map<InetAddress, Token> endPointToTokenMap_;
+    private Map<InetAddress, Token> endPointToTokenMap;
     /* Bootstrapping nodes and their tokens */
     private Map<Token, InetAddress> bootstrapNodes;
     
     /* Use this lock for manipulating the token map */
-    private final ReadWriteLock lock_ = new ReentrantReadWriteLock(true);
+    private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
 
     public TokenMetadata()
     {
-        tokenToEndPointMap_ = new HashMap<Token, InetAddress>();
-        endPointToTokenMap_ = new HashMap<InetAddress, Token>();
+        tokenToEndPointMap = new HashMap<Token, InetAddress>();
+        endPointToTokenMap = new HashMap<InetAddress, Token>();
         this.bootstrapNodes = Collections.synchronizedMap(new HashMap<Token, InetAddress>());
     }
 
     public TokenMetadata(Map<Token, InetAddress> tokenToEndPointMap, Map<InetAddress, Token> endPointToTokenMap, Map<Token, InetAddress> bootstrapNodes)
     {
-        tokenToEndPointMap_ = tokenToEndPointMap;
-        endPointToTokenMap_ = endPointToTokenMap;
+        this.tokenToEndPointMap = tokenToEndPointMap;
+        this.endPointToTokenMap = endPointToTokenMap;
         this.bootstrapNodes = bootstrapNodes;
     }
     
@@ -68,7 +68,7 @@ public class TokenMetadata
     */
     public void update(Token token, InetAddress endpoint, boolean bootstrapState)
     {
-        lock_.writeLock().lock();
+        lock.writeLock().lock();
         try
         {
             if (bootstrapState)
@@ -79,16 +79,16 @@ public class TokenMetadata
             else
             {
                 bootstrapNodes.remove(token); // If this happened to be there 
-                Token oldToken = endPointToTokenMap_.get(endpoint);
+                Token oldToken = endPointToTokenMap.get(endpoint);
                 if ( oldToken != null )
-                    tokenToEndPointMap_.remove(oldToken);
-                tokenToEndPointMap_.put(token, endpoint);
-                endPointToTokenMap_.put(endpoint, token);
+                    tokenToEndPointMap.remove(oldToken);
+                tokenToEndPointMap.put(token, endpoint);
+                endPointToTokenMap.put(endpoint, token);
             }
         }
         finally
         {
-            lock_.writeLock().unlock();
+            lock.writeLock().unlock();
         }
     }
     
@@ -98,77 +98,77 @@ public class TokenMetadata
      */
     public void remove(InetAddress endpoint)
     {
-        lock_.writeLock().lock();
+        lock.writeLock().lock();
         try
         {            
-            Token oldToken = endPointToTokenMap_.get(endpoint);
+            Token oldToken = endPointToTokenMap.get(endpoint);
             if ( oldToken != null )
-                tokenToEndPointMap_.remove(oldToken);            
-            endPointToTokenMap_.remove(endpoint);
+                tokenToEndPointMap.remove(oldToken);
+            endPointToTokenMap.remove(endpoint);
         }
         finally
         {
-            lock_.writeLock().unlock();
+            lock.writeLock().unlock();
         }
     }
     
     public Token getToken(InetAddress endpoint)
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {
-            return endPointToTokenMap_.get(endpoint);
+            return endPointToTokenMap.get(endpoint);
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
     
     public boolean isKnownEndPoint(InetAddress ep)
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {
-            return endPointToTokenMap_.containsKey(ep);
+            return endPointToTokenMap.containsKey(ep);
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
 
     public InetAddress getFirstEndpoint()
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {
-            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap_.keySet());
+            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
             if (tokens.isEmpty())
                 return null;
             Collections.sort(tokens);
-            return tokenToEndPointMap_.get(tokens.get(0));
+            return tokenToEndPointMap.get(tokens.get(0));
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
     
 
     public InetAddress getNextEndpoint(InetAddress endPoint) throws UnavailableException
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {
-            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap_.keySet());
+            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
             if (tokens.isEmpty())
                 return null;
             Collections.sort(tokens);
-            int i = tokens.indexOf(endPointToTokenMap_.get(endPoint)); // TODO binary search
+            int i = tokens.indexOf(endPointToTokenMap.get(endPoint)); // TODO binary search
             int j = 1;
             InetAddress ep;
-            while (!FailureDetector.instance().isAlive((ep = tokenToEndPointMap_.get(tokens.get((i + j) % tokens.size())))))
+            while (!FailureDetector.instance().isAlive((ep = tokenToEndPointMap.get(tokens.get((i + j) % tokens.size())))))
             {
                 if (++j > DatabaseDescriptor.getReplicationFactor())
                 {
@@ -179,20 +179,20 @@ public class TokenMetadata
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
     
     public Map<Token, InetAddress> cloneBootstrapNodes()
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {            
             return new HashMap<Token, InetAddress>( bootstrapNodes );
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
         
     }
@@ -202,14 +202,14 @@ public class TokenMetadata
     */
     public Map<Token, InetAddress> cloneTokenEndPointMap()
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {            
-            return new HashMap<Token, InetAddress>( tokenToEndPointMap_ );
+            return new HashMap<Token, InetAddress>(tokenToEndPointMap);
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
     
@@ -218,27 +218,27 @@ public class TokenMetadata
     */
     public Map<InetAddress, Token> cloneEndPointTokenMap()
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {            
-            return new HashMap<InetAddress, Token>( endPointToTokenMap_ );
+            return new HashMap<InetAddress, Token>(endPointToTokenMap);
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
     
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        Set<InetAddress> eps = endPointToTokenMap_.keySet();
+        Set<InetAddress> eps = endPointToTokenMap.keySet();
         
         for ( InetAddress ep : eps )
         {
             sb.append(ep);
             sb.append(":");
-            sb.append(endPointToTokenMap_.get(ep));
+            sb.append(endPointToTokenMap.get(ep));
             sb.append(System.getProperty("line.separator"));
         }
         
@@ -247,14 +247,14 @@ public class TokenMetadata
 
     public InetAddress getEndPoint(Token token)
     {
-        lock_.readLock().lock();
+        lock.readLock().lock();
         try
         {
-            return tokenToEndPointMap_.get(token);
+            return tokenToEndPointMap.get(token);
         }
         finally
         {
-            lock_.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
 }

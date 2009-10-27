@@ -19,7 +19,6 @@
 package org.apache.cassandra.dht;
 
  import java.util.ArrayList;
- import java.util.Arrays;
  import java.util.Collections;
  import java.util.HashMap;
  import java.util.HashSet;
@@ -27,7 +26,6 @@ package org.apache.cassandra.dht;
  import java.util.Map;
  import java.util.Set;
  import java.util.concurrent.locks.Condition;
- import java.util.concurrent.ExecutorService;
  import java.io.IOException;
  import java.io.UnsupportedEncodingException;
  import java.io.File;
@@ -51,7 +49,6 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.gms.Gossiper;
  import org.apache.cassandra.gms.ApplicationState;
- import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
  import org.apache.cassandra.io.DataInputBuffer;
  import org.apache.cassandra.io.SSTableReader;
  import org.apache.cassandra.io.SSTableWriter;
@@ -72,40 +69,40 @@ public class BootStrapper
 {
     public static final long INITIAL_DELAY = 30 * 1000; //ms
 
-    static final Logger logger_ = Logger.getLogger(BootStrapper.class);
+    static final Logger logger = Logger.getLogger(BootStrapper.class);
 
     /* endpoints that need to be bootstrapped */
-    protected final List<InetAddress> targets_;
+    protected final List<InetAddress> targets;
     /* tokens of the nodes being bootstrapped. */
-    protected final Token[] tokens_;
-    protected final TokenMetadata tokenMetadata_;
+    protected final Token[] tokens;
+    protected final TokenMetadata tokenMetadata;
 
     public BootStrapper(List<InetAddress> targets, Token... token)
     {
-        targets_ = targets;
-        tokens_ = token;
-        tokenMetadata_ = StorageService.instance().getTokenMetadata();
+        this.targets = targets;
+        tokens = token;
+        tokenMetadata = StorageService.instance().getTokenMetadata();
     }
     
     Map<Range, List<BootstrapSourceTarget>> getRangesWithSourceTarget()
     {
         /* copy the token to endpoint map */
-        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
+        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata.cloneTokenEndPointMap();
         /* remove the tokens associated with the endpoints being bootstrapped */                
-        for (Token token : tokens_)
+        for (Token token : tokens)
         {
             tokenToEndPointMap.remove(token);                    
         }
 
         Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
         Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
-        if (logger_.isDebugEnabled())
-          logger_.debug("Total number of old ranges " + oldRanges.length);
+        if (logger.isDebugEnabled())
+          logger.debug("Total number of old ranges " + oldRanges.length);
         /* 
          * Find the ranges that are split. Maintain a mapping between
          * the range being split and the list of subranges.
         */                
-        Map<Range, List<Range>> splitRanges = LeaveJoinProtocolHelper.getRangeSplitRangeMapping(oldRanges, tokens_);                                                      
+        Map<Range, List<Range>> splitRanges = LeaveJoinProtocolHelper.getRangeSplitRangeMapping(oldRanges, tokens);
         /* Calculate the list of nodes that handle the old ranges */
         Map<Range, List<InetAddress>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges, tokenToEndPointMap);
         /* Mapping of split ranges to the list of endpoints responsible for the range */                
@@ -134,11 +131,11 @@ public class BootStrapper
         }                
         
         /* Add the new token and re-calculate the range assignments */
-        Collections.addAll( oldTokens, tokens_ );
+        Collections.addAll( oldTokens, tokens);
         Range[] newRanges = StorageService.instance().getAllRanges(oldTokens);
 
-        if (logger_.isDebugEnabled())
-          logger_.debug("Total number of new ranges " + newRanges.length);
+        if (logger.isDebugEnabled())
+          logger.debug("Total number of new ranges " + newRanges.length);
         /* Calculate the list of nodes that handle the new ranges */
         Map<Range, List<InetAddress>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges);
         /* Calculate ranges that need to be sent and from whom to where */
@@ -156,7 +153,7 @@ public class BootStrapper
 
     public void startBootstrap() throws IOException
     {
-        logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
+        logger.info("Starting in bootstrap mode (first, sleeping to get load information)");
 
         StorageService ss = StorageService.instance();
         StorageLoadBalancer slb = StorageLoadBalancer.instance();
@@ -184,7 +181,7 @@ public class BootStrapper
             if (!maxEndpoint.equals(FBUtilities.getLocalAddress()))
             {
                 Token<?> t = getBootstrapTokenFrom(maxEndpoint);
-                logger_.info("Setting token to " + t + " to assume load from " + maxEndpoint);
+                logger.info("Setting token to " + t + " to assume load from " + maxEndpoint);
                 ss.updateToken(t);
             }
         }
@@ -194,14 +191,14 @@ public class BootStrapper
             public void run()
             {
                 // Mark as not bootstrapping to calculate ranges correctly
-                for (int i=0; i< targets_.size(); i++)
+                for (int i=0; i< targets.size(); i++)
                 {
-                    tokenMetadata_.update(tokens_[i], targets_.get(i), false);
+                    tokenMetadata.update(tokens[i], targets.get(i), false);
                 }
 
                 Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = getRangesWithSourceTarget();
-                if (logger_.isDebugEnabled())
-                        logger_.debug("Beginning bootstrap process for [" + StringUtils.join(targets_, ", ") + "] ...");
+                if (logger.isDebugEnabled())
+                        logger.debug("Beginning bootstrap process for [" + StringUtils.join(targets, ", ") + "] ...");
                 /* Send messages to respective folks to stream data over to the new nodes being bootstrapped */
                 try
                 {
@@ -240,8 +237,8 @@ public class BootStrapper
     {
         public void doVerb(Message message)
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Received a bootstrap initiate done message ...");
+            if (logger.isDebugEnabled())
+              logger.debug("Received a bootstrap initiate done message ...");
             /* Let the Stream Manager do his thing. */
             StreamManager.instance(message.getFrom()).start();
         }
@@ -311,22 +308,22 @@ public class BootStrapper
                     String file = getNewFileNameFromOldContextAndNames(fileNames, streamContext);
 
                     //String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName + "-Data.db";
-                    if (logger_.isDebugEnabled())
-                      logger_.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
+                    if (logger.isDebugEnabled())
+                      logger.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);
                     addStreamContext(message.getFrom(), streamContext, streamStatus);
                 }
 
                 StreamContextManager.registerStreamCompletionHandler(message.getFrom(), new BootstrapCompletionHandler());
                 /* Send a bootstrap initiation done message to execute on default stage. */
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Sending a bootstrap initiate done message ...");
+                if (logger.isDebugEnabled())
+                  logger.debug("Sending a bootstrap initiate done message ...");
                 Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.bootStrapInitiateDoneVerbHandler_, new byte[0] );
                 MessagingService.instance().sendOneWay(doneMessage, message.getFrom());
             }
             catch ( IOException ex )
             {
-                logger_.info(LogUtil.throwableToString(ex));
+                logger.info(LogUtil.throwableToString(ex));
             }
         }
 
@@ -371,8 +368,8 @@ public class BootStrapper
                 Table table = Table.open( tableName );
 
                 ColumnFamilyStore cfStore = table.getColumnFamilyStore(pieces[1]);
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Generating file name for " + distinctEntry + " ...");
+                if (logger.isDebugEnabled())
+                  logger.debug("Generating file name for " + distinctEntry + " ...");
                 fileNames.put(distinctEntry, cfStore.getTempSSTableFileName());
             }
 
@@ -381,8 +378,8 @@ public class BootStrapper
 
         private void addStreamContext(InetAddress host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Adding stream context " + streamContext + " for " + host + " ...");
+            if (logger.isDebugEnabled())
+              logger.debug("Adding stream context " + streamContext + " for " + host + " ...");
             StreamContextManager.addStreamContext(host, streamContext, streamStatus);
         }
     }
@@ -413,16 +410,16 @@ public class BootStrapper
 
                     //TODO add a sanity check that this sstable has all its parts and is ok
                     Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
-                    logger_.info("Bootstrap added " + sstable.getFilename());
+                    logger.info("Bootstrap added " + sstable.getFilename());
                 }
                 catch (IOException e)
                 {
-                    logger_.error("Not able to bootstrap with file " + streamContext.getTargetFile(), e);
+                    logger.error("Not able to bootstrap with file " + streamContext.getTargetFile(), e);
                 }
             }
 
-            if (logger_.isDebugEnabled())
-              logger_.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + host);
+            if (logger.isDebugEnabled())
+              logger.debug("Sending a bootstrap terminate message with " + streamStatus + " to " + host);
             /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
             StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
             Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);

@@ -51,7 +51,7 @@ import org.apache.log4j.Level;
 public final class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
-    private final static String nodeId_ = "NODE-IDENTIFIER";
+    private final static String NODE_ID = "NODE-IDENTIFIER";
     public final static String BOOTSTRAP_MODE = "BOOTSTRAP-MODE";
     
     /* All stage identifiers */
@@ -268,7 +268,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // note that before we do this we've (a) finalized what the token is actually going to be, and
         // (b) added a bootstrap state (done by startBootstrap)
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(storageMetadata_.getToken()));
-        Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
+        Gossiper.instance().addApplicationState(StorageService.NODE_ID, state);
     }
 
     public boolean isBootstrapMode()
@@ -372,7 +372,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public void onChange(InetAddress endpoint, EndPointState epState)
     {
         /* node identifier for this endpoint on the identifier space */
-        ApplicationState nodeIdState = epState.getApplicationState(StorageService.nodeId_);
+        ApplicationState nodeIdState = epState.getApplicationState(StorageService.NODE_ID);
         /* Check if this has a bootstrapping state message */
         boolean bootstrapState = epState.getApplicationState(StorageService.BOOTSTRAP_MODE) != null;
         if (bootstrapState)
@@ -476,7 +476,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         tokenMetadata_.update(token, FBUtilities.getLocalAddress());
         /* Gossip this new token for the local storage instance */
         ApplicationState state = new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(token));
-        Gossiper.instance().addApplicationState(StorageService.nodeId_, state);
+        Gossiper.instance().addApplicationState(StorageService.NODE_ID, state);
     }
     
     /*
