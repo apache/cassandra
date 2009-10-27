@@ -256,7 +256,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         if (isBootstrapMode)
         {
-            BootStrapper.startBootstrap(); // handles token update
+            new BootStrapper(Arrays.asList(FBUtilities.getLocalAddress()), getLocalToken()).startBootstrap(); // handles token update
         }
         else
         {
