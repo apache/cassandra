@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -48,17 +45,25 @@ class BootstrapMetadataMessage
         return serializer_;
     }
     
-    protected static Message makeBootstrapMetadataMessage(BootstrapMetadataMessage bsMetadataMessage) throws IOException
+    protected static Message makeBootstrapMetadataMessage(BootstrapMetadataMessage bsMetadataMessage)
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        BootstrapMetadataMessage.serializer().serialize(bsMetadataMessage, dos);
+        try
+        {
+            BootstrapMetadataMessage.serializer().serialize(bsMetadataMessage, dos);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
         return new Message(FBUtilities.getLocalAddress(), "", StorageService.bootstrapMetadataVerbHandler_, bos.toByteArray() );
     }        
     
     protected BootstrapMetadata[] bsMetadata_ = new BootstrapMetadata[0];
-    
-    BootstrapMetadataMessage(BootstrapMetadata[] bsMetadata)
+
+    // TODO only actually ever need one BM, not an array
+    BootstrapMetadataMessage(BootstrapMetadata... bsMetadata)
     {
         assert bsMetadata != null;
         bsMetadata_ = bsMetadata;

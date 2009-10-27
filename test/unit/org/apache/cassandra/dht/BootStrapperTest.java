@@ -18,66 +18,82 @@
 */
 package org.apache.cassandra.dht;
 
-import static org.junit.Assert.*;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Arrays;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import org.apache.cassandra.service.StorageService;
+import org.apache.commons.lang.StringUtils;
+import static org.junit.Assert.assertEquals;
 import org.junit.Test;
+
+import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.gms.IFailureDetectionEventListener;
 
 public class BootStrapperTest {
     @Test
     public void testSourceTargetComputation() throws UnknownHostException
     {
-        int numOldNodes = 3;
-        IPartitioner p = generateOldTokens(numOldNodes);
-        
-        Token newToken = p.getDefaultToken();
-        InetAddress newEndPoint = InetAddress.getByName("1.2.3.10");
- 
-        /* New token needs to be part of the map for the algorithm
-         * to calculate the ranges correctly
-         */
-        StorageService.instance().updateTokenMetadataUnsafe(newToken, newEndPoint);
-
-        BootStrapper b = new BootStrapper(Arrays.asList(newEndPoint), newToken );
-        Map<Range,List<BootstrapSourceTarget>> res = b.getRangesWithSourceTarget();
-        
-        int transferCount = 0;
-        for ( Map.Entry<Range, List<BootstrapSourceTarget>> e: res.entrySet())
-        {
-            if (e.getValue() != null && e.getValue().size() >0)
-            {
-                transferCount++;
-            }
-        }
-        /* Only 1 transfer from old node to new node */
-        assertEquals(1, transferCount);
-        Map<InetAddress, Map<InetAddress,List<Range>>> temp = LeaveJoinProtocolHelper.getWorkMap(res);
-        assertEquals(1, temp.keySet().size());
-        assertEquals(1, temp.entrySet().size());
-
-        Map<InetAddress,Map<InetAddress,List<Range>>> res2 = LeaveJoinProtocolHelper.filterRangesForTargetEndPoint(temp, newEndPoint);
-        /* After filtering, still only 1 transfer */
-        assertEquals(1, res2.keySet().size());
-        assertEquals(1, res2.entrySet().size());
-        assertTrue(((Map<InetAddress,List<Range>>)res2.values().toArray()[0]).containsKey(newEndPoint));
+        testSourceTargetComputation(1);
+        testSourceTargetComputation(3);
+        testSourceTargetComputation(100);
     }
 
-    private IPartitioner generateOldTokens(int numOldNodes) throws UnknownHostException
+    private void testSourceTargetComputation(int numOldNodes) throws UnknownHostException
     {
-        IPartitioner p = new RandomPartitioner();
-        for (int i = 0 ; i< numOldNodes; i++)
+        generateFakeEndpoints(numOldNodes);
+        
+        Token myToken = StorageService.getPartitioner().getDefaultToken();
+        InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
+ 
+        StorageService ss = StorageService.instance();
+        ss.updateTokenMetadataUnsafe(myToken, myEndpoint);
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        assertEquals(numOldNodes + 1, tmd.cloneTokenEndPointMap().size());
+        BootStrapper b = new BootStrapper(ss.getReplicationStrategy(), myEndpoint, myToken, tmd);
+        Map<Range, Set<InetAddress>> res = b.getRangesWithSources();
+        
+        int transferCount = 0;
+        for (Map.Entry<Range, Set<InetAddress>> e : res.entrySet())
         {
-            InetAddress e = InetAddress.getByName("127.0.0." + i);
-            Token t = p.getDefaultToken();
-            StorageService.instance().updateTokenMetadataUnsafe(t, e);
+            assert e.getValue() != null && e.getValue().size() > 0 : StringUtils.join(e.getValue(), ", ");
+            transferCount++;
         }
-        return p;
+
+        /* Only 1 transfer from old node to new node */
+        assertEquals(1, transferCount);
+        IFailureDetector mockFailureDetector = new IFailureDetector()
+        {
+            public boolean isAlive(InetAddress ep)
+            {
+                return true;
+            }
+
+            public void interpret(InetAddress ep) { throw new UnsupportedOperationException(); }
+            public void report(InetAddress ep) { throw new UnsupportedOperationException(); }
+            public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
+            public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
+        };
+        Map<InetAddress, List<Range>> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
+        assertEquals(1, temp.keySet().size());
+        assertEquals(1, temp.values().iterator().next().size());
+        assert !temp.keySet().iterator().next().equals(myEndpoint);
+    }
+
+    private void generateFakeEndpoints(int numOldNodes) throws UnknownHostException
+    {
+        TokenMetadata tmd = StorageService.instance().getTokenMetadata();
+        tmd.clearUnsafe();
+        IPartitioner<?> p = StorageService.getPartitioner();
+
+        for (int i = 1; i <= numOldNodes; i++)
+        {
+            // leave .1 for myEndpoint
+            tmd.update(p.getDefaultToken(), InetAddress.getByName("127.0.0." + (i + 1)));
+        }
     }
 }

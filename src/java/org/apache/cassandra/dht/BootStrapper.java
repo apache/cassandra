@@ -34,9 +34,9 @@ package org.apache.cassandra.dht;
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
- import org.apache.commons.lang.StringUtils;
 
  import org.apache.cassandra.locator.TokenMetadata;
+ import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;
  import org.apache.cassandra.net.io.StreamContextManager;
  import org.apache.cassandra.net.io.IStreamComplete;
@@ -47,8 +47,8 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.utils.SimpleCondition;
  import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.config.DatabaseDescriptor;
- import org.apache.cassandra.gms.Gossiper;
- import org.apache.cassandra.gms.ApplicationState;
+ import org.apache.cassandra.gms.FailureDetector;
+ import org.apache.cassandra.gms.IFailureDetector;
  import org.apache.cassandra.io.DataInputBuffer;
  import org.apache.cassandra.io.SSTableReader;
  import org.apache.cassandra.io.SSTableWriter;
@@ -69,92 +69,52 @@ public class BootStrapper
 {
     public static final long INITIAL_DELAY = 30 * 1000; //ms
 
-    static final Logger logger = Logger.getLogger(BootStrapper.class);
+    private static final Logger logger = Logger.getLogger(BootStrapper.class);
 
     /* endpoints that need to be bootstrapped */
-    protected final List<InetAddress> targets;
+    protected final InetAddress address;
     /* tokens of the nodes being bootstrapped. */
-    protected final Token[] tokens;
+    protected final Token token;
     protected final TokenMetadata tokenMetadata;
+    private final AbstractReplicationStrategy replicationStrategy;
 
-    public BootStrapper(List<InetAddress> targets, Token... token)
+    public BootStrapper(AbstractReplicationStrategy rs, InetAddress address, Token token, TokenMetadata tmd)
     {
-        this.targets = targets;
-        tokens = token;
-        tokenMetadata = StorageService.instance().getTokenMetadata();
+        assert address != null;
+        assert token != null;
+
+        replicationStrategy = rs;
+        this.address = address;
+        this.token = token;
+        tokenMetadata = tmd;
     }
     
-    Map<Range, List<BootstrapSourceTarget>> getRangesWithSourceTarget()
-    {
-        /* copy the token to endpoint map */
-        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata.cloneTokenEndPointMap();
-        /* remove the tokens associated with the endpoints being bootstrapped */                
-        for (Token token : tokens)
-        {
-            tokenToEndPointMap.remove(token);                    
-        }
-
-        Set<Token> oldTokens = new HashSet<Token>( tokenToEndPointMap.keySet() );
-        Range[] oldRanges = StorageService.instance().getAllRanges(oldTokens);
-        if (logger.isDebugEnabled())
-          logger.debug("Total number of old ranges " + oldRanges.length);
-        /* 
-         * Find the ranges that are split. Maintain a mapping between
-         * the range being split and the list of subranges.
-        */                
-        Map<Range, List<Range>> splitRanges = LeaveJoinProtocolHelper.getRangeSplitRangeMapping(oldRanges, tokens);
-        /* Calculate the list of nodes that handle the old ranges */
-        Map<Range, List<InetAddress>> oldRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(oldRanges, tokenToEndPointMap);
-        /* Mapping of split ranges to the list of endpoints responsible for the range */                
-        Map<Range, List<InetAddress>> replicasForSplitRanges = new HashMap<Range, List<InetAddress>>();
-        Set<Range> rangesSplit = splitRanges.keySet();                
-        for ( Range splitRange : rangesSplit )
-        {
-            replicasForSplitRanges.put( splitRange, oldRangeToEndPointMap.get(splitRange) );
-        }                
-        /* Remove the ranges that are split. */
-        for ( Range splitRange : rangesSplit )
-        {
-            oldRangeToEndPointMap.remove(splitRange);
-        }
-        
-        /* Add the subranges of the split range to the map with the same replica set. */
-        for ( Range splitRange : rangesSplit )
-        {
-            List<Range> subRanges = splitRanges.get(splitRange);
-            List<InetAddress> replicas = replicasForSplitRanges.get(splitRange);
-            for ( Range subRange : subRanges )
-            {
-                /* Make sure we clone or else we are hammered. */
-                oldRangeToEndPointMap.put(subRange, new ArrayList<InetAddress>(replicas));
-            }
-        }                
-        
-        /* Add the new token and re-calculate the range assignments */
-        Collections.addAll( oldTokens, tokens);
-        Range[] newRanges = StorageService.instance().getAllRanges(oldTokens);
-
-        if (logger.isDebugEnabled())
-          logger.debug("Total number of new ranges " + newRanges.length);
-        /* Calculate the list of nodes that handle the new ranges */
-        Map<Range, List<InetAddress>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges);
-        /* Calculate ranges that need to be sent and from whom to where */
-        Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = LeaveJoinProtocolHelper.getRangeSourceTargetInfo(oldRangeToEndPointMap, newRangeToEndPointMap);
-        return rangesWithSourceTarget;
-    }
-
-    private static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
-    {
-        Message message = new Message(FBUtilities.getLocalAddress(), "", StorageService.bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
-        BootstrapTokenCallback btc = new BootstrapTokenCallback();
-        MessagingService.instance().sendRR(message, maxEndpoint, btc);
-        return btc.getToken();
-    }
-
     public void startBootstrap() throws IOException
     {
-        logger.info("Starting in bootstrap mode (first, sleeping to get load information)");
+        new Thread(new Runnable()
+        {
+            public void run()
+            {
+                Map<Range, Set<InetAddress>> rangesWithSourceTarget = getRangesWithSources();
+                if (logger.isDebugEnabled())
+                        logger.debug("Beginning bootstrap process for " + address + " ...");
+                /* Send messages to respective folks to stream data over to me */
+                for (Map.Entry<InetAddress, List<Range>> entry : getWorkMap(rangesWithSourceTarget).entrySet())
+                {
+                    InetAddress source = entry.getKey();
+                    BootstrapMetadata bsMetadata = new BootstrapMetadata(address, entry.getValue());
+                    Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(new BootstrapMetadataMessage(bsMetadata));
+                    if (logger.isDebugEnabled())
+                        logger.debug("Sending the BootstrapMetadataMessage to " + source);
+                    MessagingService.instance().sendOneWay(message, source);
+                    StorageService.instance().addBootstrapSource(source);
+                }
+            }
+        }).start();
+    }
 
+    public static void guessTokenIfNotSpecified() throws IOException
+    {
         StorageService ss = StorageService.instance();
         StorageLoadBalancer slb = StorageLoadBalancer.instance();
 
@@ -181,36 +141,76 @@ public class BootStrapper
             if (!maxEndpoint.equals(FBUtilities.getLocalAddress()))
             {
                 Token<?> t = getBootstrapTokenFrom(maxEndpoint);
-                logger.info("Setting token to " + t + " to assume load from " + maxEndpoint);
+                logger.info("New token will be " + t + " to assume load from " + maxEndpoint);
                 ss.setToken(t);
             }
         }
+    }
 
-        new Thread(new Runnable()
+    Map<Range, Set<InetAddress>> getRangesWithSources()
+    {
+        Map<Token, InetAddress> map = tokenMetadata.cloneTokenEndPointMap();
+        assert map.size() > 0;
+        map.put(token, address);
+        Set<Range> myRanges = replicationStrategy.getAddressRanges(map).get(address);
+        map.remove(token);
+
+        Map<Range, Set<InetAddress>> myRangeAddresses = new HashMap<Range, Set<InetAddress>>();
+        Map<Range, Set<InetAddress>> rangeAddresses = replicationStrategy.getRangeAddresses(map);
+        for (Range range : rangeAddresses.keySet())
         {
-            public void run()
+            for (Range myRange : myRanges)
             {
-                // Mark as not bootstrapping to calculate ranges correctly
-                for (int i=0; i< targets.size(); i++)
+                if (range.contains(myRange.right()))
                 {
-                    tokenMetadata.setBootstrapping(targets.get(i), false);
-                }
-
-                Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = getRangesWithSourceTarget();
-                if (logger.isDebugEnabled())
-                        logger.debug("Beginning bootstrap process for [" + StringUtils.join(targets, ", ") + "] ...");
-                /* Send messages to respective folks to stream data over to the new nodes being bootstrapped */
-                try
-                {
-                    LeaveJoinProtocolHelper.assignWork(rangesWithSourceTarget);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
+                    assert !myRangeAddresses.containsKey(myRange);
+                    myRangeAddresses.put(myRange, rangeAddresses.get(range));
                 }
             }
-        }).start();
-        Gossiper.instance().addApplicationState(StorageService.MODE, new ApplicationState(StorageService.MODE_MOVING));
+        }
+        return myRangeAddresses;
+    }
+
+    private static Token<?> getBootstrapTokenFrom(InetAddress maxEndpoint)
+    {
+        Message message = new Message(FBUtilities.getLocalAddress(), "", StorageService.bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
+        BootstrapTokenCallback btc = new BootstrapTokenCallback();
+        MessagingService.instance().sendRR(message, maxEndpoint, btc);
+        return btc.getToken();
+    }
+
+    static Map<InetAddress, List<Range>> getWorkMap(Map<Range, Set<InetAddress>> rangesWithSourceTarget)
+    {
+        return getWorkMap(rangesWithSourceTarget, FailureDetector.instance());
+    }
+
+    static Map<InetAddress, List<Range>> getWorkMap(Map<Range, Set<InetAddress>> rangesWithSourceTarget, IFailureDetector failureDetector)
+    {
+        /*
+         * Map whose key is the source node and the value is a map whose key is the
+         * target and value is the list of ranges to be sent to it.
+        */
+        Map<InetAddress, List<Range>> sources = new HashMap<InetAddress, List<Range>>();
+
+        // TODO look for contiguous ranges and map them to the same source
+        for (Range range : rangesWithSourceTarget.keySet())
+        {
+            for (InetAddress source : rangesWithSourceTarget.get(range))
+            {
+                if (failureDetector.isAlive(source))
+                {
+                    List<Range> ranges = sources.get(source);
+                    if (ranges == null)
+                    {
+                        ranges = new ArrayList<Range>();
+                        sources.put(source, ranges);
+                    }
+                    ranges.add(range);
+                    break;
+                }
+            }
+        }
+        return sources;
     }
 
     public static class BootstrapTokenVerbHandler implements IVerbHandler
@@ -403,11 +403,9 @@ public class BootStrapper
                 String [] temp = fileName.split("-");
 
                 //Open the file to see if all parts are now here
-                SSTableReader sstable = null;
                 try
                 {
-                    sstable = SSTableWriter.renameAndOpen(streamContext.getTargetFile());
-
+                    SSTableReader sstable = SSTableWriter.renameAndOpen(streamContext.getTargetFile());
                     //TODO add a sanity check that this sstable has all its parts and is ok
                     Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
                     logger.info("Bootstrap added " + sstable.getFilename());
