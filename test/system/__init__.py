@@ -33,7 +33,7 @@ import Cassandra
 def get_client(host='127.0.0.1', port=9170):
     socket = TSocket.TSocket(host, port)
     transport = TTransport.TBufferedTransport(socket)
-    protocol = TBinaryProtocol.TBinaryProtocol(transport)
+    protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
     client = Cassandra.Client(protocol)
     client.transport = transport
     return client
