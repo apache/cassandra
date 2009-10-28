@@ -257,7 +257,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get");
-        ColumnOrSuperColumn column = multiget(table, Arrays.asList(key), column_path, consistency_level).get(key);
+        ColumnOrSuperColumn column = multigetInternal(table, Arrays.asList(key), column_path, consistency_level).get(key);
         if (!column.isSetColumn() && !column.isSetSuper_column())
         {
             throw new NotFoundException();
@@ -314,7 +314,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         ThriftValidation.validateColumnPath(table, column_path);
 
-        QueryPath path = new QueryPath(column_path.column_family, column_path.super_column);
+        QueryPath path = new QueryPath(column_path.column_family, column_path.column == null ? null : column_path.super_column);
         List<byte[]> nameAsList = Arrays.asList(column_path.column == null ? column_path.super_column : column_path.column);
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
         for (String key: keys)
