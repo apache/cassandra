@@ -4,9 +4,13 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class will basically will block for the replication factor which is
@@ -15,36 +19,47 @@ import org.apache.cassandra.net.Message;
  */
 public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
 {
-    private final List<InetAddress> waitList;
     private int blockFor;
+    private IEndPointSnitch endpointsnitch;
+    private InetAddress localEndpoint;
 
-    public DatacenterQuorumResponseHandler(List<InetAddress> waitList, int blockFor, IResponseResolver<T> responseResolver)
+    public DatacenterQuorumResponseHandler(int blockFor, IResponseResolver<T> responseResolver)
     throws InvalidRequestException
     {
         // Response is been managed by the map so the waitlist size really doesnt matter.
         super(blockFor, responseResolver);
         this.blockFor = blockFor;
-        this.waitList = waitList;
+        endpointsnitch = DatabaseDescriptor.getEndPointSnitch();
+        localEndpoint = FBUtilities.getLocalAddress();
     }
 
     @Override
     public void response(Message message)
     {
+        // IF done look no futher.
         if (condition_.isSignaled())
         {
             return;
         }
-
-        if (waitList.contains(message.getFrom()))
+            //Is optimal to check if same datacenter than comparing Arrays.
+        try
         {
-            blockFor--;
+            if (endpointsnitch.isInSameDataCenter(localEndpoint, message.getFrom()))
+            {
+                blockFor--;
+            }
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
         }
         responses_.add(message);
-        // If done then the response count will be empty after removing
-        // everything.
         if (blockFor <= 0)
         {
+            //Singnal when Quorum is recived.
             condition_.signal();
         }
+        if (logger_.isDebugEnabled())
+            logger_.debug("Processed Message: " + message.toString());
     }
 }

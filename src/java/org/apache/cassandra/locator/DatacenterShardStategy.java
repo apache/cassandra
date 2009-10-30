@@ -48,11 +48,12 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      *
      * @param tokenToEndPointMap - Provided the endpoint map which will be mapped with the DC's
      */
-    private void loadEndPoints(Map<Token, InetAddress> tokenToEndPointMap, Collection<Token> tokens) throws IOException
+    private synchronized void loadEndPoints(Map<Token, InetAddress> tokenToEndPointMap, Collection<Token> tokens) throws IOException
     {
         endPointSnitch = (DatacenterEndPointSnitch) StorageService.instance().getEndPointSnitch();
         this.tokens = new ArrayList<Token>(tokens);
         String localDC = endPointSnitch.getLocation(InetAddress.getLocalHost());
+        dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
         {
             InetAddress endPoint = tokenToEndPointMap.get(token);
@@ -150,6 +151,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 if ((replicas_ - 1) > foundCount)
                 {
                     forloopReturn.add(endPointOfIntrest);
+                    foundCount++;
                     continue;
                 }
                 else
@@ -205,7 +207,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
             List<InetAddress> endpoints = getLocalEndPoints();
-            return new DatacenterQuorumResponseHandler<T>(endpoints, locQFactor, responseResolver);
+            return new DatacenterQuorumResponseHandler<T>(locQFactor, responseResolver);
         }
         else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
         {

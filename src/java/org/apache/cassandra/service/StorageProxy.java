@@ -204,7 +204,6 @@ public class StorageProxy implements StorageProxyMBean
 
     private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)
     {
-        // TODO this is broken for DC quorum / DC quorum sync
         int bootstrapTargets = hintedTargets - naturalTargets;
         int blockFor;
         if (consistency_level == ConsistencyLevel.ONE)
@@ -214,6 +213,11 @@ public class StorageProxy implements StorageProxyMBean
         else if (consistency_level == ConsistencyLevel.QUORUM)
         {
             blockFor = (naturalTargets / 2) + 1 + bootstrapTargets;
+        }
+        else if (consistency_level == ConsistencyLevel.DCQUORUM || consistency_level == ConsistencyLevel.DCQUORUMSYNC)
+        {
+            // TODO this is broken
+            blockFor = naturalTargets;
         }
         else if (consistency_level == ConsistencyLevel.ALL)
         {

@@ -49,7 +49,6 @@ public class DatacenterEndPointSnitch implements IEndPointSnitch
     public DatacenterEndPointSnitch() throws IOException,
                                              ParserConfigurationException, SAXException
     {
-        super();
         xmlUtils = new XMLUtils(DEFAULT_RACK_CONFIG_FILE);
         reloadConfiguration();
     }
