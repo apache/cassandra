@@ -40,6 +40,7 @@
  * Improve default garbage collector options (CASSANDRA-504)
  * Add "nodeprobe flush" (CASSANDRA-505)
  * remove NotFoundException from get_slice throws list (CASSANDRA-518)
+ * fix get (not get_slice) of entire supercolumn (CASSANDRA-508)
 
 
 0.4.1

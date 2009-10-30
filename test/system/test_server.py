@@ -180,6 +180,11 @@ class TestMutations(CassandraTester):
         _insert_super()
         _verify_super()
 
+    def test_super_get(self):
+        _insert_super()
+        result = client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc2'), ConsistencyLevel.ONE).super_column
+        assert result == _SUPER_COLUMNS[1], result
+
     def test_super_subcolumn_limit(self):
         _insert_super()
         p = SlicePredicate(slice_range=SliceRange('', '', False, 1))
