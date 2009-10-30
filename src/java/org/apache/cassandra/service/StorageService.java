@@ -174,6 +174,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         SystemTable.updateToken(endpoint, token);
     }
 
+    /**
+     * for bulk loading clients to be able to use tokenmetadata/messagingservice
+     * without fully starting storageservice / systemtable.
+     */
+    public void updateForeignTokenUnsafe(Token token, InetAddress endpoint)
+    {
+        tokenMetadata_.update(token, endpoint);
+    }
+
     /** This method updates the local token on disk and starts broacasting it to others. */
     public void setToken(Token token)
     {

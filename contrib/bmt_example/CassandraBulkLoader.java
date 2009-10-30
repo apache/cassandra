@@ -124,7 +124,7 @@ public class CassandraBulkLoader {
                 {
                     throw new RuntimeException(e);
                 }
-                StorageService.instance().updateTokenMetadataUnsafe(new BigIntegerToken(new BigInteger(values[0])), address);
+                StorageService.instance().updateForeignTokenUnsafe(new BigIntegerToken(new BigInteger(values[0])), address);
             }
         }
         public void close()
