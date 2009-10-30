@@ -46,10 +46,9 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
 
     public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver) throws InvalidRequestException
     {
-        if (responseCount > DatabaseDescriptor.getReplicationFactor())
-            throw new InvalidRequestException("Cannot block for more than the replication factor of " + DatabaseDescriptor.getReplicationFactor());
-        if (responseCount < 1)
-            throw new InvalidRequestException("Cannot block for less than one replica");
+        assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor()
+            : "invalid response count " + responseCount;
+
         responseCount_ = responseCount;
         responseResolver_ =  responseResolver;
         startTime_ = System.currentTimeMillis();

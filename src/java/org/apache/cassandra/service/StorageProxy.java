@@ -78,18 +78,18 @@ public class StorageProxy implements StorageProxyMBean
         for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
         {
             InetAddress target = entry.getKey();
-            InetAddress hint = entry.getValue();
-            if ( !target.equals(hint) )
+            InetAddress hintedTarget = entry.getValue();
+            if (target.equals(hintedTarget))
             {
-                Message hintedMessage = rm.makeRowMutationMessage();
-                hintedMessage.addHeader(RowMutation.HINT, hint.getAddress());
-                if (logger.isDebugEnabled())
-                    logger.debug("Sending the hint of " + hint + " to " + target);
-                messageMap.put(target, hintedMessage);
+                messageMap.put(target, message);
             }
             else
             {
-                messageMap.put(target, message);
+                Message hintedMessage = rm.makeRowMutationMessage();
+                hintedMessage.addHeader(RowMutation.HINT, hintedTarget.getAddress());
+                if (logger.isDebugEnabled())
+                    logger.debug("Sending the hint of " + hintedTarget + " to " + target);
+                messageMap.put(hintedTarget, hintedMessage);
             }
         }
         return messageMap;
@@ -161,7 +161,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             QuorumResponseHandler<Boolean> quorumResponseHandler = StorageService.instance().getResponseHandler(new WriteResponseResolver(), blockFor, consistency_level);
             if (logger.isDebugEnabled())
-                logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpointMap.keySet(), ", ") + "]");
+                logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpointMap.values(), ", ") + "]");
 
             // Get all the targets and stick them in an array
             MessagingService.instance().sendRR(message, primaryNodes.toArray(new InetAddress[primaryNodes.size()]), quorumResponseHandler);
@@ -173,7 +173,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (e.getKey() != e.getValue()) // Hinted Handoff to target
                     {
-                        MessagingService.instance().sendOneWay(message, e.getKey());
+                        MessagingService.instance().sendOneWay(message, e.getValue());
                     }
                 }
             }
@@ -194,7 +194,7 @@ public class StorageProxy implements StorageProxyMBean
         List<InetAddress> liveEndPoints = new ArrayList<InetAddress>(endpointMap.size());
         for (Map.Entry<InetAddress, InetAddress> e : endpointMap.entrySet())
         {
-            if (e.getKey() == e.getValue())
+            if (e.getKey().equals(e.getValue()))
             {
                 liveEndPoints.add(e.getKey());
             }
@@ -204,6 +204,9 @@ public class StorageProxy implements StorageProxyMBean
 
     private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)
     {
+        assert naturalTargets >= 1;
+        assert hintedTargets >= naturalTargets;
+
         int bootstrapTargets = hintedTargets - naturalTargets;
         int blockFor;
         if (consistency_level == ConsistencyLevel.ONE)

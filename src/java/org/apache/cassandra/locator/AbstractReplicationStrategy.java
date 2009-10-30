@@ -117,12 +117,19 @@ public abstract class AbstractReplicationStrategy
         return endpoints;
     }
 
-    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(Iterable<InetAddress> topN)
+    /**
+     * returns map of {ultimate target: destination}, where if destination is not the same
+     * as the ultimate target, it is a "hinted" node, a node that will deliver the data to
+     * the ultimate target when it becomes alive again.
+     *
+     * A destination node may be the destination for multiple targets.
+     */
+    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(Collection<InetAddress> targets)
     {
         Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
         Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
 
-        for (InetAddress ep : topN)
+        for (InetAddress ep : targets)
         {
             if (FailureDetector.instance().isAlive(ep))
             {
@@ -149,7 +156,7 @@ public abstract class AbstractReplicationStrategy
                 for (int i = startIndex, count = 1; count < totalNodes; ++count, i = (i + 1) % totalNodes)
                 {
                     InetAddress tmpEndPoint = tokenToEndPointMap.get(tokens.get(i));
-                    if (FailureDetector.instance().isAlive(tmpEndPoint) && !Arrays.asList(topN).contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
+                    if (FailureDetector.instance().isAlive(tmpEndPoint) && !targets.contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
                     {
                         hintLocation = tmpEndPoint;
                         break;
@@ -159,10 +166,12 @@ public abstract class AbstractReplicationStrategy
                 if (hintLocation == null)
                     hintLocation = FBUtilities.getLocalAddress();
 
-                map.put(hintLocation, ep);
+                map.put(ep, hintLocation);
                 usedEndpoints.add(hintLocation);
             }
         }
+
+        assert map.size() == targets.size();
         return map;
     }
 
