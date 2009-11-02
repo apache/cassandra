@@ -37,6 +37,9 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import java.net.InetAddress;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -175,6 +178,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger_.debug("Starting CFS " + columnFamily_);
         // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
+        Pattern auxFilePattern = Pattern.compile("(.*)(-Filter\\.db$|-Index\\.db$)");
         String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table_);
         for (String directory : dataFileDirectories)
         {
@@ -183,15 +187,28 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (File file : files)
             {
                 String filename = file.getName();
+
+                /* look for and remove orphans. An orphan is a -Filter.db or -Index.db with no corresponding -Data.db. */
+                Matcher matcher = auxFilePattern.matcher(file.getAbsolutePath());
+                if (matcher.matches())
+                {
+                    String basePath = matcher.group(1);
+                    if (!new File(basePath + "-Data.db").exists())
+                    {
+                        logger_.info(String.format("Removing orphan %s", file.getAbsolutePath()));
+                        FileUtils.deleteWithConfirm(file);
+                        continue;
+                    }
+                }
+
                 if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))) && (filename.contains(columnFamily_)))
                 {
-                    file.delete();
+                    FileUtils.deleteWithConfirm(file);
                     continue;
                 }
 
                 String cfName = getColumnFamilyFromFileName(filename);
-                if (cfName.equals(columnFamily_)
-                    && filename.contains("-Data.db"))
+                if (cfName.equals(columnFamily_) && filename.contains("-Data.db"))
                 {
                     sstableFiles.add(file.getAbsoluteFile());
                 }
