@@ -270,9 +270,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         if (isBootstrapMode)
         {
-            logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
             Gossiper.instance().addApplicationState(MODE, new ApplicationState(MODE_MOVING));
-            BootStrapper.guessTokenIfNotSpecified(tokenMetadata_);
+            logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
+            StorageLoadBalancer.instance().waitForLoadInfo();
+            logger_.info("... got load info");
+            setToken(BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo()));
             new BootStrapper(replicationStrategy_, FBUtilities.getLocalAddress(), getLocalToken(), tokenMetadata_).startBootstrap(); // handles token update
         }
         else

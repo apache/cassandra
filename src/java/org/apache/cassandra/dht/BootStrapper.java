@@ -111,41 +111,57 @@ public class BootStrapper
         }).start();
     }
 
-    public static void guessTokenIfNotSpecified(TokenMetadata metadata) throws IOException
+    /**
+     * if initialtoken was specified, use that.
+     * otherwise, pick a token to assume half the load of the most-loaded node.
+     */
+    public static Token getBootstrapToken(final TokenMetadata metadata, final Map<InetAddress, Double> load) throws IOException
     {
-        StorageService ss = StorageService.instance();
-        StorageLoadBalancer slb = StorageLoadBalancer.instance();
-
-        slb.waitForLoadInfo();
-        logger.debug("... got load info");
-
-        // if initialtoken was specified, use that.  otherwise, pick a token to assume half the load of the most-loaded node.
-        if (DatabaseDescriptor.getInitialToken() == null)
+        if (DatabaseDescriptor.getInitialToken() != null)
         {
-            double maxLoad = 0;
-            InetAddress maxEndpoint = null;
-            for (Map.Entry<InetAddress, Double> entry : slb.getLoadInfo().entrySet())
-            {
-                logger.debug("considering " + entry.getKey() + " with load of " + entry.getValue());
-                if (!metadata.isMember(entry.getKey()))
-                    continue;
-                if (maxEndpoint == null || entry.getValue() > maxLoad)
-                {
-                    maxEndpoint = entry.getKey();
-                    maxLoad = entry.getValue();
-                }
-            }
-            if (maxEndpoint == null)
-            {
-                throw new RuntimeException("No bootstrap sources found");
-            }
-
-            assert !maxEndpoint.equals(FBUtilities.getLocalAddress());
-            logger.debug("asking " + maxEndpoint + " for token");
-            Token<?> t = getBootstrapTokenFrom(maxEndpoint);
-            logger.info("New token will be " + t + " to assume load from " + maxEndpoint);
-            ss.setToken(t);
+            logger.debug("token manually specified as " + DatabaseDescriptor.getInitialToken());
+            return StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
         }
+
+        InetAddress maxEndpoint = getBootstrapSource(metadata, load);
+        Token<?> t = getBootstrapTokenFrom(maxEndpoint);
+        logger.info("New token will be " + t + " to assume load from " + maxEndpoint);
+        return t;
+    }
+
+    static InetAddress getBootstrapSource(final TokenMetadata metadata, final Map<InetAddress, Double> load)
+    {
+        // sort first by number of nodes already bootstrapping into a source node's range, then by load.
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(load.size());
+        for (InetAddress endpoint : load.keySet())
+        {
+            if (!metadata.isMember(endpoint))
+                continue;
+            endpoints.add(endpoint);
+        }
+
+        if (endpoints.isEmpty())
+            throw new RuntimeException("No other nodes seen!  Unable to bootstrap");
+        Collections.sort(endpoints, new Comparator<InetAddress>()
+        {
+            public int compare(InetAddress ia1, InetAddress ia2)
+            {
+                int n1 = metadata.bootstrapTargets(ia1);
+                int n2 = metadata.bootstrapTargets(ia2);
+                if (n1 != n2)
+                    return -(n1 - n2); // more targets = _less_ priority!
+
+                double load1 = load.get(ia1);
+                double load2 = load.get(ia2);
+                if (load1 == load2)
+                    return 0;
+                return load1 < load2 ? -1 : 1;
+            }
+        });
+
+        InetAddress maxEndpoint = endpoints.get(endpoints.size() - 1);
+        assert !maxEndpoint.equals(FBUtilities.getLocalAddress());
+        return maxEndpoint;
     }
 
     /** get potential sources for each range, ordered by proximity (as determined by EndPointSnitch) */

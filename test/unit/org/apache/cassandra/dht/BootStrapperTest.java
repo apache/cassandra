@@ -18,24 +18,56 @@
 */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
+import com.google.common.collect.Multimap;
+import org.apache.cassandra.gms.IFailureDetectionEventListener;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.gms.IFailureDetectionEventListener;
-import com.google.common.collect.Multimap;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class BootStrapperTest {
+public class BootStrapperTest
+{
+    @Test
+    public void testGuessToken() throws IOException
+    {
+        StorageService ss = StorageService.instance();
+
+        generateFakeEndpoints(3);
+
+        InetAddress one = InetAddress.getByName("127.0.0.2");
+        InetAddress two = InetAddress.getByName("127.0.0.3");
+        InetAddress three = InetAddress.getByName("127.0.0.4");
+        Map<InetAddress, Double> load = new HashMap<InetAddress, Double>();
+        load.put(one, 1.0);
+        load.put(two, 2.0);
+        load.put(three, 3.0);
+
+        TokenMetadata tmd = ss.getTokenMetadata();
+        InetAddress source = BootStrapper.getBootstrapSource(tmd, load);
+        assert three.equals(source);
+
+        InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
+        tmd.setBootstrapping(myEndpoint, true);
+        Range range3 = ss.getPrimaryRangeForEndPoint(three);
+        Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range3.left(), range3.right());
+        assert range3.contains(fakeToken);
+        tmd.update(fakeToken, myEndpoint);
+
+        InetAddress source2 = BootStrapper.getBootstrapSource(tmd, load);
+        assert two.equals(source2) : source2;
+    }
+
     @Test
     public void testSourceTargetComputation() throws UnknownHostException
     {
@@ -49,7 +81,6 @@ public class BootStrapperTest {
         StorageService ss = StorageService.instance();
 
         generateFakeEndpoints(numOldNodes);
-        
         Token myToken = StorageService.getPartitioner().getRandomToken();
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
 
@@ -94,7 +125,9 @@ public class BootStrapperTest {
         for (int i = 1; i <= numOldNodes; i++)
         {
             // leave .1 for myEndpoint
-            tmd.update(p.getRandomToken(), InetAddress.getByName("127.0.0." + (i + 1)));
+            // TODO use this when #519 is fixed
+            // tmd.update(p.getRandomToken(), InetAddress.getByName("127.0.0." + (i + 1)));
+            tmd.update(p.getToken(FBUtilities.bytesToHex(FBUtilities.toByteArray(i * 13))), InetAddress.getByName("127.0.0." + (i + 1)));
         }
     }
 }

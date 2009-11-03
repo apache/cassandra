@@ -26,6 +26,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Range;
 
 import java.net.InetAddress;
+
+import org.apache.commons.lang.StringUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.UnavailableException;
@@ -87,6 +90,21 @@ public class TokenMetadata
         {
             lock.writeLock().unlock();
         }
+    }
+
+    /** @return the number of nodes bootstrapping into source's primary range */
+    public int bootstrapTargets(InetAddress source)
+    {
+        int n = 0;
+        Range sourceRange = getPrimaryRangeFor(getToken(source));
+        for (Token token : bootstrapTokenMap.keySet())
+        {
+            if (sourceRange.contains(token))
+            {
+                n++;
+            }
+        }
+        return n;
     }
 
     /**
@@ -270,14 +288,16 @@ public class TokenMetadata
     {
         List tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
-        return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(--index));
+        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndPointMap.keySet(), ", ");
+        return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1));
     }
 
     public Token getSuccessor(Token token)
     {
         List tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
-        return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(++index));
+        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndPointMap.keySet(), ", ");
+        return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1));
     }
 
     public Iterable<? extends Token> bootstrapTokens()
