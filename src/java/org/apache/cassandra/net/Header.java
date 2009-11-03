@@ -52,6 +52,11 @@ public class Header implements java.io.Serializable
     
     Header(String id, InetAddress from, String messageType, String verb)
     {
+        assert id != null;
+        assert from != null;
+        assert messageType != null;
+        assert verb != null;
+
         messageId_ = id;
         from_ = from;
         type_ = messageType;
@@ -66,10 +71,7 @@ public class Header implements java.io.Serializable
 
     Header(InetAddress from, String messageType, String verb)
     {
-        messageId_ = Integer.toString(idGen_.incrementAndGet());
-        from_ = from;
-        type_ = messageType;
-        verb_ = verb;
+        this(Integer.toString(idGen_.incrementAndGet()), from, messageType, verb);
     }        
 
     InetAddress getFrom()

@@ -28,6 +28,7 @@ package org.apache.cassandra.dht;
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
+ import org.apache.commons.lang.StringUtils;
 
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -94,15 +95,15 @@ public class BootStrapper
             {
                 Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources();
                 if (logger.isDebugEnabled())
-                        logger.debug("Beginning bootstrap process for " + address + " ...");
+                    logger.debug("Beginning bootstrap process");
                 /* Send messages to respective folks to stream data over to me */
                 for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
                 {
                     InetAddress source = entry.getKey();
+                    if (logger.isDebugEnabled())
+                        logger.debug("Sending BootstrapMetadataMessage to " + source + " for " + StringUtils.join(entry.getValue(), ", "));
                     BootstrapMetadata bsMetadata = new BootstrapMetadata(address, entry.getValue());
                     Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(new BootstrapMetadataMessage(bsMetadata));
-                    if (logger.isDebugEnabled())
-                        logger.debug("Sending the BootstrapMetadataMessage to " + source);
                     MessagingService.instance().sendOneWay(message, source);
                     StorageService.instance().addBootstrapSource(source);
                 }
@@ -116,6 +117,7 @@ public class BootStrapper
         StorageLoadBalancer slb = StorageLoadBalancer.instance();
 
         slb.waitForLoadInfo();
+        logger.debug("... got load info");
 
         // if initialtoken was specified, use that.  otherwise, pick a token to assume half the load of the most-loaded node.
         if (DatabaseDescriptor.getInitialToken() == null)
@@ -124,6 +126,7 @@ public class BootStrapper
             InetAddress maxEndpoint = null;
             for (Map.Entry<InetAddress, Double> entry : slb.getLoadInfo().entrySet())
             {
+                logger.debug("considering " + entry.getKey() + " with load of " + entry.getValue());
                 if (!metadata.isMember(entry.getKey()))
                     continue;
                 if (maxEndpoint == null || entry.getValue() > maxLoad)
@@ -137,12 +140,11 @@ public class BootStrapper
                 throw new RuntimeException("No bootstrap sources found");
             }
 
-            if (!maxEndpoint.equals(FBUtilities.getLocalAddress()))
-            {
-                Token<?> t = getBootstrapTokenFrom(maxEndpoint);
-                logger.info("New token will be " + t + " to assume load from " + maxEndpoint);
-                ss.setToken(t);
-            }
+            assert !maxEndpoint.equals(FBUtilities.getLocalAddress());
+            logger.debug("asking " + maxEndpoint + " for token");
+            Token<?> t = getBootstrapTokenFrom(maxEndpoint);
+            logger.info("New token will be " + t + " to assume load from " + maxEndpoint);
+            ss.setToken(t);
         }
     }
 

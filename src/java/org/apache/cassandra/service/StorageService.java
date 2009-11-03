@@ -368,7 +368,20 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             tokenMetadata_.setBootstrapping(endpoint,  bootstrapState);
         }
 
-        if (nodeIdState != null)
+        if (nodeIdState == null)
+        {
+            /*
+             * If we are here and if this node is UP and already has an entry
+             * in the token map. It means that the node was behind a network partition.
+            */
+            if (epState.isAlive() && tokenMetadata_.isMember(endpoint))
+            {
+                if (logger_.isDebugEnabled())
+                    logger_.debug("InetAddress " + endpoint + " just recovered from a partition. Sending hinted data.");
+                deliverHints(endpoint);
+            }
+        }
+        else
         {
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
             if (logger_.isDebugEnabled())
@@ -407,19 +420,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                  * This is a new node and we just update the token map.
                 */
                 updateForeignToken(newToken, endpoint);
-            }
-        }
-        else
-        {
-            /*
-             * If we are here and if this node is UP and already has an entry
-             * in the token map. It means that the node was behind a network partition.
-            */
-            if (epState.isAlive() && tokenMetadata_.isMember(endpoint))
-            {
-                if (logger_.isDebugEnabled())
-                    logger_.debug("InetAddress " + endpoint + " just recovered from a partition. Sending hinted data.");
-                deliverHints(endpoint);
             }
         }
     }
