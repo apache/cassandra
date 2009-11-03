@@ -43,6 +43,7 @@
  * Add "nodeprobe flush" (CASSANDRA-505)
  * remove NotFoundException from get_slice throws list (CASSANDRA-518)
  * fix get (not get_slice) of entire supercolumn (CASSANDRA-508)
+ * fix null token during bootstrap (CASSANDRA-501)
 
 
 0.4.1
