@@ -61,7 +61,7 @@ public class SliceQueryFilter extends QueryFilter
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
     {
-        return new SSTableSliceIterator(sstable, key, start, reversed);
+        return new SSTableSliceIterator(sstable, key, start, finish, reversed);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

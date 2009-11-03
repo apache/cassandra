@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.db;
 
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.*;
 import java.io.IOException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
@@ -168,6 +171,65 @@ public class TableTest extends CleanupHelper
         assertEquals(1, ssTables.size());
         ssTables.iterator().next().forceBloomFilterFailures();
         validateGetSliceNoMatch(table);
+    }
+
+    @Test
+    public void testGetSliceWithCutoff() throws Throwable
+    {
+        // tests slicing against data from one row in a memtable and then flushed to an sstable
+        final Table table = Table.open("Keyspace1");
+        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final String ROW = "row4";
+        final NumberFormat fmt = new DecimalFormat("000");
+
+        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        // at this rate, we're getting 78-79 cos/block, assuming the blocks are set to be about 4k.
+        // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
+        for (int i = 0; i < 300; i++)
+            cf.addColumn(column("col" + fmt.format(i), "omg!thisisthevalue!"+i, 1L));
+        rm.add(cf);
+        rm.apply();
+
+        Runner verify = new Runner()
+        {
+            public void run() throws Exception
+            {
+                ColumnFamily cf;
+
+                // blocks are partitioned like this: 000-097, 098-193, 194-289, 290-299, assuming a 4k column index size.
+                assert DatabaseDescriptor.getColumnIndexSize() == 4096 : "Unexpected column index size, block boundaries won't be where tests expect them.";
+
+                // test forward, spanning a segment.
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col096".getBytes(), "col099".getBytes(), false, 4);
+                assertColumns(cf, "col096", "col097", "col098", "col099");
+
+                // test reversed, spanning a segment.
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col099".getBytes(), "col096".getBytes(), true, 4);
+                assertColumns(cf, "col096", "col097", "col098", "col099");
+
+                // test forward, within a segment.
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col100".getBytes(), "col103".getBytes(), false, 4);
+                assertColumns(cf, "col100", "col101", "col102", "col103");
+
+                // test reversed, within a segment.
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col103".getBytes(), "col100".getBytes(), true, 4);
+                assertColumns(cf, "col100", "col101", "col102", "col103");
+
+                // test forward from beginning, spanning a segment.
+                String[] strCols = new String[100]; // col000-col099
+                for (int i = 0; i < 100; i++)
+                    strCols[i] = "col" + fmt.format(i);
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "".getBytes(), "col099".getBytes(), false, 100);
+                assertColumns(cf, strCols);
+
+                // test reversed, from end, spanning a segment.
+                cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "".getBytes(), "col288".getBytes(), true, 12);
+                assertColumns(cf, "col288", "col289", "col290", "col291", "col292", "col293", "col294", "col295", "col296", "col297", "col298", "col299");
+            }
+        };
+
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
     }
 
     private void validateGetSliceNoMatch(Table table) throws IOException

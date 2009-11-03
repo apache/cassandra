@@ -39,13 +39,13 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 {
     private final boolean reversed;
     private final byte[] startColumn;
+    private final byte[] finishColumn;
     private final AbstractType comparator;
     private ColumnGroupReader reader;
 
-    public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, boolean reversed)
+    public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, byte[] finishColumn, boolean reversed)
     throws IOException
     {
-        // TODO push finishColumn down here too, so we can tell when we're done and optimize away the slice when the index + start/stop shows there's nothing to scan for
         this.reversed = reversed;
 
         /* Morph key into actual key based on the partition type. */
@@ -53,15 +53,27 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         long position = ssTable.getPosition(decoratedKey);
         this.comparator = ssTable.getColumnComparator();
         this.startColumn = startColumn;
+        this.finishColumn = finishColumn;
         if (position >= 0)
             reader = new ColumnGroupReader(ssTable, decoratedKey, position);
     }
 
     private boolean isColumnNeeded(IColumn column)
     {
-        return reversed
-               ? startColumn.length == 0 || comparator.compare(column.name(), startColumn) <= 0
-               : comparator.compare(column.name(), startColumn) >= 0;
+        if (startColumn.length == 0 && finishColumn.length == 0)
+            return true;
+        else if (startColumn.length == 0 && !reversed)
+            return comparator.compare(column.name(), finishColumn) <= 0;
+        else if (startColumn.length == 0 && reversed)
+            return comparator.compare(column.name(), finishColumn) >= 0;
+        else if (finishColumn.length == 0 && !reversed)
+            return comparator.compare(column.name(), startColumn) >= 0;
+        else if (finishColumn.length == 0 && reversed)
+            return comparator.compare(column.name(), startColumn) <= 0;
+        else if (!reversed)
+            return comparator.compare(column.name(), startColumn) >= 0 && comparator.compare(column.name(), finishColumn) <= 0;
+        else // if reversed
+            return comparator.compare(column.name(), startColumn) <= 0 && comparator.compare(column.name(), finishColumn) >= 0;
     }
 
     public ColumnFamily getColumnFamily()
@@ -156,15 +168,41 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
                 return false;
 
             /* seek to the correct offset to the data, and calculate the data size */
-            IndexHelper.IndexInfo curColPostion = indexes.get(curRangeIndex);
-            file.seek(columnStartPosition + curColPostion.offset);
-            while (file.getFilePointer() < columnStartPosition + curColPostion.offset + curColPostion.width)
+            IndexHelper.IndexInfo curColPosition = indexes.get(curRangeIndex);
+
+            /* see if this read is really necessary. */
+            if (reversed)
+            {
+                if ((finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.lastName) > 0) ||
+                    (startColumn.length > 0 && comparator.compare(startColumn, curColPosition.firstName) < 0))
+                    return false;
+            }
+            else
+            {
+                if ((startColumn.length > 0 && comparator.compare(startColumn, curColPosition.lastName) > 0) ||
+                    (finishColumn.length > 0 && comparator.compare(finishColumn, curColPosition.firstName) < 0))
+                    return false;
+            }
+
+            boolean outOfBounds = false;
+
+            file.seek(columnStartPosition + curColPosition.offset);
+            while (file.getFilePointer() < columnStartPosition + curColPosition.offset + curColPosition.width && !outOfBounds)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
                 if (reversed)
                     blockColumns.addFirst(column);
                 else
                     blockColumns.addLast(column);
+
+                /* see if we can stop seeking. */
+                if (!reversed && finishColumn.length > 0)
+                    outOfBounds = comparator.compare(column.name(), finishColumn) >= 0;
+                else if (reversed && startColumn.length > 0)
+                    outOfBounds = comparator.compare(column.name(), startColumn) >= 0;
+                    
+                if (outOfBounds)
+                    break;
             }
 
             if (reversed)

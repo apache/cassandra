@@ -30,6 +30,8 @@
    for normal writes (CASSANDRA-446) and bulk load (CASSANDRA-420)
  * Add MemtableFlushAfterMinutes, a global replacement for the old 
    per-CF FlushPeriodInMinutes setting (CASSANDRA-463)
+ * Datacenter quorum consistency levels (CASSANDRA-492)
+ * optimizations to slice reading (CASSANDRA-350)
  
 
 0.4.2
