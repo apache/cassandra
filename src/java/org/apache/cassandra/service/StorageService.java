@@ -868,7 +868,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return tokens;
     }
 
-    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level) throws InvalidRequestException, UnavailableException
+    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
     {
         return replicationStrategy_.getResponseHandler(responseResolver, blockFor, consistency_level);
     }

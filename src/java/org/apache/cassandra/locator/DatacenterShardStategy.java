@@ -200,7 +200,6 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      */
     @Override
     public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
-    throws InvalidRequestException
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {

@@ -21,7 +21,6 @@ public class DatacenterQuorumSyncResponseHandler<T> extends QuorumResponseHandle
     private final Map<String, Integer> responseCounts;
 
     public DatacenterQuorumSyncResponseHandler(Map<String, Integer> responseCounts, IResponseResolver<T> responseResolver)
-    throws InvalidRequestException
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(1, responseResolver);

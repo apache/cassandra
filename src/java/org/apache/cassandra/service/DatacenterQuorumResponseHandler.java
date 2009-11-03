@@ -24,7 +24,6 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
     private InetAddress localEndpoint;
 
     public DatacenterQuorumResponseHandler(int blockFor, IResponseResolver<T> responseResolver)
-    throws InvalidRequestException
     {
         // Response is been managed by the map so the waitlist size really doesnt matter.
         super(blockFor, responseResolver);

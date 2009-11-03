@@ -44,7 +44,7 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     private IResponseResolver<T> responseResolver_;
     private long startTime_;
 
-    public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver) throws InvalidRequestException
+    public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver)
     {
         assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor()
             : "invalid response count " + responseCount;

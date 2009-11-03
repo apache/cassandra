@@ -58,7 +58,7 @@ public abstract class AbstractReplicationStrategy
 
     public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata);
     
-    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level) throws InvalidRequestException
+    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
     {
         return new QuorumResponseHandler<T>(blockFor, responseResolver);
     }

@@ -178,10 +178,13 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         }
+        catch (TimeoutException e)
+        {
+            throw new UnavailableException();
+        }
         catch (Exception e)
         {
-            logger.error("error writing key " + rm.key(), e);
-            throw new UnavailableException();
+            throw new RuntimeException("error writing key " + rm.key(), e);
         }
         finally
         {
@@ -347,7 +350,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, TimeoutException, InvalidRequestException, UnavailableException
+    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, TimeoutException, UnavailableException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
