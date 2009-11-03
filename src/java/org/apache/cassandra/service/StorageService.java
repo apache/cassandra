@@ -272,7 +272,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
             Gossiper.instance().addApplicationState(MODE, new ApplicationState(MODE_MOVING));
-            BootStrapper.guessTokenIfNotSpecified();
+            BootStrapper.guessTokenIfNotSpecified(tokenMetadata_);
             new BootStrapper(replicationStrategy_, FBUtilities.getLocalAddress(), getLocalToken(), tokenMetadata_).startBootstrap(); // handles token update
         }
         else
@@ -373,20 +373,21 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
             if (logger_.isDebugEnabled())
               logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + nodeIdState.getState());
-            Token oldToken = tokenMetadata_.getToken(endpoint);
 
-            if ( oldToken != null )
+            if (tokenMetadata_.isMember(endpoint))
             {
+                Token oldToken = tokenMetadata_.getToken(endpoint);
+
                 /*
                  * If oldToken equals the newToken then the node had crashed
                  * and is coming back up again. If oldToken is not equal to
                  * the newToken this means that the node is being relocated
                  * to another position in the ring.
                 */
-                if ( !oldToken.equals(newToken) )
+                if (!oldToken.equals(newToken))
                 {
                     if (logger_.isDebugEnabled())
-                      logger_.debug("Relocation for endpoint " + endpoint);
+                        logger_.debug("Relocation for endpoint " + endpoint);
                     updateForeignToken(newToken, endpoint);
                 }
                 else
@@ -396,7 +397,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                      * Deliver the hints that we have for this endpoint.
                     */
                     if (logger_.isDebugEnabled())
-                      logger_.debug("Sending hinted data to " + endpoint);
+                        logger_.debug("Sending hinted data to " + endpoint);
                     deliverHints(endpoint);
                 }
             }
@@ -414,10 +415,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
              * If we are here and if this node is UP and already has an entry
              * in the token map. It means that the node was behind a network partition.
             */
-            if ( epState.isAlive() && tokenMetadata_.isKnownEndPoint(endpoint) )
+            if (epState.isAlive() && tokenMetadata_.isMember(endpoint))
             {
                 if (logger_.isDebugEnabled())
-                  logger_.debug("InetAddress " + endpoint + " just recovered from a partition. Sending hinted data.");
+                    logger_.debug("InetAddress " + endpoint + " just recovered from a partition. Sending hinted data.");
                 deliverHints(endpoint);
             }
         }

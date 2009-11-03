@@ -114,7 +114,8 @@ public class TokenMetadata
     public Token getToken(InetAddress endpoint)
     {
         assert endpoint != null;
-
+        assert isMember(endpoint); // don't want to return nulls
+        
         lock.readLock().lock();
         try
         {
@@ -126,7 +127,7 @@ public class TokenMetadata
         }
     }
     
-    public boolean isKnownEndPoint(InetAddress endpoint)
+    public boolean isMember(InetAddress endpoint)
     {
         assert endpoint != null;
 

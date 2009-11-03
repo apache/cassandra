@@ -110,7 +110,7 @@ public class BootStrapper
         }).start();
     }
 
-    public static void guessTokenIfNotSpecified() throws IOException
+    public static void guessTokenIfNotSpecified(TokenMetadata metadata) throws IOException
     {
         StorageService ss = StorageService.instance();
         StorageLoadBalancer slb = StorageLoadBalancer.instance();
@@ -122,8 +122,10 @@ public class BootStrapper
         {
             double maxLoad = 0;
             InetAddress maxEndpoint = null;
-            for (Map.Entry<InetAddress,Double> entry : slb.getLoadInfo().entrySet())
+            for (Map.Entry<InetAddress, Double> entry : slb.getLoadInfo().entrySet())
             {
+                if (!metadata.isMember(entry.getKey()))
+                    continue;
                 if (maxEndpoint == null || entry.getValue() > maxLoad)
                 {
                     maxEndpoint = entry.getKey();
