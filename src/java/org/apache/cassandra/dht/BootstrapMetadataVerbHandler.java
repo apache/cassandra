@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
@@ -93,7 +94,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
      * locally for each range and then stream them using
      * the Bootstrap protocol to the target endpoint.
     */
-    private void doTransfer(InetAddress target, List<Range> ranges) throws IOException
+    private void doTransfer(InetAddress target, Collection<Range> ranges) throws IOException
     {
         if ( ranges.size() == 0 )
         {

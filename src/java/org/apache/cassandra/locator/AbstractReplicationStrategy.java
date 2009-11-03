@@ -23,8 +23,8 @@ import java.util.*;
 
 import org.apache.log4j.Logger;
 
-import org.apache.commons.lang.StringUtils;
-
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -33,7 +33,6 @@ import org.apache.cassandra.service.IResponseResolver;
 import org.apache.cassandra.service.InvalidRequestException;
 import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 /**
  * This class contains a helper method that will be used by
@@ -177,46 +176,39 @@ public abstract class AbstractReplicationStrategy
 
     // TODO this is pretty inefficient. also the inverse (getRangeAddresses) below.
     // fixing this probably requires merging tokenmetadata into replicationstrategy, so we can cache/invalidate cleanly
-    public Map<InetAddress, Set<Range>> getAddressRanges(Map<Token, InetAddress> tokenMap)
+    public Multimap<InetAddress, Range> getAddressRanges(Map<Token, InetAddress> metadata)
     {
-        Map<InetAddress, Set<Range>> map = new HashMap<InetAddress, Set<Range>>();
+        Multimap<InetAddress, Range> map = HashMultimap.create();
 
-        for (InetAddress ep : tokenMap.values())
+        for (Token token : metadata.keySet())
         {
-            map.put(ep, new HashSet<Range>());
-        }
-
-        for (Token token : tokenMap.keySet())
-        {
-            Range range = getPrimaryRangeFor(token, tokenMap);
-            for (InetAddress ep : getNaturalEndpoints(token, tokenMap))
+            Range range = getPrimaryRangeFor(token, metadata);
+            for (InetAddress ep : getNaturalEndpoints(token, metadata))
             {
-                map.get(ep).add(range);
+                map.put(ep, range);
             }
         }
 
         return map;
     }
 
-    public Map<Range, Set<InetAddress>> getRangeAddresses(Map<Token, InetAddress> tokenMap)
+    public Multimap<Range, InetAddress> getRangeAddresses(Map<Token, InetAddress> metadata)
     {
-        Map<Range, Set<InetAddress>> map = new HashMap<Range, Set<InetAddress>>();
+        Multimap<Range, InetAddress> map = HashMultimap.create();
 
-        for (Token token : tokenMap.keySet())
+        for (Token token : metadata.keySet())
         {
-            Range range = getPrimaryRangeFor(token, tokenMap);
-            HashSet<InetAddress> addresses = new HashSet<InetAddress>();
-            for (InetAddress ep : getNaturalEndpoints(token, tokenMap))
+            Range range = getPrimaryRangeFor(token, metadata);
+            for (InetAddress ep : getNaturalEndpoints(token, metadata))
             {
-                addresses.add(ep);
+                map.put(range, ep);
             }
-            map.put(range, addresses);
         }
 
         return map;
     }
 
-    public Map<InetAddress, Set<Range>> getAddressRanges()
+    public Multimap<InetAddress, Range> getAddressRanges()
     {
         return getAddressRanges(tokenMetadata_.cloneTokenEndPointMap());
     }

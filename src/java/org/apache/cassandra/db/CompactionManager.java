@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -74,10 +75,10 @@ public class CompactionManager implements CompactionManagerMBean
     static class FileCompactor2 implements Callable<List<SSTableReader>>
     {
         private ColumnFamilyStore columnFamilyStore_;
-        private List<Range> ranges_;
+        private Collection<Range> ranges_;
         private InetAddress target_;
 
-        FileCompactor2(ColumnFamilyStore columnFamilyStore, List<Range> ranges, InetAddress target)
+        FileCompactor2(ColumnFamilyStore columnFamilyStore, Collection<Range> ranges, InetAddress target)
         {
             columnFamilyStore_ = columnFamilyStore;
             ranges_ = ranges;
@@ -187,7 +188,7 @@ public class CompactionManager implements CompactionManagerMBean
         compactor_.submit(new CleanupCompactor(columnFamilyStore));
     }
 
-    public Future<List<SSTableReader>> submit(ColumnFamilyStore columnFamilyStore, List<Range> ranges, InetAddress target)
+    public Future<List<SSTableReader>> submit(ColumnFamilyStore columnFamilyStore, Collection<Range> ranges, InetAddress target)
     {
         return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges, target) );
     }

@@ -18,13 +18,7 @@
 
 package org.apache.cassandra.dht;
 
- import java.util.ArrayList;
- import java.util.Collections;
- import java.util.HashMap;
- import java.util.HashSet;
- import java.util.List;
- import java.util.Map;
- import java.util.Set;
+ import java.util.*;
  import java.util.concurrent.locks.Condition;
  import java.io.IOException;
  import java.io.UnsupportedEncodingException;
@@ -54,6 +48,9 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.io.SSTableWriter;
  import org.apache.cassandra.db.ColumnFamilyStore;
  import org.apache.cassandra.db.Table;
+ import com.google.common.collect.Multimap;
+ import com.google.common.collect.HashMultimap;
+ import com.google.common.collect.ArrayListMultimap;
 
 
  /**
@@ -95,11 +92,11 @@ public class BootStrapper
         {
             public void run()
             {
-                Map<Range, Set<InetAddress>> rangesWithSourceTarget = getRangesWithSources();
+                Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources();
                 if (logger.isDebugEnabled())
                         logger.debug("Beginning bootstrap process for " + address + " ...");
                 /* Send messages to respective folks to stream data over to me */
-                for (Map.Entry<InetAddress, List<Range>> entry : getWorkMap(rangesWithSourceTarget).entrySet())
+                for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
                 {
                     InetAddress source = entry.getKey();
                     BootstrapMetadata bsMetadata = new BootstrapMetadata(address, entry.getValue());
@@ -147,24 +144,24 @@ public class BootStrapper
         }
     }
 
-    Map<Range, Set<InetAddress>> getRangesWithSources()
+    Multimap<Range, InetAddress> getRangesWithSources()
     {
         Map<Token, InetAddress> map = tokenMetadata.cloneTokenEndPointMap();
         assert map.size() > 0;
         map.put(token, address);
-        Set<Range> myRanges = replicationStrategy.getAddressRanges(map).get(address);
+        Collection<Range> myRanges = replicationStrategy.getAddressRanges(map).get(address);
         map.remove(token);
 
-        Map<Range, Set<InetAddress>> myRangeAddresses = new HashMap<Range, Set<InetAddress>>();
-        Map<Range, Set<InetAddress>> rangeAddresses = replicationStrategy.getRangeAddresses(map);
+        Multimap<Range, InetAddress> myRangeAddresses = HashMultimap.create();
+        Multimap<Range, InetAddress> rangeAddresses = replicationStrategy.getRangeAddresses(map);
         for (Range range : rangeAddresses.keySet())
         {
             for (Range myRange : myRanges)
             {
                 if (range.contains(myRange.right()))
                 {
-                    assert !myRangeAddresses.containsKey(myRange);
-                    myRangeAddresses.put(myRange, rangeAddresses.get(range));
+                    myRangeAddresses.putAll(myRange, rangeAddresses.get(range));
+                    break;
                 }
             }
         }
@@ -179,18 +176,18 @@ public class BootStrapper
         return btc.getToken();
     }
 
-    static Map<InetAddress, List<Range>> getWorkMap(Map<Range, Set<InetAddress>> rangesWithSourceTarget)
+    static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget)
     {
         return getWorkMap(rangesWithSourceTarget, FailureDetector.instance());
     }
 
-    static Map<InetAddress, List<Range>> getWorkMap(Map<Range, Set<InetAddress>> rangesWithSourceTarget, IFailureDetector failureDetector)
+    static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget, IFailureDetector failureDetector)
     {
         /*
          * Map whose key is the source node and the value is a map whose key is the
          * target and value is the list of ranges to be sent to it.
         */
-        Map<InetAddress, List<Range>> sources = new HashMap<InetAddress, List<Range>>();
+        Multimap<InetAddress, Range> sources = ArrayListMultimap.create();
 
         // TODO look for contiguous ranges and map them to the same source
         for (Range range : rangesWithSourceTarget.keySet())
@@ -199,13 +196,7 @@ public class BootStrapper
             {
                 if (failureDetector.isAlive(source))
                 {
-                    List<Range> ranges = sources.get(source);
-                    if (ranges == null)
-                    {
-                        ranges = new ArrayList<Range>();
-                        sources.put(source, ranges);
-                    }
-                    ranges.add(range);
+                    sources.put(source, range);
                     break;
                 }
             }

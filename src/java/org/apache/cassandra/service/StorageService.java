@@ -84,7 +84,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return partitioner_;
     }
 
-    public Set<Range> getLocalRanges()
+    public Collection<Range> getLocalRanges()
     {
         return getRangesForEndPoint(FBUtilities.getLocalAddress());
     }
@@ -672,7 +672,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param ep endpoint we are interested in.
      * @return ranges for the specified endpoint.
      */
-    Set<Range> getRangesForEndPoint(InetAddress ep)
+    Collection<Range> getRangesForEndPoint(InetAddress ep)
     {
         return replicationStrategy_.getAddressRanges().get(ep);
     }

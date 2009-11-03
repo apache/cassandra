@@ -23,6 +23,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
@@ -51,9 +52,9 @@ class BootstrapMetadata
     }
     
     protected InetAddress target_;
-    protected List<Range> ranges_;
+    protected Collection<Range> ranges_;
     
-    BootstrapMetadata(InetAddress target, List<Range> ranges)
+    BootstrapMetadata(InetAddress target, Collection<Range> ranges)
     {
         target_ = target;
         ranges_ = ranges;
