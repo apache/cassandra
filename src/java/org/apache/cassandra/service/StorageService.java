@@ -281,7 +281,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
         setAndBroadcastToken(storageMetadata_.getToken());
 
-        assert tokenMetadata_.cloneTokenEndPointMap().size() > 0;
+        assert tokenMetadata_.sortedTokens().size() > 0;
     }
 
     public boolean isBootstrapMode()
@@ -322,10 +322,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public Map<Range, List<String>> getRangeToEndPointMap()
     {
-        /* Get the token to endpoint map. */
-        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
         /* All the ranges for the tokens */
-        Range[] ranges = getAllRanges(tokenToEndPointMap.keySet());
+        List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
         for (Map.Entry<Range,List<InetAddress>> entry : constructRangeToEndPointMap(ranges).entrySet())
         {
@@ -340,34 +338,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * @param ranges
      * @return mapping of ranges to the replicas responsible for them.
     */
-    public Map<Range, List<InetAddress>> constructRangeToEndPointMap(Range[] ranges)
+    public Map<Range, List<InetAddress>> constructRangeToEndPointMap(List<Range> ranges)
     {
         Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
             rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right()));
         }
-        return rangeToEndPointMap;
-    }
-    
-    /**
-     * Construct the range to endpoint mapping based on the view as dictated
-     * by the mapping of token to endpoints passed in. 
-     * @param ranges
-     * @param tokenToEndPointMap mapping of token to endpoints.
-     * @return mapping of ranges to the replicas responsible for them.
-    */
-    public Map<Range, List<InetAddress>> constructRangeToEndPointMap(Range[] ranges, Map<Token, InetAddress> tokenToEndPointMap)
-    {
-        if (logger_.isDebugEnabled())
-          logger_.debug("Constructing range to endpoint map ...");
-        Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
-        for ( Range range : ranges )
-        {
-            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right(), tokenToEndPointMap));
-        }
-        if (logger_.isDebugEnabled())
-          logger_.debug("Done constructing range to endpoint map ...");
         return rangeToEndPointMap;
     }
 
@@ -643,7 +620,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     InetAddress getPredecessor(InetAddress ep)
     {
         Token token = tokenMetadata_.getToken(ep);
-        return tokenMetadata_.getEndPoint(replicationStrategy_.getPredecessor(token, tokenMetadata_.cloneTokenEndPointMap()));
+        return tokenMetadata_.getEndPoint(tokenMetadata_.getPredecessor(token));
     }
 
     /*
@@ -653,7 +630,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public InetAddress getSuccessor(InetAddress ep)
     {
         Token token = tokenMetadata_.getToken(ep);
-        return tokenMetadata_.getEndPoint(replicationStrategy_.getSuccessor(token, tokenMetadata_.cloneTokenEndPointMap()));
+        return tokenMetadata_.getEndPoint(tokenMetadata_.getSuccessor(token));
     }
 
     /**
@@ -663,8 +640,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public Range getPrimaryRangeForEndPoint(InetAddress ep)
     {
-        Token right = tokenMetadata_.getToken(ep);
-        return replicationStrategy_.getPrimaryRangeFor(right, tokenMetadata_.cloneTokenEndPointMap());
+        return tokenMetadata_.getPrimaryRangeFor(tokenMetadata_.getToken(ep));
     }
     
     /**
@@ -683,22 +659,23 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * ranges.
      * @return ranges in sorted order
     */
-    public Range[] getAllRanges(Set<Token> tokens)
+    public List<Range> getAllRanges(List<Token> sortedTokens)
     {
         if (logger_.isDebugEnabled())
-            logger_.debug("computing ranges for " + StringUtils.join(tokens, ", "));
+            logger_.debug("computing ranges for " + StringUtils.join(sortedTokens, ", "));
+
         List<Range> ranges = new ArrayList<Range>();
-        List<Token> allTokens = new ArrayList<Token>(tokens);
-        Collections.sort(allTokens);
-        int size = allTokens.size();
-        for ( int i = 1; i < size; ++i )
+        Collections.sort(sortedTokens);
+        int size = sortedTokens.size();
+        for (int i = 1; i < size; ++i)
         {
-            Range range = new Range( allTokens.get(i - 1), allTokens.get(i) );
+            Range range = new Range(sortedTokens.get(i - 1), sortedTokens.get(i));
             ranges.add(range);
         }
-        Range range = new Range( allTokens.get(size - 1), allTokens.get(0) );
+        Range range = new Range(sortedTokens.get(size - 1), sortedTokens.get(0));
         ranges.add(range);
-        return ranges.toArray( new Range[0] );
+
+        return ranges;
     }
 
     /**
@@ -712,11 +689,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         InetAddress endpoint = FBUtilities.getLocalAddress();
         Token token = partitioner_.getToken(key);
-        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        List tokens = new ArrayList<Token>(tokenMetadata_.sortedTokens());
         if (tokens.size() > 0)
         {
-            Collections.sort(tokens);
             int index = Collections.binarySearch(tokens, token);
             if (index >= 0)
             {
@@ -724,15 +699,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                  * retrieve the endpoint based on the token at this index in the
                  * tokens list
                  */
-                endpoint = tokenToEndPointMap.get(tokens.get(index));
+                endpoint = tokenMetadata_.getEndPoint((Token) tokens.get(index));
             }
             else
             {
                 index = (index + 1) * (-1);
                 if (index < tokens.size())
-                    endpoint = tokenToEndPointMap.get(tokens.get(index));
+                    endpoint = tokenMetadata_.getEndPoint((Token) tokens.get(index));
                 else
-                    endpoint = tokenToEndPointMap.get(tokens.get(0));
+                    endpoint = tokenMetadata_.getEndPoint((Token) tokens.get(0));
             }
         }
         return endpoint;
@@ -834,9 +809,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         throw new UnavailableException(); // no nodes that could contain key are alive
     }
 
-    Map<Token, InetAddress> getLiveEndPointMap()
+    Map<String, String> getStringEndpointMap()
     {
-        return tokenMetadata_.cloneTokenEndPointMap();
+        HashMap<String, String> map = new HashMap<String, String>();
+        for (Token t : tokenMetadata_.sortedTokens())
+        {
+            map.put(t.toString(), tokenMetadata_.getEndPoint(t).getHostAddress());
+        }
+        return map;
     }
 
     public void setLog4jLevel(String classQualifier, String rawLevel)

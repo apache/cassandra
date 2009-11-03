@@ -508,11 +508,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else if (propertyName.equals(TOKEN_MAP))
         {
-            HashMap<String, String> tokenToHostMap = new HashMap<String,String>();
-            Map<Token, InetAddress> endpointMap = storageService.getLiveEndPointMap();
-            for (Map.Entry<Token, InetAddress> e : endpointMap.entrySet())
-                tokenToHostMap.put(e.getKey().toString(), e.getValue().getHostAddress());
-            return new JSONSerializer().serialize(tokenToHostMap);
+            return new JSONSerializer().serialize(storageService.getStringEndpointMap());
         }
         else if (propertyName.equals("version"))
         {

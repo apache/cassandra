@@ -54,7 +54,7 @@ public class BootStrapperTest {
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
 
         TokenMetadata tmd = ss.getTokenMetadata();
-        assertEquals(numOldNodes, tmd.cloneTokenEndPointMap().size());
+        assertEquals(numOldNodes, tmd.sortedTokens().size());
         BootStrapper b = new BootStrapper(ss.getReplicationStrategy(), myEndpoint, myToken, tmd);
         Multimap<Range, InetAddress> res = b.getRangesWithSources();
         

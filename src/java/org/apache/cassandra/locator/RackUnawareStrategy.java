@@ -40,15 +40,15 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         super(tokenMetadata, partitioner, replicas, storagePort);
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, Map<Token, InetAddress> tokenToEndPointMap)
+    // TODO this doesn't need to worry about bootstrap tokens being in the normal tokens map
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         int startIndex;
         List<Token> tokenList = new ArrayList<Token>();
         int foundCount = 0;
-        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        List tokens = new ArrayList<Token>(metadata.sortedTokens());
         List<Token> bsTokens = null;
 
-        Collections.sort(tokens);
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
         {
@@ -75,8 +75,8 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
             }
         }
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(tokenList.size());
-        for (Token t: tokenList)
-            endpoints.add(tokenToEndPointMap.get(t));
+        for (Token t : tokenList)
+            endpoints.add(metadata.getEndPoint(t));
         return endpoints;
     }
 }

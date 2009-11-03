@@ -56,7 +56,7 @@ public abstract class AbstractReplicationStrategy
         storagePort_ = storagePort;
     }
 
-    public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, Map<Token, InetAddress> tokenToEndPointMap);
+    public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata);
     
     public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level) throws InvalidRequestException
     {
@@ -65,7 +65,7 @@ public abstract class AbstractReplicationStrategy
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token)
     {
-        return getNaturalEndpoints(token, tokenMetadata_.cloneTokenEndPointMap());
+        return getNaturalEndpoints(token, tokenMetadata_);
     }
     
     /*
@@ -88,28 +88,20 @@ public abstract class AbstractReplicationStrategy
      */
     public ArrayList<InetAddress> getWriteEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
     {
-        Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-        Map<Token, InetAddress> bootstrapTokensToEndpointMap = tokenMetadata_.cloneBootstrapNodes();
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
 
-        for (Token t : bootstrapTokensToEndpointMap.keySet())
+        for (Token t : tokenMetadata_.bootstrapTokens())
         {
-            InetAddress ep = bootstrapTokensToEndpointMap.get(t);
-            tokenToEndPointMap.put(t, ep);
-            try
+            TokenMetadata temp = tokenMetadata_.cloneMe();
+            InetAddress ep = tokenMetadata_.getBootstrapEndpoint(t);
+            temp.update(t, ep);
+            for (Range r : getAddressRanges(temp).get(ep))
             {
-                for (Range r : getAddressRanges(tokenToEndPointMap).get(ep))
+                if (r.contains(token))
                 {
-                    if (r.contains(token))
-                    {
-                        endpoints.add(ep);
-                        break;
-                    }
+                    endpoints.add(ep);
+                    break;
                 }
-            }
-            finally
-            {
-                tokenToEndPointMap.remove(t);
             }
         }
 
@@ -139,9 +131,7 @@ public abstract class AbstractReplicationStrategy
             {
                 // find another endpoint to store a hint on.  prefer endpoints that aren't already in use
                 InetAddress hintLocation = null;
-                Map<Token, InetAddress> tokenToEndPointMap = tokenMetadata_.cloneTokenEndPointMap();
-                List tokens = new ArrayList(tokenToEndPointMap.keySet());
-                Collections.sort(tokens);
+                List tokens = tokenMetadata_.sortedTokens();
                 Token token = tokenMetadata_.getToken(ep);
                 int index = Collections.binarySearch(tokens, token);
                 if (index < 0)
@@ -154,7 +144,7 @@ public abstract class AbstractReplicationStrategy
                 int startIndex = (index + 1) % totalNodes;
                 for (int i = startIndex, count = 1; count < totalNodes; ++count, i = (i + 1) % totalNodes)
                 {
-                    InetAddress tmpEndPoint = tokenToEndPointMap.get(tokens.get(i));
+                    InetAddress tmpEndPoint = tokenMetadata_.getEndPoint((Token) tokens.get(i));
                     if (FailureDetector.instance().isAlive(tmpEndPoint) && !targets.contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
                     {
                         hintLocation = tmpEndPoint;
@@ -176,13 +166,13 @@ public abstract class AbstractReplicationStrategy
 
     // TODO this is pretty inefficient. also the inverse (getRangeAddresses) below.
     // fixing this probably requires merging tokenmetadata into replicationstrategy, so we can cache/invalidate cleanly
-    public Multimap<InetAddress, Range> getAddressRanges(Map<Token, InetAddress> metadata)
+    public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata)
     {
         Multimap<InetAddress, Range> map = HashMultimap.create();
 
-        for (Token token : metadata.keySet())
+        for (Token token : metadata.sortedTokens())
         {
-            Range range = getPrimaryRangeFor(token, metadata);
+            Range range = metadata.getPrimaryRangeFor(token);
             for (InetAddress ep : getNaturalEndpoints(token, metadata))
             {
                 map.put(ep, range);
@@ -192,13 +182,13 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<Range, InetAddress> getRangeAddresses(Map<Token, InetAddress> metadata)
+    public Multimap<Range, InetAddress> getRangeAddresses(TokenMetadata metadata)
     {
         Multimap<Range, InetAddress> map = HashMultimap.create();
 
-        for (Token token : metadata.keySet())
+        for (Token token : metadata.sortedTokens())
         {
-            Range range = getPrimaryRangeFor(token, metadata);
+            Range range = metadata.getPrimaryRangeFor(token);
             for (InetAddress ep : getNaturalEndpoints(token, metadata))
             {
                 map.put(range, ep);
@@ -210,27 +200,6 @@ public abstract class AbstractReplicationStrategy
 
     public Multimap<InetAddress, Range> getAddressRanges()
     {
-        return getAddressRanges(tokenMetadata_.cloneTokenEndPointMap());
-    }
-
-    public Range getPrimaryRangeFor(Token right, Map<Token, InetAddress> tokenToEndPointMap)
-    {
-        return new Range(getPredecessor(right, tokenToEndPointMap), right);
-    }
-
-    public Token getPredecessor(Token token, Map<Token, InetAddress> tokenToEndPointMap)
-    {
-        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
-        Collections.sort(tokens);
-        int index = Collections.binarySearch(tokens, token);
-        return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(--index));
-    }
-
-    public Token getSuccessor(Token token, Map<Token, InetAddress> tokenToEndPointMap)
-    {
-        List tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
-        Collections.sort(tokens);
-        int index = Collections.binarySearch(tokens, token);
-        return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(++index));
+        return getAddressRanges(tokenMetadata_);
     }
 }

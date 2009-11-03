@@ -45,10 +45,8 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     /**
      * This Method will get the required information of the EndPoint from the
      * DataCenterEndPointSnitch and poopulates this singleton class.
-     *
-     * @param tokenToEndPointMap - Provided the endpoint map which will be mapped with the DC's
      */
-    private synchronized void loadEndPoints(Map<Token, InetAddress> tokenToEndPointMap, Collection<Token> tokens) throws IOException
+    private synchronized void loadEndPoints(TokenMetadata metadata) throws IOException
     {
         endPointSnitch = (DatacenterEndPointSnitch) StorageService.instance().getEndPointSnitch();
         this.tokens = new ArrayList<Token>(tokens);
@@ -56,7 +54,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
         {
-            InetAddress endPoint = tokenToEndPointMap.get(token);
+            InetAddress endPoint = metadata.getEndPoint(token);
             String dataCenter = endPointSnitch.getLocation(endPoint);
             if (dataCenter.equals(localDC))
             {
@@ -96,25 +94,24 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         assert (DatabaseDescriptor.getEndPointSnitch() instanceof DatacenterEndPointSnitch);
     }
 
-    @Override
-    public ArrayList<InetAddress> getNaturalEndpoints(Token searchToken, Map<Token, InetAddress> tokenToEndPointMap)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)
     {
         try
         {
-            return getNaturalEndpointsInternal(searchToken, tokenToEndPointMap);
+            return getNaturalEndpointsInternal(token, metadata);
         }
         catch (IOException e)
         {
-             throw new IOError(e);
+            throw new IOError(e);
         }
     }
 
-    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, Map<Token, InetAddress> tokenToEndPointMap) throws IOException
+    private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata) throws IOException
     {
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
-        if (null == tokens || this.tokens.size() != tokenToEndPointMap.keySet().size())
+        if (null == tokens || tokens.size() != metadata.sortedTokens().size())
         {
-            loadEndPoints(tokenToEndPointMap, tokenToEndPointMap.keySet());
+            loadEndPoints(metadata);
         }
 
         for (String dc : dcMap.keySet())
@@ -136,7 +133,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             }
             int totalNodes = tokens.size();
             // Add the node at the index by default
-            InetAddress primaryHost = tokenToEndPointMap.get(tokens.get(index));
+            InetAddress primaryHost = metadata.getEndPoint((Token) tokens.get(index));
             forloopReturn.add(primaryHost);
             foundCount++;
             if (replicas_ == 1)
@@ -147,7 +144,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             int startIndex = (index + 1) % totalNodes;
             for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i + 1) % totalNodes)
             {
-                InetAddress endPointOfIntrest = tokenToEndPointMap.get(tokens.get(i));
+                InetAddress endPointOfIntrest = metadata.getEndPoint((Token) tokens.get(i));
                 if ((replicas_ - 1) > foundCount)
                 {
                     forloopReturn.add(endPointOfIntrest);
@@ -163,7 +160,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 {
                     if (!endPointSnitch.isOnSameRack(primaryHost, endPointOfIntrest))
                     {
-                        forloopReturn.add(tokenToEndPointMap.get(tokens.get(i)));
+                        forloopReturn.add(metadata.getEndPoint((Token) tokens.get(i)));
                         bOtherRack = true;
                         foundCount++;
                     }
@@ -182,9 +179,10 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             */
             for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i + 1) % totalNodes)
             {
-                if (!forloopReturn.contains(tokenToEndPointMap.get(tokens.get(i))))
+                Token t = (Token) tokens.get(i);
+                if (!forloopReturn.contains(metadata.getEndPoint(t)))
                 {
-                    forloopReturn.add(tokenToEndPointMap.get(tokens.get(i)));
+                    forloopReturn.add(metadata.getEndPoint(t));
                     foundCount++;
                 }
             }

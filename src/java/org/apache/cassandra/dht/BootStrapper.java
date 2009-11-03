@@ -146,14 +146,13 @@ public class BootStrapper
 
     Multimap<Range, InetAddress> getRangesWithSources()
     {
-        Map<Token, InetAddress> map = tokenMetadata.cloneTokenEndPointMap();
-        assert map.size() > 0;
-        map.put(token, address);
-        Collection<Range> myRanges = replicationStrategy.getAddressRanges(map).get(address);
-        map.remove(token);
+        TokenMetadata temp = tokenMetadata.cloneMe();
+        assert temp.sortedTokens().size() > 0;
+        temp.update(token, address);
+        Collection<Range> myRanges = replicationStrategy.getAddressRanges(temp).get(address);
 
         Multimap<Range, InetAddress> myRangeAddresses = HashMultimap.create();
-        Multimap<Range, InetAddress> rangeAddresses = replicationStrategy.getRangeAddresses(map);
+        Multimap<Range, InetAddress> rangeAddresses = replicationStrategy.getRangeAddresses(tokenMetadata);
         for (Range range : rangeAddresses.keySet())
         {
             for (Range myRange : myRanges)

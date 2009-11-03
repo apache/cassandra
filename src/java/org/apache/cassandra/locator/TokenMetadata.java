@@ -23,6 +23,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.Range;
+
 import java.net.InetAddress;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
@@ -185,66 +187,41 @@ public class TokenMetadata
             lock.readLock().unlock();
         }
     }
-    
-    public Map<Token, InetAddress> cloneBootstrapNodes()
+
+    public TokenMetadata cloneMe()
     {
         lock.readLock().lock();
         try
-        {            
-            return new HashMap<Token, InetAddress>(bootstrapTokenMap);
+        {
+            return new TokenMetadata(HashBiMap.create(tokenToEndPointMap), HashBiMap.create(bootstrapTokenMap));
         }
         finally
         {
             lock.readLock().unlock();
         }
-        
     }
 
-    /*
-     * Returns a safe clone of tokenToEndPointMap_.
-    */
-    public Map<Token, InetAddress> cloneTokenEndPointMap()
-    {
-        lock.readLock().lock();
-        try
-        {            
-            return new HashMap<Token, InetAddress>(tokenToEndPointMap);
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-    
-    /*
-     * Returns a safe clone of endPointTokenMap_.
-    */
-    public Map<InetAddress, Token> cloneEndPointTokenMap()
-    {
-        lock.readLock().lock();
-        try
-        {            
-            return new HashMap<InetAddress, Token>(tokenToEndPointMap.inverse());
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-    
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        Set<InetAddress> eps = tokenToEndPointMap.inverse().keySet();
-
-        for ( InetAddress ep : eps )
+        lock.readLock().lock();
+        try
         {
-            sb.append(ep);
-            sb.append(":");
-            sb.append(tokenToEndPointMap.inverse().get(ep));
-            sb.append(System.getProperty("line.separator"));
+            Set<InetAddress> eps = tokenToEndPointMap.inverse().keySet();
+
+            for (InetAddress ep : eps)
+            {
+                sb.append(ep);
+                sb.append(":");
+                sb.append(tokenToEndPointMap.inverse().get(ep));
+                sb.append(System.getProperty("line.separator"));
+            }
         }
-        
+        finally
+        {
+            lock.readLock().unlock();
+        }
+
         return sb.toString();
     }
 
@@ -265,5 +242,50 @@ public class TokenMetadata
     {
         tokenToEndPointMap.clear();
         bootstrapTokenMap.clear();
+    }
+
+    public Range getPrimaryRangeFor(Token right)
+    {
+        return new Range(getPredecessor(right), right);
+    }
+
+    public List<Token> sortedTokens()
+    {
+        List<Token> tokens;
+        lock.readLock().lock();
+        try
+        {
+            tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+        Collections.sort(tokens);
+        return tokens;
+    }
+
+    public Token getPredecessor(Token token)
+    {
+        List tokens = sortedTokens();
+        int index = Collections.binarySearch(tokens, token);
+        return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(--index));
+    }
+
+    public Token getSuccessor(Token token)
+    {
+        List tokens = sortedTokens();
+        int index = Collections.binarySearch(tokens, token);
+        return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(++index));
+    }
+
+    public Iterable<? extends Token> bootstrapTokens()
+    {
+        return bootstrapTokenMap.keySet();
+    }
+
+    public InetAddress getBootstrapEndpoint(Token token)
+    {
+        return bootstrapTokenMap.get(token);
     }
 }
