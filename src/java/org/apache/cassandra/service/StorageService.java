@@ -301,7 +301,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (isBootstrapMode)
         {
             logger_.info("Starting in bootstrap mode");
-            doBootstrap(StorageService.getLocalStorageEndPoint());
+            bootStrapper_.submit(new BootStrapper(new EndPoint[]{StorageService.getLocalStorageEndPoint()}, storageMetadata_.getToken()));
             Gossiper.instance().addApplicationState(BOOTSTRAP_MODE, new ApplicationState(""));
         }
     }
@@ -317,9 +317,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /* TODO: used for testing */
-    public void updateTokenMetadata(Token token, EndPoint endpoint)
+    public void updateTokenMetadata(Token token, EndPoint endpoint, boolean bs)
     {
-        tokenMetadata_.update(token, endpoint);
+        tokenMetadata_.update(token, endpoint, bs);
     }
 
     public IEndPointSnitch getEndPointSnitch()
@@ -593,9 +593,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      * Starts the bootstrap operations for the specified endpoint.
      * @param endpoint
      */
-    public final void doBootstrap(EndPoint endpoint)
+    public final void doBootstrap(EndPoint endpoint, Token token)
     {
-        Token token = tokenMetadata_.getToken(endpoint);
         bootStrapper_.submit(new BootStrapper(new EndPoint[]{endpoint}, token));
     }
     

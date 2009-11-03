@@ -41,7 +41,7 @@ public class BootStrapperTest {
         /* New token needs to be part of the map for the algorithm
          * to calculate the ranges correctly
          */
-        StorageService.instance().updateTokenMetadata(newToken, newEndPoint);
+        StorageService.instance().updateTokenMetadata(newToken, newEndPoint, true);
 
         BootStrapper b = new BootStrapper(new EndPoint[]{newEndPoint}, newToken );
         Map<Range,List<BootstrapSourceTarget>> res = b.getRangesWithSourceTarget();
@@ -74,7 +74,7 @@ public class BootStrapperTest {
         {
             EndPoint e  = new EndPoint("127.0.0."+i, 100);
             Token t = p.getDefaultToken();
-            StorageService.instance().updateTokenMetadata(t, e);
+            StorageService.instance().updateTokenMetadata(t, e, false);
         }
         return p;
     }

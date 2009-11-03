@@ -137,7 +137,8 @@ public class BootStrapper implements Runnable
         if (logger_.isDebugEnabled())
           logger_.debug("Total number of new ranges " + newRanges.length);
         /* Calculate the list of nodes that handle the new ranges */
-        Map<Range, List<EndPoint>> newRangeToEndPointMap = StorageService.instance().constructRangeToEndPointMap(newRanges);
+        Map<Range, List<EndPoint>> newRangeToEndPointMap = 
+            StorageService.instance().constructRangeToEndPointMap(newRanges, tokenMetadata_.cloneTokenEndPointMapIncludingBootstrapNodes());
         /* Calculate ranges that need to be sent and from whom to where */
         Map<Range, List<BootstrapSourceTarget>> rangesWithSourceTarget = LeaveJoinProtocolHelper.getRangeSourceTargetInfo(oldRangeToEndPointMap, newRangeToEndPointMap);
         return rangesWithSourceTarget;

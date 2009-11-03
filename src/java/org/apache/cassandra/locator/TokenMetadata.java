@@ -213,6 +213,24 @@ public class TokenMetadata
         }
     }
     
+    public Map<Token, EndPoint> cloneTokenEndPointMapIncludingBootstrapNodes()
+    {
+        lock_.readLock().lock();
+        try
+        {            
+            Map h1 = new HashMap<Token, EndPoint>( tokenToEndPointMap_ );
+            for (Map.Entry<Token, EndPoint> e: bootstrapNodes.entrySet())
+            {
+                h1.put(e.getKey(), e.getValue());
+            }
+            return h1;
+        }
+        finally
+        {
+            lock_.readLock().unlock();
+        }
+    }
+    
     /*
      * Returns a safe clone of endPointTokenMap_.
     */
