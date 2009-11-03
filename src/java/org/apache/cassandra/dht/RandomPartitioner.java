@@ -104,13 +104,8 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
         return MINIMUM;
     }
 
-    public BigIntegerToken getDefaultToken()
+    public BigIntegerToken getRandomToken()
     {
-        String initialToken = DatabaseDescriptor.getInitialToken();
-        if (initialToken != null)
-            return new BigIntegerToken(new BigInteger(initialToken));
-
-        // generate random token
         String guid = GuidGenerator.guid();
         BigInteger token = FBUtilities.hash(guid);
         if ( token.signum() == -1 )

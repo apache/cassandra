@@ -76,11 +76,9 @@ public interface IPartitioner<T extends Token>
     public T getToken(String key);
 
     /**
-     * @return the default Token to represent this node if none was saved.
-     * Uses the one given in the InitialToken configuration directive,
-     * or picks one automatically if that was not given.
+     * @return a randomly generated token
      */
-    public T getDefaultToken();
+    public T getRandomToken();
 
     public Token.TokenFactory getTokenFactory();
     

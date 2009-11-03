@@ -43,12 +43,12 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public DecoratedKey<StringToken> decorateKey(String key)
     {
-        return new DecoratedKey<StringToken>(null, key);
+        return new DecoratedKey<StringToken>(new StringToken(key), key);
     }
     
     public DecoratedKey<StringToken> convertFromDiskFormat(String key)
     {
-        return new DecoratedKey<StringToken>(null, key);
+        return new DecoratedKey<StringToken>(new StringToken(key), key);
     }
 
     public String convertToDiskFormat(DecoratedKey<StringToken> key)
@@ -164,13 +164,8 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return MINIMUM;
     }
 
-    public StringToken getDefaultToken()
+    public StringToken getRandomToken()
     {
-        String initialToken = DatabaseDescriptor.getInitialToken();
-        if (initialToken != null)
-            return new StringToken(initialToken);
-
-        // generate random token
         String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         Random r = new Random();
         StringBuilder buffer = new StringBuilder();

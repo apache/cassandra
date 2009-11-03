@@ -147,14 +147,8 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
         return MINIMUM;
     }
 
-    public BytesToken getDefaultToken()
+    public BytesToken getRandomToken()
     {
-        String initialToken = DatabaseDescriptor.getInitialToken();
-        if (initialToken != null)
-            // assume that the user specified the intial Token as a String key
-            return getToken(initialToken);
-
-        // generate random token
         Random r = new Random();
         byte[] buffer = new byte[16];
         r.nextBytes(buffer);

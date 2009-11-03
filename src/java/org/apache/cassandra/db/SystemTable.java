@@ -28,11 +28,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BasicUtilities;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 import java.net.InetAddress;
 
 public class SystemTable
@@ -121,7 +122,13 @@ public class SystemTable
         IPartitioner p = StorageService.getPartitioner();
         if (cf == null)
         {
-            Token token = p.getDefaultToken();
+            Token token;
+            String initialToken = DatabaseDescriptor.getInitialToken();
+            if (initialToken == null)
+                token = p.getRandomToken();
+            else
+                token = p.getToken(initialToken);
+
             logger.info("Saved Token not found. Using " + token);
             // seconds-since-epoch isn't a foolproof new generation
             // (where foolproof is "guaranteed to be larger than the last one seen at this ip address"),

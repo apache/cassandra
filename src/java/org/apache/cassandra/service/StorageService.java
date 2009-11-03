@@ -844,10 +844,22 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         tokens.add(range.left().toString());
 
         List<DecoratedKey> decoratedKeys = SSTableReader.getIndexedDecoratedKeys();
-        for (int i = 1; i < splits; i++)
+        if (decoratedKeys.size() < splits)
         {
-            int index = i * (decoratedKeys.size() / splits);
-            tokens.add(decoratedKeys.get(index).token.toString());
+            // not enough keys to generate good splits -- generate random ones instead
+            // (since this only happens when we don't have many keys, it doesn't really matter that the splits are poor)
+            for (int i = 1; i < splits; i++)
+            {
+                tokens.add(partitioner_.getRandomToken().toString());
+            }
+        }
+        else
+        {
+            for (int i = 1; i < splits; i++)
+            {
+                int index = i * (decoratedKeys.size() / splits);
+                tokens.add(decoratedKeys.get(index).token.toString());
+            }
         }
 
         tokens.add(range.right().toString());
