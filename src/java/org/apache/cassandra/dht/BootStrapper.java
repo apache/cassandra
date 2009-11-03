@@ -148,6 +148,7 @@ public class BootStrapper
         }
     }
 
+    /** get potential sources for each range, ordered by proximity (as determined by EndPointSnitch) */
     Multimap<Range, InetAddress> getRangesWithSources()
     {
         TokenMetadata temp = tokenMetadata.cloneMe();
@@ -155,7 +156,7 @@ public class BootStrapper
         temp.update(token, address);
         Collection<Range> myRanges = replicationStrategy.getAddressRanges(temp).get(address);
 
-        Multimap<Range, InetAddress> myRangeAddresses = HashMultimap.create();
+        Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();
         Multimap<Range, InetAddress> rangeAddresses = replicationStrategy.getRangeAddresses(tokenMetadata);
         for (Range range : rangeAddresses.keySet())
         {
@@ -163,7 +164,8 @@ public class BootStrapper
             {
                 if (range.contains(myRange.right()))
                 {
-                    myRangeAddresses.putAll(myRange, rangeAddresses.get(range));
+                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch().sortByProximity(address, rangeAddresses.get(range));
+                    myRangeAddresses.putAll(myRange, preferred);
                     break;
                 }
             }

@@ -21,6 +21,9 @@ package org.apache.cassandra.locator;
 import java.net.UnknownHostException;
 
 import java.net.InetAddress;
+import java.util.Set;
+import java.util.List;
+import java.util.Collection;
 
 
 /**
@@ -55,4 +58,9 @@ public interface IEndPointSnitch
      * Given endpoints this method will help us know the datacenter name where the node is located at.
      */
     public String getLocation(InetAddress endpoint) throws UnknownHostException;
+
+    /**
+     * This method will sort the Set<InetAddress> according to the proximity of the given address.
+     */
+    public List<InetAddress> sortByProximity(InetAddress address, Collection<InetAddress> unsortedAddress);
 }

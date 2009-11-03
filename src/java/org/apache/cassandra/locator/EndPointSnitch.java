@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.*;
 
 public class EndPointSnitch implements IEndPointSnitch
 {
@@ -52,5 +53,34 @@ public class EndPointSnitch implements IEndPointSnitch
     public String getLocation(InetAddress endpoint) throws UnknownHostException
     {
         throw new UnknownHostException("Not Supported");
+    }
+
+    public List<InetAddress> sortByProximity(final InetAddress address, Collection<InetAddress> unsortedAddress)
+    {
+        List<InetAddress> preferred = new ArrayList<InetAddress>(unsortedAddress);
+        Collections.sort(preferred, new Comparator<InetAddress>()
+        {
+            public int compare(InetAddress a1, InetAddress a2)
+            {
+                try
+                {
+                    if (isOnSameRack(address, a1) && !isOnSameRack(address, a2))
+                        return -1;
+                    if (isOnSameRack(address, a2) && !isOnSameRack(address, a1))
+                        return 1;
+                    if (isInSameDataCenter(address, a1) && !isInSameDataCenter(address, a2))
+                        return -1;
+                    if (isInSameDataCenter(address, a2) && !isInSameDataCenter(address, a1))
+                        return 1;
+                    return 0;
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+
+        return preferred;
     }
 }
