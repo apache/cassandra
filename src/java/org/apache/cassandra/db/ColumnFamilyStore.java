@@ -1102,31 +1102,41 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert columnFamily_.equals(filter.getColumnFamilyName());
 
         long start = System.currentTimeMillis();
-
-        // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
-        if (filter.path.superColumnName != null)
+        try
         {
-            QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
-            ColumnFamily cf = getColumnFamily(nameFilter);
-            if (cf == null || cf.getColumnCount() == 0)
-                return cf;
+            // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
+            if (filter.path.superColumnName != null)
+            {
+                QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
+                ColumnFamily cf = getColumnFamilyInternal(nameFilter, getDefaultGCBefore());
+                if (cf == null || cf.getColumnCount() == 0)
+                    return cf;
 
-            assert cf.getSortedColumns().size() == 1;
-            SuperColumn sc = (SuperColumn)cf.getSortedColumns().iterator().next();
-            SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
-            ColumnFamily cfFiltered = cf.cloneMeShallow();
-            cfFiltered.addColumn(scFiltered);
-            readStats_.add(System.currentTimeMillis() - start);
-            return cfFiltered;
+                assert cf.getSortedColumns().size() == 1;
+                SuperColumn sc = (SuperColumn)cf.getSortedColumns().iterator().next();
+                SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
+                ColumnFamily cfFiltered = cf.cloneMeShallow();
+                cfFiltered.addColumn(scFiltered);
+                return removeDeleted(cfFiltered, gcBefore);
+            }
+
+            return removeDeleted(getColumnFamilyInternal(filter, gcBefore), gcBefore);
         }
+        finally
+        {
+            readStats_.add(System.currentTimeMillis() - start);
+        }
+    }
 
+    private ColumnFamily getColumnFamilyInternal(QueryFilter filter, int gcBefore) throws IOException
+    {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
         try
         {
             final ColumnFamily returnCF;
             ColumnIterator iter;
-        
+
             /* add the current memtable */
             Table.flusherLock_.readLock().lock();
             try
@@ -1137,7 +1147,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             finally
             {
                 Table.flusherLock_.readLock().unlock();
-            }        
+            }
             iterators.add(iter);
 
             /* add the memtables being flushed */
@@ -1166,8 +1176,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return null;
 
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
-
-            return removeDeleted(returnCF, gcBefore); // collect does a first pass but doesn't try to recognize e.g. the entire CF being tombstoned
+            return returnCF;
         }
         finally
         {
@@ -1183,8 +1192,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     logger_.error("error closing " + ci, th);
                 }
             }
-
-            readStats_.add(System.currentTimeMillis() - start);
         }
     }
 
