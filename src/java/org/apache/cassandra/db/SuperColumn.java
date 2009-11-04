@@ -49,10 +49,15 @@ public final class SuperColumn implements IColumn, IColumnContainer
 
     SuperColumn(byte[] name, AbstractType comparator)
     {
+        this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator));
+    }
+
+    private SuperColumn(byte[] name, ConcurrentSkipListMap<byte[], IColumn> columns)
+    {
         assert name != null;
         assert name.length <= IColumn.MAX_NAME_LENGTH;
     	name_ = name;
-        columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
+        columns_ = columns;
     }
 
     public AbstractType getComparator()
@@ -63,6 +68,14 @@ public final class SuperColumn implements IColumn, IColumnContainer
     public SuperColumn cloneMeShallow()
     {
         SuperColumn sc = new SuperColumn(name_, getComparator());
+        sc.markForDeleteAt(localDeletionTime, markedForDeleteAt);
+        return sc;
+    }
+
+
+    public IColumn cloneMe()
+    {
+        SuperColumn sc = new SuperColumn(name_, new ConcurrentSkipListMap<byte[], IColumn>(columns_));
         sc.markForDeleteAt(localDeletionTime, markedForDeleteAt);
         return sc;
     }

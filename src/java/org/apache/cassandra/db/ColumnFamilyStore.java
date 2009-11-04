@@ -499,45 +499,55 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
         }
 
+        if (cf.isSuper())
+            removeDeletedSuper(cf, gcBefore);
+        else
+            removeDeletedStandard(cf, gcBefore);
+
         // in case of a timestamp tie, tombstones get priority over non-tombstones.
         // (we want this to be deterministic to avoid confusion.)
-        for (byte[] cname : cf.getColumnNames())
-        {
-            IColumn c = cf.getColumnsMap().get(cname);
-            if (c instanceof SuperColumn)
-            {
-                long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
-                // don't operate directly on the supercolumn, it could be the one in the memtable.
-                // instead, create a new SC and add in the subcolumns that qualify.
-                cf.remove(cname);
-                SuperColumn sc = ((SuperColumn)c).cloneMeShallow();
-                for (IColumn subColumn : c.getSubColumns())
-                {
-                    if (subColumn.timestamp() > minTimestamp)
-                    {
-                        if (!subColumn.isMarkedForDelete() || subColumn.getLocalDeletionTime() > gcBefore)
-                        {
-                            sc.addColumn(subColumn);
-                        }
-                    }
-                }
-                if (sc.getSubColumns().size() > 0 || sc.getLocalDeletionTime() > gcBefore)
-                {
-                    cf.addColumn(sc);
-                }
-            }
-            else if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
-                     || c.timestamp() <= cf.getMarkedForDeleteAt())
-            {
-                cf.remove(cname);
-            }
-        }
-
         if (cf.getColumnCount() == 0 && cf.getLocalDeletionTime() <= gcBefore)
         {
             return null;
         }
         return cf;
+    }
+
+    private static void removeDeletedStandard(ColumnFamily cf, int gcBefore)
+    {
+        for (byte[] cname : cf.getColumnNames())
+        {
+            IColumn c = cf.getColumnsMap().get(cname);
+            if ((c.isMarkedForDelete() && c.getLocalDeletionTime() <= gcBefore)
+                || c.timestamp() <= cf.getMarkedForDeleteAt())
+            {
+                cf.remove(cname);
+            }
+        }
+    }
+
+    private static void removeDeletedSuper(ColumnFamily cf, int gcBefore)
+    {
+        // TODO assume deletion means "most are deleted?" and add to clone, instead of remove from original?
+        // this could be improved by having compaction, or possibly even removeDeleted, r/m the tombstone
+        // once gcBefore has passed, so if new stuff is added in it doesn't used the wrong algorithm forever
+        for (byte[] cname : cf.getColumnNames())
+        {
+            IColumn c = cf.getColumnsMap().get(cname);
+            long minTimestamp = Math.max(c.getMarkedForDeleteAt(), cf.getMarkedForDeleteAt());
+            for (IColumn subColumn : c.getSubColumns())
+            {
+                if (subColumn.timestamp() <= minTimestamp
+                    || (subColumn.isMarkedForDelete() && subColumn.getLocalDeletionTime() <= gcBefore))
+                {
+                    ((SuperColumn)c).remove(subColumn.name());
+                }
+            }
+            if (c.getSubColumns().isEmpty() && c.getLocalDeletionTime() <= gcBefore)
+            {
+                cf.remove(c.name());
+            }
+        }
     }
 
     /*

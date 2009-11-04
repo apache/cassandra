@@ -66,6 +66,8 @@ public class SliceQueryFilter extends QueryFilter
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
     {
+        // we clone shallow, then add, under the theory that generally we're interested in a relatively small number of subcolumns.
+        // this may be a poor assumption.
         SuperColumn scFiltered = superColumn.cloneMeShallow();
         Iterator<IColumn> subcolumns;
         if (reversed)

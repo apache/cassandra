@@ -100,8 +100,8 @@ public class RemoveSuperColumnTest
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
         ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super1"), "SC1".getBytes()));
-        assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
-        assert resolved.getSortedColumns().iterator().next().getSubColumns().size() == 0;
+        assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1 : resolved;
+        assert resolved.getSortedColumns().iterator().next().getSubColumns().size() == 0 : resolved;
         assertNull(ColumnFamilyStore.removeDeleted(resolved, Integer.MAX_VALUE));
         assertNull(store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super1"), "SC1".getBytes()), Integer.MAX_VALUE));
         assertNull(store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Super1")), Integer.MAX_VALUE));

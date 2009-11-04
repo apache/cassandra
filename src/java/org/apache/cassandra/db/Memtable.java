@@ -262,7 +262,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         if (filter.reversed)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
-        if (DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard"))
+        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard");
+        if (isStandard)
             startIColumn = new Column(filter.start);
         else
             startIColumn = new SuperColumn(filter.start, null); // ok to not have subcolumnComparator since we won't be adding columns to this object
@@ -298,7 +299,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 
             public IColumn next()
             {
-                return columns[curIndex_++];
+                // clone supercolumns so caller can freely removeDeleted or otherwise mutate it
+                return isStandard ? columns[curIndex_++] : ((SuperColumn)columns[curIndex_++]).cloneMe();
             }
         };
     }
@@ -307,6 +309,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     {
         final ColumnFamily cf = columnFamilies_.get(partitioner_.decorateKey(filter.key));
         final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
+        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard");
 
         return new SimpleAbstractColumnIterator()
         {
@@ -329,7 +332,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
                     current = iter.next();
                     IColumn column = cf.getColumn(current);
                     if (column != null)
-                        return column;
+                        // clone supercolumns so caller can freely removeDeleted or otherwise mutate it
+                        return isStandard ? column : ((SuperColumn)column).cloneMe();
                 }
                 return endOfData();
             }
