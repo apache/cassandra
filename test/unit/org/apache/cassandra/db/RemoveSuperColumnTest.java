@@ -32,6 +32,8 @@ import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.addMutation;
 import static org.apache.cassandra.Util.getBytes;
+import org.apache.cassandra.Util;
+import static junit.framework.Assert.assertNotNull;
 
 public class RemoveSuperColumnTest
 {
@@ -63,6 +65,37 @@ public class RemoveSuperColumnTest
         validateRemoveCompacted();
     }
 
+    @Test
+    public void testRemoveDeletedSubColumn() throws IOException, ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super3");
+        RowMutation rm;
+
+        // add data
+        rm = new RowMutation("Keyspace1", "key1");
+        addMutation(rm, "Super3", "SC1", 1, "val1", 0);
+        addMutation(rm, "Super3", "SC1", 2, "val1", 0);
+        rm.apply();
+        store.forceBlockingFlush();
+
+        // remove
+        rm = new RowMutation("Keyspace1", "key1");
+        rm.delete(new QueryPath("Super3", "SC1".getBytes(), Util.getBytes(1)), 1);
+        rm.apply();
+
+        validateRemoveSubColumn();
+
+        store.forceBlockingFlush();
+        validateRemoveSubColumn();
+    }
+
+    private void validateRemoveSubColumn() throws IOException
+    {
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super3");
+        assertNull(store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super3", "SC1".getBytes()), Util.getBytes(1)), Integer.MAX_VALUE));
+        assertNotNull(store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super3", "SC1".getBytes()), Util.getBytes(2)), Integer.MAX_VALUE));
+    }
+
     private void validateRemoveTwoSources() throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super1");
@@ -70,6 +103,8 @@ public class RemoveSuperColumnTest
         assert resolved.getSortedColumns().iterator().next().getMarkedForDeleteAt() == 1;
         assert resolved.getSortedColumns().iterator().next().getSubColumns().size() == 0;
         assertNull(ColumnFamilyStore.removeDeleted(resolved, Integer.MAX_VALUE));
+        assertNull(store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super1"), "SC1".getBytes()), Integer.MAX_VALUE));
+        assertNull(store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Super1")), Integer.MAX_VALUE));
         assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Super1"))), Integer.MAX_VALUE));
     }
 
