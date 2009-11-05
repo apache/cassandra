@@ -39,4 +39,8 @@ public interface IEndPointStateChangeSubscriber
      * @param epState state that actually changed for the above endpoint.
      */
     public void onChange(InetAddress endpoint, EndPointState epState);
+
+    public void onAlive(InetAddress endpoint, EndPointState state);
+
+    public void onDead(InetAddress endpoint, EndPointState state);
 }

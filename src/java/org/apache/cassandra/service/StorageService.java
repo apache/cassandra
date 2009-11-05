@@ -370,20 +370,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             tokenMetadata_.setBootstrapping(endpoint,  bootstrapState);
         }
 
-        if (nodeIdState == null)
-        {
-            /*
-             * If we are here and if this node is UP and already has an entry
-             * in the token map. It means that the node was behind a network partition.
-            */
-            if (epState.isAlive() && tokenMetadata_.isMember(endpoint))
-            {
-                if (logger_.isDebugEnabled())
-                    logger_.debug("InetAddress " + endpoint + " just recovered from a partition. Sending hinted data.");
-                deliverHints(endpoint);
-            }
-        }
-        else
+        if (nodeIdState != null)
         {
             Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
             if (logger_.isDebugEnabled())
@@ -394,8 +381,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 Token oldToken = tokenMetadata_.getToken(endpoint);
 
                 /*
-                 * If oldToken equals the newToken then the node had crashed
-                 * and is coming back up again. If oldToken is not equal to
+                 * If oldToken is not equal to
                  * the newToken this means that the node is being relocated
                  * to another position in the ring.
                 */
@@ -404,16 +390,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                     if (logger_.isDebugEnabled())
                         logger_.debug("Relocation for endpoint " + endpoint);
                     updateForeignToken(newToken, endpoint);
-                }
-                else
-                {
-                    /*
-                     * This means the node crashed and is coming back up.
-                     * Deliver the hints that we have for this endpoint.
-                    */
-                    if (logger_.isDebugEnabled())
-                        logger_.debug("Sending hinted data to " + endpoint);
-                    deliverHints(endpoint);
                 }
             }
             else
@@ -425,6 +401,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             }
         }
     }
+
+    public void onAlive(InetAddress endpoint, EndPointState state)
+    {
+        deliverHints(endpoint);
+    }
+
+    public void onDead(InetAddress endpoint, EndPointState state) {}
 
     /** raw load value */
     public double getLoad()

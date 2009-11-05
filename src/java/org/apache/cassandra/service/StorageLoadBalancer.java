@@ -227,7 +227,11 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }       
     }
 
-    /*
+    public void onAlive(InetAddress endpoint, EndPointState state) {}
+
+    public void onDead(InetAddress endpoint, EndPointState state) {}
+
+/*
     private boolean isMoveable()
     {
         if ( !isMoveable_.get() )

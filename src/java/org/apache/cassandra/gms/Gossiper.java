@@ -198,22 +198,15 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     public void convict(InetAddress endpoint)
     {
         EndPointState epState = endPointStateMap_.get(endpoint);
-        if ( epState != null )
+        if (epState != null)
         {
-            if ( !epState.isAlive() && epState.isAGossiper() )
+            if (!epState.isAlive() && epState.isAGossiper())
             {
-                /*
-                 * just to be sure - is invoked just to make sure that
-                 * it was called at least once.
-                */
-                if ( liveEndpoints_.contains(endpoint) )
+                // just to be sure - should already have been done by suspect()
+                if (liveEndpoints_.contains(endpoint))
                 {
                     logger_.info("InetAddress " + endpoint + " is now dead.");
                     isAlive(endpoint, epState, false);
-
-                    /* Notify an endpoint is dead to interested parties. */
-                    EndPointState deltaState = new EndPointState(epState.getHeartBeatState());
-                    doNotifications(endpoint, deltaState);
                 }
                 epState.isAGossiper(false);
             }
@@ -229,14 +222,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     public void suspect(InetAddress endpoint)
     {
         EndPointState epState = endPointStateMap_.get(endpoint);
-        if ( epState.isAlive() )
+        if (epState.isAlive())
         {
             logger_.info("InetAddress " + endpoint + " is now dead.");
             isAlive(endpoint, epState, false);
-
-            /* Notify an endpoint is dead to interested parties. */
-            EndPointState deltaState = new EndPointState(epState.getHeartBeatState());
-            doNotifications(endpoint, deltaState);
         }
     }
 
@@ -771,17 +760,21 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     synchronized void isAlive(InetAddress addr, EndPointState epState, boolean value)
     {
         epState.isAlive(value);
-        if ( value )
+        if (value)
         {
             liveEndpoints_.add(addr);
             unreachableEndpoints_.remove(addr);
+            for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+                subscriber.onAlive(addr, epState);
         }
         else
         {
             liveEndpoints_.remove(addr);
             unreachableEndpoints_.add(addr);
+            for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+                subscriber.onDead(addr, epState);
         }
-        if ( epState.isAGossiper() )
+        if (epState.isAGossiper())
             return;
         epState.isAGossiper(true);
     }
@@ -920,10 +913,8 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     public synchronized void addApplicationState(String key, ApplicationState appState)
     {
         EndPointState epState = endPointStateMap_.get(localEndPoint_);
-        if ( epState != null )
-        {
-            epState.addApplicationState(key, appState);
-        }
+        assert epState != null;
+        epState.addApplicationState(key, appState);
     }
 
     public void stop()
