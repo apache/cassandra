@@ -25,3 +25,7 @@ This product makes use of the JUnit test framework (http://junit.org).
 
 Logging abstraction provided by SLF4J (http://www.slf4j.org).
 Copyright (c) 2004-2008 QOS.ch
+
+Some alternate data structures provided by concurrentlinkedhashmap
+from http://code.google.com/p/concurrentlinkedhashmap/.
+Copyright 2009 Benjamin Manes
