@@ -46,6 +46,7 @@ public class TokenMetadata
     
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
+    private List<Token> sortedTokens;
 
     public TokenMetadata()
     {
@@ -61,6 +62,14 @@ public class TokenMetadata
             bootstrapTokenMap = HashBiMap.create();
         this.tokenToEndPointMap = tokenToEndPointMap;
         this.bootstrapTokenMap = bootstrapTokenMap;
+        sortedTokens = sortTokens();
+    }
+
+    private List<Token> sortTokens()
+    {
+        List<Token> tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+        Collections.sort(tokens);
+        return Collections.unmodifiableList(tokens);
     }
 
     public TokenMetadata(BiMap<Token, InetAddress> tokenEndpointMap)
@@ -84,6 +93,7 @@ public class TokenMetadata
             {
                 Map<Token, InetAddress> map = bootstrapping.contains(endpoint) ? bootstrapTokenMap : tokenToEndPointMap;
                 map.put(t, endpoint);
+                sortedTokens = sortTokens();
             }
         }
         finally
@@ -122,6 +132,7 @@ public class TokenMetadata
             Map<Token, InetAddress> otherMap = bootstrapping.contains(endpoint) ? tokenToEndPointMap : bootstrapTokenMap;
             map.put(token, endpoint);
             otherMap.remove(token);
+            sortedTokens = sortTokens();
         }
         finally
         {
@@ -240,18 +251,15 @@ public class TokenMetadata
 
     public List<Token> sortedTokens()
     {
-        List<Token> tokens;
         lock.readLock().lock();
         try
         {
-            tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
+            return sortedTokens;
         }
         finally
         {
             lock.readLock().unlock();
         }
-        Collections.sort(tokens);
-        return tokens;
     }
 
     public Token getPredecessor(Token token)
