@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.TimedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.gms.FailureDetector;
 
 import org.apache.log4j.Logger;
 
@@ -567,7 +568,10 @@ public class StorageProxy implements StorageProxyMBean
             // but that won't work when you have a replication factor of more than one--any node, not just
             // the one holding the keys where the range wraps, could include both the smallest keys, and the largest,
             // so starting with the largest in our scan of the next node means we'd never see keys from the middle.
-            endPoint = tokenMetadata.getNextEndpoint(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
+            do
+            {
+                endPoint = tokenMetadata.getSuccessor(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
+            } while (!FailureDetector.instance().isAlive(endPoint));
             int maxResults = endPoint == wrapEndpoint ? rawCommand.maxResults : rawCommand.maxResults - allKeys.size();
             command = new RangeCommand(command.table, command.columnFamily, command.startWith, command.stopAt, maxResults);
         } while (!endPoint.equals(startEndpoint));

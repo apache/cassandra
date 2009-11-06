@@ -176,36 +176,6 @@ public class TokenMetadata
             lock.readLock().unlock();
         }
     }
-    
-
-    public InetAddress getNextEndpoint(InetAddress endpoint) throws UnavailableException
-    {
-        assert endpoint != null;
-
-        lock.readLock().lock();
-        try
-        {
-            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
-            if (tokens.isEmpty())
-                return null;
-            Collections.sort(tokens);
-            int i = tokens.indexOf(tokenToEndPointMap.inverse().get(endpoint)); // TODO binary search
-            int j = 1;
-            InetAddress ep;
-            while (!FailureDetector.instance().isAlive((ep = tokenToEndPointMap.get(tokens.get((i + j) % tokens.size())))))
-            {
-                if (++j > DatabaseDescriptor.getReplicationFactor())
-                {
-                    throw new UnavailableException();
-                }
-            }
-            return ep;
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
 
     public TokenMetadata cloneMe()
     {
@@ -298,6 +268,11 @@ public class TokenMetadata
         int index = Collections.binarySearch(tokens, token);
         assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndPointMap.keySet(), ", ");
         return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1));
+    }
+
+    public InetAddress getSuccessor(InetAddress endPoint)
+    {
+        return getEndPoint(getSuccessor(getToken(endPoint)));
     }
 
     public Iterable<? extends Token> bootstrapTokens()
