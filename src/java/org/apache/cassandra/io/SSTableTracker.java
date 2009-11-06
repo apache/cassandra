@@ -17,6 +17,8 @@ public class SSTableTracker implements Iterable<SSTableReader>
 
     public synchronized void add(SSTableReader sstable)
     {
+        assert sstable != null;
+        assert sstable.getIndexPositions() != null;
         Set<SSTableReader> sstablesNew = new HashSet<SSTableReader>(sstables);
         sstablesNew.add(sstable);
         sstables = Collections.unmodifiableSet(sstablesNew);

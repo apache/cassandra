@@ -116,6 +116,11 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         }
     }
 
+    public boolean isClean()
+    {
+        return columnFamilies_.isEmpty();
+    }
+
     private void resolve(String key, byte[] buffer)
     {
         columnFamilies_.put(partitioner_.decorateKey(key), buffer);
