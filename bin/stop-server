@@ -28,4 +28,4 @@ echo "please read the stop-server script before use"
 # with cassandra in their name or arguments too:
 
 # user=`whoami`
-# pgrep -u $user -f cassandra | xargs kill
+# pgrep -u $user -f cassandra | xargs kill -9
