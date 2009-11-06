@@ -31,8 +31,10 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.service.UnavailableException;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
@@ -40,28 +42,23 @@ public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
     private BiMap<Token, InetAddress> tokenToEndPointMap;
-    /* Bootstrapping nodes and their tokens */
-    private Set<InetAddress> bootstrapping;
-    private BiMap<Token, InetAddress> bootstrapTokenMap;
-    
+    private Map<Range, InetAddress> pendingRanges;
+
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
     private List<Token> sortedTokens;
 
     public TokenMetadata()
     {
-        this(null, null);
+        this(null);
     }
 
-    public TokenMetadata(BiMap<Token, InetAddress> tokenToEndPointMap, BiMap<Token, InetAddress> bootstrapTokenMap)
+    public TokenMetadata(BiMap<Token, InetAddress> tokenToEndPointMap)
     {
-        bootstrapping = new NonBlockingHashSet<InetAddress>();
         if (tokenToEndPointMap == null)
             tokenToEndPointMap = HashBiMap.create();
-        if (bootstrapTokenMap == null)
-            bootstrapTokenMap = HashBiMap.create();
         this.tokenToEndPointMap = tokenToEndPointMap;
-        this.bootstrapTokenMap = bootstrapTokenMap;
+        pendingRanges = new NonBlockingHashMap<Range, InetAddress>();
         sortedTokens = sortTokens();
     }
 
@@ -72,47 +69,15 @@ public class TokenMetadata
         return Collections.unmodifiableList(tokens);
     }
 
-    public TokenMetadata(BiMap<Token, InetAddress> tokenEndpointMap)
-    {
-        this(tokenEndpointMap, null);
-    }
-
-    public void setBootstrapping(InetAddress endpoint, boolean isBootstrapping)
-    {
-        if (isBootstrapping)
-            bootstrapping.add(endpoint);
-        else
-            bootstrapping.remove(endpoint);
-
-        lock.writeLock().lock();
-        try
-        {
-            BiMap<Token, InetAddress> otherMap = bootstrapping.contains(endpoint) ? tokenToEndPointMap : bootstrapTokenMap;
-            Token t = otherMap.inverse().get(endpoint);
-            if (t != null)
-            {
-                Map<Token, InetAddress> map = bootstrapping.contains(endpoint) ? bootstrapTokenMap : tokenToEndPointMap;
-                map.put(t, endpoint);
-                sortedTokens = sortTokens();
-            }
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
-    }
-
     /** @return the number of nodes bootstrapping into source's primary range */
-    public int bootstrapTargets(InetAddress source)
+    public int pendingRangeChanges(InetAddress source)
     {
         int n = 0;
         Range sourceRange = getPrimaryRangeFor(getToken(source));
-        for (Token token : bootstrapTokenMap.keySet())
+        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entrySet())
         {
-            if (sourceRange.contains(token))
-            {
+            if (sourceRange.contains(entry.getKey().right()) || entry.getValue().equals(source))
                 n++;
-            }
         }
         return n;
     }
@@ -128,11 +93,10 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            Map<Token, InetAddress> map = bootstrapping.contains(endpoint) ? bootstrapTokenMap : tokenToEndPointMap;
-            Map<Token, InetAddress> otherMap = bootstrapping.contains(endpoint) ? tokenToEndPointMap : bootstrapTokenMap;
-            map.put(token, endpoint);
-            otherMap.remove(token);
-            sortedTokens = sortTokens();
+            if (!endpoint.equals(tokenToEndPointMap.put(token, endpoint)))
+            {
+                sortedTokens = sortTokens();
+            }
         }
         finally
         {
@@ -188,12 +152,12 @@ public class TokenMetadata
         }
     }
 
-    public TokenMetadata cloneMe()
+    public TokenMetadata cloneWithoutPending()
     {
         lock.readLock().lock();
         try
         {
-            return new TokenMetadata(HashBiMap.create(tokenToEndPointMap), HashBiMap.create(bootstrapTokenMap));
+            return new TokenMetadata(HashBiMap.create(tokenToEndPointMap));
         }
         finally
         {
@@ -241,7 +205,7 @@ public class TokenMetadata
     public void clearUnsafe()
     {
         tokenToEndPointMap.clear();
-        bootstrapTokenMap.clear();
+        pendingRanges.clear();
     }
 
     public Range getPrimaryRangeFor(Token right)
@@ -260,6 +224,33 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
+    }
+
+    public void addPendingRange(Range range, InetAddress endpoint)
+    {
+        InetAddress oldEndpoint = pendingRanges.get(range);
+        if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
+            throw new RuntimeException("pending range collision between " + oldEndpoint + " and " + endpoint);
+        pendingRanges.put(range, endpoint);
+    }
+
+    public void removePendingRanges(InetAddress endpoint)
+    {
+        Iterator<Map.Entry<Range, InetAddress>> iter = pendingRanges.entrySet().iterator();
+        while (iter.hasNext())
+        {
+            Map.Entry<Range, InetAddress> entry = iter.next();
+            if (entry.getValue().equals(endpoint))
+            {
+                iter.remove();
+            }
+        }
+    }
+
+    /** a mutable map may be returned but caller should not modify it */
+    public Map<Range, InetAddress> getPendingRanges()
+    {
+        return pendingRanges;
     }
 
     public Token getPredecessor(Token token)
@@ -281,15 +272,5 @@ public class TokenMetadata
     public InetAddress getSuccessor(InetAddress endPoint)
     {
         return getEndPoint(getSuccessor(getToken(endPoint)));
-    }
-
-    public Iterable<? extends Token> bootstrapTokens()
-    {
-        return bootstrapTokenMap.keySet();
-    }
-
-    public InetAddress getBootstrapEndpoint(Token token)
-    {
-        return bootstrapTokenMap.get(token);
     }
 }

@@ -224,7 +224,14 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         */
     }
 
-    public void onJoin(InetAddress endpoint, EndPointState epState) {}
+    public void onJoin(InetAddress endpoint, EndPointState epState)
+    {
+        ApplicationState loadState = epState.getApplicationState(LoadDisseminator.loadInfo_);
+        if (loadState != null)
+        {
+            onChange(endpoint, LoadDisseminator.loadInfo_, loadState);
+        }
+    }
 
     public void onAlive(InetAddress endpoint, EndPointState state) {}
 

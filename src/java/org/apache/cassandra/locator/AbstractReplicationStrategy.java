@@ -30,7 +30,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.IResponseResolver;
-import org.apache.cassandra.service.InvalidRequestException;
 import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -86,22 +85,18 @@ public abstract class AbstractReplicationStrategy
      *
      * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
      */
-    public ArrayList<InetAddress> getWriteEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
+    public Collection<InetAddress> getWriteEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
     {
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
+        if (tokenMetadata_.getPendingRanges().isEmpty())
+            return naturalEndpoints;
 
-        for (Token t : tokenMetadata_.bootstrapTokens())
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
+
+        for (Map.Entry<Range, InetAddress> entry : tokenMetadata_.getPendingRanges().entrySet())
         {
-            TokenMetadata temp = tokenMetadata_.cloneMe();
-            InetAddress ep = tokenMetadata_.getBootstrapEndpoint(t);
-            temp.update(t, ep);
-            for (Range r : getAddressRanges(temp).get(ep))
+            if (entry.getKey().contains(token))
             {
-                if (r.contains(token))
-                {
-                    endpoints.add(ep);
-                    break;
-                }
+                endpoints.add(entry.getValue());
             }
         }
 
@@ -164,8 +159,11 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    // TODO this is pretty inefficient. also the inverse (getRangeAddresses) below.
-    // fixing this probably requires merging tokenmetadata into replicationstrategy, so we can cache/invalidate cleanly
+    /*
+     NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
+     this is fine as long as we don't use this on any critical path.
+     (fixing this would probably require merging tokenmetadata into replicationstrategy, so we could cache/invalidate cleanly.)
+     */
     public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata)
     {
         Multimap<InetAddress, Range> map = HashMultimap.create();
@@ -201,5 +199,12 @@ public abstract class AbstractReplicationStrategy
     public Multimap<InetAddress, Range> getAddressRanges()
     {
         return getAddressRanges(tokenMetadata_);
+    }
+
+    public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)
+    {
+        TokenMetadata temp = metadata.cloneWithoutPending();
+        temp.update(pendingToken, pendingAddress);
+        return getAddressRanges(temp).get(pendingAddress);
     }
 }

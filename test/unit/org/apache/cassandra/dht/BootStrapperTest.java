@@ -58,11 +58,10 @@ public class BootStrapperTest
         assert three.equals(source);
 
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
-        tmd.setBootstrapping(myEndpoint, true);
         Range range3 = ss.getPrimaryRangeForEndPoint(three);
         Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range3.left(), range3.right());
         assert range3.contains(fakeToken);
-        tmd.update(fakeToken, myEndpoint);
+        StorageService.updateBootstrapRanges(StorageService.instance().getReplicationStrategy(), tmd, fakeToken, myEndpoint);
 
         InetAddress source2 = BootStrapper.getBootstrapSource(tmd, load);
         assert two.equals(source2) : source2;

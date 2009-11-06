@@ -23,6 +23,7 @@ import static org.junit.Assert.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collection;
 
 import org.junit.Test;
 import org.apache.cassandra.dht.IPartitioner;
@@ -31,6 +32,8 @@ import org.apache.cassandra.dht.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.StringToken;
+import org.apache.cassandra.service.StorageService;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -118,12 +121,11 @@ public class RackUnawareStrategyTest
         //Add bootstrap node id=6
         Token bsToken = new BigIntegerToken(String.valueOf(25));
         InetAddress bootstrapEndPoint = InetAddress.getByName("127.0.0.6");
-        tmd.setBootstrapping(bootstrapEndPoint, true);
-        tmd.update(bsToken, bootstrapEndPoint);
+        StorageService.updateBootstrapRanges(strategy, tmd, bsToken, bootstrapEndPoint);
         
         for (int i = 0; i < keyTokens.length; i++)
         {
-            List<InetAddress> endPoints = strategy.getWriteEndpoints(keyTokens[i], strategy.getNaturalEndpoints(keyTokens[i]));
+            Collection<InetAddress> endPoints = strategy.getWriteEndpoints(keyTokens[i], strategy.getNaturalEndpoints(keyTokens[i]));
             assertTrue(endPoints.size() >= 3);
 
             for (int j = 0; j < 3; j++)

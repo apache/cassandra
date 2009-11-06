@@ -26,6 +26,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.ApplicationState;
 
 public class TokenUpdateVerbHandler implements IVerbHandler
 {
@@ -33,13 +35,17 @@ public class TokenUpdateVerbHandler implements IVerbHandler
 
     public void doVerb(Message message)
     {
+        if (StorageService.instance().isBootstrapMode())
+            throw new UnsupportedOperationException("Cannot set token during bootstrap");
+
         byte[] body = message.getMessageBody();
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(body, body.length);
         try
         {
             Token token = Token.serializer().deserialize(bufIn);
-            StorageService.instance().setAndBroadcastToken(token);
+            StorageService.instance().setToken(token);
+            Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(StorageService.getPartitioner().getTokenFactory().toString(token)));
         }
         catch (IOException ex)
         {

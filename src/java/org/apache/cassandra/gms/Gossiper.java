@@ -792,6 +792,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
+    public ApplicationState getApplicationState(InetAddress endpoint, String stateName)
+    {
+        assert endPointStateMap_.containsKey(endpoint);
+        return endPointStateMap_.get(endpoint).getApplicationState(stateName);
+    }
+
     /**
      * Start the gossiper with the generation # retrieved from the System
      * table

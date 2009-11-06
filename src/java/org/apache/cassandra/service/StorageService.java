@@ -53,10 +53,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
 
-    private final static String NODE_ID = "NODE-ID";
-    public final static String MODE = "MODE";
-    public final static String MODE_MOVING = "move";
-    public final static String MODE_NORMAL = "run";
+    // these aren't in an enum since other gossip users can create states ad-hoc too (e.g. load broadcasting)
+    public final static String STATE_NORMAL = "NORMAL";
+    public final static String STATE_BOOTSTRAPPING = "BOOTSTRAPPING";
 
     /* All stage identifiers */
     public final static String mutationStage_ = "ROW-MUTATION-STAGE";
@@ -162,8 +161,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         if (bootstrapSet.isEmpty())
         {
+            isBootstrapMode = false;
             SystemTable.setBootstrapped();
-            Gossiper.instance().addApplicationState(MODE, new ApplicationState(MODE_NORMAL));
+            Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
             logger_.info("Bootstrap completed! Now serving reads.");
         }
     }
@@ -183,20 +183,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         tokenMetadata_.update(token, endpoint);
     }
 
-    /** This method updates the local token on disk and starts broacasting it to others. */
+    /** This method updates the local token on disk  */
     public void setToken(Token token)
     {
+        if (logger_.isDebugEnabled())
+            logger_.debug("Setting token to " + token);
         SystemTable.updateToken(token);
         tokenMetadata_.update(token, FBUtilities.getLocalAddress());
-    }
-
-    public void setAndBroadcastToken(Token token)
-    {
-        if (logger_.isDebugEnabled())
-            logger_.debug("Setting token to " + token + " and gossiping it");
-        setToken(token);
-        ApplicationState state = new ApplicationState(partitioner_.getTokenFactory().toString(token));
-        Gossiper.instance().addApplicationState(StorageService.NODE_ID, state);
     }
 
     public StorageService()
@@ -270,18 +263,20 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         if (isBootstrapMode)
         {
-            Gossiper.instance().addApplicationState(MODE, new ApplicationState(MODE_MOVING));
             logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
             StorageLoadBalancer.instance().waitForLoadInfo();
             logger_.info("... got load info");
             setToken(BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo()));
+            Gossiper.instance().addApplicationState(StorageService.STATE_BOOTSTRAPPING, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
             new BootStrapper(replicationStrategy_, FBUtilities.getLocalAddress(), getLocalToken(), tokenMetadata_).startBootstrap(); // handles token update
         }
         else
         {
             SystemTable.setBootstrapped();
+            Token token = storageMetadata_.getToken();
+            setToken(token);
+            Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(token)));
         }
-        setAndBroadcastToken(storageMetadata_.getToken());
 
         assert tokenMetadata_.sortedTokens().size() > 0;
     }
@@ -350,55 +345,59 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return rangeToEndPointMap;
     }
 
-    /**
-     *  Called when there is a change in application state. In particular
-     *  we are interested in new tokens as a result of a new node or an
-     *  existing node moving to a new location on the ring.
-    */
+    /*
+     * onChange only ever sees one ApplicationState piece change at a time, so we perform a kind of state machine here.
+     * We are concerned with two events: knowing the token associated with an enpoint, and knowing its operation mode.
+     * Nodes can start in either bootstrap or normal mode, and from bootstrap mode can change mode to normal.
+     * A node in bootstrap mode needs to have pendingranges set in TokenMetadata; a node in normal mode
+     * should instead be part of the token ring.
+     */
     public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
-        if (StorageService.MODE.equals(stateName))
+        Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
+
+        if (STATE_BOOTSTRAPPING.equals(stateName))
         {
-            String mode = state.getValue();
             if (logger_.isDebugEnabled())
-                logger_.debug(endpoint + " is in " + mode + " mode");
-            boolean bootstrapState = mode.equals(MODE_MOVING);
-            tokenMetadata_.setBootstrapping(endpoint,  bootstrapState);
+                logger_.debug(endpoint + " state bootstrapping, token " + token);
+            updateBootstrapRanges(token, endpoint);
         }
-
-        if (StorageService.NODE_ID.equals(stateName))
+        else if (STATE_NORMAL.equals(stateName))
         {
-            Token newToken = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
-              logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + newToken);
-
-            if (tokenMetadata_.isMember(endpoint))
-            {
-                Token oldToken = tokenMetadata_.getToken(endpoint);
-
-                /*
-                 * If oldToken is not equal to
-                 * the newToken this means that the node is being relocated
-                 * to another position in the ring.
-                */
-                if (!oldToken.equals(newToken))
-                {
-                    if (logger_.isDebugEnabled())
-                        logger_.debug("Relocation for endpoint " + endpoint);
-                    updateForeignToken(newToken, endpoint);
-                }
-            }
-            else
-            {
-                /*
-                 * This is a new node and we just update the token map.
-                */
-                updateForeignToken(newToken, endpoint);
-            }
+                logger_.debug(endpoint + " state normal, token " + token);
+            tokenMetadata_.removePendingRanges(endpoint);
+            updateForeignToken(token, endpoint);
         }
     }
 
-    public void onJoin(InetAddress endpoint, EndPointState epState) {}
+    private void updateBootstrapRanges(Token token, InetAddress endpoint)
+    {
+        for (Range range : replicationStrategy_.getPendingAddressRanges(tokenMetadata_, token, endpoint))
+        {
+            tokenMetadata_.addPendingRange(range, endpoint);
+        }
+    }
+
+    public static void updateBootstrapRanges(AbstractReplicationStrategy strategy, TokenMetadata metadata, Token token, InetAddress endpoint)
+    {
+        for (Range range : strategy.getPendingAddressRanges(metadata, token, endpoint))
+        {
+            metadata.addPendingRange(range, endpoint);
+        }
+    }
+
+    public void onJoin(InetAddress endpoint, EndPointState epState)
+    {
+        ApplicationState stateNormal = epState.getApplicationState(StorageService.STATE_NORMAL);
+        ApplicationState stateBootstrapping = epState.getApplicationState(StorageService.STATE_BOOTSTRAPPING);
+
+        if (stateNormal != null)
+            onChange(endpoint, StorageService.STATE_NORMAL, stateNormal);
+
+        if (stateBootstrapping != null)
+            onChange(endpoint, StorageService.STATE_BOOTSTRAPPING, stateBootstrapping);
+    }
 
     public void onAlive(InetAddress endpoint, EndPointState state)
     {

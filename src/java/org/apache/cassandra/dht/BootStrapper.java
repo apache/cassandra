@@ -36,7 +36,6 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.net.io.StreamContextManager;
  import org.apache.cassandra.net.io.IStreamComplete;
  import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.service.StorageLoadBalancer;
  import org.apache.cassandra.service.StreamManager;
  import org.apache.cassandra.utils.LogUtil;
  import org.apache.cassandra.utils.SimpleCondition;
@@ -50,7 +49,6 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.db.ColumnFamilyStore;
  import org.apache.cassandra.db.Table;
  import com.google.common.collect.Multimap;
- import com.google.common.collect.HashMultimap;
  import com.google.common.collect.ArrayListMultimap;
 
 
@@ -146,8 +144,8 @@ public class BootStrapper
         {
             public int compare(InetAddress ia1, InetAddress ia2)
             {
-                int n1 = metadata.bootstrapTargets(ia1);
-                int n2 = metadata.bootstrapTargets(ia2);
+                int n1 = metadata.pendingRangeChanges(ia1);
+                int n2 = metadata.pendingRangeChanges(ia2);
                 if (n1 != n2)
                     return -(n1 - n2); // more targets = _less_ priority!
 
@@ -167,10 +165,8 @@ public class BootStrapper
     /** get potential sources for each range, ordered by proximity (as determined by EndPointSnitch) */
     Multimap<Range, InetAddress> getRangesWithSources()
     {
-        TokenMetadata temp = tokenMetadata.cloneMe();
-        assert temp.sortedTokens().size() > 0;
-        temp.update(token, address);
-        Collection<Range> myRanges = replicationStrategy.getAddressRanges(temp).get(address);
+        assert tokenMetadata.sortedTokens().size() > 0;
+        Collection<Range> myRanges = replicationStrategy.getPendingAddressRanges(tokenMetadata, token, address);
 
         Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();
         Multimap<Range, InetAddress> rangeAddresses = replicationStrategy.getRangeAddresses(tokenMetadata);
