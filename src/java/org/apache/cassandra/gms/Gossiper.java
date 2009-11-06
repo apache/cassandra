@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -458,7 +457,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                         reqdEndPointState = new EndPointState(epState.getHeartBeatState());
                     }
                     if (logger_.isTraceEnabled())
-                        logger_.trace("Adding state " + key + ": " + appState.getState());
+                        logger_.trace("Adding state " + key + ": " + appState.getValue());
                     reqdEndPointState.addApplicationState(key, appState);
                 }
             }
@@ -565,11 +564,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     private void handleNewJoin(InetAddress ep, EndPointState epState)
     {
     	logger_.info("Node " + ep + " has now joined.");
-        /* Mark this endpoint as "live" */
         endPointStateMap_.put(ep, epState);
         isAlive(ep, epState, true);
-        /* Notify interested parties about endpoint state change */
-        doNotifications(ep, epState);
+        for (IEndPointStateChangeSubscriber subscriber : subscribers_)
+        {
+            subscriber.onJoin(ep, epState);
+        }
     }
 
     synchronized void applyStateLocally(Map<InetAddress, EndPointState> epStateMap)
@@ -653,10 +653,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             if ( localAppState == null )
             {
                 localStatePtr.addApplicationState(remoteKey, remoteAppState);
-                /* notify interested parties of endpoint state change */
-                EndPointState deltaState = new EndPointState(localStatePtr.getHeartBeatState());
-                deltaState.addApplicationState(remoteKey, remoteAppState);
-                doNotifications(addr, deltaState);
+                doNotifications(addr, remoteKey, remoteAppState);
                 continue;
             }
 
@@ -668,10 +665,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             if ( remoteGeneration > localGeneration )
             {
                 localStatePtr.addApplicationState(remoteKey, remoteAppState);
-                /* notify interested parties of endpoint state change */
-                EndPointState deltaState = new EndPointState(localStatePtr.getHeartBeatState());
-                deltaState.addApplicationState(remoteKey, remoteAppState);
-                doNotifications(addr, deltaState);
+                doNotifications(addr, remoteKey, remoteAppState);
                 continue;
             }
 
@@ -684,20 +678,17 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 if ( remoteVersion > localVersion )
                 {
                     localStatePtr.addApplicationState(remoteKey, remoteAppState);
-                    /* notify interested parties of endpoint state change */
-                    EndPointState deltaState = new EndPointState(localStatePtr.getHeartBeatState());
-                    deltaState.addApplicationState(remoteKey, remoteAppState);
-                    doNotifications(addr, deltaState);
+                    doNotifications(addr, remoteKey, remoteAppState);
                 }
             }
         }
     }
 
-    void doNotifications(InetAddress addr, EndPointState epState)
+    void doNotifications(InetAddress addr, String stateName, ApplicationState state)
     {
-        for ( IEndPointStateChangeSubscriber subscriber : subscribers_ )
+        for (IEndPointStateChangeSubscriber subscriber : subscribers_)
         {
-            subscriber.onChange(addr, epState);
+            subscriber.onChange(addr, stateName, state);
         }
     }
 

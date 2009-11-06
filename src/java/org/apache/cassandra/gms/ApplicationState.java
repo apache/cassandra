@@ -70,7 +70,7 @@ public class ApplicationState
         version_ = VersionGenerator.getNextVersion();
     }
         
-    public String getState()
+    public String getValue()
     {
         return state_;
     }

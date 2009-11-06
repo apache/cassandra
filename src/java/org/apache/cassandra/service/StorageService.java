@@ -355,26 +355,22 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      *  we are interested in new tokens as a result of a new node or an
      *  existing node moving to a new location on the ring.
     */
-    public void onChange(InetAddress endpoint, EndPointState epState)
+    public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
-        /* node identifier for this endpoint on the identifier space */
-        ApplicationState nodeIdState = epState.getApplicationState(StorageService.NODE_ID);
-        /* Check if this has a bootstrapping state message */
-        ApplicationState modeState = epState.getApplicationState(StorageService.MODE);
-        if (modeState != null)
+        if (StorageService.MODE.equals(stateName))
         {
-            String mode = modeState.getState();
+            String mode = state.getValue();
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " is in " + mode + " mode");
             boolean bootstrapState = mode.equals(MODE_MOVING);
             tokenMetadata_.setBootstrapping(endpoint,  bootstrapState);
         }
 
-        if (nodeIdState != null)
+        if (StorageService.NODE_ID.equals(stateName))
         {
-            Token newToken = getPartitioner().getTokenFactory().fromString(nodeIdState.getState());
+            Token newToken = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
-              logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + nodeIdState.getState());
+              logger_.debug("CHANGE IN STATE FOR " + endpoint + " - has token " + newToken);
 
             if (tokenMetadata_.isMember(endpoint))
             {
@@ -401,6 +397,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             }
         }
     }
+
+    public void onJoin(InetAddress endpoint, EndPointState epState) {}
 
     public void onAlive(InetAddress endpoint, EndPointState state)
     {

@@ -38,7 +38,9 @@ public interface IEndPointStateChangeSubscriber
      * @param endpoint endpoint for which the state change occurred.
      * @param epState state that actually changed for the above endpoint.
      */
-    public void onChange(InetAddress endpoint, EndPointState epState);
+    public void onJoin(InetAddress endpoint, EndPointState epState);
+
+    public void onChange(InetAddress endpoint, String stateName, ApplicationState state);
 
     public void onAlive(InetAddress endpoint, EndPointState state);
 

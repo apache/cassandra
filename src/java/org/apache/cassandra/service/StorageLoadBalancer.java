@@ -205,27 +205,26 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         Gossiper.instance().register(this);
     }
 
-    public void onChange(InetAddress endpoint, EndPointState epState)
+    public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
-        // load information for this specified endpoint for load balancing 
-        ApplicationState loadInfoState = epState.getApplicationState(LoadDisseminator.loadInfo_);
-        if ( loadInfoState != null )
-        {
-            loadInfo_.put(endpoint, Double.parseDouble(loadInfoState.getState()));
+        if (!stateName.equals(LoadDisseminator.loadInfo_))
+            return;
+        loadInfo_.put(endpoint, Double.parseDouble(state.getValue()));
 
-            /*
-            // clone load information to perform calculations
-            loadInfo2_.putAll(loadInfo_);
-            // Perform the analysis for load balance operations
-            if ( isHeavyNode() )
-            {
-                if (logger_.isDebugEnabled())
-                  logger_.debug(StorageService.getLocalStorageEndPoint() + " is a heavy node with load " + localLoad());
-                // lb_.schedule( new LoadBalancer(), StorageLoadBalancer.delay_, TimeUnit.MINUTES );
-            }
-            */
-        }       
+        /*
+        // clone load information to perform calculations
+        loadInfo2_.putAll(loadInfo_);
+        // Perform the analysis for load balance operations
+        if ( isHeavyNode() )
+        {
+            if (logger_.isDebugEnabled())
+              logger_.debug(StorageService.getLocalStorageEndPoint() + " is a heavy node with load " + localLoad());
+            // lb_.schedule( new LoadBalancer(), StorageLoadBalancer.delay_, TimeUnit.MINUTES );
+        }
+        */
     }
+
+    public void onJoin(InetAddress endpoint, EndPointState epState) {}
 
     public void onAlive(InetAddress endpoint, EndPointState state) {}
 
