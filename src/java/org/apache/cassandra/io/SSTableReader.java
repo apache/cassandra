@@ -189,29 +189,43 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private void loadBloomFilter() throws IOException
     {
         DataInputStream stream = new DataInputStream(new FileInputStream(filterFilename()));
-        bf = BloomFilter.serializer().deserialize(stream);
+        try
+        {
+            bf = BloomFilter.serializer().deserialize(stream);
+        }
+        finally
+        {
+            stream.close();
+        }
     }
 
     private void loadIndexFile() throws IOException
     {
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
-        indexPositions = new ArrayList<KeyPosition>();
-
-        int i = 0;
-        long indexSize = input.length();
-        while (true)
+        try
         {
-            long indexPosition = input.getFilePointer();
-            if (indexPosition == indexSize)
+            indexPositions = new ArrayList<KeyPosition>();
+
+            int i = 0;
+            long indexSize = input.length();
+            while (true)
             {
-                break;
+                long indexPosition = input.getFilePointer();
+                if (indexPosition == indexSize)
+                {
+                    break;
+                }
+                DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+                input.readLong();
+                if (i++ % INDEX_INTERVAL == 0)
+                {
+                    indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
+                }
             }
-            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
-            input.readLong();
-            if (i++ % INDEX_INTERVAL == 0)
-            {
-                indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
-            }
+        }
+        finally
+        {
+            input.close();
         }
     }
 

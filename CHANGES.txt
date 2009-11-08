@@ -32,7 +32,7 @@
    per-CF FlushPeriodInMinutes setting (CASSANDRA-463)
  * Datacenter quorum consistency levels (CASSANDRA-492)
  * optimizations to slice reading (CASSANDRA-350)
- 
+
 
 0.4.2
  * Add validation disallowing null keys (CASSANDRA-486)
