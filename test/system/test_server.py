@@ -575,7 +575,7 @@ class TestMutations(CassandraTester):
         kspaces = client.get_string_list_property("keyspaces")
         assert len(kspaces) == 3, kspaces
         ks1 = client.describe_keyspace("Keyspace1")
-        assert ks1.keys() == ['Super1', 'Standard1', 'Standard2', 'Super2', 'StandardLong2', 'StandardLong1']
+        assert ks1.keys() == ['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2']
         sysks = client.describe_keyspace("system")
 
 
