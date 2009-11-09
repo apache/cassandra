@@ -67,14 +67,12 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private boolean bStream_ = false;
     private Lock lock_;
     private Condition condition_;
-    
-    // used from getConnection - outgoing
-    TcpConnection(TcpConnectionManager pool, InetAddress from, InetAddress to) throws IOException
-    {          
-        socketChannel_ = SocketChannel.open();            
-        socketChannel_.configureBlocking(false);        
-        pool_ = pool;
-        
+
+    private TcpConnection(InetAddress from, InetAddress to, TcpConnectionManager pool, boolean streaming) throws IOException
+    {
+        socketChannel_ = SocketChannel.open();
+        socketChannel_.configureBlocking(false);
+
         localEp_ = from;
         remoteEp_ = to;
 
@@ -86,6 +84,24 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         {
             key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
         }
+
+        if ((pool != null && streaming) || (pool == null && !streaming))
+            throw new RuntimeException("Invalid configuration. You must either specify a pool or streaming, not both or neither.");
+
+        if (pool != null)
+            pool_ = pool;
+        if (streaming)
+        {
+            bStream_ = true;
+            lock_ = new ReentrantLock();
+            condition_ = lock_.newCondition();
+        }
+    }
+    
+    // used from getConnection - outgoing
+    TcpConnection(TcpConnectionManager pool, InetAddress from, InetAddress to) throws IOException
+    {          
+        this(from, to, pool, false);
     }
     
     /*
@@ -93,23 +109,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     */
     TcpConnection(InetAddress from, InetAddress to) throws IOException
     {
-        socketChannel_ = SocketChannel.open();               
-        socketChannel_.configureBlocking(false);       
-        
-        localEp_ = from;
-        remoteEp_ = to;
-        
-        if (!socketChannel_.connect(new InetSocketAddress(remoteEp_, DatabaseDescriptor.getStoragePort())))
-        {
-            key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_CONNECT);
-        }
-        else
-        {
-            key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
-        }
-        bStream_ = true;
-        lock_ = new ReentrantLock();
-        condition_ = lock_.newCondition();
+        this(from, to, null, true);
     }
     
     /*
@@ -135,27 +135,13 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         isIncoming_ = isIncoming;
         localEp_ = localEp;
     }
-    
-    InetAddress getLocalEp()
-    {
-        return localEp_;
-    }
-    
-    public void setLocalEp(InetAddress localEp)
-    {
-        localEp_ = localEp;
-    }
+
 
     public InetAddress getEndPoint()
     {
         return remoteEp_;
     }
-    
-    public boolean isIncoming()
-    {
-        return isIncoming_;
-    }    
-    
+
     public SocketChannel getSocketChannel()
     {
         return socketChannel_;
@@ -274,8 +260,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     public void close()
     {
         inUse_ = false;
-        if ( pool_.contains(this) )
-            pool_.decUsed();               
     }
 
     public boolean isConnected()
@@ -305,10 +289,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     void closeSocket()
     {
         logger_.warn("Closing down connection " + socketChannel_ + " with " + pendingWrites_.size() + " writes remaining.");            
-        if ( pool_ != null )
-        {
-            pool_.removeConnection(this);
-        }
         cancel(key_);
         pendingWrites_.clear();
     }
@@ -318,11 +298,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         logger_.warn("Closing down connection " + socketChannel_);
         pendingWrites_.clear();
         cancel(key_);
-        pendingWrites_.clear();        
-        if ( pool_ != null )
-        {
-            pool_.removeConnection(this);            
-        }
+        pendingWrites_.clear();
+        pool_.destroy(this);
     }
     
     private void cancel(SelectionKey key)
@@ -456,9 +433,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                         if (remoteEp_ == null)
                         {
                             remoteEp_ = socketChannel_.socket().getInetAddress();
-                            // put connection into pool if possible
-                            pool_ = MessagingService.getConnectionPool(localEp_, remoteEp_);                            
-                            pool_.addToPool(TcpConnection.this);                            
                         }
                         
                         /* Deserialize and handle the message */
@@ -495,11 +469,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             // This is to fix the weird Linux bug with NIO.
             errorClose();
         }
-    }
-    
-    public int pending()
-    {
-        return pendingWrites_.size();
     }
     
     public int compareTo(Object o)

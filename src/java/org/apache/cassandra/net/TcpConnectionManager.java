@@ -27,205 +27,61 @@ import org.apache.log4j.Logger;
 
 class TcpConnectionManager
 {
-    private Lock lock_ = new ReentrantLock();
-    private List<TcpConnection> allConnections_;
     private InetAddress localEp_;
     private InetAddress remoteEp_;
-    private int maxSize_;
+    private TcpConnection cmdCon;
+    private TcpConnection ackCon;
 
-    private int inUse_;
-
-    // TODO! this whole thing is a giant no-op, since "contains" only relies on TcpConnection.equals, which
-    // is true for any (local, remote) pairs.  So there is only ever at most one TcpConnection per Manager!
-    TcpConnectionManager(int initialSize, int growthFactor, int maxSize, InetAddress localEp, InetAddress remoteEp)
+    TcpConnectionManager(InetAddress localEp, InetAddress remoteEp)
     {
-        maxSize_ = maxSize;
         localEp_ = localEp;
         remoteEp_ = remoteEp;
-        allConnections_ = new ArrayList<TcpConnection>();
+    }
+
+    private TcpConnection newCon() throws IOException
+    {
+        TcpConnection con = new TcpConnection(this, localEp_, remoteEp_);
+        con.inUse_ = true;
+        return con;
     }
 
     /**
-     * returns the least loaded connection to remoteEp, creating a new connection if necessary
+     * returns the appropriate connection based on message type.
      */
-    TcpConnection getConnection() throws IOException
+    synchronized TcpConnection getConnection(Message msg) throws IOException
     {
-        lock_.lock();
-        try
+        if (MessagingService.responseStage_.equals(msg.getMessageType()))
         {
-            if (allConnections_.isEmpty())
-            {
-                TcpConnection conn = new TcpConnection(this, localEp_, remoteEp_);
-                addToPool(conn);
-                conn.inUse_ = true;
-                incUsed();
-                return conn;
-            }
-
-            TcpConnection least = getLeastLoaded();
-
-            if ((least != null && least.pending() == 0) || allConnections_.size() == maxSize_)
-            {
-                least.inUse_ = true;
-                incUsed();
-                return least;
-            }
-
-            TcpConnection connection = new TcpConnection(this, localEp_, remoteEp_);
-            if (!contains(connection))
-            {
-                addToPool(connection);
-                connection.inUse_ = true;
-                incUsed();
-                return connection;
-            }
-            else
-            {
-                connection.closeSocket();
-                return getLeastLoaded();
-            }
+            if (ackCon == null)
+                ackCon = newCon();
+            return ackCon;
         }
-        finally
+        else
         {
-            lock_.unlock();
+            if (cmdCon == null)
+                cmdCon = newCon();
+            return cmdCon;
         }
     }
 
-    protected TcpConnection getLeastLoaded()
+    synchronized void shutdown()
     {
-        TcpConnection connection = null;
-        lock_.lock();
-        try
-        {
-            Collections.sort(allConnections_);
-            connection = (allConnections_.size() > 0) ? allConnections_.get(0) : null;
-        }
-        finally
-        {
-            lock_.unlock();
-        }
-        return connection;
+        for (TcpConnection con : new TcpConnection[] { cmdCon, ackCon })
+            if (con != null)
+                con.closeSocket();
     }
 
-    void removeConnection(TcpConnection connection)
+    synchronized void destroy(TcpConnection con)
     {
-        lock_.lock();
-        try
+        assert con != null;
+        if (cmdCon == con)
         {
-            allConnections_.remove(connection);
+            cmdCon = null;
         }
-        finally
+        else
         {
-            lock_.unlock();
-        }
-    }
-
-    void incUsed()
-    {
-        inUse_++;
-    }
-
-    void decUsed()
-    {
-        inUse_--;
-    }
-
-    int getConnectionsInUse()
-    {
-        return inUse_;
-    }
-
-    void addToPool(TcpConnection connection)
-    {
-        lock_.lock();
-        try
-        {
-            if (contains(connection))
-                return;
-
-            if (allConnections_.size() < maxSize_)
-            {
-                allConnections_.add(connection);
-            }
-            else
-            {
-                connection.closeSocket();
-            }
-        }
-        finally
-        {
-            lock_.unlock();
-        }
-    }
-
-    void shutdown()
-    {
-        lock_.lock();
-        try
-        {
-            while (allConnections_.size() > 0)
-            {
-                TcpConnection connection = allConnections_.remove(0);
-                connection.closeSocket();
-            }
-        }
-        finally
-        {
-            lock_.unlock();
-        }
-    }
-
-    int getPoolSize()
-    {
-        lock_.lock();
-        try
-        {
-            return allConnections_.size();
-        }
-        finally
-        {
-            lock_.unlock();
-        }
-    }
-
-    InetAddress getLocalEndPoint()
-    {
-        return localEp_;
-    }
-
-    InetAddress getRemoteEndPoint()
-    {
-        return remoteEp_;
-    }
-
-    int getPendingWrites()
-    {
-        int total = 0;
-        lock_.lock();
-        try
-        {
-            for (TcpConnection connection : allConnections_)
-            {
-                total += connection.pending();
-            }
-        }
-        finally
-        {
-            lock_.unlock();
-        }
-        return total;
-    }
-
-    boolean contains(TcpConnection connection)
-    {
-        lock_.lock();
-        try
-        {
-            return allConnections_.contains(connection);
-        }
-        finally
-        {
-            lock_.unlock();
+            assert ackCon == con;
+            ackCon = null;
         }
     }
 }

@@ -91,6 +91,8 @@ public class MessagingService implements IMessagingService
     
     private static IMessagingService messagingService_ = new MessagingService();
 
+    private static final int MESSAGE_DESERIALIZE_THREADS = 4;
+
     public static int getVersion()
     {
         return version_;
@@ -137,7 +139,7 @@ public class MessagingService implements IMessagingService
          * which is the sum of the threads in the pool that adds shit into the table and the 
          * pool that retrives the callback from here.
         */ 
-        int maxSize = MessagingConfig.getMessagingThreadCount();
+        int maxSize = MESSAGE_DESERIALIZE_THREADS;
         callbackMap_ = new Cachetable<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
         taskCompletionMap_ = new Cachetable<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );        
         
@@ -185,7 +187,7 @@ public class MessagingService implements IMessagingService
     public void listen(InetAddress localEp) throws IOException
     {        
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
-        ServerSocket ss = serverChannel.socket();            
+        ServerSocket ss = serverChannel.socket();
         ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
         serverChannel.configureBlocking(false);
         
@@ -224,9 +226,7 @@ public class MessagingService implements IMessagingService
                 cp = poolTable_.get(key);
                 if (cp == null )
                 {
-                    cp = new TcpConnectionManager(MessagingConfig.getConnectionPoolInitialSize(), 
-                            MessagingConfig.getConnectionPoolGrowthFactor(), 
-                            MessagingConfig.getConnectionPoolMaxSize(), from, to);
+                    cp = new TcpConnectionManager(from, to);
                     poolTable_.put(key, cp);
                 }
             }
@@ -238,9 +238,9 @@ public class MessagingService implements IMessagingService
         return cp;
     }
 
-    public static TcpConnection getConnection(InetAddress from, InetAddress to) throws IOException
+    public static TcpConnection getConnection(InetAddress from, InetAddress to, Message msg) throws IOException
     {
-        return getConnectionPool(from, to).getConnection();
+        return getConnectionPool(from, to).getConnection(msg);
     }
     
     private void checkForReservedVerb(String type)
@@ -324,14 +324,14 @@ public class MessagingService implements IMessagingService
         Use this version for fire and forget style messaging.
     */
     public void sendOneWay(Message message, InetAddress to)
-    {        
-        // do local deliveries        
+    {
+        // do local deliveries
         if ( message.getFrom().equals(to) )
-        {            
+        {
             MessagingService.receive(message);
             return;
         }
-        
+
         TcpConnection connection = null;
         try
         {
@@ -340,7 +340,7 @@ public class MessagingService implements IMessagingService
             {
                 return;
             }
-            connection = MessagingService.getConnection(processedMessage.getFrom(), to);
+            connection = MessagingService.getConnection(processedMessage.getFrom(), to, message);
             connection.write(message);
         }
         catch (SocketException se)
