@@ -19,9 +19,9 @@
 package org.apache.cassandra.utils;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
-
 
 public class FBUtilitiesTest 
 {
@@ -32,5 +32,22 @@ public class FBUtilitiesTest
     	String s = FBUtilities.bytesToHex(b);
     	byte[] c = FBUtilities.hexToBytes(s);
     	assertArrayEquals(b, c);
+    }
+
+    @Test
+    public void testIntBytesConversions()
+    {
+        // positive, negative, 1 and 2 byte cases, including a few edges that would foul things up unless you're careful
+        // about masking away sign extension.
+        int[] ints = new int[]
+        {
+            -20, -127, -128, 0, 1, 127, 128, 65534, 65535, -65534, -65535
+        };
+
+        for (int i : ints) {
+            byte[] ba = FBUtilities.toByteArray(i);
+            int actual = FBUtilities.byteArrayToInt(ba);
+            assertEquals(i, actual);
+        }
     }
 }

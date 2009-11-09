@@ -22,12 +22,12 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.io.IOError;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -138,7 +138,7 @@ public class SystemTable
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
             cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token)));
-            cf.addColumn(new Column(GENERATION, BasicUtilities.intToByteArray(generation)));
+            cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation)));
             rm.add(cf);
             rm.apply();
             metadata = new StorageMetadata(token, generation);
@@ -151,11 +151,11 @@ public class SystemTable
         logger.info("Saved Token found: " + token);
 
         IColumn generation = cf.getColumn(GENERATION);
-        int gen = Math.max(BasicUtilities.byteArrayToInt(generation.value()) + 1, (int) (System.currentTimeMillis() / 1000));
+        int gen = Math.max(FBUtilities.byteArrayToInt(generation.value()) + 1, (int) (System.currentTimeMillis() / 1000));
         
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
-        Column generation2 = new Column(GENERATION, BasicUtilities.intToByteArray(gen), generation.timestamp() + 1);
+        Column generation2 = new Column(GENERATION, FBUtilities.toByteArray(gen), generation.timestamp() + 1);
         cf.addColumn(generation2);
         rm.add(cf);
         rm.apply();

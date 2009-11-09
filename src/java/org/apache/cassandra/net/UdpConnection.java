@@ -29,7 +29,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.utils.BasicUtilities;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
@@ -72,7 +71,7 @@ public class UdpConnection extends SelectionKeyHandler
         {  
             if (logger_.isTraceEnabled())
                 logger_.trace("Size of Gossip packet " + data.length);
-            byte[] protocol = BasicUtilities.intToByteArray(protocol_);
+            byte[] protocol = FBUtilities.toByteArray(protocol_);
             ByteBuffer buffer = ByteBuffer.allocate(data.length + protocol.length);
             buffer.put( protocol );
             buffer.put(data);
@@ -110,7 +109,7 @@ public class UdpConnection extends SelectionKeyHandler
         byte[] body = new byte[0];        
         byte[] protocol = new byte[4];
         buffer = buffer.get(protocol, 0, protocol.length);
-        int value = BasicUtilities.byteArrayToInt(protocol);
+        int value = FBUtilities.byteArrayToInt(protocol);
         
         if ( protocol_ != value )
         {
