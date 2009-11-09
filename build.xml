@@ -200,6 +200,7 @@
           prefix="${final.name}-src">
           <include name="**"/>
           <exclude name="build/**" />
+          <exclude name="src/gen-java/**" />
         </tarfileset>
       </tar>
     </target>
