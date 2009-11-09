@@ -114,7 +114,7 @@ class ReadRepairManager
         try
         {
             Message message = rowMutationMessage.makeRowMutationMessage(StorageService.readRepairVerbHandler_);
-    		String key = target + ":" + message.getMessageId();
+    		String key = target.getHostAddress() + ":" + message.getMessageId();
     		readRepairTable_.put(key, message);
         }
         catch ( IOException ex )
