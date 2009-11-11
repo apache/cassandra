@@ -45,6 +45,9 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 
+import com.google.common.collect.Multimap;
+import com.google.common.collect.HashMultimap;
+
 /*
  * This abstraction contains the token/identifier of this node
  * on the identifier space. This token gets gossiped around.
@@ -58,11 +61,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     // these aren't in an enum since other gossip users can create states ad-hoc too (e.g. load broadcasting)
     public final static String STATE_NORMAL = "NORMAL";
     public final static String STATE_BOOTSTRAPPING = "BOOTSTRAPPING";
+    public final static String STATE_LEAVING = "LEAVING";
+    public final static String STATE_LEFT = "LEFT";
 
     /* All stage identifiers */
     public final static String mutationStage_ = "ROW-MUTATION-STAGE";
     public final static String readStage_ = "ROW-READ-STAGE";
-    
+    public final static String streamStage_ = "STREAM-STAGE";
+
     /* All verb handler identifiers */
     public final static String mutationVerbHandler_ = "ROW-MUTATION-VERB-HANDLER";
     public final static String tokenVerbHandler_ = "TOKEN-VERB-HANDLER";
@@ -228,6 +234,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                                    new MultiThreadedStage(StorageService.mutationStage_, DatabaseDescriptor.getConcurrentWriters()));
         StageManager.registerStage(StorageService.readStage_,
                                    new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
+        StageManager.registerStage(StorageService.streamStage_, new SingleThreadedStage(StorageService.streamStage_));
 
         Class<AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class};
@@ -357,20 +364,79 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
     {
-        Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
-
         if (STATE_BOOTSTRAPPING.equals(stateName))
         {
+            Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state bootstrapping, token " + token);
             updateBootstrapRanges(token, endpoint);
         }
         else if (STATE_NORMAL.equals(stateName))
         {
+            Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state normal, token " + token);
-            tokenMetadata_.removePendingRanges(endpoint);
+            replicationStrategy_.removeObsoletePendingRanges();
             updateForeignToken(token, endpoint);
+        }
+        else if (STATE_LEAVING.equals(stateName))
+        {
+            Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
+            assert tokenMetadata_.getToken(endpoint).equals(token);
+            updateLeavingRanges(endpoint);
+        }
+        else if (STATE_LEFT.equals(stateName))
+        {
+            Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
+            assert tokenMetadata_.getToken(endpoint).equals(token);
+            tokenMetadata_.removeEndpoint(endpoint);
+            replicationStrategy_.removeObsoletePendingRanges();
+        }
+    }
+
+    private Multimap<Range, InetAddress> getChangedRangesForLeaving(InetAddress endpoint)
+    {
+        Multimap<Range, InetAddress> newRangeAddresses = replicationStrategy_.getRangeAddressesAfterLeaving(endpoint);
+        if (logger_.isDebugEnabled())
+            logger_.debug("leaving node ranges are [" + StringUtils.join(newRangeAddresses.keySet(), ", ") + "]");
+        Multimap<Range, InetAddress> changedRanges = HashMultimap.create();
+        for (final Range range : newRangeAddresses.keySet())
+        {
+            if (logger_.isDebugEnabled())
+                logger_.debug("considering Range " + range);
+            for (InetAddress newEndpoint : newRangeAddresses.get(range))
+            {
+                boolean alreadyReplicatesRange = false;
+                for (Range existingRange : getRangesForEndPoint(newEndpoint))
+                {
+                    if (existingRange.contains(range))
+                    {
+                        alreadyReplicatesRange = true;
+                        break;
+                    }
+                }
+                if (!alreadyReplicatesRange)
+                {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug(newEndpoint + " needs pendingrange " + range);
+                    changedRanges.put(range, newEndpoint);
+                }
+            }
+        }
+        return changedRanges;        
+    }
+
+    private void updateLeavingRanges(final InetAddress endpoint)
+    {
+        if (logger_.isDebugEnabled())
+            logger_.debug(endpoint + " is leaving; calculating pendingranges");
+        Multimap<Range, InetAddress> ranges = getChangedRangesForLeaving(endpoint);
+        for (Range range : ranges.keySet())
+        {
+            for (InetAddress newEndpoint : ranges.get(range))
+            {
+                tokenMetadata_.addPendingRange(range, newEndpoint);
+            }
         }
     }
 
@@ -651,7 +717,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             logger_.debug("computing ranges for " + StringUtils.join(sortedTokens, ", "));
 
         List<Range> ranges = new ArrayList<Range>();
-        Collections.sort(sortedTokens);
         int size = sortedTokens.size();
         for (int i = 1; i < size; ++i)
         {
@@ -851,6 +916,55 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return tokens;
     }
 
+    public void decommission()
+    {
+        if (!tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
+            throw new UnsupportedOperationException("local node is not a member of the token ring yet");
+        if (tokenMetadata_.sortedTokens().size() < 2)
+            throw new UnsupportedOperationException("no other nodes in the ring; decommission would be pointless");
+        if (tokenMetadata_.getPendingRanges(FBUtilities.getLocalAddress()).size() > 0)
+            throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
+
+        logger_.info("DECOMMISSIONING");
+        Gossiper.instance().addApplicationState(STATE_LEAVING, new ApplicationState(getLocalToken().toString()));
+        logger_.info("decommission sleeping " + Streaming.RING_DELAY);
+        try
+        {
+            Thread.sleep(Streaming.RING_DELAY);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+
+        Multimap<Range, InetAddress> rangesMM = getChangedRangesForLeaving(FBUtilities.getLocalAddress());
+        if (logger_.isDebugEnabled())
+            logger_.debug("Ranges needing transfer are [" + StringUtils.join(rangesMM.keySet(), ",") + "]");
+        final Set<Map.Entry<Range, InetAddress>> pending = new HashSet<Map.Entry<Range, InetAddress>>(rangesMM.entries());
+        for (final Map.Entry<Range, InetAddress> entry : rangesMM.entries())
+        {
+            final Range range = entry.getKey();
+            final InetAddress newEndpoint = entry.getValue();
+            final Runnable callback = new Runnable()
+            {
+                public synchronized void run()
+                {
+                    pending.remove(entry);
+                    if (pending.isEmpty())
+                        finishLeaving();
+                }
+            };
+            StageManager.getStage(streamStage_).execute(new Runnable()
+            {
+                public void run()
+                {
+                    // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
+                    Streaming.transferRanges(newEndpoint, Arrays.asList(range), callback);
+                }
+            });
+        }
+    }
+
     public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
     {
         return replicationStrategy_.getResponseHandler(responseResolver, blockFor, consistency_level);
@@ -859,5 +973,21 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return replicationStrategy_;
+    }
+
+    public void finishLeaving()
+    {
+        Gossiper.instance().addApplicationState(STATE_LEFT, new ApplicationState(getLocalToken().toString()));
+        try
+        {
+            Thread.sleep(2 * Gossiper.intervalInMillis_);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+        Gossiper.instance().stop();
+        logger_.info("DECOMMISSION FINISHED.");
+        // let op be responsible for killing the process
     }
 }

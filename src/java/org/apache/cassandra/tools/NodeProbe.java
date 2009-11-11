@@ -380,6 +380,11 @@ public class NodeProbe
         ssProxy.clearSnapshot();
     }
 
+    public void decommission()
+    {
+        ssProxy.decommission();
+    }
+
     /**
      * Print out the size of the queues in the thread pools
      *
@@ -474,7 +479,8 @@ public class NodeProbe
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, tpstats, flush, " +
+                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, " +
+                "tpstats, flush, decommission, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -532,6 +538,10 @@ public class NodeProbe
         else if (cmdName.equals("cfstats"))
         {
             probe.printColumnFamilyStats(System.out);
+        }
+        else if (cmdName.equals("decommission"))
+        {
+            probe.decommission();
         }
         else if (cmdName.equals("snapshot"))
         {

@@ -29,7 +29,6 @@ import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndPointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -39,6 +38,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.Streaming;
 
 /*
  * The load balancing algorithm here is an implementation of
@@ -378,7 +378,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                 Thread.sleep(100);
             }
             // one more sleep in case there are some stragglers
-            Thread.sleep(BootStrapper.INITIAL_DELAY);
+            Thread.sleep(Streaming.RING_DELAY);
         }
         catch (InterruptedException e)
         {

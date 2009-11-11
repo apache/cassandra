@@ -113,6 +113,11 @@ public interface StorageServiceMBean
      */
     public void forceTableFlush(String tableName, String... columnFamilies) throws IOException;
 
+    /**
+     * transfer this node's data to other machines and remove it from service.
+     */
+    public void decommission();
+
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
 }

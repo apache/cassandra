@@ -27,11 +27,12 @@ import org.apache.cassandra.utils.LogUtil;
 public class Streaming
 {
     private static Logger logger = Logger.getLogger(Streaming.class);
+    public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
     /**
      * split out files on disk locally for each range and then stream them to the target endpoint
     */
-    public static void transferRanges(InetAddress target, Collection<Range> ranges) throws IOException
+    public static void transferRanges(InetAddress target, Collection<Range> ranges, Runnable callback)
     {
         assert ranges.size() > 0;
 
@@ -46,20 +47,29 @@ public class Streaming
         List<String> tables = DatabaseDescriptor.getTables();
         for (String tName : tables)
         {
-            Table table = Table.open(tName);
-            if (logger.isDebugEnabled())
-              logger.debug("Flushing memtables ...");
-            table.flush(false);
-            if (logger.isDebugEnabled())
-              logger.debug("Performing anticompaction ...");
-            /* Get the list of files that need to be streamed */
-            List<String> fileList = new ArrayList<String>();
-            for (SSTableReader sstable : table.forceAntiCompaction(ranges, target))
+            try
             {
-                fileList.addAll(sstable.getAllFilenames());
+                Table table = Table.open(tName);
+                if (logger.isDebugEnabled())
+                  logger.debug("Flushing memtables ...");
+                table.flush(false);
+                if (logger.isDebugEnabled())
+                  logger.debug("Performing anticompaction ...");
+                /* Get the list of files that need to be streamed */
+                List<String> fileList = new ArrayList<String>();
+                for (SSTableReader sstable : table.forceAntiCompaction(ranges, target))
+                {
+                    fileList.addAll(sstable.getAllFilenames());
+                }
+                transferOneTable(target, fileList, tName); // also deletes the file, so no further cleanup needed
             }
-            transferOneTable(target, fileList, tName); // also deletes the file, so no further cleanup needed
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
         }
+        if (callback != null)
+            callback.run();
     }
 
     private static void transferOneTable(InetAddress target, List<String> fileList, String table) throws IOException
@@ -247,8 +257,10 @@ public class Streaming
             MessagingService.instance().sendOneWay(message, host);
 
             /* If we're done with everything for this host, remove from bootstrap sources */
-            if (StorageService.instance().isBootstrapMode() && StreamContextManager.isDone(host))
+            if (StreamContextManager.isDone(host) && StorageService.instance().isBootstrapMode())
+            {
                 StorageService.instance().removeBootstrapSource(host);
+            }
         }
     }
 

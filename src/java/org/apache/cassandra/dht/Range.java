@@ -103,6 +103,12 @@ public class Range implements Comparable<Range>, Serializable
         }        
     }
 
+    public boolean contains(Range range)
+    {
+        return (contains(range.left_) || range.left_.equals(left_))
+               && contains(range.right_);
+    }
+
     /**
      * Tells if the given range is a wrap around.
      * @param range

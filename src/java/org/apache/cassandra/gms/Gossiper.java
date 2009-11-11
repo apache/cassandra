@@ -76,9 +76,9 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                     }
                 }
             }
-            catch ( Throwable th )
+            catch (Exception e)
             {
-                logger_.info( LogUtil.throwableToString(th) );
+                throw new RuntimeException(e);
             }
         }
     }
@@ -162,19 +162,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     public Set<InetAddress> getUnreachableMembers()
     {
         return new HashSet<InetAddress>(unreachableEndpoints_);
-    }
-
-    /**
-     * This method is used to forcibly remove a node from the membership
-     * set. He is forgotten locally immediately.
-     *
-     * param@ ep the endpoint to be removed from membership.
-     */
-    public synchronized void removeFromMembership(InetAddress ep)
-    {
-        endPointStateMap_.remove(ep);
-        liveEndpoints_.remove(ep);
-        unreachableEndpoints_ .remove(ep);
     }
 
     /**
@@ -792,12 +779,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         }
     }
 
-    public ApplicationState getApplicationState(InetAddress endpoint, String stateName)
-    {
-        assert endPointStateMap_.containsKey(endpoint);
-        return endPointStateMap_.get(endpoint).getApplicationState(stateName);
-    }
-
     /**
      * Start the gossiper with the generation # retrieved from the System
      * table
@@ -836,6 +817,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         epState.addApplicationState(key, appState);
     }
 
+    public void stop()
+    {
+        gossipTimer_.cancel();
+    }
 }
 
 class JoinVerbHandler implements IVerbHandler

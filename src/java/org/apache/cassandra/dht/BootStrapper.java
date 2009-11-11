@@ -63,8 +63,6 @@ package org.apache.cassandra.dht;
   */
 public class BootStrapper
 {
-    public static final long INITIAL_DELAY = 30 * 1000; //ms
-
     private static final Logger logger = Logger.getLogger(BootStrapper.class);
 
     /* endpoints that need to be bootstrapped */
@@ -174,7 +172,7 @@ public class BootStrapper
         {
             for (Range myRange : myRanges)
             {
-                if (range.contains(myRange.right()))
+                if (range.contains(myRange))
                 {
                     List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch().sortByProximity(address, rangeAddresses.get(range));
                     myRangeAddresses.putAll(myRange, preferred);

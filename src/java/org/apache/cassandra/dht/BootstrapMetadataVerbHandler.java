@@ -70,7 +70,7 @@ public class BootstrapMetadataVerbHandler implements IVerbHandler
             {
                 if (logger_.isDebugEnabled())
                     logger_.debug(bsmd.toString());
-                Streaming.transferRanges(bsmd.target_, bsmd.ranges_);
+                Streaming.transferRanges(bsmd.target_, bsmd.ranges_, null);
             }
         }
         catch (IOException ex)

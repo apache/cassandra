@@ -205,4 +205,48 @@ public abstract class AbstractReplicationStrategy
         temp.update(pendingToken, pendingAddress);
         return getAddressRanges(temp).get(pendingAddress);
     }
+
+    /**
+     * @param endpoint the endpoint leaving
+     * @return a map of where the endpoint's current ranges get sent
+     */
+    public Multimap<Range, InetAddress> getRangeAddressesAfterLeaving(InetAddress endpoint)
+    {
+        TokenMetadata metadataAfterLeaving = tokenMetadata_.cloneWithoutPending();
+        metadataAfterLeaving.removeEndpoint(endpoint);
+        Multimap<Range, InetAddress> rangesAfterLeaving = getRangeAddresses(metadataAfterLeaving);
+
+        Multimap<Range, InetAddress> map = HashMultimap.create();
+        for (Range range : getAddressRanges().get(endpoint))
+        {
+            for (Range newRange : rangesAfterLeaving.keySet())
+            {
+                if (newRange.contains(range))
+                {
+                    map.putAll(range, rangesAfterLeaving.get(newRange));
+                    break;
+                }
+            }
+        }
+
+        return map;
+    }
+
+    public void removeObsoletePendingRanges()
+    {
+        Multimap<InetAddress, Range> ranges = getAddressRanges();
+        for (Map.Entry<Range, InetAddress> entry : tokenMetadata_.getPendingRanges().entrySet())
+        {
+            for (Range currentRange : ranges.get(entry.getValue()))
+            {
+                if (currentRange.contains(entry.getKey()))
+                {
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("Removing obsolete pending range " + entry.getKey() + " from " + entry.getValue());
+                    tokenMetadata_.removePendingRange(entry.getKey());
+                    break;
+                }
+            }
+        }
+    }
 }

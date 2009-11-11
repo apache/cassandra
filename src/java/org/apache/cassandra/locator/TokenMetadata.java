@@ -29,11 +29,6 @@ import java.net.InetAddress;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.service.UnavailableException;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -76,7 +71,7 @@ public class TokenMetadata
         Range sourceRange = getPrimaryRangeFor(getToken(source));
         for (Map.Entry<Range, InetAddress> entry : pendingRanges.entrySet())
         {
-            if (sourceRange.contains(entry.getKey().right()) || entry.getValue().equals(source))
+            if (sourceRange.contains(entry.getKey()) || entry.getValue().equals(source))
                 n++;
         }
         return n;
@@ -97,6 +92,21 @@ public class TokenMetadata
             {
                 sortedTokens = sortTokens();
             }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void removeEndpoint(InetAddress endpoint)
+    {
+        assert tokenToEndPointMap.containsValue(endpoint);
+        lock.writeLock().lock();
+        try
+        {
+            tokenToEndPointMap.inverse().remove(endpoint);
+            sortedTokens = sortTokens();
         }
         finally
         {
@@ -137,14 +147,12 @@ public class TokenMetadata
 
     public InetAddress getFirstEndpoint()
     {
+        assert tokenToEndPointMap.size() > 0;
+
         lock.readLock().lock();
         try
         {
-            ArrayList<Token> tokens = new ArrayList<Token>(tokenToEndPointMap.keySet());
-            if (tokens.isEmpty())
-                return null;
-            Collections.sort(tokens);
-            return tokenToEndPointMap.get(tokens.get(0));
+            return tokenToEndPointMap.get(sortedTokens.get(0));
         }
         finally
         {
@@ -234,23 +242,28 @@ public class TokenMetadata
         pendingRanges.put(range, endpoint);
     }
 
-    public void removePendingRanges(InetAddress endpoint)
+    public void removePendingRange(Range range)
     {
-        Iterator<Map.Entry<Range, InetAddress>> iter = pendingRanges.entrySet().iterator();
-        while (iter.hasNext())
-        {
-            Map.Entry<Range, InetAddress> entry = iter.next();
-            if (entry.getValue().equals(endpoint))
-            {
-                iter.remove();
-            }
-        }
+        pendingRanges.remove(range);
     }
 
     /** a mutable map may be returned but caller should not modify it */
     public Map<Range, InetAddress> getPendingRanges()
     {
         return pendingRanges;
+    }
+
+    public List<Range> getPendingRanges(InetAddress endpoint)
+    {
+        List<Range> ranges = new ArrayList<Range>();
+        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entrySet())
+        {
+            if (entry.getValue().equals(endpoint))
+            {
+                ranges.add(entry.getKey());
+            }
+        }
+        return ranges;
     }
 
     public Token getPredecessor(Token token)
