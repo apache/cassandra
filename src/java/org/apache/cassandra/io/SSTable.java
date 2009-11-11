@@ -24,6 +24,7 @@ package org.apache.cassandra.io;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Arrays;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
@@ -126,6 +127,12 @@ public abstract class SSTable
     public String getFilename()
     {
         return path;
+    }
+
+    /** @return full paths to all the files associated w/ this SSTable */
+    public List<String> getAllFilenames()
+    {
+        return Arrays.asList(getFilename(), indexFilename(), filterFilename());
     }
 
     public String getColumnFamilyName()
