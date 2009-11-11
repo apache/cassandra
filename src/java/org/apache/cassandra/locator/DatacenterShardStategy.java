@@ -87,11 +87,14 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         }
     }
 
-    public DatacenterShardStategy(TokenMetadata tokenMetadata, IPartitioner<Token> partitioner, int replicas, int storagePort)
+    public DatacenterShardStategy(TokenMetadata tokenMetadata, IPartitioner<Token> partitioner, int replicas)
     throws UnknownHostException
     {
-        super(tokenMetadata, partitioner, replicas, storagePort);
-        assert (DatabaseDescriptor.getEndPointSnitch() instanceof DatacenterEndPointSnitch);
+        super(tokenMetadata, partitioner, replicas);
+        if ((!(DatabaseDescriptor.getEndPointSnitch() instanceof DatacenterEndPointSnitch)))
+        {
+            throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndpointSnitch");
+        }
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)

@@ -39,9 +39,9 @@ import org.apache.cassandra.utils.LogUtil;
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {
-    public RackAwareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
+    public RackAwareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas)
     {
-        super(tokenMetadata, partitioner, replicas, storagePort);
+        super(tokenMetadata, partitioner, replicas);
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)

@@ -45,14 +45,12 @@ public abstract class AbstractReplicationStrategy
     protected TokenMetadata tokenMetadata_;
     protected IPartitioner partitioner_;
     protected int replicas_;
-    protected int storagePort_;
 
-    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
+    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas)
     {
         tokenMetadata_ = tokenMetadata;
         partitioner_ = partitioner;
         replicas_ = replicas;
-        storagePort_ = storagePort;
     }
 
     public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata);

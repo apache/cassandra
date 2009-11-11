@@ -35,9 +35,9 @@ import java.net.InetAddress;
  */
 public class RackUnawareStrategy extends AbstractReplicationStrategy
 {
-    public RackUnawareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas, int storagePort)
+    public RackUnawareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas)
     {
-        super(tokenMetadata, partitioner, replicas, storagePort);
+        super(tokenMetadata, partitioner, replicas);
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)

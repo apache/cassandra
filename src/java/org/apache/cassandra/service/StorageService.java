@@ -229,11 +229,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                                    new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
 
         Class<AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
-        Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
+        Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class};
         try
         {
             Constructor<AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
-            replicationStrategy_ = constructor.newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+            replicationStrategy_ = constructor.newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor());
         }
         catch (Exception e)
         {

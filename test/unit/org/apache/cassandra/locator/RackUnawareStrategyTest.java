@@ -44,7 +44,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3);
 
         List<Token> endPointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -60,7 +60,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3);
 
         List<Token> endPointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -99,7 +99,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3, 7000);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, partitioner, 3);
 
         Token[] endPointTokens = new Token[5]; 
         Token[] keyTokens = new Token[5];
