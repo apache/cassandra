@@ -206,32 +206,6 @@ public abstract class AbstractReplicationStrategy
         return getAddressRanges(temp).get(pendingAddress);
     }
 
-    /**
-     * @param endpoint the endpoint leaving
-     * @return a map of where the endpoint's current ranges get sent
-     */
-    public Multimap<Range, InetAddress> getRangeAddressesAfterLeaving(InetAddress endpoint)
-    {
-        TokenMetadata metadataAfterLeaving = tokenMetadata_.cloneWithoutPending();
-        metadataAfterLeaving.removeEndpoint(endpoint);
-        Multimap<Range, InetAddress> rangesAfterLeaving = getRangeAddresses(metadataAfterLeaving);
-
-        Multimap<Range, InetAddress> map = HashMultimap.create();
-        for (Range range : getAddressRanges().get(endpoint))
-        {
-            for (Range newRange : rangesAfterLeaving.keySet())
-            {
-                if (newRange.contains(range))
-                {
-                    map.putAll(range, rangesAfterLeaving.get(newRange));
-                    break;
-                }
-            }
-        }
-
-        return map;
-    }
-
     public void removeObsoletePendingRanges()
     {
         Multimap<InetAddress, Range> ranges = getAddressRanges();

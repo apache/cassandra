@@ -396,34 +396,38 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     private Multimap<Range, InetAddress> getChangedRangesForLeaving(InetAddress endpoint)
     {
-        Multimap<Range, InetAddress> newRangeAddresses = replicationStrategy_.getRangeAddressesAfterLeaving(endpoint);
+        // First get all ranges the leaving endpoint is responsible for
+        Collection<Range> ranges = getRangesForEndPoint(endpoint);
+
         if (logger_.isDebugEnabled())
-            logger_.debug("leaving node ranges are [" + StringUtils.join(newRangeAddresses.keySet(), ", ") + "]");
+            logger_.debug("leaving node ranges are [" + StringUtils.join(ranges, ", ") + "]");
+
+        Map<Range, ArrayList<InetAddress>> currentReplicaEndpoints = new HashMap<Range, ArrayList<InetAddress>>();
+
+        // Find (for each range) all nodes that store replicas for these ranges as well
+        for (Range range : ranges)
+            currentReplicaEndpoints.put(range, replicationStrategy_.getNaturalEndpoints(range.right(), tokenMetadata_));
+
+        TokenMetadata temp = tokenMetadata_.cloneWithoutPending();
+        temp.removeEndpoint(endpoint);
+
         Multimap<Range, InetAddress> changedRanges = HashMultimap.create();
-        for (final Range range : newRangeAddresses.keySet())
+
+        // Go through the ranges and for each range check who will be
+        // storing replicas for these ranges when the leaving endpoint
+        // is gone. Whoever is present in newReplicaEndpoins list, but
+        // not in the currentReplicaEndpoins list, will be needing the
+        // range.
+        for (Range range : ranges)
         {
+            ArrayList<InetAddress> newReplicaEndpoints = replicationStrategy_.getNaturalEndpoints(range.right(), temp);
+            newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
-                logger_.debug("considering Range " + range);
-            for (InetAddress newEndpoint : newRangeAddresses.get(range))
-            {
-                boolean alreadyReplicatesRange = false;
-                for (Range existingRange : getRangesForEndPoint(newEndpoint))
-                {
-                    if (existingRange.contains(range))
-                    {
-                        alreadyReplicatesRange = true;
-                        break;
-                    }
-                }
-                if (!alreadyReplicatesRange)
-                {
-                    if (logger_.isDebugEnabled())
-                        logger_.debug(newEndpoint + " needs pendingrange " + range);
-                    changedRanges.put(range, newEndpoint);
-                }
-            }
+                logger_.debug("adding pending range " + range + " to endpoints " + StringUtils.join(newReplicaEndpoints, ", "));
+            changedRanges.putAll(range, newReplicaEndpoints);
         }
-        return changedRanges;        
+
+        return changedRanges;
     }
 
     private void updateLeavingRanges(final InetAddress endpoint)
