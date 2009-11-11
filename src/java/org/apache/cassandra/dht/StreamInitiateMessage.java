@@ -30,31 +30,31 @@ import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class BootstrapInitiateMessage implements Serializable
+public class StreamInitiateMessage implements Serializable
 {
-    private static ICompactSerializer<BootstrapInitiateMessage> serializer_;
-    
+    private static ICompactSerializer<StreamInitiateMessage> serializer_;
+
     static
     {
-        serializer_ = new BootstrapInitiateMessageSerializer();
+        serializer_ = new StreamInitiateMessageSerializer();
     }
     
-    public static ICompactSerializer<BootstrapInitiateMessage> serializer()
+    public static ICompactSerializer<StreamInitiateMessage> serializer()
     {
         return serializer_;
     }
     
-    public static Message makeBootstrapInitiateMessage(BootstrapInitiateMessage biMessage) throws IOException
+    public static Message makeStreamInitiateMessage(StreamInitiateMessage biMessage) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
-        BootstrapInitiateMessage.serializer().serialize(biMessage, dos);
-        return new Message(FBUtilities.getLocalAddress(), "", StorageService.bootStrapInitiateVerbHandler_, bos.toByteArray() );
+        StreamInitiateMessage.serializer().serialize(biMessage, dos);
+        return new Message(FBUtilities.getLocalAddress(), "", StorageService.streamInitiateVerbHandler_, bos.toByteArray() );
     }
     
     protected StreamContextManager.StreamContext[] streamContexts_ = new StreamContextManager.StreamContext[0];
    
-    public BootstrapInitiateMessage(StreamContextManager.StreamContext[] streamContexts)
+    public StreamInitiateMessage(StreamContextManager.StreamContext[] streamContexts)
     {
         streamContexts_ = streamContexts;
     }
@@ -65,9 +65,9 @@ public class BootstrapInitiateMessage implements Serializable
     }
 }
 
-class BootstrapInitiateMessageSerializer implements ICompactSerializer<BootstrapInitiateMessage>
+class StreamInitiateMessageSerializer implements ICompactSerializer<StreamInitiateMessage>
 {
-    public void serialize(BootstrapInitiateMessage bim, DataOutputStream dos) throws IOException
+    public void serialize(StreamInitiateMessage bim, DataOutputStream dos) throws IOException
     {
         dos.writeInt(bim.streamContexts_.length);
         for ( StreamContextManager.StreamContext streamContext : bim.streamContexts_ )
@@ -76,7 +76,7 @@ class BootstrapInitiateMessageSerializer implements ICompactSerializer<Bootstrap
         }
     }
     
-    public BootstrapInitiateMessage deserialize(DataInputStream dis) throws IOException
+    public StreamInitiateMessage deserialize(DataInputStream dis) throws IOException
     {
         int size = dis.readInt();
         StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[0];
@@ -88,7 +88,7 @@ class BootstrapInitiateMessageSerializer implements ICompactSerializer<Bootstrap
                 streamContexts[i] = StreamContextManager.StreamContext.serializer().deserialize(dis);
             }
         }
-        return new BootstrapInitiateMessage(streamContexts);
+        return new StreamInitiateMessage(streamContexts);
     }
 }
 
