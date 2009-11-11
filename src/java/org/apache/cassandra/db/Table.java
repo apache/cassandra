@@ -24,6 +24,7 @@ import java.io.File;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.Future;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
@@ -487,19 +488,16 @@ public class Table
         }
     }
 
-    public void flush(boolean fRecovery) throws IOException
+    public List<Future<?>> flush() throws IOException
     {
+        List<Future<?>> futures = new ArrayList<Future<?>>();
         for (String cfName : columnFamilyStores_.keySet())
         {
-            if (fRecovery)
-            {
-                columnFamilyStores_.get(cfName).flushMemtableOnRecovery();
-            }
-            else
-            {
-                columnFamilyStores_.get(cfName).forceFlush();
-            }
+            Future<?> future = columnFamilyStores_.get(cfName).forceFlush();
+            if (future != null)
+                futures.add(future);
         }
+        return futures;
     }
 
     // for binary load path.  skips commitlog.

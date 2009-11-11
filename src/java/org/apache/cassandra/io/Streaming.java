@@ -52,7 +52,7 @@ public class Streaming
                 Table table = Table.open(tName);
                 if (logger.isDebugEnabled())
                   logger.debug("Flushing memtables ...");
-                table.flush(false);
+                table.flush();
                 if (logger.isDebugEnabled())
                   logger.debug("Performing anticompaction ...");
                 /* Get the list of files that need to be streamed */

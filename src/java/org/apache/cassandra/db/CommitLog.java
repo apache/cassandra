@@ -32,6 +32,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -283,8 +284,9 @@ public class CommitLog
 
     void recover(File[] clogs) throws IOException
     {
-        DataInputBuffer bufIn = new DataInputBuffer();
+        Set<Table> tablesRecovered = new HashSet<Table>();
 
+        DataInputBuffer bufIn = new DataInputBuffer();
         for (File file : clogs)
         {
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
@@ -298,8 +300,6 @@ public class CommitLog
             reader.seek(lowPos);
             if (logger_.isDebugEnabled())
                 logger_.debug("Replaying " + file + " starting at " + lowPos);
-
-            Set<Table> tablesRecovered = new HashSet<Table>();
 
             /* read the logs populate RowMutation and apply */
             while (!reader.isEOF())
@@ -348,10 +348,24 @@ public class CommitLog
                 }
             }
             reader.close();
-            /* apply the rows read -- success will result in the CL file being discarded */
-            for (Table table : tablesRecovered)
+        }
+
+        // flush replayed tables, allowing commitlog segments to be removed
+        List<Future<?>> futures = new ArrayList<Future<?>>();
+        for (Table table : tablesRecovered)
+        {
+            futures.addAll(table.flush());
+        }
+        // wait for flushes to finish before continuing with startup
+        for (Future<?> future : futures)
+        {
+            try
             {
-                table.flush(true);
+                future.get();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
             }
         }
     }

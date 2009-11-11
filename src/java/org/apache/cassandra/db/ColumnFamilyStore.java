@@ -1004,11 +1004,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return isSuper_;
     }
 
-    public void flushMemtableOnRecovery() throws IOException
-    {
-        getMemtableThreadSafe().flushOnRecovery();
-    }
-
     public int getMemtableColumnsCount()
     {
         return getMemtableThreadSafe().getCurrentObjectCount();

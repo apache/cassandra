@@ -166,15 +166,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         }
     }
 
-    /** flush synchronously (in the current thread, not on the executors).
-     *  only the recover code should call this. */
-    void flushOnRecovery() throws IOException {
-        if (!isClean())
-        {
-            writeSortedContents(getSortedKeys());
-        }
-    }
-
     // for debugging
     public String contents()
     {
