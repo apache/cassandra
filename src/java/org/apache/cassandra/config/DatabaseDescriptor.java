@@ -24,6 +24,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
@@ -87,7 +88,7 @@ public class DatabaseDescriptor
 
     private static IEndPointSnitch endPointSnitch_;
 
-    private static Class replicaPlacementStrategyClass_;
+    private static Class<AbstractReplicationStrategy> replicaPlacementStrategyClass_;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     private static int columnIndexSizeInKB_;
@@ -418,7 +419,7 @@ public class DatabaseDescriptor
             }
             try
             {
-                replicaPlacementStrategyClass_ = Class.forName(replicaPlacementStrategyClassName);
+                replicaPlacementStrategyClass_ = (Class<AbstractReplicationStrategy>) Class.forName(replicaPlacementStrategyClassName);
             }
             catch (ClassNotFoundException e)
             {
@@ -655,7 +656,7 @@ public class DatabaseDescriptor
         return endPointSnitch_;
     }
 
-    public static Class getReplicaPlacementStrategyClass()
+    public static Class<AbstractReplicationStrategy> getReplicaPlacementStrategyClass()
     {
         return replicaPlacementStrategyClass_;
     }

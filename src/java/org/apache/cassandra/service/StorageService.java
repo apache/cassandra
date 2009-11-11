@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -227,11 +228,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         StageManager.registerStage(StorageService.readStage_,
                                    new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
 
-        Class cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
+        Class<AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
         try
         {
-            replicationStrategy_ = (AbstractReplicationStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
+            Constructor<AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
+            replicationStrategy_ = constructor.newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getStoragePort());
         }
         catch (Exception e)
         {
