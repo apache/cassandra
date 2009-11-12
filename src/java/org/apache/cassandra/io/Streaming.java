@@ -83,9 +83,9 @@ public class Streaming
         {
             File file = new File(filename);
             streamContexts[i++] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), table);
-            if (logger.isDebugEnabled())
-              logger.debug("Stream context metadata " + streamContexts[i]);
         }
+        if (logger.isDebugEnabled())
+          logger.debug("Stream context metadata " + StringUtils.join(streamContexts, ", "));
 
         StreamManager.instance(target).addFilesToStream(streamContexts);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(streamContexts);

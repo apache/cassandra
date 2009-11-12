@@ -132,7 +132,8 @@ public abstract class SSTable
     /** @return full paths to all the files associated w/ this SSTable */
     public List<String> getAllFilenames()
     {
-        return Arrays.asList(getFilename(), indexFilename(), filterFilename());
+        // TODO streaming relies on the -Data (getFilename) file to be last, this is clunky
+        return Arrays.asList(indexFilename(), filterFilename(), getFilename());
     }
 
     public String getColumnFamilyName()

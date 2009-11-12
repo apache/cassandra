@@ -169,11 +169,17 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         if (bootstrapSet.isEmpty())
         {
-            isBootstrapMode = false;
-            SystemTable.setBootstrapped();
-            Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
-            logger_.info("Bootstrap completed! Now serving reads.");
+            finishBootstrapping();
         }
+    }
+
+    private void finishBootstrapping()
+    {
+        isBootstrapMode = false;
+        SystemTable.setBootstrapped();
+        setToken(getLocalToken());
+        Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
+        logger_.info("Bootstrap completed! Now serving reads.");
     }
 
     private void updateForeignToken(Token token, InetAddress endpoint)
@@ -276,9 +282,22 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
             StorageLoadBalancer.instance().waitForLoadInfo();
             logger_.info("... got load info");
-            setToken(BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo()));
+            Token token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
+            SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
             Gossiper.instance().addApplicationState(StorageService.STATE_BOOTSTRAPPING, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
             new BootStrapper(replicationStrategy_, FBUtilities.getLocalAddress(), getLocalToken(), tokenMetadata_).startBootstrap(); // handles token update
+            // don't finish startup (enabling thrift) until after bootstrap is done
+            while (isBootstrapMode)
+            {
+                try
+                {
+                    Thread.sleep(100);
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+            }
         }
         else
         {
@@ -517,7 +536,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public Token getLocalToken()
     {
-        return tokenMetadata_.getToken(FBUtilities.getLocalAddress());
+        return storageMetadata_.getToken();
     }
 
     /* This methods belong to the MBean interface */
