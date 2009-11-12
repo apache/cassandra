@@ -176,7 +176,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private void finishBootstrapping()
     {
         isBootstrapMode = false;
-        SystemTable.setBootstrapped();
+        SystemTable.setBootstrapped(true);
         setToken(getLocalToken());
         Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
         logger_.info("Bootstrap completed! Now serving reads.");
@@ -301,7 +301,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
         else
         {
-            SystemTable.setBootstrapped();
+            SystemTable.setBootstrapped(true);
             Token token = storageMetadata_.getToken();
             setToken(token);
             Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(token)));
@@ -395,8 +395,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state normal, token " + token);
-            replicationStrategy_.removeObsoletePendingRanges();
             updateForeignToken(token, endpoint);
+            replicationStrategy_.removeObsoletePendingRanges();
         }
         else if (STATE_LEAVING.equals(stateName))
         {
@@ -1000,6 +1000,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public void finishLeaving()
     {
+        SystemTable.setBootstrapped(false);
         Gossiper.instance().addApplicationState(STATE_LEFT, new ApplicationState(getLocalToken().toString()));
         try
         {

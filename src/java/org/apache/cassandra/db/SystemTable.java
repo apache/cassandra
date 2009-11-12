@@ -171,7 +171,7 @@ public class SystemTable
             table = Table.open(Table.SYSTEM_TABLE);
             QueryFilter filter = new NamesQueryFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
             ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
-            return cf != null;
+            return cf != null && cf.getColumn(BOOTSTRAP).value()[0] == 1;
         }
         catch (IOException e)
         {
@@ -179,10 +179,10 @@ public class SystemTable
         }
     }
 
-    public static void setBootstrapped()
+    public static void setBootstrapped(boolean isBootstrapped)
     {
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
-        cf.addColumn(new Column(BOOTSTRAP, new byte[] {1}, System.currentTimeMillis()));
+        cf.addColumn(new Column(BOOTSTRAP, new byte[] { (byte) (isBootstrapped ? 1 : 0) }, System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
         rm.add(cf);
         try
