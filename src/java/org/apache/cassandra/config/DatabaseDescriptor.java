@@ -65,7 +65,6 @@ public class DatabaseDescriptor
     /* Current index into the above list of directories */
     private static int currentIndex_ = 0;
     private static String logFileDirectory_;
-    private static String bootstrapFileDirectory_;
     private static int consistencyThreads_ = 4; // not configurable
     private static int concurrentReaders_ = 8;
     private static int concurrentWriters_ = 32;
@@ -386,14 +385,6 @@ public class DatabaseDescriptor
             }
             for ( String dataFileDirectory : dataFileDirectories_ )
                 FileUtils.createDirectory(dataFileDirectory);
-
-            /* bootstrap file directory */
-            bootstrapFileDirectory_ = xmlUtils.getNodeValue("/Storage/BootstrapFileDirectory");
-            if (bootstrapFileDirectory_ == null)
-            {
-                throw new ConfigurationException("BootstrapFileDirectory must be specified");
-            }
-            FileUtils.createDirectory(bootstrapFileDirectory_);
 
             /* commit log directory */
             logFileDirectory_ = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
@@ -837,16 +828,6 @@ public class DatabaseDescriptor
         String dataFileDirectory = dataFileDirectories_[currentIndex_] + File.separator + table;
         currentIndex_ = (currentIndex_ + 1) % dataFileDirectories_.length;
         return dataFileDirectory;
-    }
-
-    public static String getBootstrapFileLocation()
-    {
-        return bootstrapFileDirectory_;
-    }
-
-    public static void setBootstrapFileLocation(String bfLocation)
-    {
-        bootstrapFileDirectory_ = bfLocation;
     }
 
     public static String getLogFileLocation()

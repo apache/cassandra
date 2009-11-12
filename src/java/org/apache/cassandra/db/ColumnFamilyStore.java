@@ -804,25 +804,25 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         SSTableWriter writer = null;
         CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore());
+        Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
         {
-            if (!ci.hasNext())
+            if (!nni.hasNext())
             {
-                logger_.warn("Nothing to compact (all files empty or corrupt). This should not happen.");
                 return results;
             }
 
-            while (ci.hasNext())
+            while (nni.hasNext())
             {
-                CompactionIterator.CompactedRow row = ci.next();
+                CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
                 if (Range.isTokenInRanges(row.key.token, ranges))
                 {
                     if (writer == null)
                     {
                         if (target != null)
                         {
-                            compactionFileLocation = compactionFileLocation + File.separator + "bootstrap";
+                            compactionFileLocation = compactionFileLocation + File.separator + "stream";
                         }
                         FileUtils.createDirectory(compactionFileLocation);
                         String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();

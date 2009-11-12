@@ -56,12 +56,7 @@ public class Streaming
                 if (logger.isDebugEnabled())
                   logger.debug("Performing anticompaction ...");
                 /* Get the list of files that need to be streamed */
-                List<String> fileList = new ArrayList<String>();
-                for (SSTableReader sstable : table.forceAntiCompaction(ranges, target))
-                {
-                    fileList.addAll(sstable.getAllFilenames());
-                }
-                transferOneTable(target, fileList, tName); // also deletes the file, so no further cleanup needed
+                transferOneTable(target, table.forceAntiCompaction(ranges, target), tName); // SSTR GC deletes the file when done
             }
             catch (IOException e)
             {
@@ -72,17 +67,20 @@ public class Streaming
             callback.run();
     }
 
-    private static void transferOneTable(InetAddress target, List<String> fileList, String table) throws IOException
+    private static void transferOneTable(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
-        if (fileList.isEmpty())
+        if (sstables.isEmpty())
             return;
 
-        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[fileList.size()];
+        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[sstables.size()];
         int i = 0;
-        for (String filename : fileList)
+        for (SSTableReader sstable : sstables)
         {
-            File file = new File(filename);
-            streamContexts[i++] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), table);
+            for (String filename : sstable.getAllFilenames())
+            {
+                File file = new File(filename);
+                streamContexts[i++] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), table);
+            }
         }
         if (logger.isDebugEnabled())
           logger.debug("Stream context metadata " + StringUtils.join(streamContexts, ", "));
@@ -96,8 +94,9 @@ public class Streaming
         if (logger.isDebugEnabled())
           logger.debug("Waiting for transfer to " + target + " to complete");
         StreamManager.instance(target).waitForStreamCompletion();
+        // reference sstables one more time to make sure it doesn't get GC'd early (causing delete of its files)
         if (logger.isDebugEnabled())
-          logger.debug("Done with transfer to " + target);
+            logger.debug("Done with transfer to " + target + " of " + StringUtils.join(sstables, ", "));
     }
 
     public static class StreamInitiateVerbHandler implements IVerbHandler
