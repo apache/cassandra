@@ -28,13 +28,15 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import java.net.InetAddress;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class SystemTable
 {
@@ -116,7 +118,10 @@ public class SystemTable
 
         /* Read the system table to retrieve the storage ID and the generation */
         Table table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = new IdentityQueryFilter(LOCATION_KEY, new QueryPath(STATUS_CF));
+        SortedSet<byte[]> columns = new TreeSet<byte[]>(new BytesType());
+        columns.add(TOKEN);
+        columns.add(GENERATION);
+        QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(STATUS_CF), columns);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
 
         IPartitioner p = StorageService.getPartitioner();
@@ -145,12 +150,16 @@ public class SystemTable
             return metadata;
         }
 
+        if (cf.getColumnCount() < 2)
+            throw new RuntimeException("Expected both token and generation columns; found " + cf);
         /* we crashed and came back up: make sure new generation is greater than old */
         IColumn tokenColumn = cf.getColumn(TOKEN);
+        assert tokenColumn != null : cf;
         Token token = p.getTokenFactory().fromByteArray(tokenColumn.value());
         logger.info("Saved Token found: " + token);
 
         IColumn generation = cf.getColumn(GENERATION);
+        assert generation != null : cf;
         int gen = Math.max(FBUtilities.byteArrayToInt(generation.value()) + 1, (int) (System.currentTimeMillis() / 1000));
         
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
