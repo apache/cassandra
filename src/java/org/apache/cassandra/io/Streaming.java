@@ -94,9 +94,12 @@ public class Streaming
             if (logger.isDebugEnabled())
               logger.debug("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
-            // reference sstables one more time to make sure it doesn't get GC'd early (causing delete of its files)
+            for (SSTableReader sstable : sstables)
+            {
+                sstable.markCompacted();
+            }
             if (logger.isDebugEnabled())
-                logger.debug("Done with transfer to " + target + " of " + StringUtils.join(sstables, ", "));
+                logger.debug("Done with transfer to " + target);
         }
     }
 

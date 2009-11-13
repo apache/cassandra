@@ -822,7 +822,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         if (target != null)
                         {
-                            compactionFileLocation = compactionFileLocation + File.separator + "stream";
+                            compactionFileLocation = compactionFileLocation + File.separator + DatabaseDescriptor.STREAMING_SUBDIR;
                         }
                         FileUtils.createDirectory(compactionFileLocation);
                         String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
