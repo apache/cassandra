@@ -31,6 +31,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.io.FastSerializer;
@@ -70,7 +71,9 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
 
     private TcpConnection(InetAddress from, InetAddress to, TcpConnectionManager pool, boolean streaming) throws IOException
     {
+        logger_.debug("creating connection from " + from + " to " + to);
         socketChannel_ = SocketChannel.open();
+        socketChannel_.socket().bind(new InetSocketAddress(from, 0));
         socketChannel_.configureBlocking(false);
 
         localEp_ = from;
