@@ -219,8 +219,22 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                     }
                 }
                 
-                /* returns the number of bytes transferred from file to the socket */
-                long bytesTransferred = fc.transferTo(startPosition, limit, socketChannel_);
+                long bytesTransferred;
+                try
+                {
+                    /* returns the number of bytes transferred from file to the socket */
+                    bytesTransferred = fc.transferTo(startPosition, limit, socketChannel_);
+                }
+                catch (IOException e)
+                {
+                    // at least jdk1.6.0 on Linux seems to throw IOException
+                    // when the socket is full. (Bug fixed for 1.7: http://bugs.sun.com/view_bug.do?bug_id=5103988)
+                    // For now look for a specific string in for the message for the exception.
+                    if (!e.getMessage().startsWith("Resource temporarily unavailable"))
+                        throw e;
+                    Thread.sleep(10);
+                    continue;
+                }
                 if (logger_.isDebugEnabled())
                     logger_.debug("Bytes transferred " + bytesTransferred);                
                 bytesWritten += bytesTransferred;
