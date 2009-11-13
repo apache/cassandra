@@ -69,9 +69,6 @@ public class Streaming
 
     private static void transferOneTable(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
-        if (sstables.isEmpty())
-            return;
-
         StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[SSTable.FILES_ON_DISK * sstables.size()];
         int i = 0;
         for (SSTableReader sstable : sstables)
@@ -91,12 +88,16 @@ public class Streaming
         if (logger.isDebugEnabled())
           logger.debug("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance().sendOneWay(message, target);
-        if (logger.isDebugEnabled())
-          logger.debug("Waiting for transfer to " + target + " to complete");
-        StreamManager.instance(target).waitForStreamCompletion();
-        // reference sstables one more time to make sure it doesn't get GC'd early (causing delete of its files)
-        if (logger.isDebugEnabled())
-            logger.debug("Done with transfer to " + target + " of " + StringUtils.join(sstables, ", "));
+
+        if (streamContexts.length > 0)
+        {
+            if (logger.isDebugEnabled())
+              logger.debug("Waiting for transfer to " + target + " to complete");
+            StreamManager.instance(target).waitForStreamCompletion();
+            // reference sstables one more time to make sure it doesn't get GC'd early (causing delete of its files)
+            if (logger.isDebugEnabled())
+                logger.debug("Done with transfer to " + target + " of " + StringUtils.join(sstables, ", "));
+        }
     }
 
     public static class StreamInitiateVerbHandler implements IVerbHandler
@@ -118,6 +119,14 @@ public class Streaming
             {
                 StreamInitiateMessage biMsg = StreamInitiateMessage.serializer().deserialize(bufIn);
                 StreamContextManager.StreamContext[] streamContexts = biMsg.getStreamContext();
+
+                if (streamContexts.length == 0 && StorageService.instance().isBootstrapMode())
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("no data needed from " + message.getFrom());
+                    StorageService.instance().removeBootstrapSource(message.getFrom());
+                    return;
+                }
 
                 Map<String, String> fileNames = getNewNames(streamContexts);
                 /*
@@ -142,9 +151,9 @@ public class Streaming
                 Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.streamInitiateDoneVerbHandler_, new byte[0] );
                 MessagingService.instance().sendOneWay(doneMessage, message.getFrom());
             }
-            catch ( IOException ex )
+            catch (IOException ex)
             {
-                logger.info(LogUtil.throwableToString(ex));
+                throw new IOError(ex);
             }
         }
 
