@@ -1,4 +1,4 @@
-0.5 dev
+0.5.0 beta
  * Allow multiple simultaneous flushes, improving flush throughput 
    on multicore systems (CASSANDRA-401)
  * Split up locks to improve write and read throughput on multicore systems
@@ -13,6 +13,10 @@
    instead of generating a random token. 
    (CASSANDRA-385, CASSANDRA-517)
  * Miscellaneous bootstrap fixes (several tickets)
+ * Ability to change a node's token even after it has data on it
+   (CASSANDRA-541)
+ * Ability to decommission a live node from the ring (CASSANDRA-435)
+ * Semi-automatic loadbalancing via nodeprobe (CASSANDRA-192)
  * Add ability to set compaction thresholds at runtime via
    JMX / nodeprobe.  (CASSANDRA-465)
  * Add "comment" field to ColumnFamily definition. (CASSANDRA-481)
@@ -31,8 +35,13 @@
  * Add MemtableFlushAfterMinutes, a global replacement for the old 
    per-CF FlushPeriodInMinutes setting (CASSANDRA-463)
  * Datacenter quorum consistency levels (CASSANDRA-492)
- * optimizations to slice reading (CASSANDRA-350)
-
+ * optimizations to slice reading (CASSANDRA-350) and supercolumn
+   queries (CASSANDRA-510)
+ * force binding to given listenaddress for nodes with multiple
+   interfaces (CASSANDRA-546)
+ * stress.py benchmarking tool improvements (several tickets)
+ * optimized replica placement code (CASSANDRA-525)
+ 
 
 0.4.2
  * Add validation disallowing null keys (CASSANDRA-486)
