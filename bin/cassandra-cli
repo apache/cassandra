@@ -20,6 +20,7 @@ if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     for include in /usr/share/cassandra/cassandra.in.sh \
                    /usr/local/share/cassandra/cassandra.in.sh \
                    /opt/cassandra/cassandra.in.sh \
+                   ~/.cassandra.in.sh \
                    `dirname $0`/cassandra.in.sh; do
         if [ -r $include ]; then
             . $include
