@@ -251,8 +251,14 @@ public class CliClient
         // Get table name
         int childCount = ast.getChildCount();
         assert(childCount == 1);
+
         String tableName = ast.getChild(0).getText();
-        
+
+        if( tableName == null ) {
+            css_.out.println("Keyspace argument required");
+            return;
+        }
+
         // Describe and display
         Map<String, Map<String, String>> columnFamiliesMap;
         try {
