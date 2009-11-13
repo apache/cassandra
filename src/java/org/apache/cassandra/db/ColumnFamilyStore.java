@@ -1245,7 +1245,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             final SSTableScanner scanner = sstable.getScanner();
             scanner.seekTo(startWithDK);
-            Iterator<DecoratedKey> iter = new Iterator<DecoratedKey>()
+            Iterator<DecoratedKey> iter = new CloseableIterator<DecoratedKey>()
             {
                 public boolean hasNext()
                 {
@@ -1259,12 +1259,16 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     throw new UnsupportedOperationException();
                 }
+                public void close() throws IOException
+                {
+                    scanner.close();
+                }
             };
+            assert iter instanceof Closeable; // otherwise we leak FDs
             iterators.add(iter);
         }
 
         Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(comparator, iterators);
-        
         Iterable<DecoratedKey> reduced = new ReducingIterator<DecoratedKey, DecoratedKey>(collated) {
             DecoratedKey current;
 
