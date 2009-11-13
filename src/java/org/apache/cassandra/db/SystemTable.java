@@ -127,7 +127,7 @@ public class SystemTable
             if (initialToken == null)
                 token = p.getRandomToken();
             else
-                token = p.getToken(initialToken);
+                token = p.getTokenFactory().fromString(initialToken);
 
             logger.info("Saved Token not found. Using " + token);
             // seconds-since-epoch isn't a foolproof new generation

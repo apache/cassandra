@@ -261,7 +261,7 @@ public class StreamContextManager
     {        
         List<StreamContext> context = ctxBag_.get(key);
         if ( context == null )
-            throw new IllegalStateException("Streaming context has not been set.");
+            throw new IllegalStateException("Streaming context has not been set for " + key);
         StreamContext streamContext = context.remove(0);        
         if ( context.isEmpty() )
             ctxBag_.remove(key);
@@ -272,7 +272,7 @@ public class StreamContextManager
     {
         List<StreamStatus> status = streamStatusBag_.get(key);
         if ( status == null )
-            throw new IllegalStateException("Streaming status has not been set.");
+            throw new IllegalStateException("Streaming status has not been set for " + key);
         StreamStatus streamStatus = status.remove(0);        
         if ( status.isEmpty() )
             streamStatusBag_.remove(key);

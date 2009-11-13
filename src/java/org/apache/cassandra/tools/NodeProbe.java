@@ -380,9 +380,14 @@ public class NodeProbe
         ssProxy.clearSnapshot();
     }
 
-    public void decommission()
+    public void decommission() throws InterruptedException
     {
         ssProxy.decommission();
+    }
+
+    public void move(String newToken) throws InterruptedException
+    {
+        ssProxy.move(newToken);
     }
 
     /**
@@ -480,7 +485,7 @@ public class NodeProbe
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, " +
-                "tpstats, flush, decommission, " +
+                "tpstats, flush, decommission, move, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -489,7 +494,7 @@ public class NodeProbe
     /**
      * @param args
      */
-    public static void main(String[] args) throws IOException
+    public static void main(String[] args) throws IOException, InterruptedException
     {
         NodeProbe probe = null;
         try
@@ -542,6 +547,14 @@ public class NodeProbe
         else if (cmdName.equals("decommission"))
         {
             probe.decommission();
+        }
+        else if (cmdName.equals("move"))
+        {
+            if (arguments.length <= 1)
+            {
+                System.err.println("missing token argument");
+            }
+            probe.move(arguments[1]);
         }
         else if (cmdName.equals("snapshot"))
         {

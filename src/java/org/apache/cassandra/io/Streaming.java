@@ -72,7 +72,7 @@ public class Streaming
         if (sstables.isEmpty())
             return;
 
-        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[sstables.size()];
+        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[SSTable.FILES_ON_DISK * sstables.size()];
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
@@ -130,7 +130,6 @@ public class Streaming
                     StreamContextManager.StreamStatus streamStatus = new StreamContextManager.StreamStatus(streamContext.getTargetFile(), streamContext.getExpectedBytes() );
                     String file = getNewFileNameFromOldContextAndNames(fileNames, streamContext);
 
-                    //String file = DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName + "-Data.db";
                     if (logger.isDebugEnabled())
                       logger.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
                     streamContext.setTargetFile(file);

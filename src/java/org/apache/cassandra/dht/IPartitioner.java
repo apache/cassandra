@@ -72,6 +72,8 @@ public interface IPartitioner<T extends Token>
 
     /**
      * @return a Token that can be used to route a given key
+     * (This is NOT a method to create a Token from its string representation;
+     * for that, use TokenFactory.fromString.)
      */
     public T getToken(String key);
 

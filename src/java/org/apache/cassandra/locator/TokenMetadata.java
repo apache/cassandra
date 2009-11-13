@@ -88,6 +88,7 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
+            tokenToEndPointMap.inverse().remove(endpoint);
             if (!endpoint.equals(tokenToEndPointMap.put(token, endpoint)))
             {
                 sortedTokens = sortTokens();

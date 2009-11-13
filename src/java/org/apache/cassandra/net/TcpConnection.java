@@ -71,7 +71,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
 
     private TcpConnection(InetAddress from, InetAddress to, TcpConnectionManager pool, boolean streaming) throws IOException
     {
-        logger_.debug("creating connection from " + from + " to " + to);
         socketChannel_ = SocketChannel.open();
         socketChannel_.socket().bind(new InetSocketAddress(from, 0));
         socketChannel_.configureBlocking(false);
@@ -291,18 +290,20 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     
     void closeSocket()
     {
-        logger_.warn("Closing down connection " + socketChannel_ + " with " + pendingWrites_.size() + " writes remaining.");            
+        if (pendingWrites_.size() > 0)
+            logger_.error("Closing down connection " + socketChannel_ + " with " + pendingWrites_.size() + " writes remaining.");
         cancel(key_);
         pendingWrites_.clear();
     }
     
     void errorClose() 
     {        
-        logger_.warn("Closing down connection " + socketChannel_);
+        logger_.info("Closing errored connection " + socketChannel_);
         pendingWrites_.clear();
         cancel(key_);
         pendingWrites_.clear();
-        pool_.destroy(this);
+        if (pool_ != null)
+            pool_.destroy(this);
     }
     
     private void cancel(SelectionKey key)

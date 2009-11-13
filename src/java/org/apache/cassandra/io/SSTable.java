@@ -50,6 +50,7 @@ public abstract class SSTable
 {
     private static final Logger logger = Logger.getLogger(SSTable.class);
 
+    public static final int FILES_ON_DISK = 3; // data, index, and bloom filter
 
     protected String path;
     protected IPartitioner partitioner;

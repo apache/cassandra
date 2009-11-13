@@ -23,6 +23,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.FutureTask;
 
 import org.apache.cassandra.dht.Range;
 import java.net.InetAddress;
@@ -116,7 +117,13 @@ public interface StorageServiceMBean
     /**
      * transfer this node's data to other machines and remove it from service.
      */
-    public void decommission();
+    public void decommission() throws InterruptedException;
+
+    /**
+     * @param newToken token to move this node to.
+     * This node will unload its data onto its neighbors, and bootstrap to the new token.
+     */
+    public void move(String newToken) throws InterruptedException;
 
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
