@@ -516,12 +516,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             map.put(entry.getKey().getHostAddress(), FileUtils.stringifyFileSize(entry.getValue()));
         }
-        // gossiper doesn't bother sending to itself, so if there are no other nodes around
-        // we need to cheat to get load information for the local node
-        if (!map.containsKey(FBUtilities.getLocalAddress().getHostAddress()))
-        {
-            map.put(FBUtilities.getLocalAddress().getHostAddress(), getLoadString());
-        }
+        // gossiper doesn't see its own updates, so we need to special-case the local node
+        map.put(FBUtilities.getLocalAddress().getHostAddress(), getLoadString());
         return map;
     }
 
