@@ -24,7 +24,6 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,7 +44,6 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Range;
-import java.net.InetAddress;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -92,7 +90,7 @@ public class NodeProbe
      * @throws ParseException for missing required, or unrecognized options
      * @throws IOException on connection failures
      */
-    private NodeProbe(String[] cmdArgs) throws ParseException, IOException
+    private NodeProbe(String[] cmdArgs) throws ParseException, IOException, InterruptedException
     {
         parseArgs(cmdArgs);
         this.host = cmd.getOptionValue(HOST_OPTION);
@@ -124,7 +122,7 @@ public class NodeProbe
      * @param port TCP port of the remote JMX agent
      * @throws IOException on connection failures
      */
-    public NodeProbe(String host, int port) throws IOException
+    public NodeProbe(String host, int port) throws IOException, InterruptedException
     {
         this.host = host;
         this.port = port;
@@ -137,7 +135,7 @@ public class NodeProbe
      * @param host hostname or IP address of the JMX agent
      * @throws IOException on connection failures
      */
-    public NodeProbe(String host) throws IOException
+    public NodeProbe(String host) throws IOException, InterruptedException
     {
         this.host = host;
         this.port = defaultPort;
@@ -385,6 +383,11 @@ public class NodeProbe
         ssProxy.decommission();
     }
 
+    public void loadBalance() throws IOException, InterruptedException
+    {
+        ssProxy.loadBalance();
+    }
+
     public void move(String newToken) throws InterruptedException
     {
         ssProxy.move(newToken);
@@ -485,7 +488,7 @@ public class NodeProbe
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, " +
-                "tpstats, flush, decommission, move, " +
+                "tpstats, flush, decommission, move, loadbalance, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -547,6 +550,10 @@ public class NodeProbe
         else if (cmdName.equals("decommission"))
         {
             probe.decommission();
+        }
+        else if (cmdName.equals("loadbalance"))
+        {
+            probe.loadBalance();
         }
         else if (cmdName.equals("move"))
         {

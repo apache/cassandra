@@ -1015,10 +1015,20 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public void move(String newToken) throws InterruptedException
     {
+        move(partitioner_.getTokenFactory().fromString(newToken));
+    }
+
+    public void loadBalance() throws IOException, InterruptedException
+    {
+        Token token = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
+        move(token);
+    }
+
+    private void move(final Token token) throws InterruptedException
+    {
         if (tokenMetadata_.getPendingRanges(FBUtilities.getLocalAddress()).size() > 0)
             throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
 
-        final Token token = partitioner_.getTokenFactory().fromString(newToken); // make sure it's valid
         logger_.info("moving to " + token);
         Gossiper.instance().addApplicationState(STATE_LEAVING, new ApplicationState(getLocalToken().toString()));
         logger_.info("move sleeping " + Streaming.RING_DELAY);
@@ -1051,5 +1061,4 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return replicationStrategy_;
     }
-
 }

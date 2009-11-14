@@ -119,6 +119,11 @@ public class BootStrapper
             return StorageService.getPartitioner().getTokenFactory().fromString(DatabaseDescriptor.getInitialToken());
         }
 
+        return getBalancedToken(metadata, load);
+    }
+
+    public static Token getBalancedToken(TokenMetadata metadata, Map<InetAddress, Double> load)
+    {
         InetAddress maxEndpoint = getBootstrapSource(metadata, load);
         Token<?> t = getBootstrapTokenFrom(maxEndpoint);
         logger.info("New token will be " + t + " to assume load from " + maxEndpoint);

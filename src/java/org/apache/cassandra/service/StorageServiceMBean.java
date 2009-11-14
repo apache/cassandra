@@ -125,6 +125,12 @@ public interface StorageServiceMBean
      */
     public void move(String newToken) throws InterruptedException;
 
+    /**
+     * This node will unload its data onto its neighbors, and bootstrap to share the range
+     * of the most-loaded node in the ring.
+     */
+    public void loadBalance() throws IOException, InterruptedException;
+
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
 }
