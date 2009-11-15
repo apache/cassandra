@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -169,13 +170,20 @@ public class StorageProxy implements StorageProxyMBean
 
             // Get all the targets and stick them in an array
             MessagingService.instance().sendRR(message, primaryNodes.toArray(new InetAddress[primaryNodes.size()]), quorumResponseHandler);
-            if (!quorumResponseHandler.get())
-                throw new UnavailableException();
+            try
+            {
+                if (!quorumResponseHandler.get())
+                    throw new UnavailableException();
+            }
+            catch (DigestMismatchException e)
+            {
+                throw new AssertionError(e);
+            }
             if (primaryNodes.size() < endpointMap.size()) // Do we need to bother with Hinted Handoff?
             {
                 for (Map.Entry<InetAddress, InetAddress> e : endpointMap.entrySet())
                 {
-                    if (e.getKey() != e.getValue()) // Hinted Handoff to target
+                    if (!e.getKey().equals(e.getValue())) // Hinted Handoff to target
                     {
                         MessagingService.instance().sendOneWay(message, e.getValue());
                     }
@@ -186,7 +194,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             throw new UnavailableException();
         }
-        catch (Exception e)
+        catch (IOException e)
         {
             throw new RuntimeException("error writing key " + rm.key(), e);
         }
@@ -300,7 +308,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> readProtocol(List<ReadCommand> commands, int consistency_level)
-    throws IOException, TimeoutException, InvalidRequestException, UnavailableException
+    throws IOException, TimeoutException, UnavailableException
     {
         long startTime = System.currentTimeMillis();
 
@@ -449,7 +457,7 @@ public class StorageProxy implements StorageProxyMBean
     * one of the other replicas (in the same data center if possible) till we get the data. In the event we get
     * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
     */
-    private static List<Row> weakReadLocal(List<ReadCommand> commands) throws IOException
+    private static List<Row> weakReadLocal(List<ReadCommand> commands)
     {
         List<Row> rows = new ArrayList<Row>();
         List<Future<Object>> futures = new ArrayList<Future<Object>>();
@@ -569,7 +577,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 endPoint = tokenMetadata.getSuccessor(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
             } while (!FailureDetector.instance().isAlive(endPoint));
-            int maxResults = endPoint == wrapEndpoint ? rawCommand.maxResults : rawCommand.maxResults - allKeys.size();
+            int maxResults = endPoint.equals(wrapEndpoint) ? rawCommand.maxResults : rawCommand.maxResults - allKeys.size();
             command = new RangeCommand(command.table, command.columnFamily, command.startWith, command.stopAt, maxResults);
         } while (!endPoint.equals(startEndpoint));
 
