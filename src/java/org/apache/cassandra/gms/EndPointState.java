@@ -76,7 +76,7 @@ public class EndPointState
         return applicationState_.get(key);
     }
     
-    public Map<String, ApplicationState> getApplicationState()
+    public Map<String, ApplicationState> getApplicationStateMap()
     {
         return applicationState_;
     }
@@ -118,6 +118,22 @@ public class EndPointState
         //isAlive_ = false;
         isAGossiper_ = value;        
     }
+
+    public List<Map.Entry<String,ApplicationState>> getSortedApplicationStates()
+    {
+        ArrayList<Map.Entry<String, ApplicationState>> entries = new ArrayList<Map.Entry<String, ApplicationState>>();
+        entries.addAll(applicationState_.entrySet());
+        Collections.sort(entries, new Comparator<Map.Entry<String, ApplicationState>>()
+        {
+            public int compare(Map.Entry<String, ApplicationState> lhs, Map.Entry<String, ApplicationState> rhs)
+            {
+                return lhs.getValue().compareTo(rhs.getValue());
+            }
+        });
+
+        return entries;
+    }
+
 }
 
 class EndPointStateSerializer implements ICompactSerializer<EndPointState>

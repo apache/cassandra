@@ -37,7 +37,7 @@ import org.apache.cassandra.io.ICompactSerializer;
  *      Gossiper.instance().addApplicationState("LOAD STATE", loadState);
  */
 
-public class ApplicationState
+public class ApplicationState implements Comparable<ApplicationState>
 {
     private static ICompactSerializer<ApplicationState> serializer_;
     static
@@ -78,6 +78,11 @@ public class ApplicationState
     int getStateVersion()
     {
         return version_;
+    }
+
+    public int compareTo(ApplicationState apState)
+    {
+        return this.version_ - apState.getStateVersion();
     }
 }
 

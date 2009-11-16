@@ -485,14 +485,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public void onJoin(InetAddress endpoint, EndPointState epState)
     {
-        ApplicationState stateNormal = epState.getApplicationState(StorageService.STATE_NORMAL);
-        ApplicationState stateBootstrapping = epState.getApplicationState(StorageService.STATE_BOOTSTRAPPING);
-
-        if (stateNormal != null)
-            onChange(endpoint, StorageService.STATE_NORMAL, stateNormal);
-
-        if (stateBootstrapping != null)
-            onChange(endpoint, StorageService.STATE_BOOTSTRAPPING, stateBootstrapping);
+        for (Map.Entry<String,ApplicationState> entry : epState.getSortedApplicationStates())
+        {
+            onChange(endpoint, entry.getKey(), entry.getValue());
+        }
     }
 
     public void onAlive(InetAddress endpoint, EndPointState state)

@@ -28,7 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
 
 /**
@@ -209,7 +209,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     {
         List<Integer> versions = new ArrayList<Integer>();
         versions.add( epState.getHeartBeatState().getHeartBeatVersion() );
-        Map<String, ApplicationState> appStateMap = epState.getApplicationState();
+        Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
 
         Set<String> keys = appStateMap.keySet();
         for ( String key : keys )
@@ -431,7 +431,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             {
                 reqdEndPointState = new EndPointState(epState.getHeartBeatState());
             }
-            Map<String, ApplicationState> appStateMap = epState.getApplicationState();
+            Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
             /* Accumulate all application states whose versions are greater than "version" variable */
             Set<String> keys = appStateMap.keySet();
             for ( String key : keys )
@@ -627,13 +627,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     void applyApplicationStateLocally(InetAddress addr, EndPointState localStatePtr, EndPointState remoteStatePtr)
     {
-        Map<String, ApplicationState> localAppStateMap = localStatePtr.getApplicationState();
-        Map<String, ApplicationState> remoteAppStateMap = remoteStatePtr.getApplicationState();
+        Map<String, ApplicationState> localAppStateMap = localStatePtr.getApplicationStateMap();
 
-        Set<String> remoteKeys = remoteAppStateMap.keySet();
-        for ( String remoteKey : remoteKeys )
+        for (Map.Entry<String,ApplicationState> remoteEntry : remoteStatePtr.getSortedApplicationStates())
         {
-            ApplicationState remoteAppState = remoteAppStateMap.get(remoteKey);
+            String remoteKey = remoteEntry.getKey();
+            ApplicationState remoteAppState = remoteEntry.getValue();
             ApplicationState localAppState = localAppStateMap.get(remoteKey);
 
             /* If state doesn't exist locally for this key then just apply it */
