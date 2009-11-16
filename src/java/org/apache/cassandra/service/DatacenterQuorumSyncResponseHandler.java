@@ -30,7 +30,7 @@ public class DatacenterQuorumSyncResponseHandler<T> extends QuorumResponseHandle
     @Override
     public void response(Message message)
     {
-        if (condition_.isSignaled())
+        if (condition.isSignaled())
         {
             return;
         }
@@ -63,12 +63,12 @@ public class DatacenterQuorumSyncResponseHandler<T> extends QuorumResponseHandle
         {
             throw new RuntimeException(e);
         }
-        responses_.add(message);
+        responses.add(message);
         // If done then the response count will be empty after removing
         // everything.
         if (responseCounts.isEmpty())
         {
-            condition_.signal();
+            condition.signal();
         }
     }
 }

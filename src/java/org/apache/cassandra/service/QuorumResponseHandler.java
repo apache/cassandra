@@ -20,8 +20,6 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.io.IOException;
@@ -30,39 +28,39 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.SimpleCondition;
 
 import org.apache.log4j.Logger;
 
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {
-    protected static Logger logger_ = Logger.getLogger( QuorumResponseHandler.class );
-    protected SimpleCondition condition_ = new SimpleCondition();
-    private int responseCount_;
-    protected List<Message> responses_ = new ArrayList<Message>();
-    private IResponseResolver<T> responseResolver_;
-    private long startTime_;
+    protected static final Logger logger = Logger.getLogger( QuorumResponseHandler.class );
+    protected final SimpleCondition condition = new SimpleCondition();
+    private final int responseCount;
+    protected final List<Message> responses;
+    private IResponseResolver<T> responseResolver;
+    private final long startTime;
 
     public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver)
     {
         assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor()
             : "invalid response count " + responseCount;
 
-        responseCount_ = responseCount;
-        responseResolver_ =  responseResolver;
-        startTime_ = System.currentTimeMillis();
+        this.responseCount = responseCount;
+        responses = new ArrayList<Message>(responseCount);
+        this.responseResolver =  responseResolver;
+        startTime = System.currentTimeMillis();
     }
     
     public T get() throws TimeoutException, DigestMismatchException, IOException
     {
         try
         {
-            long timeout = System.currentTimeMillis() - startTime_ + DatabaseDescriptor.getRpcTimeout();
+            long timeout = System.currentTimeMillis() - startTime + DatabaseDescriptor.getRpcTimeout();
             boolean success;
             try
             {
-                success = condition_.await(timeout, TimeUnit.MILLISECONDS);
+                success = condition.await(timeout, TimeUnit.MILLISECONDS);
             }
             catch (InterruptedException ex)
             {
@@ -72,33 +70,33 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             if (!success)
             {
                 StringBuilder sb = new StringBuilder("");
-                for (Message message : responses_)
+                for (Message message : responses)
                 {
                     sb.append(message.getFrom());
                 }
-                throw new TimeoutException("Operation timed out - received only " + responses_.size() + " responses from " + sb.toString() + " .");
+                throw new TimeoutException("Operation timed out - received only " + responses.size() + " responses from " + sb.toString() + " .");
             }
         }
         finally
         {
-            for (Message response : responses_)
+            for (Message response : responses)
             {
                 MessagingService.removeRegisteredCallback(response.getMessageId());
             }
         }
 
-        return responseResolver_.resolve(responses_);
+        return responseResolver.resolve(responses);
     }
     
     public void response(Message message)
     {
-        if (condition_.isSignaled())
+        if (condition.isSignaled())
             return;
 
-        responses_.add(message);
-        if (responses_.size() >= responseCount_ && responseResolver_.isDataPresent(responses_))
+        responses.add(message);
+        if (responses.size() >= responseCount && responseResolver.isDataPresent(responses))
         {
-            condition_.signal();
+            condition.signal();
         }
     }
 }

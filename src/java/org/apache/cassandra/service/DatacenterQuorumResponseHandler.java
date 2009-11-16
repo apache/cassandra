@@ -5,7 +5,6 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndPointSnitch;
@@ -36,7 +35,7 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
     public void response(Message message)
     {
         // IF done look no futher.
-        if (condition_.isSignaled())
+        if (condition.isSignaled())
         {
             return;
         }
@@ -52,13 +51,13 @@ public class DatacenterQuorumResponseHandler<T> extends QuorumResponseHandler<T>
         {
             throw new RuntimeException(e);
         }
-        responses_.add(message);
+        responses.add(message);
         if (blockFor <= 0)
         {
             //Singnal when Quorum is recived.
-            condition_.signal();
+            condition.signal();
         }
-        if (logger_.isDebugEnabled())
-            logger_.debug("Processed Message: " + message.toString());
+        if (logger.isDebugEnabled())
+            logger.debug("Processed Message: " + message.toString());
     }
 }
