@@ -23,6 +23,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
+
 
 /**
  * This class manages all stages that exist within a process. The application registers
@@ -33,6 +36,17 @@ import java.util.concurrent.ExecutorService;
 public class StageManager
 {
     private static Map<String, IStage > stageQueues_ = new HashMap<String, IStage>();
+
+    public final static String readStage_ = "ROW-READ-STAGE";
+    public final static String mutationStage_ = "ROW-MUTATION-STAGE";
+    public final static String streamStage_ = "STREAM-STAGE";
+
+    static
+    {
+        StageManager.registerStage(mutationStage_, new MultiThreadedStage(mutationStage_, getConcurrentWriters()));
+        StageManager.registerStage(readStage_, new MultiThreadedStage(readStage_, getConcurrentReaders()));
+        StageManager.registerStage(streamStage_, new SingleThreadedStage(streamStage_));
+    }
     
     /**
      * Register a stage with the StageManager

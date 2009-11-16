@@ -24,6 +24,8 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
+import org.apache.cassandra.concurrent.StageManager;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
@@ -285,13 +287,15 @@ public class CommitLog
     void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
+        assert StageManager.getStage(StageManager.mutationStage_).getCompletedTasks() == 0;
+        int rows = 0;
 
         DataInputBuffer bufIn = new DataInputBuffer();
         for (File file : clogs)
         {
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
-            CommitLogHeader clHeader = readCommitLogHeader(reader);
+            final CommitLogHeader clHeader = readCommitLogHeader(reader);
             /* seek to the lowest position where any CF has non-flushed data */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
             if (lowPos == 0)
@@ -324,30 +328,59 @@ public class CommitLog
                 bufIn.reset(bytes, bytes.length);
 
                 /* read the commit log entry */
-                RowMutation rm = RowMutation.serializer().deserialize(bufIn);
+                final RowMutation rm = RowMutation.serializer().deserialize(bufIn);
                 if (logger_.isDebugEnabled())
                     logger_.debug(String.format("replaying mutation for %s.%s: %s",
                                                 rm.getTable(),
                                                 rm.key(),
                                                 "{" + StringUtils.join(rm.getColumnFamilies(), ", ") + "}"));
-                Table table = Table.open(rm.getTable());
+                final Table table = Table.open(rm.getTable());
                 tablesRecovered.add(table);
-                Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
-                /* remove column families that have already been flushed */
-                for (ColumnFamily columnFamily : columnFamilies)
+                final Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
+                final long entryLocation = reader.getFilePointer();
+                Runnable runnable = new Runnable()
                 {
-                    int id = table.getColumnFamilyId(columnFamily.name());
-                    if (!clHeader.isDirty(id) || reader.getFilePointer() < clHeader.getPosition(id))
+                    public void run()
                     {
-                        rm.removeColumnFamily(columnFamily);
+                        /* remove column families that have already been flushed before applying the rest */
+                        for (ColumnFamily columnFamily : columnFamilies)
+                        {
+                            int id = table.getColumnFamilyId(columnFamily.name());
+                            if (!clHeader.isDirty(id) || entryLocation < clHeader.getPosition(id))
+                            {
+                                rm.removeColumnFamily(columnFamily);
+                            }
+                        }
+                        if (!rm.isEmpty())
+                        {
+                            try
+                            {
+                                table.applyNow(rm);
+                            }
+                            catch (IOException e)
+                            {
+                                throw new RuntimeException(e);
+                            }
+                        }
                     }
-                }
-                if (!rm.isEmpty())
-                {
-                    table.applyNow(rm);
-                }
+                };
+                StageManager.getStage(StageManager.mutationStage_).execute(runnable);
+                rows++;
             }
             reader.close();
+        }
+
+        // wait for all the writes to finish on the mutation stage
+        while (StageManager.getStage(StageManager.mutationStage_).getCompletedTasks() < rows)
+        {
+            try
+            {
+                Thread.sleep(10);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
         }
 
         // flush replayed tables, allowing commitlog segments to be removed

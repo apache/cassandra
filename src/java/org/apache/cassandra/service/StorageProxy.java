@@ -465,7 +465,7 @@ public class StorageProxy implements StorageProxyMBean
         for (ReadCommand command: commands)
         {
             Callable<Object> callable = new weakReadLocalCallable(command);
-            futures.add(StageManager.getStage(StorageService.readStage_).execute(callable));
+            futures.add(StageManager.getStage(StageManager.readStage_).execute(callable));
         }
         for (Future<Object> future : futures)
         {

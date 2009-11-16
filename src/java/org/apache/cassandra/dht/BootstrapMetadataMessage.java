@@ -24,6 +24,7 @@ import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.concurrent.StageManager;
 
 
  /**
@@ -57,7 +58,7 @@ class BootstrapMetadataMessage
         {
             throw new IOError(e);
         }
-        return new Message(FBUtilities.getLocalAddress(), StorageService.streamStage_, StorageService.bootstrapMetadataVerbHandler_, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), StageManager.streamStage_, StorageService.bootstrapMetadataVerbHandler_, bos.toByteArray() );
     }        
     
     protected BootstrapMetadata[] bsMetadata_ = new BootstrapMetadata[0];

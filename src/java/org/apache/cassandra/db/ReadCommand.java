@@ -31,6 +31,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.concurrent.StageManager;
 
 
 public abstract class ReadCommand
@@ -53,7 +54,7 @@ public abstract class ReadCommand
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         ReadCommand.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.readStage_, StorageService.readVerbHandler_, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StageManager.readStage_, StorageService.readVerbHandler_, bos.toByteArray());
     }
 
     public final QueryPath queryPath;

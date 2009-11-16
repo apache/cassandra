@@ -36,12 +36,12 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
-import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.concurrent.StageManager;
 
 public class RowMutation implements Serializable
 {
@@ -224,7 +224,7 @@ public class RowMutation implements Serializable
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StorageService.mutationStage_, verbHandlerName, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StageManager.mutationStage_, verbHandlerName, bos.toByteArray());
     }
 
     public static RowMutation getRowMutation(String table, String key, Map<String, List<ColumnOrSuperColumn>> cfmap)

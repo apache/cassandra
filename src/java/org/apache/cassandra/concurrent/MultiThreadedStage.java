@@ -87,4 +87,9 @@ public class MultiThreadedStage implements IStage
     public long getPendingTasks(){
         return executorService_.getPendingTasks();
     }
+
+    public long getCompletedTasks()
+    {
+        return executorService_.getCompletedTasks();
+    }
 }

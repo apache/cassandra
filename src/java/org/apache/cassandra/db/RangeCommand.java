@@ -29,6 +29,7 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.concurrent.StageManager;
 
 public class RangeCommand
 {
@@ -54,7 +55,7 @@ public class RangeCommand
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob);
         return new Message(FBUtilities.getLocalAddress(),
-                           StorageService.readStage_,
+                           StageManager.readStage_,
                            StorageService.rangeVerbHandler_,
                            Arrays.copyOf(dob.getData(), dob.getLength()));
     }

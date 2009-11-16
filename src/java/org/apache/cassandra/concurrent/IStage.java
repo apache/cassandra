@@ -116,4 +116,6 @@ public interface IStage
      * @return task count.
      */
     public long getPendingTasks();
+
+    public long getCompletedTasks();
 }

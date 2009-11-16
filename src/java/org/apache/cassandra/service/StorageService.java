@@ -65,11 +65,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String STATE_LEAVING = "LEAVING";
     public final static String STATE_LEFT = "LEFT";
 
-    /* All stage identifiers */
-    public final static String mutationStage_ = "ROW-MUTATION-STAGE";
-    public final static String readStage_ = "ROW-READ-STAGE";
-    public final static String streamStage_ = "STREAM-STAGE";
-
     /* All verb handler identifiers */
     public final static String mutationVerbHandler_ = "ROW-MUTATION-VERB-HANDLER";
     public final static String binaryVerbHandler_ = "BINARY-VERB-HANDLER";
@@ -234,12 +229,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.instance().registerVerbHandlers(streamInitiateVerbHandler_, new Streaming.StreamInitiateVerbHandler());
         MessagingService.instance().registerVerbHandlers(streamInitiateDoneVerbHandler_, new Streaming.StreamInitiateDoneVerbHandler());
         MessagingService.instance().registerVerbHandlers(streamFinishedVerbHandler_, new Streaming.StreamFinishedVerbHandler());
-
-        StageManager.registerStage(StorageService.mutationStage_,
-                                   new MultiThreadedStage(StorageService.mutationStage_, DatabaseDescriptor.getConcurrentWriters()));
-        StageManager.registerStage(StorageService.readStage_,
-                                   new MultiThreadedStage(StorageService.readStage_, DatabaseDescriptor.getConcurrentReaders()));
-        StageManager.registerStage(StorageService.streamStage_, new SingleThreadedStage(StorageService.streamStage_));
 
         Class<AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class};
@@ -998,7 +987,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                     }
                 }
             };
-            StageManager.getStage(streamStage_).execute(new Runnable()
+            StageManager.getStage(StageManager.streamStage_).execute(new Runnable()
             {
                 public void run()
                 {
