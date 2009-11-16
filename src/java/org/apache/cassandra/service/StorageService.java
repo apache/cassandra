@@ -1046,4 +1046,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return replicationStrategy_;
     }
+
+    public void cancelPendingRanges()
+    {
+        tokenMetadata_.clearPendingRanges();
+    }
 }

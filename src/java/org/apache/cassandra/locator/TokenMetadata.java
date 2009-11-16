@@ -287,4 +287,9 @@ public class TokenMetadata
     {
         return getEndPoint(getSuccessor(getToken(endPoint)));
     }
+
+    public void clearPendingRanges()
+    {
+        pendingRanges.clear();
+    }
 }

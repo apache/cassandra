@@ -131,6 +131,13 @@ public interface StorageServiceMBean
      */
     public void loadBalance() throws IOException, InterruptedException;
 
+    /**
+     * cancel writes to nodes that are set to be changing ranges.
+     * Only do this if the reason for the range changes no longer exists
+     * (e.g., a bootstrapping node was killed or crashed.)
+     */
+    public void cancelPendingRanges();
+
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
 }
