@@ -15,15 +15,15 @@ import org.apache.cassandra.net.Message;
  * provided in the input map. it will block till we recive response from
  * n nodes in each of our data centers.
  */
-public class DatacenterQuorumSyncResponseHandler<T> extends QuorumResponseHandler<T>
+public class DatacenterQuorumSyncResponseHandler extends WriteResponseHandler
 {
     private final Map<String, Integer> dcResponses = new HashMap<String, Integer>();
     private final Map<String, Integer> responseCounts;
 
-    public DatacenterQuorumSyncResponseHandler(Map<String, Integer> responseCounts, IResponseResolver<T> responseResolver)
+    public DatacenterQuorumSyncResponseHandler(Map<String, Integer> responseCounts)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(1, responseResolver);
+        super(1);
         this.responseCounts = responseCounts;
     }
 

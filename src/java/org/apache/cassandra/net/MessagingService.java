@@ -322,15 +322,20 @@ public class MessagingService
      */
     public String sendRR(Message message, InetAddress[] to, IAsyncCallback cb)
     {
-        String messageId = message.getMessageId();                        
-        callbackMap_.put(messageId, cb);
+        String messageId = message.getMessageId();
+        addCallback(cb, messageId);
         for ( int i = 0; i < to.length; ++i )
         {
             sendOneWay(message, to[i]);
         }
         return messageId;
     }
-    
+
+    public void addCallback(IAsyncCallback cb, String messageId)
+    {
+        callbackMap_.put(messageId, cb);
+    }
+
     /**
      * Send a message to a given endpoint. This method specifies a callback
      * which is invoked with the actual response.
@@ -344,7 +349,7 @@ public class MessagingService
     public String sendRR(Message message, InetAddress to, IAsyncCallback cb)
     {        
         String messageId = message.getMessageId();
-        callbackMap_.put(messageId, cb);
+        addCallback(cb, messageId);
         sendOneWay(message, to);
         return messageId;
     }
@@ -369,7 +374,7 @@ public class MessagingService
             throw new IllegalArgumentException("Number of messages and the number of endpoints need to be same.");
         }
         String groupId = GuidGenerator.guid();
-        callbackMap_.put(groupId, cb);
+        addCallback(cb, groupId);
         for ( int i = 0; i < messages.length; ++i )
         {
             messages[i].setMessageId(groupId);

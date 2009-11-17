@@ -202,17 +202,16 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      * return a DCQRH with a map of all the DC rep facor.
      */
     @Override
-    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, int consistency_level)
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
-            List<InetAddress> endpoints = getLocalEndPoints();
-            return new DatacenterQuorumResponseHandler<T>(locQFactor, responseResolver);
+            return new DatacenterQuorumResponseHandler(locQFactor);
         }
         else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
         {
-            return new DatacenterQuorumSyncResponseHandler<T>(getQuorumRepFactor(), responseResolver);
+            return new DatacenterQuorumSyncResponseHandler(getQuorumRepFactor());
         }
-        return super.getResponseHandler(responseResolver, blockFor, consistency_level);
+        return super.getWriteResponseHandler(blockFor, consistency_level);
     }
 }

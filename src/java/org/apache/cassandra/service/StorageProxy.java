@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.io.IOError;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -149,53 +148,85 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    public static void insertBlocking(RowMutation rm, int consistency_level) throws UnavailableException
+    public static void insertBlocking(final RowMutation rm, int consistency_level) throws UnavailableException
     {
         long startTime = System.currentTimeMillis();
-        Message message;
-        try
-        {
-            message = rm.makeRowMutationMessage();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
         try
         {
             List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
             Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
             int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
-            List<InetAddress> primaryNodes = getUnhintedNodes(endpointMap);
-            if (primaryNodes.size() < blockFor) // guarantee blockFor = W live nodes.
+
+            // avoid starting a write we know can't achieve the required consistency
+            int liveNodes = 0;
+            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+            {
+                if (entry.getKey().equals(entry.getValue()))
+                {
+                    liveNodes++;
+                }
+            }
+            if (liveNodes < blockFor)
             {
                 throw new UnavailableException();
             }
-            QuorumResponseHandler<Boolean> quorumResponseHandler = StorageService.instance().getResponseHandler(new WriteResponseResolver(), blockFor, consistency_level);
-            if (logger.isDebugEnabled())
-                logger.debug("insertBlocking writing key " + rm.key() + " to " + message.getMessageId() + "@[" + StringUtils.join(endpointMap.values(), ", ") + "]");
 
-            // Get all the targets and stick them in an array
-            MessagingService.instance().sendRR(message, primaryNodes.toArray(new InetAddress[primaryNodes.size()]), quorumResponseHandler);
-            try
+            // send out the writes, as in insert() above, but this time with a callback that tracks responses
+            final WriteResponseHandler responseHandler = StorageService.instance().getWriteResponseHandler(blockFor, consistency_level);
+            Message unhintedMessage = null;
+            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
             {
-                if (!quorumResponseHandler.get())
-                    throw new UnavailableException();
-            }
-            catch (DigestMismatchException e)
-            {
-                throw new AssertionError(e);
-            }
-            if (primaryNodes.size() < endpointMap.size()) // Do we need to bother with Hinted Handoff?
-            {
-                for (Map.Entry<InetAddress, InetAddress> e : endpointMap.entrySet())
+                InetAddress target = entry.getKey();
+                InetAddress hintedTarget = entry.getValue();
+
+                if (target.equals(hintedTarget))
                 {
-                    if (!e.getKey().equals(e.getValue())) // Hinted Handoff to target
+                    if (target.equals(FBUtilities.getLocalAddress()))
                     {
-                        MessagingService.instance().sendOneWay(message, e.getValue());
+                        if (logger.isDebugEnabled())
+                            logger.debug("insert writing local key " + rm.key());
+                        Runnable runnable = new Runnable()
+                        {
+                            public void run()
+                            {
+                                try
+                                {
+                                    rm.apply();
+                                    responseHandler.localResponse();
+                                }
+                                catch (IOException e)
+                                {
+                                    throw new IOError(e);
+                                }
+                            }
+                        };
+                        StageManager.getStage(StageManager.mutationStage_).execute(runnable);
+                    }
+                    else
+                    {
+                        if (unhintedMessage == null)
+                        {
+                            unhintedMessage = rm.makeRowMutationMessage();
+                            MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
+                        }
+                        if (logger.isDebugEnabled())
+                            logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + target);
+                        MessagingService.instance().sendOneWay(unhintedMessage, target);
                     }
                 }
+                else
+                {
+                    // (hints aren't part of the callback since they don't count towards consistency until they are on the final destination node)
+                    Message hintedMessage = rm.makeRowMutationMessage();
+                    hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
+                    if (logger.isDebugEnabled())
+                        logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
+                    MessagingService.instance().sendOneWay(hintedMessage, hintedTarget);
+                }
             }
+
+            // wait for writes.  throws timeoutexception if necessary
+            responseHandler.get();
         }
         catch (TimeoutException e)
         {
@@ -209,19 +240,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeStats.add(System.currentTimeMillis() - startTime);
         }
-    }
-
-    private static List<InetAddress> getUnhintedNodes(Map<InetAddress, InetAddress> endpointMap)
-    {
-        List<InetAddress> liveEndPoints = new ArrayList<InetAddress>(endpointMap.size());
-        for (Map.Entry<InetAddress, InetAddress> e : endpointMap.entrySet())
-        {
-            if (e.getKey().equals(e.getValue()))
-            {
-                liveEndPoints.add(e.getKey());
-            }
-        }
-        return liveEndPoints;
     }
 
     private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)

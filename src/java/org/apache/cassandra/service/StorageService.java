@@ -1037,9 +1037,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         unbootstrap(finishMoving);
     }
 
-    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, int consistency_level)
     {
-        return replicationStrategy_.getResponseHandler(responseResolver, blockFor, consistency_level);
+        return replicationStrategy_.getWriteResponseHandler(blockFor, consistency_level);
     }
 
     public AbstractReplicationStrategy getReplicationStrategy()

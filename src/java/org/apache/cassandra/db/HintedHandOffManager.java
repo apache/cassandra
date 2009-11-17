@@ -101,7 +101,7 @@ public class HintedHandOffManager
         return instance_;
     }
 
-    private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws DigestMismatchException, TimeoutException, IOException, InvalidRequestException
+    private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws IOException
     {
         if (!FailureDetector.instance().isAlive(endPoint))
         {
@@ -112,10 +112,18 @@ public class HintedHandOffManager
         Row row = table.get(key);
         RowMutation rm = new RowMutation(tableName, row);
         Message message = rm.makeRowMutationMessage();
-        QuorumResponseHandler<Boolean> quorumResponseHandler = new QuorumResponseHandler<Boolean>(1, new WriteResponseResolver());
-        MessagingService.instance().sendRR(message, new InetAddress[] { endPoint }, quorumResponseHandler);
+        WriteResponseHandler responseHandler = new WriteResponseHandler(1);
+        MessagingService.instance().sendRR(message, new InetAddress[] { endPoint }, responseHandler);
 
-        return quorumResponseHandler.get();
+        try
+        {
+            responseHandler.get();
+        }
+        catch (TimeoutException e)
+        {
+            return false;
+        }
+        return true;
     }
 
     private static void deleteEndPoint(byte[] endpointAddress, String tableName, byte[] key, long timestamp) throws IOException
@@ -205,7 +213,7 @@ public class HintedHandOffManager
                 Collection<IColumn> endpoints = keyColumn.getSubColumns();
                 for (IColumn hintEndPoint : endpoints)
                 {
-                    if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, null, keyStr))
+                    if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, tableName, keyStr))
                     {
                         if (endpoints.size() == 1)
                         {

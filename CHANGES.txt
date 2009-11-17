@@ -41,7 +41,8 @@
    interfaces (CASSANDRA-546)
  * stress.py benchmarking tool improvements (several tickets)
  * optimized replica placement code (CASSANDRA-525)
- * faster log replay on restart (CASSANDRA-539, -540)
+ * faster log replay on restart (CASSANDRA-539, CASSANDRA-540)
+ * optimized local-node writes (CASSANDRA-558)
  
 
 0.4.2

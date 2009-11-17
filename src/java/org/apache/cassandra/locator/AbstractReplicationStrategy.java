@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.IResponseResolver;
 import org.apache.cassandra.service.QuorumResponseHandler;
+import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -55,9 +56,9 @@ public abstract class AbstractReplicationStrategy
 
     public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata);
     
-    public <T> QuorumResponseHandler<T> getResponseHandler(IResponseResolver<T> responseResolver, int blockFor, int consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, int consistency_level)
     {
-        return new QuorumResponseHandler<T>(blockFor, responseResolver);
+        return new WriteResponseHandler(blockFor);
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token)

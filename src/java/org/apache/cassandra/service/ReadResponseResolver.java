@@ -47,7 +47,7 @@ import org.apache.log4j.Logger;
  */
 public class ReadResponseResolver implements IResponseResolver<Row>
 {
-	private static Logger logger_ = Logger.getLogger(WriteResponseResolver.class);
+	private static Logger logger_ = Logger.getLogger(ReadResponseResolver.class);
 
 	/*
 	 * This method for resolving read data should look at the timestamps of each
