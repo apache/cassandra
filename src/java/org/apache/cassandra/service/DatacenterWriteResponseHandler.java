@@ -16,13 +16,13 @@ import org.apache.cassandra.utils.FBUtilities;
  * provided in the input map. it will block till we recive response from (DC, n)
  * nodes.
  */
-public class DatacenterQuorumResponseHandler extends WriteResponseHandler
+public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
     private int blockFor;
     private IEndPointSnitch endpointsnitch;
     private InetAddress localEndpoint;
 
-    public DatacenterQuorumResponseHandler(int blockFor)
+    public DatacenterWriteResponseHandler(int blockFor)
     {
         // Response is been managed by the map so the waitlist size really doesnt matter.
         super(blockFor);

@@ -206,11 +206,11 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
-            return new DatacenterQuorumResponseHandler(locQFactor);
+            return new DatacenterWriteResponseHandler(locQFactor);
         }
         else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
         {
-            return new DatacenterQuorumSyncResponseHandler(getQuorumRepFactor());
+            return new DatacenterSyncWriteResponseHandler(getQuorumRepFactor());
         }
         return super.getWriteResponseHandler(blockFor, consistency_level);
     }
