@@ -512,13 +512,68 @@ class TestMutations(CassandraTester):
         assert L == ['1', '10', '11', '12', '13', '14', '15', '16', '17', '18'], L
 
     def test_get_slice_range(self):
-	_insert_range()
-	_verify_range()
+        _insert_range()
+        _verify_range()
         
     def test_get_slice_super_range(self):
-	_insert_super_range()
-	_verify_super_range()
+        _insert_super_range()
+        _verify_super_range()
+
+    def test_get_range_slice_super(self):
+        for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
+            for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
+                client.insert('Keyspace2', key, ColumnPath('Super3', 'sc1', cname), 'v-' + cname, 0, ConsistencyLevel.ONE)
+
+        cp = ColumnParent('Super3', 'sc1')
+        result = client.get_range_slice("Keyspace2", cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
+        assert len(result) == 3
+        sc = result[0].columns[0].super_column
+        assert sc.columns[0].name == 'col1'
+        assert sc.columns[1].name == 'col3'
+
+        cp = ColumnParent('Super3')
+        result = client.get_range_slice("Keyspace2", cp, SlicePredicate(column_names=['sc1']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
+        assert len(result) == 3
+        assert list(set(row.columns[0].super_column.name for row in result))[0] == 'sc1'
         
+    def test_get_range_slice(self):
+        for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
+            for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
+                client.insert('Keyspace1', key, ColumnPath('Standard1', column=cname), 'v-' + cname, 0, ConsistencyLevel.ONE)
+        cp = ColumnParent('Standard1')
+
+        # test column_names predicate
+        result = client.get_range_slice("Keyspace1", cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
+        assert len(result) == 3
+        assert result[0].columns[0].column.name == 'col1'
+        assert result[0].columns[1].column.name == 'col3'
+
+        # row limiting via count.
+        result = client.get_range_slice("Keyspace1", cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 1, ConsistencyLevel.ONE)
+        assert len(result) == 1
+
+        # test column slice predicate
+        result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange(start='col2', finish='col4', reversed=False, count=5)), 'key1', 'key2', 5, ConsistencyLevel.ONE)
+        assert len(result) == 2
+        assert result[0].key == 'key1'
+        assert result[1].key == 'key2'
+        assert len(result[0].columns) == 3
+        assert result[0].columns[0].column.name == 'col2'
+        assert result[0].columns[2].column.name == 'col4'
+
+        # col limiting via count
+        result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange(start='col2', finish='col4', reversed=False, count=2)), 'key1', 'key2', 5, ConsistencyLevel.ONE)
+        assert len(result[0].columns) == 2
+
+        # and reversed 
+        result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange(start='col4', finish='col2', reversed=True, count=5)), 'key1', 'key2', 5, ConsistencyLevel.ONE)
+        assert result[0].columns[0].column.name == 'col2'
+        assert result[0].columns[2].column.name == 'col4'
+
+        # row limiting via count
+        result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange(start='col2', finish='col4', reversed=False, count=5)), 'key1', 'key2', 1, ConsistencyLevel.ONE)
+        assert len(result) == 1
+    
     def test_get_slice_by_names(self):
         _insert_range()
         p = SlicePredicate(column_names=['c1', 'c2'])
@@ -536,17 +591,17 @@ class TestMutations(CassandraTester):
     def test_multiget(self):
         """Insert multiple keys and retrieve them using the multiget interface"""
 
-        """Generate a list of 10 keys and insert them"""
+        # Generate a list of 10 keys and insert them
         num_keys = 10
         keys = ['key'+str(i) for i in range(1, num_keys+1)]
         _insert_multi(keys)
 
-        """Retrieve all 10 keys"""
+        # Retrieve all 10 keys
         rows = client.multiget('Keyspace1', keys, ColumnPath('Standard1', column='c1'), ConsistencyLevel.ONE)
         keys1 = rows.keys().sort()
         keys2 = keys.sort()
 
-        """Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted"""
+        # Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted
         for key in keys:
             assert rows.has_key(key) == True
             assert rows[key] == ColumnOrSuperColumn(column=Column(timestamp=0, name='c1', value='value1'))
@@ -554,18 +609,18 @@ class TestMutations(CassandraTester):
     def test_multiget_slice(self):
         """Insert multiple keys and retrieve them using the multiget_slice interface"""
 
-        """Generate a list of 10 keys and insert them"""
+        # Generate a list of 10 keys and insert them
         num_keys = 10
         keys = ['key'+str(i) for i in range(1, num_keys+1)]
         _insert_multi(keys)
 
-        """Retrieve all 10 key slices"""
+        # Retrieve all 10 key slices
         rows = _big_multislice('Keyspace1', keys, ColumnParent('Standard1'))
         keys1 = rows.keys().sort()
         keys2 = keys.sort()
 
         columns = [ColumnOrSuperColumn(c) for c in _SIMPLE_COLUMNS]
-        """Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted"""
+        # Validate if the returned rows have the keys requested and if the ColumnOrSuperColumn is what was inserted
         for key in keys:
             assert rows.has_key(key) == True
             assert columns == rows[key]

@@ -120,6 +120,11 @@ struct SlicePredicate {
     2: optional SliceRange   slice_range,
 }
 
+struct KeySlice {
+    1: required string key,
+    2: required list<ColumnOrSuperColumn> columns,
+}
+
 
 service Cassandra {
   # retrieval methods
@@ -155,14 +160,23 @@ service Cassandra {
                 4:required ConsistencyLevel consistency_level=1)
       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
-  # range query: returns matching keys
+  /** @deprecated; use get_range_slice instead */
   list<string> get_key_range(1:required string keyspace, 
                              2:required string column_family, 
                              3:required string start="", 
                              4:required string finish="", 
-                             5:required i32 count=100, 
+                             5:required i32 count=100,
                              6:required ConsistencyLevel consistency_level=1)
                throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+
+  list<KeySlice> get_range_slice(1:required string keyspace, 
+                                 2:required ColumnParent column_parent, 
+                                 3:required SlicePredicate predicate,
+                                 4:required string start_key="", 
+                                 5:required string finish_key="", 
+                                 6:required i32 row_count=100, 
+                                 7:required ConsistencyLevel consistency_level=1)
+                 throws (1: InvalidRequestException ire, 2: UnavailableException ue),
 
   # modification methods
   void insert(1:required string keyspace, 

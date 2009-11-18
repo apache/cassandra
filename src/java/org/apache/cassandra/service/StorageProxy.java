@@ -56,6 +56,7 @@ public class StorageProxy implements StorageProxyMBean
     private static TimedStatsDeque readStats = new TimedStatsDeque(60000);
     private static TimedStatsDeque rangeStats = new TimedStatsDeque(60000);
     private static TimedStatsDeque writeStats = new TimedStatsDeque(60000);
+
     private StorageProxy() {}
     static
     {
@@ -69,6 +70,23 @@ public class StorageProxy implements StorageProxyMBean
             throw new RuntimeException(e);
         }
     }
+
+    private static Comparator<String> keyComparator = new Comparator<String>()
+    {
+        public int compare(String o1, String o2)
+        {
+            IPartitioner p = StorageService.getPartitioner();
+            return p.getDecoratedKeyComparator().compare(p.decorateKey(o1), p.decorateKey(o2));
+        }
+    };
+
+    private static Comparator<Row> rowComparator = new Comparator<Row>()
+    {
+        public int compare(Row r1, Row r2)
+        {
+            return keyComparator.compare(r1.key(), r2.key());
+        }
+    };
 
     /**
      * Use this method to have this RowMutation applied
@@ -508,6 +526,95 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
+    static Map<String, Collection<IColumn>> getRangeSlice(RangeSliceCommand rawCommand) throws IOException, UnavailableException
+    {
+        long startTime = System.currentTimeMillis();
+        TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
+        RangeSliceCommand command = rawCommand;
+
+        InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.start_key);
+        InetAddress startEndpoint = endPoint;
+        InetAddress wrapEndpoint = tokenMetadata.getFirstEndpoint();
+
+        TreeSet<Row> allRows = new TreeSet<Row>(rowComparator);
+        do
+        {
+
+            Message message = command.getMessage();
+            if (logger.isDebugEnabled())
+                logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endPoint);
+            IAsyncResult iar = MessagingService.instance().sendRR(message, endPoint);
+            byte[] responseBody;
+            try
+            {
+                responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+            }
+            catch (TimeoutException ex)
+            {
+                throw new RuntimeException(ex);
+            }
+            RangeSliceReply reply = RangeSliceReply.read(responseBody);
+            List<Row> rangeRows = new ArrayList<Row>(reply.rows);
+
+            // combine these what what has been seen so far.
+            if (rangeRows.size() > 0)
+            {
+                if (allRows.size() > 0)
+                {
+                    if (keyComparator.compare(rangeRows.get(rangeRows.size() - 1).key(), allRows.first().key()) <= 0)
+                    {
+                        // unlikely, but possible
+                        if (rangeRows.get(rangeRows.size() - 1).equals(allRows.first().key()))
+                        {
+                            rangeRows.remove(rangeRows.size() - 1);
+                        }
+                        // put all from rangeRows into allRows.
+                        allRows.addAll(rangeRows);
+                    }
+                    else if (keyComparator.compare(allRows.last().key(), rangeRows.get(0).key()) <= 0)
+                    {
+                        // common case. deal with simple start/end key overlaps
+                        if (allRows.last().key().equals(rangeRows.get(0)))
+                        {
+                            allRows.remove(allRows.last().key());
+                        }
+                        allRows.addAll(rangeRows); // todo: check logic.
+                    }
+                    else
+                    {
+                        // deal with potential large overlap from scanning the first endpoint, which contains
+                        // both the smallest and largest keys
+                        allRows.addAll(rangeRows); // todo: check logic.
+                    }
+                }
+                else
+                    allRows.addAll(rangeRows); // todo: check logic.
+            }
+
+            if (allRows.size() >= rawCommand.max_keys || reply.rangeCompletedLocally)
+                break;
+
+            do
+            {
+                endPoint = tokenMetadata.getSuccessor(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
+            }
+            while (!FailureDetector.instance().isAlive(endPoint));
+            int maxResults = endPoint == wrapEndpoint ? rawCommand.max_keys : rawCommand.max_keys - allRows.size();
+            command = new RangeSliceCommand(command, maxResults);
+        }
+        while (!endPoint.equals(startEndpoint));
+
+        Map<String, Collection<IColumn>> results = new TreeMap<String, Collection<IColumn>>();
+        for (Row row : allRows)
+        {
+            // for now, assume only one cf per row, since that is all we can specify in the Command.
+            ColumnFamily cf = row.getColumnFamilies().iterator().next();
+            results.put(row.key(),cf.getSortedColumns());
+        }
+        rangeStats.add(System.currentTimeMillis() - startTime);
+        return results;
+    }
+
     static List<String> getKeyRange(RangeCommand rawCommand) throws IOException, UnavailableException
     {
         long startTime = System.currentTimeMillis();
@@ -544,16 +651,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (allKeys.size() > 0)
                 {
-                    Comparator<String> comparator = new Comparator<String>()
-                    {
-                        public int compare(String o1, String o2)
-                        {
-                            IPartitioner p = StorageService.getPartitioner();
-                            return p.getDecoratedKeyComparator().compare(p.decorateKey(o1), p.decorateKey(o2));
-                        }
-                    };
-
-                    if (comparator.compare(rangeKeys.get(rangeKeys.size() - 1), allKeys.get(0)) <= 0)
+                    if (keyComparator.compare(rangeKeys.get(rangeKeys.size() - 1), allKeys.get(0)) <= 0)
                     {
                         // unlikely, but possible
                         if (rangeKeys.get(rangeKeys.size() - 1).equals(allKeys.get(0)))
@@ -563,7 +661,7 @@ public class StorageProxy implements StorageProxyMBean
                         rangeKeys.addAll(allKeys);
                         allKeys = rangeKeys;
                     }
-                    else if (comparator.compare(allKeys.get(allKeys.size() - 1), rangeKeys.get(0)) <= 0)
+                    else if (keyComparator.compare(allKeys.get(allKeys.size() - 1), rangeKeys.get(0)) <= 0)
                     {
                         // common case. deal with simple start/end key overlaps
                         if (allKeys.get(allKeys.size() - 1).equals(rangeKeys.get(0)))

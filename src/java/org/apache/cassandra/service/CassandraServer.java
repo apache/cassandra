@@ -33,10 +33,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
-import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
-import org.apache.cassandra.dht.Token;
 import org.apache.thrift.TException;
 
 import flexjson.JSONSerializer;
@@ -555,6 +553,60 @@ public class CassandraServer implements Cassandra.Iface
             columnFamiliesMap.put(columnFamilyMetaData.cfName, columnMap);
         }
         return columnFamiliesMap;
+    }
+
+    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int maxRows, int consistency_level)
+    throws InvalidRequestException, UnavailableException, TException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("range_slice");
+        if (predicate.getSlice_range() != null)
+            ThriftValidation.validateRange(keyspace, column_parent, predicate.getSlice_range());
+        else
+            ThriftValidation.validateColumns(keyspace, column_parent, predicate.getColumn_names());
+        if (!StorageService.getPartitioner().preservesOrder())
+        {
+            throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
+        }
+        if (maxRows <= 0)
+        {
+            throw new InvalidRequestException("maxRows must be positive");
+        }
+
+        Map<String, Collection<IColumn>> colMap; // keys are sorted.
+        try
+        {
+            colMap = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, start_key, finish_key, maxRows));
+            if (colMap == null)
+                throw new RuntimeException("KeySlice list should never be null.");
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        List<KeySlice> keySlices = new ArrayList<KeySlice>(colMap.size());
+        for (String key : colMap.keySet())
+        {
+            Collection<IColumn> dbList = colMap.get(key);
+            List<ColumnOrSuperColumn> svcList = new ArrayList<ColumnOrSuperColumn>(dbList.size());
+            for (org.apache.cassandra.db.IColumn col : dbList)
+            {
+                if (col instanceof org.apache.cassandra.db.Column)
+                    svcList.add(new ColumnOrSuperColumn(new org.apache.cassandra.service.Column(col.name(), col.value(), col.timestamp()), null));
+                else if (col instanceof org.apache.cassandra.db.SuperColumn)
+                {
+                    Collection<IColumn> subICols = col.getSubColumns();
+                    List<org.apache.cassandra.service.Column> subCols = new ArrayList<org.apache.cassandra.service.Column>(subICols.size());
+                    for (IColumn subCol : subICols)
+                        subCols.add(new org.apache.cassandra.service.Column(subCol.name(), subCol.value(), subCol.timestamp()));
+                    svcList.add(new ColumnOrSuperColumn(null, new org.apache.cassandra.service.SuperColumn(col.name(), subCols)));
+                }
+            }
+            keySlices.add(new KeySlice(key, svcList));
+        }
+
+        return keySlices;
     }
 
     public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults, int consistency_level)

@@ -118,6 +118,7 @@ public class Message implements java.io.Serializable
         header_.setMessageId(id);
     }    
 
+    // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
     {
         Header header = new Header(getMessageId(), from, MessagingService.responseStage_, MessagingService.responseVerbHandler_);

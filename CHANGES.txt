@@ -43,6 +43,7 @@
  * optimized replica placement code (CASSANDRA-525)
  * faster log replay on restart (CASSANDRA-539, CASSANDRA-540)
  * optimized local-node writes (CASSANDRA-558)
+ * added get_range_slice, deprecating get_key_range (CASSANDRA-344)
  
 
 0.4.2

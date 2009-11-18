@@ -76,6 +76,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public final static String dataFileVerbHandler_ = "DATA-FILE-VERB-HANDLER";
     public final static String bootstrapMetadataVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String rangeVerbHandler_ = "RANGE-VERB-HANDLER";
+    public final static String rangeSliceVerbHandler_ = "RANGE-SLICE-VERB-HANDLER";
     public final static String bootstrapTokenVerbHandler_ = "SPLITS-VERB-HANDLER";
 
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
@@ -223,6 +224,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.instance().registerVerbHandlers(readVerbHandler_, new ReadVerbHandler());
         MessagingService.instance().registerVerbHandlers(dataFileVerbHandler_, new DataFileVerbHandler() );
         MessagingService.instance().registerVerbHandlers(rangeVerbHandler_, new RangeVerbHandler());
+        MessagingService.instance().registerVerbHandlers(rangeSliceVerbHandler_, new RangeSliceVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance().registerVerbHandlers(bootstrapMetadataVerbHandler_, new BootstrapMetadataVerbHandler() );
@@ -275,7 +277,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             while (isBootstrapMode)
             {
                 try
-                {
+                {   
                     Thread.sleep(100);
                 }
                 catch (InterruptedException e)

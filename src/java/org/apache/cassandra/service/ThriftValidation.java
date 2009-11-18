@@ -155,6 +155,8 @@ public class ThriftValidation
                 throw new InvalidRequestException("supercolumn name length must not be greater than " + IColumn.MAX_NAME_LENGTH);
             if (superColumnName.length == 0)
                 throw new InvalidRequestException("supercolumn name must not be empty");
+            if (!DatabaseDescriptor.getColumnFamilyType(keyspace, columnFamilyName).equals("Super"))
+                throw new InvalidRequestException("supercolumn specified to ColumnFamily " + columnFamilyName + " containing normal columns");
         }
         AbstractType comparator = ColumnFamily.getComparatorFor(keyspace, columnFamilyName, superColumnName);
         for (byte[] name : column_names)
