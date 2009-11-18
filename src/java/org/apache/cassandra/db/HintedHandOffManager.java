@@ -200,7 +200,7 @@ public class HintedHandOffManager
         Table systemTable = Table.open(Table.SYSTEM_TABLE);
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            ColumnFamily hintedColumnFamily = systemTable.get(tableName, HINTS_CF);
+            ColumnFamily hintedColumnFamily = ColumnFamilyStore.removeDeleted(systemTable.get(tableName, HINTS_CF), Integer.MAX_VALUE);
             if (hintedColumnFamily == null)
             {
                 continue;
