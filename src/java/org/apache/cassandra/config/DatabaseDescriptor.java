@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 public class DatabaseDescriptor
 {
@@ -278,9 +279,20 @@ public class DatabaseDescriptor
 
             /* Local IP or hostname to bind services to */
             String listenAddress = xmlUtils.getNodeValue("/Storage/ListenAddress");
-            if ( listenAddress != null)
-                listenAddress_ = InetAddress.getByName(listenAddress);
-            
+            if (listenAddress != null)
+            {
+                if (listenAddress.equals("0.0.0.0"))
+                    throw new ConfigurationException("ListenAddress must be a single interface.  See http://wiki.apache.org/cassandra/FAQ#cant_listen_on_ip_any");
+                try
+                {
+                    listenAddress_ = InetAddress.getByName(listenAddress);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new ConfigurationException("Unknown ListenAddress '" + listenAddress + "'");
+                }
+            }
+
             /* Local IP or hostname to bind thrift server to */
             String thriftAddress = xmlUtils.getNodeValue("/Storage/ThriftAddress");
             if ( thriftAddress != null )
