@@ -40,7 +40,7 @@ public class CliClient
     }
 
     // Execute a CLI Statement 
-    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException, UnavailableException
+    public void executeCLIStmt(String stmt) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
     {
         CommonTree ast = null;
 
@@ -111,7 +111,7 @@ public class CliClient
     }
 
     // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException
+    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected())
             return;
@@ -174,7 +174,7 @@ public class CliClient
     }
 
     // Execute SET statement
-    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException
+    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
         if (!CliMain.isConnected())
             return;
@@ -203,7 +203,7 @@ public class CliClient
             try
             {
                 thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")),
-                                 value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
+                                     value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
             }
             catch (UnsupportedEncodingException e)
             {

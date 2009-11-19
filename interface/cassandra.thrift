@@ -81,6 +81,10 @@ exception InvalidRequestException {
 exception UnavailableException {
 }
 
+# RPC timeout was exceeded.  either a node failed mid-operation, or load was too high, or the requested op was too large.
+exception TimedOutException {
+}
+
 # (note that internal server errors will raise a TApplicationException, courtesy of Thrift)
 
 
@@ -132,33 +136,33 @@ service Cassandra {
                           2:required string key,
                           3:required ColumnPath column_path,
                           4:required ConsistencyLevel consistency_level=1)
-                      throws (1: InvalidRequestException ire, 2: NotFoundException nfe, 3: UnavailableException ue),
+                      throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
 
   list<ColumnOrSuperColumn> get_slice(1:required string keyspace, 
                                       2:required string key, 
                                       3:required ColumnParent column_parent, 
                                       4:required SlicePredicate predicate, 
                                       5:required ConsistencyLevel consistency_level=1)
-                              throws (1: InvalidRequestException ire, 3: UnavailableException ue),
+                            throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
                                            2:required list<string> keys, 
                                            3:required ColumnPath column_path, 
                                            4:required ConsistencyLevel consistency_level=1)
-                                    throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+                                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   map<string,list<ColumnOrSuperColumn>> multiget_slice(1:required string keyspace, 
                                                        2:required list<string> keys, 
                                                        3:required ColumnParent column_parent, 
                                                        4:required SlicePredicate predicate, 
                                                        5:required ConsistencyLevel consistency_level=1)
-                                          throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+                                        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   i32 get_count(1:required string keyspace, 
                 2:required string key, 
                 3:required ColumnParent column_parent, 
                 4:required ConsistencyLevel consistency_level=1)
-      throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+      throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /** @deprecated; use get_range_slice instead */
   list<string> get_key_range(1:required string keyspace, 
@@ -167,7 +171,7 @@ service Cassandra {
                              4:required string finish="", 
                              5:required i32 count=100,
                              6:required ConsistencyLevel consistency_level=1)
-               throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+               throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   list<KeySlice> get_range_slice(1:required string keyspace, 
                                  2:required ColumnParent column_parent, 
@@ -176,7 +180,7 @@ service Cassandra {
                                  5:required string finish_key="", 
                                  6:required i32 row_count=100, 
                                  7:required ConsistencyLevel consistency_level=1)
-                 throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+                 throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods
   void insert(1:required string keyspace, 
@@ -185,20 +189,20 @@ service Cassandra {
               4:required binary value, 
               5:required i64 timestamp, 
               6:required ConsistencyLevel consistency_level=0)
-       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   void batch_insert(1:required string keyspace, 
                     2:required string key, 
                     3:required map<string, list<ColumnOrSuperColumn>> cfmap, 
                     4:required ConsistencyLevel consistency_level=0)
-       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   void remove(1:required string keyspace,
               2:required string key, 
               3:required ColumnPath column_path,
               4:required i64 timestamp,
               5:ConsistencyLevel consistency_level=0)
-       throws (1: InvalidRequestException ire, 2: UnavailableException ue),
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
 
   // Meta-APIs -- APIs to get information about the node or cluster,
@@ -212,6 +216,6 @@ service Cassandra {
 
   // describe specified keyspace
   map<string, map<string, string>> describe_keyspace(1:required string keyspace)
-                                   throws (1: NotFoundException nfe),
+                                   throws (1:NotFoundException nfe),
 }
 

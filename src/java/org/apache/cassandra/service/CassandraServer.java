@@ -71,7 +71,7 @@ public class CassandraServer implements Cassandra.Iface
 	}
 
     protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
         String cfName = commands.get(0).getColumnFamilyName();
@@ -93,10 +93,6 @@ public class CassandraServer implements Cassandra.Iface
             rows = StorageProxy.readProtocol(commands, consistency_level);
         }
         catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (TimeoutException e)
         {
             throw new RuntimeException(e);
         }
@@ -170,7 +166,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
         Map<String, List<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<String, List<ColumnOrSuperColumn>>();
@@ -206,7 +202,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
@@ -214,7 +210,7 @@ public class CassandraServer implements Cassandra.Iface
     }
     
     public Map<String, List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
@@ -222,7 +218,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, List<ColumnOrSuperColumn>> multigetSliceInternal(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
@@ -251,7 +247,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public ColumnOrSuperColumn get(String table, String key, ColumnPath column_path, int consistency_level)
-    throws InvalidRequestException, NotFoundException, UnavailableException
+    throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("get");
@@ -265,7 +261,7 @@ public class CassandraServer implements Cassandra.Iface
 
     /** no values will be mapped to keys with no data */
     private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
         Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
@@ -300,7 +296,7 @@ public class CassandraServer implements Cassandra.Iface
 
     /** always returns a ColumnOrSuperColumn for each key, even if there is no data for it */
     public Map<String, ColumnOrSuperColumn> multiget(String table, List<String> keys, ColumnPath column_path, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget");
@@ -308,7 +304,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, ColumnOrSuperColumn> multigetInternal(String table, List<String> keys, ColumnPath column_path, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         ThriftValidation.validateColumnPath(table, column_path);
 
@@ -358,7 +354,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public int get_count(String table, String key, ColumnParent column_parent, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_count");
@@ -366,7 +362,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     private Map<String, Integer> multigetCountInternal(String table, List<String> keys, ColumnParent column_parent, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // validateColumnParent assumes we require simple columns; g_c_c is the only
         // one of the columnParent-taking apis that can also work at the SC level.
@@ -403,7 +399,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("insert");
@@ -423,7 +419,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public void batch_insert(String keyspace, String key, Map<String, List<ColumnOrSuperColumn>> cfmap, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
@@ -451,7 +447,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public void remove(String table, String key, ColumnPath column_path, long timestamp, int consistency_level)
-    throws InvalidRequestException, UnavailableException
+    throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("remove");
@@ -464,7 +460,7 @@ public class CassandraServer implements Cassandra.Iface
         doInsert(consistency_level, rm);
 	}
 
-    private void doInsert(int consistency_level, RowMutation rm) throws UnavailableException
+    private void doInsert(int consistency_level, RowMutation rm) throws UnavailableException, TimedOutException
     {
         if (consistency_level != ConsistencyLevel.ZERO)
         {
@@ -556,7 +552,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int maxRows, int consistency_level)
-    throws InvalidRequestException, UnavailableException, TException
+            throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
@@ -610,7 +606,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults, int consistency_level)
-    throws InvalidRequestException, TException, UnavailableException
+            throws InvalidRequestException, TException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("get_key_range");

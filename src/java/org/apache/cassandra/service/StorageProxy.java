@@ -166,7 +166,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    public static void insertBlocking(final RowMutation rm, int consistency_level) throws UnavailableException
+    public static void insertBlocking(final RowMutation rm, int consistency_level) throws UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
         try
@@ -248,7 +248,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (TimeoutException e)
         {
-            throw new UnavailableException();
+            throw new TimedOutException();
         }
         catch (IOException e)
         {
@@ -289,13 +289,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
         }
         return blockFor;
-    }
-
-    public static void insertBlocking(RowMutation rm) throws UnavailableException
-    {
-        insertBlocking(rm, ConsistencyLevel.QUORUM);
-    }
-    
+    }    
 
     /**
      * Read the data from one replica.  If there is no reply, read the data from another.  In the event we get
@@ -304,7 +298,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the row associated with command.key
      * @throws Exception
      */
-    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException, UnavailableException
+    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException, UnavailableException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("weakreadremote reading " + StringUtils.join(commands, ", "));
@@ -333,8 +327,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (TimeoutException e)
             {
-                throw new RuntimeException("error reading key " + commands.get(commandIndex).key, e);
-                // TODO retry to a different endpoint?
+                throw new TimedOutException();
             }
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
@@ -351,7 +344,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> readProtocol(List<ReadCommand> commands, int consistency_level)
-    throws IOException, TimeoutException, UnavailableException
+            throws IOException, UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
 
@@ -405,7 +398,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, TimeoutException, UnavailableException
+    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, UnavailableException, TimedOutException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
@@ -464,6 +457,10 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
             }
+            catch (TimeoutException e)
+            {
+                throw new TimedOutException();
+            }
             catch (DigestMismatchException ex)
             {
                 if (DatabaseDescriptor.getConsistencyCheck())
@@ -480,6 +477,10 @@ public class StorageProxy implements StorageProxyMBean
                         row = quorumResponseHandlerRepair.get();
                         if (row != null)
                             rows.add(row);
+                    }
+                    catch (TimeoutException e)
+                    {
+                        throw new TimedOutException();
                     }
                     catch (DigestMismatchException e)
                     {
@@ -526,7 +527,7 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static Map<String, Collection<IColumn>> getRangeSlice(RangeSliceCommand rawCommand) throws IOException, UnavailableException
+    static Map<String, Collection<IColumn>> getRangeSlice(RangeSliceCommand rawCommand) throws IOException, UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
@@ -551,7 +552,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (TimeoutException ex)
             {
-                throw new RuntimeException(ex);
+                throw new TimedOutException();
             }
             RangeSliceReply reply = RangeSliceReply.read(responseBody);
             List<Row> rangeRows = new ArrayList<Row>(reply.rows);
@@ -615,7 +616,7 @@ public class StorageProxy implements StorageProxyMBean
         return results;
     }
 
-    static List<String> getKeyRange(RangeCommand rawCommand) throws IOException, UnavailableException
+    static List<String> getKeyRange(RangeCommand rawCommand) throws IOException, UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
@@ -641,7 +642,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (TimeoutException e)
             {
-                throw new RuntimeException(e);
+                throw new TimedOutException();
             }
             RangeReply rangeReply = RangeReply.read(responseBody);
             List<String> rangeKeys = rangeReply.keys;
