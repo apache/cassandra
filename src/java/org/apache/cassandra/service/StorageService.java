@@ -232,19 +232,26 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         MessagingService.instance().registerVerbHandlers(streamInitiateDoneVerbHandler_, new Streaming.StreamInitiateDoneVerbHandler());
         MessagingService.instance().registerVerbHandlers(streamFinishedVerbHandler_, new Streaming.StreamFinishedVerbHandler());
 
+        replicationStrategy_ = getReplicationStrategy(tokenMetadata_, partitioner_);
+    }
+
+    public static AbstractReplicationStrategy getReplicationStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner)
+    {
+        AbstractReplicationStrategy replicationStrategy = null;
         Class<AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class};
         try
         {
             Constructor<AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
-            replicationStrategy_ = constructor.newInstance(tokenMetadata_, partitioner_, DatabaseDescriptor.getReplicationFactor());
+            replicationStrategy = constructor.newInstance(tokenMetadata, partitioner, DatabaseDescriptor.getReplicationFactor());
         }
         catch (Exception e)
         {
             throw new RuntimeException(e);
         }
+        return replicationStrategy;
     }
-
+    
     public void start() throws IOException
     {
         storageMetadata_ = SystemTable.initMetadata();

@@ -90,16 +90,8 @@ public class RingCache
                 }
 
                 TokenMetadata tokenMetadata = new TokenMetadata(tokenEndpointMap);
-                Class cls = DatabaseDescriptor.getReplicaPlacementStrategyClass();
-                Class [] parameterTypes = new Class[] { TokenMetadata.class, IPartitioner.class, int.class, int.class};
-                try
-                {
-                    nodePicker_ = (AbstractReplicationStrategy) cls.getConstructor(parameterTypes).newInstance(tokenMetadata, partitioner_, DatabaseDescriptor.getReplicationFactor(), port_);
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
+                nodePicker_ = StorageService.getReplicationStrategy(tokenMetadata, partitioner_);
+
                 break;
             }
             catch (TException e)
