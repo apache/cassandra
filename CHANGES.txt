@@ -26,6 +26,8 @@
  * Add key cache to improve read performance (CASSANDRA-423)
  * Simplified construction of custom ReplicationStrategy classes
    (CASSANDRA-497)
+ * Graphical application (Swing) for ring integrity verification and 
+   visualization was added to contrib (CASSANDRA-252)
  * Add DCQUORUM, DCQUORUMSYNC consistency levels and corresponding
    ReplicationStrategy / EndpointSnitch classes.  Experimental.
    (CASSANDRA-492)
