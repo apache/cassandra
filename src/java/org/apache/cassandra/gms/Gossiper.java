@@ -96,7 +96,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     final static String GOSSIP_DIGEST_ACK2_VERB = "GA2V";
     public final static int intervalInMillis_ = 1000;
     private static Logger logger_ = Logger.getLogger(Gossiper.class);
-    static Gossiper gossiper_;
+    private static volatile Gossiper gossiper_;
 
     public synchronized static Gossiper instance()
     {

@@ -49,7 +49,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private static final int phiConvictThreshold_ = 8;
     /* The Failure Detector has to have been up for at least 1 min. */
     private static final long uptimeThreshold_ = 60000;
-    private static IFailureDetector failureDetector_;
+    private static volatile IFailureDetector failureDetector_;
     /* Used to lock the factory for creation of FailureDetector instance */
     private static Lock createLock_ = new ReentrantLock();
     /* The time when the module was instantiated. */

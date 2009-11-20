@@ -89,7 +89,7 @@ public class MessagingService
     
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
-    private static MessagingService messagingService_ = new MessagingService();
+    private static volatile MessagingService messagingService_ = new MessagingService();
 
     private static final int MESSAGE_DESERIALIZE_THREADS = 4;
 
