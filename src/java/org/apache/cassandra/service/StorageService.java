@@ -1014,16 +1014,20 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public void loadBalance() throws IOException, InterruptedException
     {
-        Token token = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
-        move(token);
+        move((Token)null);
     }
 
+    /**
+     * move the node to new token or find a new token to boot to according to load
+     *
+     * @param token new token to boot to, or if null, find balanced token to boot to
+     */
     private void move(final Token token) throws InterruptedException
     {
         if (tokenMetadata_.getPendingRanges(FBUtilities.getLocalAddress()).size() > 0)
             throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
 
-        logger_.info("moving to " + token);
+        logger_.info("starting move. leaving token " + getLocalToken());
         Gossiper.instance().addApplicationState(STATE_LEAVING, new ApplicationState(getLocalToken().toString()));
         logger_.info("move sleeping " + Streaming.RING_DELAY);
         Thread.sleep(Streaming.RING_DELAY);
@@ -1034,8 +1038,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             {
                 try
                 {
-                    logger_.info("re-bootstrapping to new token " + token);
-                    startBootstrap(token);
+                    Token bootstrapToken = token;
+                    if (bootstrapToken == null)
+                        bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
+                    logger_.info("re-bootstrapping to new token " + bootstrapToken);
+                    startBootstrap(bootstrapToken);
                 }
                 catch (IOException e)
                 {
