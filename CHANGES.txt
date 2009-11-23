@@ -1,3 +1,7 @@
+0.5.0 dev
+ * Bootstrap improvements (several tickets)
+
+
 0.5.0 beta
  * Allow multiple simultaneous flushes, improving flush throughput 
    on multicore systems (CASSANDRA-401)
@@ -36,7 +40,6 @@
    for normal writes (CASSANDRA-446) and bulk load (CASSANDRA-420)
  * Add MemtableFlushAfterMinutes, a global replacement for the old 
    per-CF FlushPeriodInMinutes setting (CASSANDRA-463)
- * Datacenter quorum consistency levels (CASSANDRA-492)
  * optimizations to slice reading (CASSANDRA-350) and supercolumn
    queries (CASSANDRA-510)
  * force binding to given listenaddress for nodes with multiple
