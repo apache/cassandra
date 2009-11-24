@@ -968,11 +968,39 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         unbootstrap(finishLeaving);
     }
 
+    private void leaveRing()
+    {
+        SystemTable.setBootstrapped(false);
+        tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
+        replicationStrategy_.removeObsoletePendingRanges();
+
+        if (logger_.isDebugEnabled())
+            logger_.debug("");
+        Gossiper.instance().addApplicationState(STATE_LEFT, new ApplicationState(getLocalToken().toString()));
+        try
+        {
+            Thread.sleep(2 * Gossiper.intervalInMillis_);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
     private void unbootstrap(final Runnable onFinish)
     {
         Multimap<Range, InetAddress> rangesMM = getChangedRangesForLeaving(FBUtilities.getLocalAddress());
         if (logger_.isDebugEnabled())
             logger_.debug("Ranges needing transfer are [" + StringUtils.join(rangesMM.keySet(), ",") + "]");
+
+        if (rangesMM.isEmpty())
+        {
+            // nothing needs transfer, so leave immediately.  this can happen when replication factor == number of nodes.
+            leaveRing();
+            onFinish.run();
+            return;
+        }
+
         final Set<Map.Entry<Range, InetAddress>> pending = new HashSet<Map.Entry<Range, InetAddress>>(rangesMM.entries());
         for (final Map.Entry<Range, InetAddress> entry : rangesMM.entries())
         {
@@ -985,22 +1013,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                     pending.remove(entry);
                     if (pending.isEmpty())
                     {
-                        SystemTable.setBootstrapped(false);
-                        tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
-                        replicationStrategy_.removeObsoletePendingRanges();
-
-                        if (logger_.isDebugEnabled())
-                            logger_.debug("");
-                        Gossiper.instance().addApplicationState(STATE_LEFT, new ApplicationState(getLocalToken().toString()));
-                        try
-                        {
-                            Thread.sleep(2 * Gossiper.intervalInMillis_);
-                        }
-                        catch (InterruptedException e)
-                        {
-                            throw new AssertionError(e);
-                        }
-
+                        leaveRing();
                         onFinish.run();
                     }
                 }
