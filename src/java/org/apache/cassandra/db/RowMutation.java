@@ -71,11 +71,8 @@ public class RowMutation implements Serializable
     public RowMutation(String table, Row row)
     {
         table_ = table;
-        key_ = row.key();
-        for (ColumnFamily cf : row.getColumnFamilies())
-        {
-            add(cf);
-        }
+        key_ = row.key;
+        add(row.cf);
     }
 
     protected RowMutation(String table, String key, Map<String, ColumnFamily> modifications)

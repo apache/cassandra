@@ -109,8 +109,11 @@ public class HintedHandOffManager
         }
 
         Table table = Table.open(tableName);
-        Row row = table.get(key);
-        RowMutation rm = new RowMutation(tableName, row);
+        RowMutation rm = new RowMutation(tableName, key);
+        for (ColumnFamilyStore cfstore : table.getColumnFamilyStores().values())
+        {
+            rm.add(cfstore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfstore.getColumnFamilyName()))));
+        }
         Message message = rm.makeRowMutationMessage();
         WriteResponseHandler responseHandler = new WriteResponseHandler(1);
         MessagingService.instance().sendRR(message, new InetAddress[] { endPoint }, responseHandler);

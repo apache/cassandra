@@ -58,13 +58,6 @@ public class TableTest extends CleanupHelper
     }
 
     @Test
-    public void testOpen() throws Throwable {
-        Table table = Table.open("Mailbox");
-        Row row = table.get("35300190:1");
-        assertNotNull(row);
-    }
-
-    @Test
     public void testGetRowNoColumns() throws Throwable
     {
         final Table table = Table.open("Keyspace2");

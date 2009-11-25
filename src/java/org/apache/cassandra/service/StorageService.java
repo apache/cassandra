@@ -353,8 +353,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void doConsistencyCheck(Row row, List<InetAddress> endpoints, ReadCommand command)
     {
-        Runnable consistencySentinel = new ConsistencyManager(command.table, row.cloneMe(), endpoints, command);
-        consistencyManager_.submit(consistencySentinel);
+        consistencyManager_.submit(new ConsistencyManager(command.table, row, endpoints, command));
     }
 
     public Map<Range, List<String>> getRangeToEndPointMap()

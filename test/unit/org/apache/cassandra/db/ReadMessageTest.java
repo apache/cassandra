@@ -81,8 +81,7 @@ public class ReadMessageTest
 
         ReadCommand command = new SliceByNamesReadCommand("Keyspace1", "key1", new QueryPath("Standard1"), Arrays.asList("Column1".getBytes()));
         Row row = command.getRow(table);
-        ColumnFamily cf = row.getColumnFamily("Standard1");
-        IColumn col = cf.getColumn("Column1".getBytes());
+        IColumn col = row.cf.getColumn("Column1".getBytes());
         assert Arrays.equals(col.value(), "abcd".getBytes());  
     }
 }

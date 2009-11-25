@@ -84,7 +84,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         public int compare(Row r1, Row r2)
         {
-            return keyComparator.compare(r1.key(), r2.key());
+            return keyComparator.compare(r1.key, r2.key);
         }
     };
 
@@ -562,22 +562,22 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (allRows.size() > 0)
                 {
-                    if (keyComparator.compare(rangeRows.get(rangeRows.size() - 1).key(), allRows.first().key()) <= 0)
+                    if (keyComparator.compare(rangeRows.get(rangeRows.size() - 1).key, allRows.first().key) <= 0)
                     {
                         // unlikely, but possible
-                        if (rangeRows.get(rangeRows.size() - 1).equals(allRows.first().key()))
+                        if (rangeRows.get(rangeRows.size() - 1).equals(allRows.first().key))
                         {
                             rangeRows.remove(rangeRows.size() - 1);
                         }
                         // put all from rangeRows into allRows.
                         allRows.addAll(rangeRows);
                     }
-                    else if (keyComparator.compare(allRows.last().key(), rangeRows.get(0).key()) <= 0)
+                    else if (keyComparator.compare(allRows.last().key, rangeRows.get(0).key) <= 0)
                     {
                         // common case. deal with simple start/end key overlaps
-                        if (allRows.last().key().equals(rangeRows.get(0)))
+                        if (allRows.last().key.equals(rangeRows.get(0)))
                         {
-                            allRows.remove(allRows.last().key());
+                            allRows.remove(allRows.last().key);
                         }
                         allRows.addAll(rangeRows); // todo: check logic.
                     }
@@ -609,8 +609,7 @@ public class StorageProxy implements StorageProxyMBean
         for (Row row : allRows)
         {
             // for now, assume only one cf per row, since that is all we can specify in the Command.
-            ColumnFamily cf = row.getColumnFamilies().iterator().next();
-            results.put(row.key(),cf.getSortedColumns());
+            results.put(row.key, row.cf.getSortedColumns());
         }
         rangeStats.add(System.currentTimeMillis() - startTime);
         return results;

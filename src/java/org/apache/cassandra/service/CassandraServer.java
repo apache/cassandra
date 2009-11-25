@@ -22,7 +22,6 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
 
@@ -99,7 +98,7 @@ public class CassandraServer implements Cassandra.Iface
 
         for (Row row: rows)
         {
-            columnFamilyKeyMap.put(row.key(), row.getColumnFamily(cfName));
+            columnFamilyKeyMap.put(row.key, row.cf);
         }
         return columnFamilyKeyMap;
 	}

@@ -22,18 +22,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.Arrays;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.DataOutputBuffer;
 
 public class Row
 {
@@ -45,97 +39,23 @@ public class Row
         return serializer;
     }
 
-    public Row(String key)
+    public final String key;
+    public final ColumnFamily cf;
+
+    public Row(String key, ColumnFamily cf)
     {
-        this.key_ = key;
+        this.key = key;
+        this.cf = cf;
     }
 
-    private String key_;
-
-    private Map<String, ColumnFamily> columnFamilies_ = new HashMap<String, ColumnFamily>();
-
-    public String key()
-    {
-        return key_;
-    }
-
-    public Collection<ColumnFamily> getColumnFamilies()
-    {
-        return columnFamilies_.values();
-    }
-
-    public ColumnFamily getColumnFamily(String cfName)
-    {
-        return columnFamilies_.get(cfName);
-    }
-
-    void addColumnFamily(ColumnFamily columnFamily)
-    {
-        columnFamilies_.put(columnFamily.name(), columnFamily);
-    }
-
-    public boolean isEmpty()
-    {
-        return (columnFamilies_.size() == 0);
-    }
-
-    /*
+    /**
      * This function will repair the current row with the input row
      * what that means is that if there are any differences between the 2 rows then
      * this function will make the current row take the latest changes.
      */
-    public void repair(Row rowOther)
+    public void resolve(Row other)
     {
-        for (ColumnFamily cfOld : rowOther.getColumnFamilies())
-        {
-            ColumnFamily cf = columnFamilies_.get(cfOld.name());
-            if (cf == null)
-            {
-                addColumnFamily(cfOld);
-            }
-            else
-            {
-                columnFamilies_.remove(cf.name());
-                addColumnFamily(ColumnFamily.resolve(Arrays.asList(cfOld, cf)));
-            }
-        }
-    }
-
-    /*
-     * This function will calculate the difference between 2 rows
-     * and return the resultant row. This assumes that the row that
-     * is being submitted is a super set of the current row so
-     * it only calculates additional
-     * difference and does not take care of what needs to be removed from the current row to make
-     * it same as the input row.
-     */
-    public Row diff(Row rowComposite)
-    {
-        Row rowDiff = new Row(key_);
-
-        for (ColumnFamily cfComposite : rowComposite.getColumnFamilies())
-        {
-            ColumnFamily cf = columnFamilies_.get(cfComposite.name());
-            if (cf == null)
-                rowDiff.addColumnFamily(cfComposite);
-            else
-            {
-                ColumnFamily cfDiff = cf.diff(cfComposite);
-                if (cfDiff != null)
-                    rowDiff.addColumnFamily(cfDiff);
-            }
-        }
-        if (rowDiff.getColumnFamilies().isEmpty())
-            return null;
-        else
-            return rowDiff;
-    }
-
-    public Row cloneMe()
-    {
-        Row row = new Row(key_);
-        row.columnFamilies_ = new HashMap<String, ColumnFamily>(columnFamilies_);
-        return row;
+        cf.resolve(other.cf);
     }
 
     public byte[] digest()
@@ -149,18 +69,18 @@ public class Row
         {
             throw new AssertionError(e);
         }
-
-        for (String cFamily : columnFamilies_.keySet())
-        {
-            columnFamilies_.get(cFamily).updateDigest(digest);
-        }
+        cf.updateDigest(digest);
 
         return digest.digest();
     }
 
+    @Override
     public String toString()
     {
-        return "Row(" + key_ + " [" + StringUtils.join(columnFamilies_.values(), ", ") + "])";
+        return "Row(" +
+               "key='" + key + '\'' +
+               ", cf=" + cf +
+               ')';
     }
 }
 
@@ -168,28 +88,12 @@ class RowSerializer implements ICompactSerializer<Row>
 {
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
-        dos.writeUTF(row.key());
-        Collection<ColumnFamily> columnFamilies = row.getColumnFamilies();
-        int size = columnFamilies.size();
-        dos.writeInt(size);
-
-        for (ColumnFamily cf : columnFamilies)
-        {
-            ColumnFamily.serializer().serialize(cf, dos);
-        }
+        dos.writeUTF(row.key);
+        ColumnFamily.serializer().serialize(row.cf, dos);
     }
 
     public Row deserialize(DataInputStream dis) throws IOException
     {
-        String key = dis.readUTF();
-        Row row = new Row(key);
-        int size = dis.readInt();
-
-        for (int i = 0; i < size; ++i)
-        {
-            ColumnFamily cf = ColumnFamily.serializer().deserialize(dis);
-            row.addColumnFamily(cf);
-        }
-        return row;
+        return new Row(dis.readUTF(), ColumnFamily.serializer().deserialize(dis));
     }
 }

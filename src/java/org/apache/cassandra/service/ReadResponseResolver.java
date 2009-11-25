@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ReadResponse;
@@ -65,7 +63,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	public Row resolve(List<Message> responses) throws DigestMismatchException, IOException
     {
         long startTime = System.currentTimeMillis();
-		Row retRow = null;
+		Row resolved = null;
 		List<Row> rowList = new ArrayList<Row>();
 		List<InetAddress> endPoints = new ArrayList<InetAddress>();
 		String key = null;
@@ -93,7 +91,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             {
                 rowList.add(result.row());
                 endPoints.add(response.getFrom());
-                key = result.row().key();
+                key = result.row().key;
             }
         }
 		// If there was a digest query compare it with all the data digests 
@@ -105,7 +103,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                 if (!Arrays.equals(row.digest(), digest))
                 {
                     /* Wrap the key as the context in this exception */
-                    String s = String.format("Mismatch for key %s (%s vs %s)", row.key(), FBUtilities.bytesToHex(row.digest()), FBUtilities.bytesToHex(digest));
+                    String s = String.format("Mismatch for key %s (%s vs %s)", row.key, FBUtilities.bytesToHex(row.digest()), FBUtilities.bytesToHex(digest));
                     throw new DigestMismatchException(s);
                 }
             }
@@ -114,37 +112,33 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         /* If the rowList is empty then we had some exception above. */
         if (rowList.size() == 0)
         {
-            return retRow;
+            return resolved;
         }
 
         /* Now calculate the resolved row */
-        retRow = new Row(key);
-        for (int i = 0; i < rowList.size(); i++)
+        resolved = new Row(key, rowList.get(0).cf);
+        for (Row other : rowList.subList(1, rowList.size()))
         {
-            retRow.repair(rowList.get(i));
+            resolved.resolve(other);
         }
 
-        // At  this point  we have the return row .
-        // Now we need to calculate the difference
-        // so that we can schedule read repairs
+        // At this point we have the return row;
+        // Now we need to calculate the difference so that we can schedule read repairs
         for (int i = 0; i < rowList.size(); i++)
         {
             // since retRow is the resolved row it can be used as the super set
-            Row diffRow = rowList.get(i).diff(retRow);
-            if (diffRow == null) // no repair needs to happen
+            ColumnFamily diffCf = rowList.get(i).cf.diff(resolved.cf);
+            if (diffCf == null) // no repair needs to happen
                 continue;
             // create the row mutation message based on the diff and schedule a read repair
             RowMutation rowMutation = new RowMutation(table, key);
-            for (ColumnFamily cf : diffRow.getColumnFamilies())
-            {
-                rowMutation.add(cf);
-            }
+            rowMutation.add(diffCf);
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
             ReadRepairManager.instance().schedule(endPoints.get(i), rowMutationMessage);
         }
         if (logger_.isDebugEnabled())
             logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
-		return retRow;
+		return resolved;
 	}
 
 	public boolean isDataPresent(List<Message> responses)

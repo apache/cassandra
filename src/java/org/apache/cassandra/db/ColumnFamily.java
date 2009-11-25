@@ -262,7 +262,7 @@ public final class ColumnFamily implements IColumnContainer
      * This function will calculate the difference between 2 column families.
      * The external input is assumed to be a superset of internal.
      */
-    ColumnFamily diff(ColumnFamily cfComposite)
+    public ColumnFamily diff(ColumnFamily cfComposite)
     {
     	ColumnFamily cfDiff = new ColumnFamily(cfComposite.name(), cfComposite.type_, getComparator(), getSubComparator());
         if (cfComposite.getMarkedForDeleteAt() > getMarkedForDeleteAt())
@@ -390,30 +390,16 @@ public final class ColumnFamily implements IColumnContainer
         return subtotal;
     }
 
-    /** merge all columnFamilies into a single instance, with only the newest versions of columns preserved. */
-    static ColumnFamily resolve(List<ColumnFamily> columnFamilies)
-    {
-        int size = columnFamilies.size();
-        if (size == 0)
-            return null;
-
-        // start from nothing so that we don't include potential deleted columns from the first instance
-        ColumnFamily cf0 = columnFamilies.get(0);
-        ColumnFamily cf = cf0.cloneMeShallow();
-
-        // merge
-        for (ColumnFamily cf2 : columnFamilies)
-        {
-            assert cf.name().equals(cf2.name());
-            cf.addAll(cf2);
-        }
-        return cf;
-    }
-
     public static AbstractType getComparatorFor(String table, String columnFamilyName, byte[] superColumnName)
     {
         return superColumnName == null
                ? DatabaseDescriptor.getComparator(table, columnFamilyName)
                : DatabaseDescriptor.getSubComparator(table, columnFamilyName);
+    }
+
+    public void resolve(ColumnFamily cf)
+    {
+        delete(cf);
+        addAll(cf);
     }
 }

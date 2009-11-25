@@ -23,7 +23,6 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
 import static org.apache.cassandra.Util.column;
 
@@ -58,26 +57,20 @@ public class RowTest
     }
 
     @Test
-    public void testRepair()
+    public void testResolve()
     {
-        Row row1 = new Row("");
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("one", "A", 0));
-        row1.addColumnFamily(cf1);
+        Row row1 = new Row("", cf1);
 
-        Row row2 = new Row("");
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("one", "B", 1));
         cf2.addColumn(column("two", "C", 1));
-        ColumnFamily cf3 = ColumnFamily.create("Keyspace2", "Standard3");
-        cf3.addColumn(column("three", "D", 1));
-        row2.addColumnFamily(cf2);
-        row2.addColumnFamily(cf3);
+        Row row2 = new Row("", cf2);
 
-        row1.repair(row2);
-        cf1 = row1.getColumnFamily("Standard1");
+        row1.resolve(row2);
+        cf1 = row1.cf;
         assert Arrays.equals(cf1.getColumn("one".getBytes()).value(), "B".getBytes());
-        assert Arrays.equals(cf2.getColumn("two".getBytes()).value(), "C".getBytes());
-        assert row1.getColumnFamily("Standard3") != null;
+        assert Arrays.equals(cf1.getColumn("two".getBytes()).value(), "C".getBytes());
     }
 }
