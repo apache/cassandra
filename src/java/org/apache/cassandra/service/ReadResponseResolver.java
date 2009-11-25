@@ -48,14 +48,20 @@ import org.apache.log4j.Logger;
 public class ReadResponseResolver implements IResponseResolver<Row>
 {
 	private static Logger logger_ = Logger.getLogger(ReadResponseResolver.class);
+    private final String table;
 
-	/*
-	 * This method for resolving read data should look at the timestamps of each
-	 * of the columns that are read and should pick up columns with the latest
-	 * timestamp. For those columns where the timestamp is not the latest a
-	 * repair request should be scheduled.
-	 * 
-	 */
+    public ReadResponseResolver(String table)
+    {
+        this.table = table;
+    }
+
+    /*
+      * This method for resolving read data should look at the timestamps of each
+      * of the columns that are read and should pick up columns with the latest
+      * timestamp. For those columns where the timestamp is not the latest a
+      * repair request should be scheduled.
+      *
+      */
 	public Row resolve(List<Message> responses) throws DigestMismatchException, IOException
     {
         long startTime = System.currentTimeMillis();
@@ -63,7 +69,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		List<Row> rowList = new ArrayList<Row>();
 		List<InetAddress> endPoints = new ArrayList<InetAddress>();
 		String key = null;
-		String table = null;
 		byte[] digest = new byte[0];
 		boolean isDigestQuery = false;
         
@@ -89,7 +94,6 @@ public class ReadResponseResolver implements IResponseResolver<Row>
                 rowList.add(result.row());
                 endPoints.add(response.getFrom());
                 key = result.row().key();
-                table = result.row().getTable();
             }
         }
 		// If there was a digest query compare it with all the data digests 
@@ -114,7 +118,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         }
 
         /* Now calculate the resolved row */
-        retRow = new Row(table, key);
+        retRow = new Row(key);
         for (int i = 0; i < rowList.size(); i++)
         {
             retRow.repair(rowList.get(i));

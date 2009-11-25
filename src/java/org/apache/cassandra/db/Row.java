@@ -38,7 +38,6 @@ import org.apache.cassandra.io.DataOutputBuffer;
 public class Row
 {
     private static Logger logger_ = Logger.getLogger(Row.class);
-    private String table_;
     private static RowSerializer serializer = new RowSerializer();
 
     static RowSerializer serializer()
@@ -46,15 +45,9 @@ public class Row
         return serializer;
     }
 
-    public Row(String table, String key)
+    public Row(String key)
     {
-        assert table != null;
-        this.table_ = table;
         this.key_ = key;
-    }
-
-    public String getTable() {
-        return table_;
     }
 
     private String key_;
@@ -64,21 +57,6 @@ public class Row
     public String key()
     {
         return key_;
-    }
-
-    void setKey(String key)
-    {
-        key_ = key;
-    }
-
-    public void setTable(String table)
-    {
-        table_ = table;
-    }
-
-    public Set<String> getColumnFamilyNames()
-    {
-        return columnFamilies_.keySet();
     }
 
     public Collection<ColumnFamily> getColumnFamilies()
@@ -94,11 +72,6 @@ public class Row
     void addColumnFamily(ColumnFamily columnFamily)
     {
         columnFamilies_.put(columnFamily.name(), columnFamily);
-    }
-
-    void removeColumnFamily(ColumnFamily columnFamily)
-    {
-        columnFamilies_.remove(columnFamily.name());
     }
 
     public boolean isEmpty()
@@ -138,7 +111,7 @@ public class Row
      */
     public Row diff(Row rowComposite)
     {
-        Row rowDiff = new Row(table_, key_);
+        Row rowDiff = new Row(key_);
 
         for (ColumnFamily cfComposite : rowComposite.getColumnFamilies())
         {
@@ -160,7 +133,7 @@ public class Row
 
     public Row cloneMe()
     {
-        Row row = new Row(table_, key_);
+        Row row = new Row(key_);
         row.columnFamilies_ = new HashMap<String, ColumnFamily>(columnFamilies_);
         return row;
     }
@@ -185,18 +158,6 @@ public class Row
         return digest.digest();
     }
 
-    void clear()
-    {
-        columnFamilies_.clear();
-    }
-
-    public DataOutputBuffer getSerializedBuffer() throws IOException
-    {
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        Row.serializer().serialize(this, buffer);
-        return buffer;
-    }
-
     public String toString()
     {
         return "Row(" + key_ + " [" + StringUtils.join(columnFamilies_.values(), ", ") + "])";
@@ -207,7 +168,6 @@ class RowSerializer implements ICompactSerializer<Row>
 {
     public void serialize(Row row, DataOutputStream dos) throws IOException
     {
-        dos.writeUTF(row.getTable());
         dos.writeUTF(row.key());
         Collection<ColumnFamily> columnFamilies = row.getColumnFamilies();
         int size = columnFamilies.size();
@@ -221,9 +181,8 @@ class RowSerializer implements ICompactSerializer<Row>
 
     public Row deserialize(DataInputStream dis) throws IOException
     {
-        String table = dis.readUTF();
         String key = dis.readUTF();
-        Row row = new Row(table, key);
+        Row row = new Row(key);
         int size = dis.readInt();
 
         for (int i = 0; i < size; ++i)

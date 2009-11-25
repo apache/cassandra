@@ -399,7 +399,7 @@ public class Table
     @Deprecated // CF should be our atom of work, not Row
     public Row get(String key) throws IOException
     {
-        Row row = new Row(table_, key);
+        Row row = new Row(key);
         for (String columnFamily : getColumnFamilies())
         {
             ColumnFamily cf = get(key, columnFamily);
@@ -429,7 +429,7 @@ public class Table
     @Deprecated
     public Row getRow(String key, String cfName) throws IOException
     {
-        Row row = new Row(table_, key);
+        Row row = new Row(key);
         ColumnFamily columnFamily = get(key, cfName);
         if ( columnFamily != null )
         	row.addColumnFamily(columnFamily);
@@ -439,7 +439,7 @@ public class Table
     public Row getRow(QueryFilter filter) throws IOException
     {
         ColumnFamilyStore cfStore = columnFamilyStores_.get(filter.getColumnFamilyName());
-        Row row = new Row(table_, filter.key);
+        Row row = new Row(filter.key);
         ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
         if (columnFamily != null)
             row.addColumnFamily(columnFamily);

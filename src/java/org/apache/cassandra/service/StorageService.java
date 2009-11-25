@@ -346,14 +346,14 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         return endPointSnitch_.isInSameDataCenter(FBUtilities.getLocalAddress(), endpoint);
     }
     
-    /*
+    /**
      * This method performs the requisite operations to make
      * sure that the N replicas are in sync. We do this in the
      * background when we do not care much about consistency.
      */
     public void doConsistencyCheck(Row row, List<InetAddress> endpoints, ReadCommand command)
     {
-        Runnable consistencySentinel = new ConsistencyManager(row.cloneMe(), endpoints, command);
+        Runnable consistencySentinel = new ConsistencyManager(command.table, row.cloneMe(), endpoints, command);
         consistencyManager_.submit(consistencySentinel);
     }
 

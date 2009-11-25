@@ -74,11 +74,11 @@ public class ReadVerbHandler implements IVerbHandler
                 /* Don't service reads! */
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
             }
-            ReadCommand readCommand = ReadCommand.serializer().deserialize(readCtx.bufIn_);
-            Table table = Table.open(readCommand.table);
-            Row row = readCommand.getRow(table);
+            ReadCommand command = ReadCommand.serializer().deserialize(readCtx.bufIn_);
+            Table table = Table.open(command.table);
+            Row row = command.getRow(table);
             ReadResponse readResponse;
-            if (readCommand.isDigestQuery())
+            if (command.isDigestQuery())
             {
                 if (logger_.isDebugEnabled())
                     logger_.debug("digest is " + FBUtilities.bytesToHex(row.digest()));
@@ -88,7 +88,7 @@ public class ReadVerbHandler implements IVerbHandler
             {
                 readResponse = new ReadResponse(row);
             }
-            readResponse.setIsDigestQuery(readCommand.isDigestQuery());
+            readResponse.setIsDigestQuery(command.isDigestQuery());
             /* serialize the ReadResponseMessage. */
             readCtx.bufOut_.reset();
 
@@ -99,13 +99,17 @@ public class ReadVerbHandler implements IVerbHandler
 
             Message response = message.getReply(FBUtilities.getLocalAddress(), bytes);
             if (logger_.isDebugEnabled())
-              logger_.debug("Read key " + readCommand.key + "; sending response to " + message.getMessageId() + "@" + message.getFrom());
+              logger_.debug("Read key " + command.key + "; sending response to " + message.getMessageId() + "@" + message.getFrom());
             MessagingService.instance().sendOneWay(response, message.getFrom());
 
             /* Do read repair if header of the message says so */
             if (message.getHeader(ReadCommand.DO_REPAIR) != null)
             {
-                doReadRepair(row, readCommand);
+                List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(command.key);
+                /* Remove the local storage endpoint from the list. */
+                endpoints.remove(FBUtilities.getLocalAddress());
+                if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
+                    StorageService.instance().doConsistencyCheck(row, endpoints, command);
             }
         }
         catch (IOException ex)
@@ -113,14 +117,4 @@ public class ReadVerbHandler implements IVerbHandler
             throw new RuntimeException(ex);
         }
     }
-    
-    private void doReadRepair(Row row, ReadCommand readCommand)
-    {
-        List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(readCommand.key);
-        /* Remove the local storage endpoint from the list. */
-        endpoints.remove(FBUtilities.getLocalAddress());
-            
-        if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-            StorageService.instance().doConsistencyCheck(row, endpoints, readCommand);
-    }     
 }

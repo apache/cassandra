@@ -437,7 +437,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             if (n < DatabaseDescriptor.getQuorum())
                 throw new UnavailableException();
-            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver());
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver(command.table));
             MessagingService.instance().sendRR(messages, endPoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndPoints.add(endPoints);
@@ -465,7 +465,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (DatabaseDescriptor.getConsistencyCheck())
                 {
-                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver();
+                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table);
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
                             DatabaseDescriptor.getQuorum(),
                             readResponseResolverRepair);

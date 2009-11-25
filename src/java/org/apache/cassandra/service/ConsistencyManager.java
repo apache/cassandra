@@ -40,8 +40,9 @@ import org.apache.commons.lang.StringUtils;
 class ConsistencyManager implements Runnable
 {
 	private static Logger logger_ = Logger.getLogger(ConsistencyManager.class);
-	
-	class DigestResponseHandler implements IAsyncCallback
+    private final String table_;
+
+    class DigestResponseHandler implements IAsyncCallback
 	{
 		List<Message> responses_ = new ArrayList<Message>();
 
@@ -78,7 +79,7 @@ class ConsistencyManager implements Runnable
 		
 		private void doReadRepair() throws IOException
 		{
-			IResponseResolver<Row> readResponseResolver = new ReadResponseResolver();
+			IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_);
             /* Add the local storage endpoint to the replicas_ list */
             replicas_.add(FBUtilities.getLocalAddress());
 			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
@@ -134,8 +135,9 @@ class ConsistencyManager implements Runnable
 	protected final List<InetAddress> replicas_;
 	private final ReadCommand readCommand_;
 
-    public ConsistencyManager(Row row, List<InetAddress> replicas, ReadCommand readCommand)
+    public ConsistencyManager(String table, Row row, List<InetAddress> replicas, ReadCommand readCommand)
     {
+        table_ = table;
         row_ = row;
         replicas_ = replicas;
         readCommand_ = readCommand;
