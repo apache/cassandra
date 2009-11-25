@@ -608,8 +608,10 @@ public class StorageProxy implements StorageProxyMBean
         Map<String, Collection<IColumn>> results = new TreeMap<String, Collection<IColumn>>();
         for (Row row : allRows)
         {
-            // for now, assume only one cf per row, since that is all we can specify in the Command.
-            results.put(row.key, row.cf.getSortedColumns());
+            if (row.cf == null)
+                results.put(row.key, Collections.<IColumn>emptyList());
+            else
+                results.put(row.key, row.cf.getSortedColumns());
         }
         rangeStats.add(System.currentTimeMillis() - startTime);
         return results;

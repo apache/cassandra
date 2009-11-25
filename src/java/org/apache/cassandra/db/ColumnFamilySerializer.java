@@ -55,6 +55,12 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
         try
         {
+            if (columnFamily == null)
+            {
+                dos.writeUTF(""); // not a legal CF name
+                return;
+            }
+
             dos.writeUTF(columnFamily.name());
             dos.writeUTF(columnFamily.type_);
             dos.writeUTF(columnFamily.getComparatorName());
@@ -95,7 +101,10 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
 
     public ColumnFamily deserialize(DataInput dis) throws IOException
     {
-        ColumnFamily cf = deserializeFromSSTableNoColumns(dis.readUTF(), dis.readUTF(), readComparator(dis), readComparator(dis), dis);
+        String cfName = dis.readUTF();
+        if (cfName.isEmpty())
+            return null;
+        ColumnFamily cf = deserializeFromSSTableNoColumns(cfName, dis.readUTF(), readComparator(dis), readComparator(dis), dis);
         deserializeColumns(dis, cf);
         return cf;
     }

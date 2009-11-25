@@ -103,7 +103,7 @@ public final class ColumnFamily implements IColumnContainer
         return (columnSerializer_ instanceof SuperColumnSerializer) ? ((SuperColumnSerializer)columnSerializer_).getComparator() : null;
     }
 
-    ColumnFamily cloneMe()
+    public ColumnFamily cloneMe()
     {
         ColumnFamily cf = cloneMeShallow();
         cf.columns_ = columns_.clone();
@@ -399,6 +399,9 @@ public final class ColumnFamily implements IColumnContainer
 
     public void resolve(ColumnFamily cf)
     {
+        // Row _does_ allow null CF objects :(  seems a necessary evil for efficiency
+        if (cf == null)
+            return;
         delete(cf);
         addAll(cf);
     }

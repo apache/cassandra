@@ -44,6 +44,8 @@ public class Row
 
     public Row(String key, ColumnFamily cf)
     {
+        assert key != null;
+        // cf may be null, indicating no data
         this.key = key;
         this.cf = cf;
     }
@@ -53,9 +55,19 @@ public class Row
      * what that means is that if there are any differences between the 2 rows then
      * this function will make the current row take the latest changes.
      */
-    public void resolve(Row other)
+    public Row resolve(Row other)
     {
+        if (cf == null)
+            return other;
         cf.resolve(other.cf);
+        return this;
+    }
+
+    public ColumnFamily diff (Row other)
+    {
+        if (cf == null)
+            return other.cf;
+        return cf.diff(other.cf);
     }
 
     public byte[] digest()
@@ -69,7 +81,8 @@ public class Row
         {
             throw new AssertionError(e);
         }
-        cf.updateDigest(digest);
+        if (cf != null)
+            cf.updateDigest(digest);
 
         return digest.digest();
     }

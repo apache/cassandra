@@ -100,7 +100,7 @@ class ConsistencyManager implements Runnable
 		DataRepairHandler(int responseCount, IResponseResolver<Row> readResponseResolver)
 		{
 			readResponseResolver_ = readResponseResolver;
-			majority_ = (responseCount >> 1) + 1;  
+			majority_ = (responseCount / 2) + 1;  
 		}
 		
 		public void response(Message message)

@@ -542,6 +542,15 @@ class TestMutations(CassandraTester):
                 client.insert('Keyspace1', key, ColumnPath('Standard1', column=cname), 'v-' + cname, 0, ConsistencyLevel.ONE)
         cp = ColumnParent('Standard1')
 
+        # test empty slice
+        result = client.get_range_slice("Keyspace1", cp, SlicePredicate(column_names=['col1', 'col3']), 'key6', '', 1, ConsistencyLevel.ONE)
+        assert len(result) == 0
+
+        # test empty columns
+        result = client.get_range_slice("Keyspace1", cp, SlicePredicate(column_names=['a']), 'key2', '', 1, ConsistencyLevel.ONE)
+        assert len(result) == 1
+        assert len(result[0].columns) == 0
+
         # test column_names predicate
         result = client.get_range_slice("Keyspace1", cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
         assert len(result) == 3

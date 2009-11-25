@@ -63,8 +63,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	public Row resolve(List<Message> responses) throws DigestMismatchException, IOException
     {
         long startTime = System.currentTimeMillis();
-		Row resolved = null;
-		List<Row> rowList = new ArrayList<Row>();
+		List<Row> rows = new ArrayList<Row>();
 		List<InetAddress> endPoints = new ArrayList<InetAddress>();
 		String key = null;
 		byte[] digest = new byte[0];
@@ -89,7 +88,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             }
             else
             {
-                rowList.add(result.row());
+                rows.add(result.row());
                 endPoints.add(response.getFrom());
                 key = result.row().key;
             }
@@ -98,7 +97,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		// If there is a mismatch then throw an exception so that read repair can happen.
         if (isDigestQuery)
         {
-            for (Row row : rowList)
+            for (Row row : rows)
             {
                 if (!Arrays.equals(row.digest(), digest))
                 {
@@ -109,25 +108,14 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             }
         }
 
-        /* If the rowList is empty then we had some exception above. */
-        if (rowList.size() == 0)
-        {
-            return resolved;
-        }
-
-        /* Now calculate the resolved row */
-        resolved = new Row(key, rowList.get(0).cf);
-        for (Row other : rowList.subList(1, rowList.size()))
-        {
-            resolved.resolve(other);
-        }
+        Row resolved = resolveSuperset(rows);
 
         // At this point we have the return row;
         // Now we need to calculate the difference so that we can schedule read repairs
-        for (int i = 0; i < rowList.size(); i++)
+        for (int i = 0; i < rows.size(); i++)
         {
             // since retRow is the resolved row it can be used as the super set
-            ColumnFamily diffCf = rowList.get(i).cf.diff(resolved.cf);
+            ColumnFamily diffCf = rows.get(i).diff(resolved);
             if (diffCf == null) // no repair needs to happen
                 continue;
             // create the row mutation message based on the diff and schedule a read repair
@@ -140,6 +128,27 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
 		return resolved;
 	}
+
+    static Row resolveSuperset(List<Row> rows)
+    {
+        assert rows.size() > 0;
+        Row resolved = null;
+        for (Row row : rows)
+        {
+            if (row.cf != null)
+            {
+                resolved = new Row(row.key, row.cf.cloneMe());
+                break;
+            }
+        }
+        if (resolved == null)
+            return rows.get(0);
+        for (Row row : rows)
+        {
+            resolved = resolved.resolve(row);
+        }
+        return resolved;
+    }
 
 	public boolean isDataPresent(List<Message> responses)
 	{
