@@ -112,7 +112,9 @@ public class HintedHandOffManager
         RowMutation rm = new RowMutation(tableName, key);
         for (ColumnFamilyStore cfstore : table.getColumnFamilyStores().values())
         {
-            rm.add(cfstore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfstore.getColumnFamilyName()))));
+            ColumnFamily cf = cfstore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfstore.getColumnFamilyName())));
+            if (cf != null)
+                rm.add(cf);
         }
         Message message = rm.makeRowMutationMessage();
         WriteResponseHandler responseHandler = new WriteResponseHandler(1);

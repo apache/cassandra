@@ -3,6 +3,7 @@
  * fix possibility of partition when many nodes restart at once
    in clusters with multiple seeds (CASSANDRA-150)
  * fix NPE in get_range_slice when no data is found (CASSANDRA-578)
+ * fix potential NPE in hinted handoff (CASSANDRA-585)
 
 
 0.5.0 beta

@@ -116,6 +116,7 @@ public class RowMutation implements Serializable
     */
     public void add(ColumnFamily columnFamily)
     {
+        assert columnFamily != null;
         if (modifications_.containsKey(columnFamily.name()))
         {
             throw new IllegalArgumentException("ColumnFamily " + columnFamily.name() + " is already being modified");
