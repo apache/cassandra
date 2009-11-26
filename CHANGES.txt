@@ -1,5 +1,8 @@
 0.5.0 dev
  * Bootstrap improvements (several tickets)
+ * fix possibility of partition when many nodes restart at once
+   in clusters with multiple seeds (CASSANDRA-150)
+ * fix NPE in get_range_slice when no data is found (CASSANDRA-578)
 
 
 0.5.0 beta
