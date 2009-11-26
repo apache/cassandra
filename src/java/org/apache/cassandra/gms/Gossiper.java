@@ -61,13 +61,28 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                     {
                         Message message = makeGossipDigestSynMessage(gDigests);
                         /* Gossip to some random live member */
-                        boolean bVal = doGossipToLiveMember(message);
+                        boolean gossipedToSeed = doGossipToLiveMember(message);
 
                         /* Gossip to some unreachable member with some probability to check if he is back up */
                         doGossipToUnreachableMember(message);
 
-                        /* Gossip to the seed. */
-                        if ( !bVal )
+                        /* Gossip to a seed if we did not do so above, or we have seen less nodes
+                           than there are seeds.  This prevents partitions where each group of nodes
+                           is only gossiping to a subset of the seeds.
+
+                           The most straightforward check would be to check that all the seeds have been
+                           verified either as live or unreachable.  To avoid that computation each round,
+                           we reason that:
+
+                           either all the live nodes are seeds, in which case non-seeds that come online
+                           will introduce themselves to a member of the ring by definition,
+
+                           or there is at least one non-seed node in the list, in which case eventually
+                           someone will gossip to it, and then do a gossip to a random seed from the
+                           gossipedToSeed check.
+
+                           See CASSANDRA-150 for more exposition. */
+                        if (!gossipedToSeed || liveEndpoints_.size() < seeds_.size())
                             doGossipToSeed(message);
 
                         if (logger_.isTraceEnabled())
@@ -330,7 +345,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         return seeds_.contains(to);
     }
 
-    /* Sends a Gossip message to a live member and returns a reference to the member */
+    /* Sends a Gossip message to a live member and returns true if the recipient was a seed */
     boolean doGossipToLiveMember(Message message)
     {
         int size = liveEndpoints_.size();
