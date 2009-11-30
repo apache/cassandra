@@ -139,11 +139,7 @@ public class SSTableImport
         
         try
         {
-            JSONObject json = (JSONObject)JSONValue.parse(new FileReader(jsonFile));
-            
-            // FIXME: see http://code.google.com/p/json-simple/issues/detail?id=13
-            if (json == null)
-                throw new RuntimeException("Error parsing JSON input!");
+            JSONObject json = (JSONObject)JSONValue.parseWithException(new FileReader(jsonFile));
             
             SSTableWriter writer = new SSTableWriter(ssTablePath, json.size(), partitioner);
             List<DecoratedKey<?>> decoratedKeys = new ArrayList<DecoratedKey<?>>();
