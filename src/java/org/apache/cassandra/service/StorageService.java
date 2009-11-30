@@ -586,8 +586,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public void forceTableCleanup() throws IOException
     {
         List<String> tables = DatabaseDescriptor.getTables();
-        for ( String tName : tables )
+        for (String tName : tables)
         {
+            if (tName.equals("system"))
+                continue;
             Table table = Table.open(tName);
             table.forceCleanup();
         }
