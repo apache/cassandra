@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Collection;
 import java.util.Iterator;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -33,12 +32,7 @@ import org.apache.cassandra.io.IteratingRow;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableScanner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
+import org.apache.commons.cli.*;
 
 /**
  * Export SSTables to JSON format.
@@ -76,19 +70,26 @@ public class SSTableExport
     
     private static String serializeColumns(Collection<IColumn> cols, AbstractType comp)
     {
-        StringBuilder json = new StringBuilder("{");
+        StringBuilder json = new StringBuilder("[");
         
         Iterator<IColumn> iter = cols.iterator();
         while (iter.hasNext())
         {
+            json.append("[");
             IColumn column = iter.next();
-            json.append(asKey(comp.getString(column.name())));
+            json.append(quote(comp.getString(column.name())));
+            json.append(", ");
             json.append(quote(FBUtilities.bytesToHex(column.value())));
+            json.append(", ");
+            json.append(column.timestamp());
+            json.append(", ");
+            json.append(column.isMarkedForDelete());
+            json.append("]");
             if (iter.hasNext())
                 json.append(", ");
         }
         
-        json.append(" }");
+        json.append("]");
         
         return json.toString();
     }
@@ -108,12 +109,18 @@ public class SSTableExport
             {
                 IColumn column = iter.next();
                 json.append(asKey(comparator.getString(column.name())));
+                json.append("{");
+                json.append(asKey("deletedAt"));
+                json.append(column.getMarkedForDeleteAt());
+                json.append(", ");
+                json.append(asKey("subColumns"));
                 json.append(serializeColumns(column.getSubColumns(), comparator));
+                json.append("}");
                 if (iter.hasNext())
                     json.append(", ");
             }
             
-            json.append(" }");
+            json.append("}");
         }
         else
         {
@@ -189,16 +196,10 @@ public class SSTableExport
         export(ssTableFile, outs, keys);
     }
     
-    /**
-     * Export an SSTable and write the resulting JSON to a PrintStream.
-     * 
-     * @param ssTableFile the SSTable to export
-     * @param outs PrintStream to write the output to
-     * @throws IOException on failure to read/write input/output
-     */
-    public static void export(String ssTableFile, PrintStream outs) throws IOException
+    // This is necessary to accommodate the test suite since you cannot open a Reader more
+    // than once from within the same process.
+    static void export(SSTableReader reader, PrintStream outs) throws IOException
     {
-        SSTableReader reader = SSTableReader.open(ssTableFile);
         SSTableScanner scanner = reader.getScanner();
         
         outs.println("{");
@@ -229,6 +230,19 @@ public class SSTableExport
         
         outs.println("}");
         outs.flush();
+    }
+    
+    /**
+     * Export an SSTable and write the resulting JSON to a PrintStream.
+     * 
+     * @param ssTableFile the SSTable to export
+     * @param outs PrintStream to write the output to
+     * @throws IOException on failure to read/write input/output
+     */
+    public static void export(String ssTableFile, PrintStream outs) throws IOException
+    {
+        SSTableReader reader = SSTableReader.open(ssTableFile);
+        export(reader, outs);
     }
     
     /**

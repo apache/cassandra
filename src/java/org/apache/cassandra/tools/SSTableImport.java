@@ -24,16 +24,14 @@ import java.util.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.PosixParser;
+import org.apache.commons.cli.*;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
@@ -58,6 +56,24 @@ public class SSTableImport
         optColfamily.setRequired(true);
         options.addOption(optColfamily);
     }
+    
+    private static class JsonColumn
+    {
+        private String name;
+        private String value;
+        private long timestamp;
+        private boolean isDeleted;
+        
+        private JsonColumn(Object obj) throws ClassCastException
+        {
+            JSONArray colSpec = (JSONArray)obj;
+            assert colSpec.size() == 4;
+            name = (String)colSpec.get(0);
+            value = (String)colSpec.get(1);
+            timestamp = (Long)colSpec.get(2);
+            isDeleted = (Boolean)colSpec.get(3);
+        }
+    }
 
     /**
      * Add columns to a column family.
@@ -65,13 +81,13 @@ public class SSTableImport
      * @param row the columns associated with a row
      * @param cfamily the column family to add columns to
      */
-    private static void addToStandardCF(JSONObject row, ColumnFamily cfamily)
+    private static void addToStandardCF(JSONArray row, ColumnFamily cfamily)
     {
-        for (Map.Entry<String, String> col : (Set<Map.Entry<String, String>>) row.entrySet())
+        for (Object c : row)
         {
-            QueryPath path = new QueryPath(cfamily.name(), null, col.getKey().getBytes());
-            byte[] value = FBUtilities.hexToBytes(col.getValue());
-            cfamily.addColumn(path, value, System.currentTimeMillis());
+            JsonColumn col = new JsonColumn(c);  
+            QueryPath path = new QueryPath(cfamily.name(), null, col.name.getBytes());
+            cfamily.addColumn(path, FBUtilities.hexToBytes(col.value), col.timestamp, col.isDeleted);
         }
     }
     
@@ -87,14 +103,19 @@ public class SSTableImport
         for (Map.Entry<String, JSONObject> entry : (Set<Map.Entry<String, JSONObject>>)row.entrySet())
         {
             byte[] superName = entry.getKey().getBytes();
+            long deletedAt = (Long)entry.getValue().get("deletedAt");
+            JSONArray subColumns = (JSONArray)entry.getValue().get("subColumns");
             
-            // Sub-columns
-            for (Map.Entry<String, String> col : (Set<Map.Entry<String, String>>)entry.getValue().entrySet())
+            // Add sub-columns
+            for (Object c : subColumns)
             {
-                QueryPath path = new QueryPath(cfamily.name(), superName, col.getKey().getBytes());
-                byte[] value = FBUtilities.hexToBytes(col.getValue());
-                cfamily.addColumn(path, value, System.currentTimeMillis());
+                JsonColumn col = new JsonColumn(c);
+                QueryPath path = new QueryPath(cfamily.name(), superName, col.name.getBytes());
+                cfamily.addColumn(path, FBUtilities.hexToBytes(col.value), col.timestamp, col.isDeleted);
             }
+            
+            SuperColumn superColumn = (SuperColumn)cfamily.getColumn(superName);
+            superColumn.markForDeleteAt((int)System.currentTimeMillis(), deletedAt);
         }
     }
 
@@ -108,7 +129,7 @@ public class SSTableImport
      * @throws IOException for errors reading/writing input/output
      * @throws ParseException for errors encountered parsing JSON input
      */
-    private static void importJson(String jsonFile, String keyspace, String cf, String ssTablePath)
+    public static void importJson(String jsonFile, String keyspace, String cf, String ssTablePath)
     throws IOException, ParseException
     {
         ColumnFamily cfamily = ColumnFamily.create(keyspace, cf);
@@ -119,6 +140,11 @@ public class SSTableImport
         try
         {
             JSONObject json = (JSONObject)JSONValue.parse(new FileReader(jsonFile));
+            
+            // FIXME: see http://code.google.com/p/json-simple/issues/detail?id=13
+            if (json == null)
+                throw new RuntimeException("Error parsing JSON input!");
+            
             SSTableWriter writer = new SSTableWriter(ssTablePath, json.size(), partitioner);
             List<DecoratedKey<?>> decoratedKeys = new ArrayList<DecoratedKey<?>>();
             
@@ -128,12 +154,10 @@ public class SSTableImport
 
             for (DecoratedKey<?> rowKey : decoratedKeys)
             {
-                JSONObject value = (JSONObject)json.get(rowKey.key);
-                
                 if (cfType.equals("Super"))
-                    addToSuperCF(value, cfamily);
+                    addToSuperCF((JSONObject)json.get(rowKey.key), cfamily);
                 else
-                    addToStandardCF(value, cfamily);
+                    addToStandardCF((JSONArray)json.get(rowKey.key), cfamily);
                            
                 ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
                 writer.append(rowKey, dob);
@@ -145,8 +169,7 @@ public class SSTableImport
         }
         catch (ClassCastException cce)
         {
-            //throw cce;
-            throw new RuntimeException("Invalid JSON input, or incorrect column family");
+            throw new RuntimeException("Invalid JSON input, or incorrect column family.", cce);
         }
     }
 
