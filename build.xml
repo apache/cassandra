@@ -214,6 +214,9 @@
       <classpath refid="cassandra.classpath"/>
       <src path="${test.unit.src}"/>
     </javac>
+    <copy todir="${test.classes}">
+      <fileset dir="${test.dir}"/>
+    </copy>
   </target>
 
    <target name="test" depends="build-test">

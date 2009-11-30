@@ -186,7 +186,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return indexPositions;
     }
 
-    private void loadBloomFilter() throws IOException
+    void loadBloomFilter() throws IOException
     {
         DataInputStream stream = new DataInputStream(new FileInputStream(filterFilename()));
         try
@@ -199,7 +199,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
     }
 
-    private void loadIndexFile() throws IOException
+    void loadIndexFile() throws IOException
     {
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
         try

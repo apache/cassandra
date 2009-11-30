@@ -21,6 +21,8 @@ package org.apache.cassandra;
  */
 
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Column;
@@ -45,5 +47,12 @@ public class Util
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         bb.putLong(v);
         return bytes;
+    }
+    
+    public static File createTemporarySSTable(String keyspace, String colFam) throws IOException
+    {
+        File tmpDir = new File(System.getProperty("java.io.tmpdir") + File.separator + keyspace);
+        tmpDir.mkdirs();    // Create the per-keyspace temp directory
+        return File.createTempFile(colFam + "-", "-Data.db", tmpDir);
     }
 }
