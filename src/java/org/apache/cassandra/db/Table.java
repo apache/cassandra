@@ -504,4 +504,9 @@ public class Table
     {
         return dataDirPath + File.separator + tableName + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
     }
+
+    public static Set<String> getAllTableNames()
+    {
+        return DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
+    }
 }

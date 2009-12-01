@@ -5,6 +5,7 @@
  * fix NPE in get_range_slice when no data is found (CASSANDRA-578)
  * fix potential NPE in hinted handoff (CASSANDRA-585)
  * fix cleanup of local "system" keyspace (CASSANDRA-576)
+ * improve computation of cluster load balance (CASSANDRA-554)
 
 
 0.5.0 beta

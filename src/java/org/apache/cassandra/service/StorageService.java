@@ -507,12 +507,33 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     /** raw load value */
     public double getLoad()
     {
-        return FileUtils.getUsedDiskSpace();
+        double bytes = 0;
+        for (String tableName : Table.getAllTableNames())
+        {
+            Table table;
+            try
+            {
+                table = Table.open(tableName);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+            for (String cfName : table.getColumnFamilies())
+            {
+                ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+                for (SSTableReader sstable : cfs.getSSTables())
+                {
+                    bytes += sstable.bytesOnDisk();
+                }
+            }
+        }
+        return bytes;
     }
 
     public String getLoadString()
     {
-        return FileUtils.stringifyFileSize(FileUtils.getUsedDiskSpace());
+        return FileUtils.stringifyFileSize(getLoad());
     }
 
     public Map<String, String> getLoadMap()

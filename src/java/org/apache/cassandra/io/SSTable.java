@@ -183,6 +183,16 @@ public abstract class SSTable
         }
     }
 
+    public long bytesOnDisk()
+    {
+        long bytes = 0;
+        for (String fname : getAllFilenames())
+        {
+            bytes += new File(fname).length();
+        }
+        return bytes;
+    }
+
     @Override
     public String toString()
     {

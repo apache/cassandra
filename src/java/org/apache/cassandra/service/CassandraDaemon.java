@@ -77,7 +77,7 @@ public class CassandraDaemon
         });
 
         // initialize stuff
-        for (String table : DatabaseDescriptor.getTableToColumnFamilyMap().keySet())
+        for (String table : Table.getAllTableNames())
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);

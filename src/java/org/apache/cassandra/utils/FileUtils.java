@@ -201,20 +201,7 @@ public class FileUtils
         }
         return diskSpace;
     }
-    
-    public static long getUsedDiskSpace()
-    {
-        long diskSpace = 0L;
-        String[] directories = DatabaseDescriptor.getAllDataFileLocations();        
-        for ( String directory : directories )
-        {
-            diskSpace += getUsedDiskSpaceForPath(directory);
-        }
 
-        String value = df_.format(diskSpace);
-        return Long.parseLong(value);
-    }    
-    
     /**
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
