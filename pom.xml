@@ -189,6 +189,20 @@
       <scope>system</scope>
       <systemPath>${basedir}/lib/libthrift-r808609.jar</systemPath>
     </dependency>
+    <dependency>
+      <groupId>reardencommerce</groupId>
+      <artifactId>reardencommerce</artifactId>
+      <version>UNKNOWN</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/clhm-production.jar</systemPath>
+    </dependency>
+    <dependency>
+      <groupId>jsonsimple</groupId>
+      <artifactId>jsonsimple</artifactId>
+      <version>UNKNOWN</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/json_simple-1.1.jar</systemPath>
+    </dependency>
 
     <!-- Testing Dependencies -->
     <dependency>
