@@ -60,13 +60,6 @@
 # Be aware that you will be entirely responsible for populating the needed
 # environment variables.
 
-
-if [ -x $JAVA_HOME/bin/java ]; then
-    JAVA=$JAVA_HOME/bin/java
-else
-    JAVA=`which java`
-fi
-
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
@@ -83,6 +76,13 @@ if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
 # ...otherwise, source the specified include.
 elif [ -r $CASSANDRA_INCLUDE ]; then
     . $CASSANDRA_INCLUDE
+fi
+
+# Use JAVA_HOME if set, otherwise look for java in PATH
+if [ -x $JAVA_HOME/bin/java ]; then
+    JAVA=$JAVA_HOME/bin/java
+else
+    JAVA=`which java`
 fi
 
 if [ -z $CASSANDRA_CONF -o -z $CLASSPATH ]; then

@@ -26,6 +26,9 @@ CASSANDRA_CONF=$cassandra_home/conf
 cassandra_bin=$cassandra_home/build/classes
 #cassandra_bin=$cassandra_home/build/cassandra.jar
 
+# JAVA_HOME can optionally be set here
+#JAVA_HOME=/usr/local/jdk6
+
 # The java classpath (required)
 CLASSPATH=$CASSANDRA_CONF:$cassandra_bin
 
