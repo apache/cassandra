@@ -766,11 +766,6 @@ public class DatabaseDescriptor
         return index >= 0 ? getTables().get(index) : null;
     }
 
-    public static void  setTables(String table)
-    {
-        tables_.add(table);
-    }
-
     public static int getStoragePort()
     {
         return storagePort_;
@@ -850,11 +845,6 @@ public class DatabaseDescriptor
     public static String getLogFileLocation()
     {
         return logFileDirectory_;
-    }
-
-    public static void setLogFileLocation(String logLocation)
-    {
-        logFileDirectory_ = logLocation;
     }
 
     public static Set<InetAddress> getSeeds()
