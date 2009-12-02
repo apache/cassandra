@@ -35,6 +35,9 @@ public class SelectorManager extends Thread
     // workaround JDK select/register bug
     Object gate = new Object();
 
+    // flag to indicate that shutdown has been requested.
+    private boolean shutdownRequested = false;
+
     // The static selector manager which is used by all applications
     private static SelectorManager manager;
     
@@ -82,7 +85,13 @@ public class SelectorManager extends Thread
             selector.wakeup();
             return channel.register(selector, ops, handler);
         }
-    }      
+    }
+
+    // requests the thread to shutdown. However, it brings no guarantees. Added for testing.
+    private void requestShutdown()
+    {
+        shutdownRequested = true;
+    }
 
     /**
      * This method starts the socket manager listening for events. It is
@@ -101,6 +110,11 @@ public class SelectorManager extends Thread
             catch (IOException e)
             {
                 throw new RuntimeException(e);
+            }
+            if (shutdownRequested)
+            {
+                shutdownRequested = false;
+                break;
             }
         }
     }
@@ -141,6 +155,22 @@ public class SelectorManager extends Thread
                     skh.write(key);
                 }
             }
+        }
+    }
+
+    /**
+     * Intended to reset the singleton as part of testing.
+     */
+    static void reset()
+    {
+        synchronized(SelectorManager.class)
+        {
+            if (manager != null)
+                manager.requestShutdown();
+            manager = null;
+            if (udpManager != null)
+                udpManager.requestShutdown();
+            udpManager = null;
         }
     }
 

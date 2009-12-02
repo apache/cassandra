@@ -122,7 +122,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         return gossiper_;
     }
 
-    private Timer gossipTimer_ = new Timer(false);
+    private Timer gossipTimer_;
     private InetAddress localEndPoint_;
     private long aVeryLongTime_;
     private Random random_ = new Random();
@@ -144,6 +144,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     private Gossiper()
     {
+        gossipTimer_ = new Timer(false);
         aVeryLongTime_ = 259200 * 1000;
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance().registerFailureDetectionEventListener(this);
@@ -834,6 +835,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     public void stop()
     {
         gossipTimer_.cancel();
+        gossipTimer_ = new Timer(false); // makes the Gossiper reentrant.
     }
 }
 

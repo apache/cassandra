@@ -69,6 +69,9 @@ public class MessagingService
     
     /* List of sockets we are listening on */
     private static Map<InetAddress, SelectionKey> listenSockets_ = new HashMap<InetAddress, SelectionKey>();
+
+    /* List of UdpConnections we are listening on */
+    private static Map<InetAddress, UdpConnection> udpConnections_ = new HashMap<InetAddress, UdpConnection>();
     
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<String, IVerbHandler> verbHandlers_;
@@ -214,7 +217,8 @@ public class MessagingService
         try
         {
             connection.init(localEp);
-            endPoints_.add(localEp);     
+            endPoints_.add(localEp);
+            udpConnections_.put(localEp, connection);
         }
         catch ( IOException e )
         {
@@ -497,7 +501,7 @@ public class MessagingService
         logger_.info("Shutting down ...");
         synchronized (MessagingService.class)
         {
-            /* Stop listening on any socket */
+            /* Stop listening on any TCP socket */
             for (SelectionKey skey : listenSockets_.values())
             {
                 skey.cancel();
@@ -508,6 +512,13 @@ public class MessagingService
                 catch (IOException e) {}
             }
             listenSockets_.clear();
+
+            /* Stop listening on any UDP ports. */
+            for (UdpConnection con : udpConnections_.values())
+            {
+                con.close();
+            }
+            udpConnections_.clear();
 
             /* Shutdown the threads in the EventQueue's */
             messageDeserializationExecutor_.shutdownNow();

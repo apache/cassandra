@@ -19,6 +19,7 @@
 package org.apache.cassandra;
 
 import java.io.File;
+import java.io.IOException;
 
 import org.junit.BeforeClass;
 
@@ -30,6 +31,13 @@ public class CleanupHelper
     private static Logger logger = Logger.getLogger(CleanupHelper.class);
 
     @BeforeClass
+    public static void cleanupAndLeaveDirs()
+    {
+        mkdirs();
+        cleanup();
+        mkdirs();
+    }
+
     public static void cleanup()
     {
         // we clean the fs twice, once to start with (so old data files don't get stored by anything static if this is the first run)
@@ -37,6 +45,10 @@ public class CleanupHelper
         String[] directoryNames = {
                 DatabaseDescriptor.getLogFileLocation(),
         };
+
+        // try to delete the directories themselves too. don't panic if this fails. it probably means that the process
+        // doesn't have permissions to do so, or it contains non-cassandra generated files that were intentionally
+        // put there.
 
         for (String dirName : directoryNames)
         {
@@ -47,11 +59,15 @@ public class CleanupHelper
             }
             for (File f : dir.listFiles())
             {
-                if (!f.delete()) {
+                if (!f.delete())
+                {
                     logger.error("could not delete " + f);
+                }
             }
+
+            if (!dir.delete())
+                logger.warn("could not delete " + dir.getPath());
         }
-    }
 
         // cleanup data directory which are stored as data directory/table/data files
         for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
@@ -71,8 +87,24 @@ public class CleanupHelper
                         }
                     }
                 }
+                if (!tableFile.delete())
+                    logger.warn("could not delete " + dir.getPath());
             }
-        }
 
+            if (!dir.delete())
+                logger.warn("could not delete " + dir.getPath());
+        }
+    }
+
+    public static void mkdirs()
+    {
+        try
+        {
+            DatabaseDescriptor.createAllDirectories();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

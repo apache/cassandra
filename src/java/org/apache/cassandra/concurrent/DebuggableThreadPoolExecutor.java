@@ -19,6 +19,7 @@
 package org.apache.cassandra.concurrent;
 
 import java.lang.management.ManagementFactory;
+import java.util.List;
 import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -34,6 +35,7 @@ import org.apache.log4j.Logger;
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements DebuggableThreadPoolExecutorMBean
 {
     private static Logger logger_ = Logger.getLogger(DebuggableThreadPoolExecutor.class);
+    private final String mbeanName;
 
     public DebuggableThreadPoolExecutor(String threadPoolName) 
     {
@@ -51,9 +53,10 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         super.prestartAllCoreThreads();
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        mbeanName = "org.apache.cassandra.concurrent:type=" + threadFactory.id;
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.concurrent:type=" + threadFactory.id));
+            mbs.registerMBean(this, new ObjectName(mbeanName));
         }
         catch (Exception e)
         {
@@ -82,6 +85,33 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
                 }
             });
         }
+    }
+
+    private void unregisterMBean()
+    {
+        try
+        {
+            ManagementFactory.getPlatformMBeanServer().unregisterMBean(new ObjectName(mbeanName));
+        }
+        catch (Exception ex)
+        {
+            // don't let it get in the way, but notify.
+            logger_.error(ex.getMessage(), ex);
+        }
+    }
+
+    @Override
+    public void shutdown()
+    {
+        unregisterMBean();
+        super.shutdown();
+    }
+
+    @Override
+    public List<Runnable> shutdownNow()
+    {
+        unregisterMBean();
+        return super.shutdownNow();
     }
 
     /**
