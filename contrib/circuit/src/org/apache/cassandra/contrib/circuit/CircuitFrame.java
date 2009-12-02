@@ -45,7 +45,7 @@ import com.google.common.collect.Sets;
 public class CircuitFrame extends JFrame implements ActionListener
 {
     private static final long serialVersionUID = 1L;
-    private static final String appTitle = "CircuitFrame";
+    private static final String appTitle = "Circuit";
     private static final Dimension defaultSize = new Dimension(550, 600);
     private static final SimpleDateFormat dateFormatter;
     private static final Lock verifyLock = new ReentrantLock();
