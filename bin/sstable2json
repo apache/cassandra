@@ -31,12 +31,20 @@ elif [ -r $CASSANDRA_INCLUDE ]; then
     . $CASSANDRA_INCLUDE
 fi
 
+
+# Use JAVA_HOME if set, otherwise look for java in PATH
+if [ -x $JAVA_HOME/bin/java ]; then
+    JAVA=$JAVA_HOME/bin/java
+else
+    JAVA=`which java`
+fi
+
 if [ -z $CLASSPATH ]; then
     echo "You must set the CLASSPATH var" >&2
     exit 1
 fi
 
-java -cp $CLASSPATH  -Dstorage-config=$CASSANDRA_CONF \
+$JAVA -cp $CLASSPATH  -Dstorage-config=$CASSANDRA_CONF \
         org.apache.cassandra.tools.SSTableExport "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et
