@@ -181,22 +181,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         logger_.info("Bootstrap completed! Now serving reads.");
     }
 
-    private void updateForeignToken(Token token, InetAddress endpoint)
-    {
-        tokenMetadata_.update(token, endpoint);
-        SystemTable.updateToken(endpoint, token);
-    }
-
-    /**
-     * Intended for operation in client-only (non-storage mode). E.g.: for bulk loading clients
-     * to be able to use tokenmetadata/messagingservice without fully starting storageservice / systemtable,
-     * or java clients that wish to bypase Thrift entirely.
-     */
-    public void updateForeignTokenUnsafe(Token token, InetAddress endpoint)
-    {
-        tokenMetadata_.update(token, endpoint);
-    }
-
     /** This method updates the local token on disk  */
     public void setToken(Token token)
     {
@@ -434,9 +418,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state normal, token " + token);
             if (isClientMode)
-                updateForeignTokenUnsafe(token, endpoint);
+            {
+                tokenMetadata_.update(token, endpoint);
+                // do NOT update systemtable in client mode
+            }
             else
-                updateForeignToken(token, endpoint);
+            {
+                tokenMetadata_.update(token, endpoint);
+                SystemTable.updateToken(endpoint, token);
+            }
             replicationStrategy_.removeObsoletePendingRanges();
         }
         else if (STATE_LEAVING.equals(stateName))

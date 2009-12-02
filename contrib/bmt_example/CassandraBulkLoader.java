@@ -34,10 +34,9 @@
   *
   * You should construct your data you want to import as rows delimited by a new line. You end up grouping by <Key>
   * in the mapper, so that the end result generates the data set into a column oriented subset. Once you get to the
-  * reduce aspect, you can generate the ColumnFamilies you want inserted, and send it to your nodes. You need to
-  * know your tokens and ip addresses ahead of time.
+  * reduce aspect, you can generate the ColumnFamilies you want inserted, and send it to your nodes.
   *
-  * Author : Chris Goffinet (goffinet@digg.com)
+  * THIS CANNOT RUN ON THE SAME IP ADDRESS AS A CASSANDRA INSTANCE.
   */
   
 package org.apache.cassandra.bulkloader;
@@ -80,6 +79,7 @@ public class CassandraBulkLoader {
             output.collect(key, value);
         }
     }
+
     public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
         private Path[] localFiles;
         private ArrayList<String> tokens = new ArrayList<String>();
@@ -102,31 +102,17 @@ public class CassandraBulkLoader {
 
             System.setProperty("storage-config",cassConfig);
 
-            startMessagingService();
-            /* 
-              Populate tokens 
-              
-              Specify your tokens and ips below. 
-              
-              tokens.add("0:192.168.0.1")
-              tokens.add("14178431955039102644307275309657008810:192.168.0.2")
-            */
-
-            for (String token : this.tokens)
+            StorageService.instance().startClient();
+            try
             {
-                String[] values = token.split(":");
-                InetAddress address;
-                try
-                {
-                    address = InetAddress.getByName(values[1]);
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                StorageService.instance().updateForeignTokenUnsafe(new BigIntegerToken(new BigInteger(values[0])), address);
+                Thread.sleep(10*1000);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
             }
         }
+
         public void close()
         {
             try
@@ -142,8 +128,18 @@ public class CassandraBulkLoader {
             {
                 throw new RuntimeException(e);
             }
-            shutdownMessagingService();
+            try
+            {
+                // Sleep just in case the number of keys we send over is small
+                Thread.sleep(3*1000);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            StorageService.instance().stopClient();
         }
+
         public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
         {
             ColumnFamily columnFamily;
@@ -218,6 +214,7 @@ public class CassandraBulkLoader {
             throw new RuntimeException(e);
         }
     }
+
     public static Message createMessage(String Keyspace, String Key, String CFName, List<ColumnFamily> ColumnFamiles)
     {
         ColumnFamily baseColumnFamily;
@@ -259,23 +256,6 @@ public class CassandraBulkLoader {
         }
 
         return message;
-    }
-    public static void startMessagingService()
-    {
-        SelectorManager.getSelectorManager().start();
-    }
-    public static void shutdownMessagingService()
-    {
-        try
-        {
-            // Sleep just in case the number of keys we send over is small
-            Thread.sleep(3*1000);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        MessagingService.flushAndshutdown();
     }
     public static void main(String[] args) throws Exception
     {
