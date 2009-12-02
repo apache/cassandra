@@ -59,6 +59,12 @@ public class CliClient
         case CliParser.NODE_THRIFT_SET:
             executeSet(ast);
             break;
+        case CliParser.NODE_THRIFT_DEL:
+            executeDelete(ast);
+            break;
+        case CliParser.NODE_THRIFT_COUNT:
+            executeCount(ast);
+            break;
         case CliParser.NODE_SHOW_CLUSTER_NAME:
             executeShowProperty(ast, "cluster name");
             break;
@@ -102,6 +108,9 @@ public class CliClient
        css_.out.println("get <tbl>.<cf>['<rowKey>']                             Get a slice of columns.");            
        css_.out.println("get <tbl>.<cf>['<rowKey>']['<colKey>']                 Get a column value.");            
        css_.out.println("set <tbl>.<cf>['<rowKey>']['<colKey>'] = '<value>'     Set a column.");    
+       css_.out.println("count <tbl>.<cf>['<rowKey>']                           Count columns in row.");
+       css_.out.println("del <tbl>.<cf>['<rowKey>']                             Delete row.");
+       css_.out.println("del <tbl>.<cf>['<rowKey>']['<colKey>']                 Delete column.");
     }
 
     private void cleanupAndExit()
@@ -109,7 +118,78 @@ public class CliClient
         CliMain.disconnect();
         System.exit(0);
     }
+    private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+       if (!CliMain.isConnected())
+           return;
 
+       int childCount = ast.getChildCount();
+       assert(childCount == 1);
+
+       CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
+       assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+
+       String tableName = CliCompiler.getTableName(columnFamilySpec);
+       String key = CliCompiler.getKey(columnFamilySpec);
+       String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+       int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+       
+       if (columnSpecCnt == 0)
+       {
+           ColumnParent cp = new ColumnParent(columnFamily, null);
+           int count = thriftClient_.get_count(tableName, key, cp, ConsistencyLevel.ONE);
+           css_.out.printf("%d columns\n", count);
+       }
+       else
+       {
+           //TODO could support sub columns?
+           css_.err.println("Only column count for a top level row key supported");
+           return;
+       }
+    }
+    
+    private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        int childCount = ast.getChildCount();
+        assert(childCount == 1);
+
+        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
+        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+
+        String tableName = CliCompiler.getTableName(columnFamilySpec);
+        String key = CliCompiler.getKey(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+
+        // assume simple columnFamily for now
+        String columnName = null;
+        final byte[] name;
+        if (columnSpecCnt == 0)
+        {
+            // table.cf['key']
+            name = null;
+        }
+        else
+        {
+            assert columnSpecCnt == 1;
+            // table.cf['key']['column']
+            columnName = CliCompiler.getColumn(columnFamilySpec, 0);
+            try
+            {
+                name = columnName.getBytes("UTF-8");
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        thriftClient_.remove(tableName, key, new ColumnPath(columnFamily, null, name), System.currentTimeMillis(), ConsistencyLevel.ONE);
+        css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
+    }  
+ 
     // Execute GET statement
     private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -132,7 +212,7 @@ public class CliClient
         {
             // table.cf['key']
             SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
-      	    List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), new SlicePredicate(null, range), ConsistencyLevel.ONE);
+            List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), new SlicePredicate(null, range), ConsistencyLevel.ONE);
             int size = columns.size();
             for (ColumnOrSuperColumn cosc : columns)
             {
@@ -217,7 +297,7 @@ public class CliClient
             /* for now (until we support batch sets) */
             assert(false);
         }
-    }
+    } 
 
     private void executeShowProperty(CommonTree ast, String propertyName) throws TException
     {
@@ -268,7 +348,7 @@ public class CliClient
                 String desc = columnMap.get("Desc");
                 String columnFamilyType = columnMap.get("Type");
                 String sort = columnMap.get("CompareWith");
-		 String flushperiod = columnMap.get("FlushPeriodInMinutes");
+                String flushperiod = columnMap.get("FlushPeriodInMinutes");
                 css_.out.println(desc);
                 css_.out.println("Column Family Type: " + columnFamilyType);
                 css_.out.println("Column Sorted By: " + sort);
@@ -283,7 +363,7 @@ public class CliClient
     }
 
     // process a statement of the form: connect hostname/port
-    private void executeConnect(CommonTree ast) throws TException
+    private void executeConnect(CommonTree ast)
     {
         int portNumber = Integer.parseInt(ast.getChild(1).getText());
         Tree idList = ast.getChild(0);

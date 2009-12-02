@@ -45,6 +45,8 @@ tokens {
     NODE_SHOW_TABLES;
     NODE_THRIFT_GET;
     NODE_THRIFT_SET;
+    NODE_THRIFT_COUNT;
+    NODE_THRIFT_DEL;
 
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
@@ -69,7 +71,9 @@ root: stmt SEMICOLON? EOF -> stmt;
 stmt
     : connectStmt
     | exitStmt
+    | countStmt
     | describeTable
+    | delStmt
     | getStmt
     | helpStmt
     | setStmt
@@ -98,6 +102,14 @@ getStmt
 
 setStmt
     : K_SET columnFamilyExpr '=' value -> ^(NODE_THRIFT_SET columnFamilyExpr value)
+    ;
+
+countStmt
+    : K_COUNT columnFamilyExpr -> ^(NODE_THRIFT_COUNT columnFamilyExpr)
+    ;
+
+delStmt
+    : K_DEL columnFamilyExpr -> ^(NODE_THRIFT_DEL columnFamilyExpr)
     ;
 
 showStmt
@@ -162,7 +174,9 @@ port: IntegerLiteral;
 // 
 K_CONFIG:     'CONFIG';
 K_CONNECT:    'CONNECT';
+K_COUNT:      'COUNT';
 K_CLUSTER:    'CLUSTER';
+K_DEL:        'DEL';
 K_DESCRIBE:   'DESCRIBE';
 K_GET:        'GET';
 K_HELP:       'HELP';
