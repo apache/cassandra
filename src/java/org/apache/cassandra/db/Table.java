@@ -29,14 +29,8 @@ import java.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.io.DataOutputBuffer;
 import java.net.InetAddress;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.io.IStreamComplete;
-import org.apache.cassandra.net.io.StreamContextManager;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
 
@@ -52,6 +46,21 @@ public class Table
     static final ReentrantReadWriteLock flusherLock_ = new ReentrantReadWriteLock(true);
 
     private static Timer flushTimer_ = new Timer("FLUSH-TIMER");
+
+    // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
+    // CassandraDaemon, but it is possible to call Table.open without a running daemon, so it made sense to ensure
+    // proper directories here.
+    static
+    {
+        try
+        {
+            DatabaseDescriptor.createAllDirectories();
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
+    }
 
     /*
      * This class represents the metadata of this Table. The metadata

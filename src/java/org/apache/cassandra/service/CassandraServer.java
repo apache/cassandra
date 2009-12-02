@@ -66,7 +66,7 @@ public class CassandraServer implements Cassandra.Iface
 		LogUtil.init();
 		//LogUtil.setLogLevel("com.facebook", "DEBUG");
 		// Start the storage service
-		storageService.start();
+		storageService.initServer();
 	}
 
     protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level)

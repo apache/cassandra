@@ -390,22 +390,9 @@ public class DatabaseDescriptor
                 columnIndexSizeInKB_ = Integer.parseInt(columnIndexSizeInKB);
             }
 
-            /* data file directory */
+            /* data file and commit log directories. they get created later, when they're needed. */
             dataFileDirectories_ = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
-            if (dataFileDirectories_.length == 0)
-            {
-                throw new ConfigurationException("At least one DataFileDirectory must be specified");
-            }
-            for ( String dataFileDirectory : dataFileDirectories_ )
-                FileUtils.createDirectory(dataFileDirectory);
-
-            /* commit log directory */
             logFileDirectory_ = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
-            if (logFileDirectory_ == null)
-            {
-                throw new ConfigurationException("CommitLogDirectory must be specified");
-            }
-            FileUtils.createDirectory(logFileDirectory_);
 
             /* threshold after which commit log should be rotated. */
             String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
@@ -547,9 +534,6 @@ public class DatabaseDescriptor
             tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
             tableKeysCachedFractions_.put(Table.SYSTEM_TABLE, 0.0);
 
-            /* make sure we have a directory for each table */
-            createTableDirectories();
-
             /* Load the seeds for node contact points */
             String[] seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
             if (seeds.length <= 0)
@@ -603,11 +587,31 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Create the table directory in each data directory
+     * Creates all storage-related directories.
+     * @throws IOException when a disk problem is encountered.
      */
-    public static void createTableDirectories() throws IOException
+    public static void createAllDirectories() throws IOException
     {
-        for (String dataFile : dataFileDirectories_) 
+        try {
+            if (dataFileDirectories_.length == 0)
+            {
+                throw new ConfigurationException("At least one DataFileDirectory must be specified");
+            }
+            for ( String dataFileDirectory : dataFileDirectories_ )
+                FileUtils.createDirectory(dataFileDirectory);
+            if (logFileDirectory_ == null)
+            {
+                throw new ConfigurationException("CommitLogDirectory must be specified");
+            }
+            FileUtils.createDirectory(logFileDirectory_);
+        }
+        catch (ConfigurationException ex) {
+            logger_.error("Fatal error: " + ex.getMessage());
+            System.err.println("Bad configuration; unable to start server");
+            System.exit(1);
+        }
+        /* make sure we have a directory for each table */
+        for (String dataFile : dataFileDirectories_)
         {
             FileUtils.createDirectory(dataFile + File.separator + Table.SYSTEM_TABLE);
             for (String table : tables_)

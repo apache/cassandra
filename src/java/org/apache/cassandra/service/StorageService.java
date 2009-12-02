@@ -32,6 +32,7 @@ import javax.management.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
@@ -149,6 +150,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
     private Set<InetAddress> bootstrapSet;
+    /* when intialized as a client, we shouldn't write to the system table. */
+    private boolean isClientMode;
   
     public synchronized void addBootstrapSource(InetAddress s)
     {
@@ -185,8 +188,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /**
-     * for bulk loading clients to be able to use tokenmetadata/messagingservice
-     * without fully starting storageservice / systemtable.
+     * Intended for operation in client-only (non-storage mode). E.g.: for bulk loading clients
+     * to be able to use tokenmetadata/messagingservice without fully starting storageservice / systemtable,
+     * or java clients that wish to bypase Thrift entirely.
      */
     public void updateForeignTokenUnsafe(Token token, InetAddress endpoint)
     {
@@ -251,10 +255,34 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         }
         return replicationStrategy;
     }
-    
-    public void start() throws IOException
+
+    public void stopClient()
     {
+        Gossiper.instance().unregister(this);
+        Gossiper.instance().stop();
+        MessagingService.shutdown();
+    }
+
+    public void initClient() throws IOException
+    {
+        isClientMode = true;
+        logger_.info("Starting up client gossip");
+        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        MessagingService.instance().listenUDP(FBUtilities.getLocalAddress());
+
+        SelectorManager.getSelectorManager().start();
+        SelectorManager.getUdpSelectorManager().start();
+
+        Gossiper.instance().register(this);
+        Gossiper.instance().start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+    }
+    
+    public void initServer() throws IOException
+    {
+        isClientMode = false;
         storageMetadata_ = SystemTable.initMetadata();
+        DatabaseDescriptor.createAllDirectories();
+        logger_.info("Starting up server gossip");
 
         /* Listen for application messages */
         MessagingService.instance().listen(FBUtilities.getLocalAddress());
@@ -270,7 +298,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // for bootstrap to get the load info it needs.
         // (we won't be part of the storage ring though until we add a nodeId to our state, below.)
         Gossiper.instance().register(this);
-        Gossiper.instance().start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration());
+        Gossiper.instance().start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration()); // needed for node-ring gathering.
 
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
@@ -284,7 +312,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             while (isBootstrapMode)
             {
                 try
-                {   
+                {
                     Thread.sleep(100);
                 }
                 catch (InterruptedException e)
@@ -405,7 +433,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state normal, token " + token);
-            updateForeignToken(token, endpoint);
+            if (isClientMode)
+                updateForeignTokenUnsafe(token, endpoint);
+            else
+                updateForeignToken(token, endpoint);
             replicationStrategy_.removeObsoletePendingRanges();
         }
         else if (STATE_LEAVING.equals(stateName))
@@ -499,7 +530,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     public void onAlive(InetAddress endpoint, EndPointState state)
     {
-        deliverHints(endpoint);
+        if (!isClientMode)
+            deliverHints(endpoint);
     }
 
     public void onDead(InetAddress endpoint, EndPointState state) {}
@@ -983,6 +1015,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             public void run()
             {
                 Gossiper.instance().stop();
+                MessagingService.shutdown();
                 logger_.info("DECOMMISSION FINISHED.");
                 // let op be responsible for killing the process
             }
@@ -1110,5 +1143,10 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public void cancelPendingRanges()
     {
         tokenMetadata_.clearPendingRanges();
+    }
+
+    public boolean isClientMode()
+    {
+        return isClientMode;
     }
 }
