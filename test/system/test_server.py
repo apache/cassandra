@@ -452,7 +452,7 @@ class TestMutations(CassandraTester):
 
         # Test resurrection.  First, re-insert the value w/ older timestamp, 
         # and make sure it stays removed:
-        client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 0, ConsistencyLevel.ONE)
+        client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc2', _i64(5)), 'value5', 1, ConsistencyLevel.ONE)
         super_columns = [result.super_column
                          for result in _big_slice('Keyspace1', 'key1', ColumnParent('Super1'))]
         assert super_columns == super_columns_expected, super_columns
@@ -464,6 +464,12 @@ class TestMutations(CassandraTester):
         super_columns_expected = [SuperColumn(name='sc1', columns=[Column(_i64(4), 'value4', 0)]),
                                   SuperColumn(name='sc2', columns=[Column(_i64(5), 'value5', 6)])]
         assert super_columns == super_columns_expected, super_columns
+
+        # check slicing at the subcolumn level too
+        p = SlicePredicate(slice_range=SliceRange('', '', False, 1000))
+        columns = [result.column
+                   for result in client.get_slice('Keyspace1', 'key1', ColumnParent('Super1', 'sc2'), p, ConsistencyLevel.ONE)]
+        assert columns == [Column(_i64(5), 'value5', 6)], columns
 
 
     def test_empty_range(self):

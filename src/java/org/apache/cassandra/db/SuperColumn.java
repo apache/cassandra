@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.util.Collection;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.security.MessageDigest;
@@ -158,14 +157,14 @@ public final class SuperColumn implements IColumn, IColumnContainer
     	throw new IllegalArgumentException("Timestamp was requested for a column that does not exist.");
     }
 
-    public long mostRecentChangeAt()
+    public long mostRecentLiveChangeAt()
     {
         long max = Long.MIN_VALUE;
         for (IColumn column : columns_.values())
         {
-            if (column.mostRecentChangeAt() > max)
+            if (!column.isMarkedForDelete() && column.timestamp() > max)
             {
-                max = column.mostRecentChangeAt();
+                max = column.timestamp();
             }
         }
         return max;

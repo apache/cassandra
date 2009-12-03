@@ -1117,7 +1117,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (filter.path.superColumnName != null)
             {
                 QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
-                ColumnFamily cf = getColumnFamilyInternal(nameFilter, getDefaultGCBefore());
+                ColumnFamily cf = getColumnFamilyInternal(nameFilter, gcBefore);
                 if (cf == null || cf.getColumnCount() == 0)
                     return cf;
 

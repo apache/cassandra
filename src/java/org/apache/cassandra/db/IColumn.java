@@ -30,7 +30,7 @@ public interface IColumn
 
     public boolean isMarkedForDelete();
     public long getMarkedForDeleteAt();
-    public long mostRecentChangeAt();
+    public long mostRecentLiveChangeAt();
     public byte[] name();
     public int size();
     public int serializedSize();

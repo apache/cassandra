@@ -86,7 +86,7 @@ public class NamesQueryFilter extends QueryFilter
         while (reducedColumns.hasNext())
         {
             IColumn column = reducedColumns.next();
-            if (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore)
+            if (QueryFilter.isRelevant(column, container, gcBefore))
                 container.addColumn(column);
         }
     }

@@ -153,7 +153,7 @@ public class RemoveSuperColumnTest
     private void validateRemoveWithNewData() throws IOException
     {
         ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
-        ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super2", "SC1".getBytes()), getBytes(2)));
+        ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Super2", "SC1".getBytes()), getBytes(2)), Integer.MAX_VALUE);
         Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
         assert subColumns.size() == 1;
         assert subColumns.iterator().next().timestamp() == 2;

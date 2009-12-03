@@ -132,7 +132,7 @@ public final class Column implements IColumn
         return timestamp;
     }
 
-    public long mostRecentChangeAt()
+    public long mostRecentLiveChangeAt()
     {
         return timestamp;
     }

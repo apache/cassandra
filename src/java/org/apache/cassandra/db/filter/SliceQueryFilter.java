@@ -35,7 +35,6 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class SliceQueryFilter extends QueryFilter
 {
@@ -124,20 +123,14 @@ public class SliceQueryFilter extends QueryFilter
             // only count live columns towards the `count` criteria
             if (!column.isMarkedForDelete()
                 && (!container.isMarkedForDelete()
-                    || column.mostRecentChangeAt() > container.getMarkedForDeleteAt()))
+                    || column.mostRecentLiveChangeAt() > container.getMarkedForDeleteAt()))
             {
                 liveColumns++;
             }
 
             // but we need to add all non-gc-able columns to the result for read repair:
-            // the column itself must be not gc-able, (1)
-            // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
-            // (since otherwise, the only thing repair cares about is the container tombstone)
-            if ((!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore) // (1)
-                && (!container.isMarkedForDelete() || column.mostRecentChangeAt() > container.getMarkedForDeleteAt())) // (2)
-            {
+            if (QueryFilter.isRelevant(column, container, gcBefore))
                 container.addColumn(column);
-            }
         }
     }
 }
