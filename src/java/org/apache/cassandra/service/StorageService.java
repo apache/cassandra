@@ -892,41 +892,17 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /**
-     * This function finds the most suitable endpoint given a key.
-     * It checks for locality and alive test.
+     * This function finds the closest live endpoint that contains a given key.
      */
     public InetAddress findSuitableEndPoint(String key) throws IOException, UnavailableException
     {
         List<InetAddress> endpoints = getNaturalEndpoints(key);
-        for(InetAddress endPoint: endpoints)
+        endPointSnitch_.sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+        for (InetAddress endpoint : endpoints)
         {
-            if(endPoint.equals(FBUtilities.getLocalAddress()))
-            {
-                return endPoint;
-            }
+            if (FailureDetector.instance().isAlive(endpoint))
+                return endpoint;
         }
-        int j = 0;
-        for ( ; j < endpoints.size(); ++j )
-        {
-            if ( StorageService.instance().isInSameDataCenter(endpoints.get(j)) && FailureDetector.instance().isAlive(endpoints.get(j)))
-            {
-                return endpoints.get(j);
-            }
-        }
-        // We have tried to be really nice but looks like there are no servers 
-        // in the local data center that are alive and can service this request so 
-        // just send it to the first alive guy and see if we get anything.
-        j = 0;
-        for ( ; j < endpoints.size(); ++j )
-        {
-            if ( FailureDetector.instance().isAlive(endpoints.get(j)))
-            {
-                if (logger_.isDebugEnabled())
-                  logger_.debug("InetAddress " + endpoints.get(j) + " is alive so get data from it.");
-                return endpoints.get(j);
-            }
-        }
-
         throw new UnavailableException(); // no nodes that could contain key are alive
     }
 

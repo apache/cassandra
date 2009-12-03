@@ -214,6 +214,10 @@ public class DatacenterEndPointSnitch implements IEndPointSnitch
             {
                 try
                 {
+                    if (address.equals(a1) && !address.equals(a2))
+                        return -1;
+                    if (address.equals(a2) && !address.equals(a1))
+                        return 1;
                     if (isOnSameRack(address, a1) && !isOnSameRack(address, a2))
                         return -1;
                     if (isOnSameRack(address, a2) && !isOnSameRack(address, a1))
