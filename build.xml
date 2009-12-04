@@ -214,8 +214,11 @@
       <classpath refid="cassandra.classpath"/>
       <src path="${test.unit.src}"/>
     </javac>
-    <copy todir="${test.classes}">
-      <fileset dir="${test.dir}"/>
+
+    <!-- Non-java resources needed by the test suite -->
+    <mkdir dir="${test.classes}/resources" />
+    <copy todir="${test.classes}/resources">
+      <fileset dir="${test.dir}/resources"/>
     </copy>
   </target>
 
