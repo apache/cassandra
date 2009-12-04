@@ -10,6 +10,7 @@
  * fix returning live subcolumns of deleted supercolumns (CASSANDRA-583)
  * respect JAVA_HOME in bin/ scripts (several tickets)
  * add StorageService.initClient for fat clients on the JVM (CASSANDRA-535)
+   (see contrib/client_only for an example of use)
 
 
 0.5.0 beta
