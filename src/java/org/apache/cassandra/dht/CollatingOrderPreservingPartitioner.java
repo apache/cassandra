@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Random;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -84,7 +83,7 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
         else
         {
             // wrapping range must involve the minimum token
-            assert FBUtilities.isEqualBits(MINIMUM.token, rbytes);
+            assert Arrays.equals(MINIMUM.token, rbytes);
 
             inlength = Math.max(lbytes.length, 1);
             if (lbytes.length < inlength)

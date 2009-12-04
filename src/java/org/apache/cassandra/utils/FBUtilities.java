@@ -95,11 +95,6 @@ public class FBUtilities
         return n;
     }
 
-    public static boolean isEqualBits(byte[] bytes1, byte[] bytes2)
-    {
-        return 0 == compareByteArrays(bytes1, bytes2);
-    }
-
     public static int compareByteArrays(byte[] bytes1, byte[] bytes2){
         if(null == bytes1){
             if(null == bytes2) return 0;
