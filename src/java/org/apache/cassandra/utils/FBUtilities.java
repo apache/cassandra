@@ -210,7 +210,13 @@ public class FBUtilities
     {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes)
-            sb.append(Integer.toHexString(b & 0xff));
+        {
+            int bint = b & 0xff;
+            if (bint <= 0xF)
+                // toHexString does not 0 pad its results.
+                sb.append("0");
+            sb.append(Integer.toHexString(bint));
+        }
         return sb.toString();
     }
 

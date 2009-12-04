@@ -28,10 +28,13 @@ public class FBUtilitiesTest
 	@Test
     public void testHexBytesConversion()
     {
-    	byte[] b = "1000".getBytes();
-    	String s = FBUtilities.bytesToHex(b);
-    	byte[] c = FBUtilities.hexToBytes(s);
-    	assertArrayEquals(b, c);
+        for (int i = Byte.MIN_VALUE; i <= Byte.MAX_VALUE; i++)
+        {
+            byte[] b = new byte[]{ (byte)i };
+            String s = FBUtilities.bytesToHex(b);
+            byte[] c = FBUtilities.hexToBytes(s);
+            assertArrayEquals(b, c);
+        }
     }
 
     @Test
