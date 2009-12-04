@@ -814,7 +814,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         EndPointState localState = endPointStateMap_.get(localEndPoint_);
         if ( localState == null )
         {
-            HeartBeatState hbState = new HeartBeatState(generationNbr, 0);
+            HeartBeatState hbState = new HeartBeatState(generationNbr);
             localState = new EndPointState(hbState);
             localState.isAlive(true);
             localState.isAGossiper(true);

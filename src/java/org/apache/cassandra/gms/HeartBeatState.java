@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.gms;
 
-import java.util.concurrent.atomic.AtomicInteger;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -40,18 +39,16 @@ class HeartBeatState
     }
     
     int generation_;
-    AtomicInteger heartbeat_;
     int version_;
 
-    HeartBeatState(int generation, int heartbeat)
+    HeartBeatState(int generation)
     {
-        this(generation, heartbeat, 0);
+        this(generation, 0);
     }
     
-    HeartBeatState(int generation, int heartbeat, int version)
+    HeartBeatState(int generation, int version)
     {
         generation_ = generation;
-        heartbeat_ = new AtomicInteger(heartbeat);
         version_ = version;
     }
 
@@ -65,14 +62,8 @@ class HeartBeatState
         return generation_;
     }
 
-    int getHeartBeat()
-    {
-        return heartbeat_.get();
-    }
-    
     void updateHeartBeat()
     {
-        heartbeat_.incrementAndGet();      
         version_ = VersionGenerator.getNextVersion();
     }
     
@@ -87,12 +78,11 @@ class HeartBeatStateSerializer implements ICompactSerializer<HeartBeatState>
     public void serialize(HeartBeatState hbState, DataOutputStream dos) throws IOException
     {
         dos.writeInt(hbState.generation_);
-        dos.writeInt(hbState.heartbeat_.get());
         dos.writeInt(hbState.version_);
     }
     
     public HeartBeatState deserialize(DataInputStream dis) throws IOException
     {
-        return new HeartBeatState(dis.readInt(), dis.readInt(), dis.readInt());
+        return new HeartBeatState(dis.readInt(), dis.readInt());
     }
 }
