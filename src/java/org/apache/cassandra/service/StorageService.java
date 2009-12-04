@@ -417,16 +417,9 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state normal, token " + token);
-            if (isClientMode)
-            {
-                tokenMetadata_.update(token, endpoint);
-                // do NOT update systemtable in client mode
-            }
-            else
-            {
-                tokenMetadata_.update(token, endpoint);
+            tokenMetadata_.update(token, endpoint);
+            if (!isClientMode)
                 SystemTable.updateToken(endpoint, token);
-            }
             replicationStrategy_.removeObsoletePendingRanges();
         }
         else if (STATE_LEAVING.equals(stateName))
