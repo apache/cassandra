@@ -297,7 +297,7 @@ public class CliClient
         // Perform a get(), print out the results.
         ColumnPath path = new ColumnPath(columnFamily, superColumnName, columnName);
         Column column = thriftClient_.get(tableName, key, path, ConsistencyLevel.ONE).column;
-        css_.out.printf("=> (column=%s, value=%s; timestamp=%d)\n", new String(column.name, "UTF-8"),
+        css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", new String(column.name, "UTF-8"),
                         new String(column.value, "UTF-8"), column.timestamp);
     }
 
