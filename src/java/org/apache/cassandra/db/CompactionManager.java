@@ -72,92 +72,124 @@ public class CompactionManager implements CompactionManagerMBean
         return instance_;
     }
 
-    static class FileCompactor2 implements Callable<List<SSTableReader>>
+    static abstract class Compactor<T> implements Callable<T>
     {
-        private ColumnFamilyStore columnFamilyStore_;
-        private Collection<Range> ranges_;
-        private InetAddress target_;
-
-        FileCompactor2(ColumnFamilyStore columnFamilyStore, Collection<Range> ranges, InetAddress target)
+        protected final ColumnFamilyStore cfstore;
+        public Compactor(ColumnFamilyStore columnFamilyStore)
         {
-            columnFamilyStore_ = columnFamilyStore;
-            ranges_ = ranges;
-            target_ = target;
+            cfstore = columnFamilyStore;
         }
 
-        public List<SSTableReader> call()
+        abstract T compact() throws IOException;
+        
+        public T call()
         {
-        	List<SSTableReader> results;
+        	T results;
             if (logger_.isDebugEnabled())
-              logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
+                logger_.debug("Starting " + this + ".");
             try
             {
-                results = columnFamilyStore_.doAntiCompaction(ranges_, target_);
+                results = compact();
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
             if (logger_.isDebugEnabled())
-              logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+                logger_.debug("Finished " + this + ".");
             return results;
         }
-    }
 
-    static class OnDemandCompactor implements Runnable
-    {
-        private ColumnFamilyStore columnFamilyStore_;
-        private long skip_ = 0L;
-
-        OnDemandCompactor(ColumnFamilyStore columnFamilyStore, long skip)
+        @Override
+        public String toString()
         {
-            columnFamilyStore_ = columnFamilyStore;
-            skip_ = skip;
-        }
-
-        public void run()
-        {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Started  Major compaction for " + columnFamilyStore_.columnFamily_);
-            try
-            {
-                columnFamilyStore_.doMajorCompaction(skip_);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            if (logger_.isDebugEnabled())
-              logger_.debug("Finished Major compaction for " + columnFamilyStore_.columnFamily_);
+            StringBuilder buff = new StringBuilder();
+            buff.append("<").append(getClass().getSimpleName());
+            buff.append(" for ").append(cfstore).append(">");
+            return buff.toString();
         }
     }
 
-    static class CleanupCompactor implements Runnable
+    static class AntiCompactor extends Compactor<List<SSTableReader>>
     {
-        private ColumnFamilyStore columnFamilyStore_;
-
-        CleanupCompactor(ColumnFamilyStore columnFamilyStore)
+        private final Collection<Range> ranges;
+        private final InetAddress target;
+        AntiCompactor(ColumnFamilyStore cfstore, Collection<Range> ranges, InetAddress target)
         {
-        	columnFamilyStore_ = columnFamilyStore;
+            super(cfstore);
+            this.ranges = ranges;
+            this.target = target;
         }
 
-        public void run()
+        public List<SSTableReader> compact() throws IOException
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Started  compaction ..."+columnFamilyStore_.columnFamily_);
-            try
-            {
-                columnFamilyStore_.doCleanupCompaction();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            if (logger_.isDebugEnabled())
-              logger_.debug("Finished compaction ..."+columnFamilyStore_.columnFamily_);
+            return cfstore.doAntiCompaction(ranges, target);
+        }
+    }
+
+    static class OnDemandCompactor extends Compactor<Object>
+    {
+        private final long skip;
+        OnDemandCompactor(ColumnFamilyStore cfstore, long skip)
+        {
+            super(cfstore);
+            this.skip = skip;
+        }
+
+        public Object compact() throws IOException
+        {
+            cfstore.doMajorCompaction(skip);
+            return this;
+        }
+    }
+
+    static class CleanupCompactor extends Compactor<Object>
+    {
+        CleanupCompactor(ColumnFamilyStore cfstore)
+        {
+            super(cfstore);
+        }
+
+        public Object compact() throws IOException
+        {
+            cfstore.doCleanupCompaction();
+            return this;
         }
     }
     
+    static class MinorCompactor extends Compactor<Integer>
+    {
+        private final int minimum;
+        private final int maximum;
+        MinorCompactor(ColumnFamilyStore cfstore, int minimumThreshold, int maximumThreshold)
+        {
+            super(cfstore);
+            minimum = minimumThreshold;
+            maximum = maximumThreshold;
+        }
+
+        public Integer compact() throws IOException
+        {
+            return cfstore.doCompaction(minimum, maximum);
+        }
+    }
+
+    static class ReadonlyCompactor extends Compactor<Object>
+    {
+        private final InetAddress initiator;
+        ReadonlyCompactor(ColumnFamilyStore cfstore, InetAddress initiator)
+        {
+            super(cfstore);
+            this.initiator = initiator;
+        }
+
+        public Object compact() throws IOException
+        {
+            cfstore.doReadonlyCompaction(initiator);
+            return this;
+        }
+    }
+
     
     private ExecutorService compactor_ = new DebuggableThreadPoolExecutor("COMPACTION-POOL");
 
@@ -173,29 +205,27 @@ public class CompactionManager implements CompactionManagerMBean
 
     Future<Integer> submit(final ColumnFamilyStore columnFamilyStore, final int minThreshold, final int maxThreshold)
     {
-        Callable<Integer> callable = new Callable<Integer>()
-        {
-            public Integer call() throws IOException
-            {
-                return columnFamilyStore.doCompaction(minThreshold, maxThreshold);
-            }
-        };
-        return compactor_.submit(callable);
+        return compactor_.submit(new MinorCompactor(columnFamilyStore, minThreshold, maxThreshold));
     }
 
-    public void submitCleanup(ColumnFamilyStore columnFamilyStore)
+    public Future submitCleanup(ColumnFamilyStore columnFamilyStore)
     {
-        compactor_.submit(new CleanupCompactor(columnFamilyStore));
+        return compactor_.submit(new CleanupCompactor(columnFamilyStore));
     }
 
-    public Future<List<SSTableReader>> submit(ColumnFamilyStore columnFamilyStore, Collection<Range> ranges, InetAddress target)
+    public Future<List<SSTableReader>> submitAnti(ColumnFamilyStore columnFamilyStore, Collection<Range> ranges, InetAddress target)
     {
-        return compactor_.submit( new FileCompactor2(columnFamilyStore, ranges, target) );
+        return compactor_.submit(new AntiCompactor(columnFamilyStore, ranges, target));
     }
 
-    public void  submitMajor(ColumnFamilyStore columnFamilyStore, long skip)
+    public Future submitMajor(ColumnFamilyStore columnFamilyStore, long skip)
     {
-        compactor_.submit( new OnDemandCompactor(columnFamilyStore, skip) );
+        return compactor_.submit(new OnDemandCompactor(columnFamilyStore, skip));
+    }
+
+    public Future submitReadonly(ColumnFamilyStore columnFamilyStore, InetAddress initiator)
+    {
+        return compactor_.submit(new ReadonlyCompactor(columnFamilyStore, initiator));
     }
 
     /**

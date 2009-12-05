@@ -42,6 +42,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -293,7 +294,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
     {
         assert ranges != null;
-        Future<List<SSTableReader>> futurePtr = CompactionManager.instance().submit(ColumnFamilyStore.this, ranges, target);
+        Future<List<SSTableReader>> futurePtr = CompactionManager.instance().submitAnti(ColumnFamilyStore.this,
+                                                                                        ranges, target);
 
         List<SSTableReader> result;
         try
@@ -654,7 +656,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // if we have too many to compact all at once, compact older ones first -- this avoids
                 // re-compacting files we just created.
                 Collections.sort(sstables);
-                filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
+                boolean major = sstables.size() == ssTables_.size();
+                filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)), major);
             }
             logger_.debug(filesCompacted + " files compacted");
         }
@@ -679,7 +682,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void doMajorCompactionInternal(long skip) throws IOException
     {
         Collection<SSTableReader> sstables;
-        if (skip > 0L)
+        boolean major = skip < 1L;
+        if (!major)
         {
             sstables = new ArrayList<SSTableReader>();
             for (SSTableReader sstable : ssTables_)
@@ -695,7 +699,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             sstables = ssTables_.getSSTables();
         }
 
-        doFileCompaction(sstables);
+        doFileCompaction(sstables, major);
     }
 
     /*
@@ -850,9 +854,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return results;
     }
 
-    private int doFileCompaction(Collection<SSTableReader> sstables) throws IOException
+    private int doFileCompaction(Collection<SSTableReader> sstables, boolean major) throws IOException
     {
-        return doFileCompaction(sstables, getDefaultGCBefore());
+        return doFileCompaction(sstables, getDefaultGCBefore(), major);
     }
 
     /*
@@ -868,7 +872,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     * The collection of sstables passed may be empty (but not null); even if
     * it is not empty, it may compact down to nothing if all rows are deleted.
     */
-    int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore) throws IOException
+    int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             Table.open(table_).snapshot("compact-" + columnFamily_);
@@ -881,7 +885,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader maxFile = getMaxSizeFile(sstables);
             List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
             smallerSSTables.remove(maxFile);
-            return doFileCompaction(smallerSSTables);
+            return doFileCompaction(smallerSSTables, gcBefore, false);
         }
 
         long startTime = System.currentTimeMillis();
@@ -910,12 +914,18 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
 
+            // validate the CF as we iterate over it
+            InetAddress initiator = major ? FBUtilities.getLocalAddress() : null;
+            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator);
+            validator.prepare();
             while (nni.hasNext())
             {
                 CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
                 writer.append(row.key, row.buffer);
+                validator.add(row);
                 totalkeysWritten++;
             }
+            validator.complete();
         }
         finally
         {
@@ -931,6 +941,34 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long dTime = System.currentTimeMillis() - startTime;
         logger_.info(String.format(format, writer.getFilename(), getTotalBytes(sstables), ssTable.length(), totalkeysWritten, dTime));
         return sstables.size();
+    }
+
+    /**
+     * Performs a readonly compaction of all sstables in order to validate
+     * them on request, but without performing any writes.
+     */
+    void doReadonlyCompaction(InetAddress initiator) throws IOException
+    {
+        Collection<SSTableReader> sstables = ssTables_.getSSTables();
+        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore());
+        try
+        {
+            Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+
+            // validate the CF as we iterate over it
+            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator);
+            validator.prepare();
+            while (nni.hasNext())
+            {
+                CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
+                validator.add(row);
+            }
+            validator.complete();
+        }
+        finally
+        {
+            ci.close();
+        }
     }
 
     private long getTotalBytes(Iterable<SSTableReader> sstables)
