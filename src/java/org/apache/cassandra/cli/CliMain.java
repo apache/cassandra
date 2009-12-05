@@ -40,6 +40,7 @@ public class CliMain
     private static Cassandra.Client thriftClient_ = null;
     private static CliSessionState css_ = new CliSessionState();
     private static CliClient cliClient_;
+    private static CliCompleter completer_ = new CliCompleter();
 
     // Establish a thrift connection to cassandra instance
     public static void connect(String server, int port)
@@ -71,6 +72,27 @@ public class CliMain
 
         thriftClient_ = cassandraClient;
         cliClient_ = new CliClient(css_, thriftClient_);
+        
+        // Extend the completer with keyspace and column family data.
+        try
+        {
+            for (String keyspace : thriftClient_.get_string_list_property("keyspaces"))
+            {
+                // Ignore system column family
+                if (keyspace.equals("system"))
+                    continue;
+                
+                for (String cf : cliClient_.getCFMetaData(keyspace).keySet())
+                {
+                    for (String cmd : completer_.getKeyspaceCommands())
+                        completer_.addCandidateString(String.format("%s %s.%s", cmd, keyspace, cf));
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            // Yes, we really do want to ignore any exceptions encountered here.
+        }
 
         css_.out.printf("Connected to %s/%d\n", server, port);
     }
@@ -133,7 +155,8 @@ public class CliMain
             cliClient_ = new CliClient(css_, null);
         }
 
-        ConsoleReader reader = new ConsoleReader(); 
+        ConsoleReader reader = new ConsoleReader();
+        reader.addCompletor(completer_);
         reader.setBellEnabled(false);
 
         String historyFile = System.getProperty("user.home") + File.separator  + HISTORYFILE;
