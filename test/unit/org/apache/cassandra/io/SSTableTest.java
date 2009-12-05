@@ -23,36 +23,33 @@ import java.io.IOException;
 import java.util.*;
 
 import org.junit.Test;
+import static org.junit.Assert.*;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+
 public class SSTableTest extends CleanupHelper
 {
     @Test
     public void testSingleWrite() throws IOException {
-        File f = tempSSTableFileName();
-
         // write test data
-        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), 1, new OrderPreservingPartitioner());
-        Random random = new Random();
-        byte[] bytes = new byte[1024];
-        random.nextBytes(bytes);
-
         String key = Integer.toString(1);
-        writer.append(writer.partitioner.decorateKey(key), bytes);
-        SSTableReader ssTable = writer.closeAndOpenReader(0.01);
+        byte[] bytes = new byte[1024];
+        new Random().nextBytes(bytes);
+
+        TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
+        map.put(key, bytes);
+        SSTableReader ssTable = SSTableUtils.writeSSTable("singlewrite", map, 1,
+                                                          new OrderPreservingPartitioner(), 0.01);
 
         // verify
         verifySingle(ssTable, bytes, key);
         SSTableReader.reopenUnsafe(); // force reloading the index
         verifySingle(ssTable, bytes, key);
-    }
-
-    private File tempSSTableFileName() throws IOException
-    {
-        return File.createTempFile("sstable", "-" + SSTable.TEMPFILE_MARKER + "-Data.db");
     }
 
     private void verifySingle(SSTableReader sstable, byte[] bytes, String key) throws IOException
@@ -68,8 +65,6 @@ public class SSTableTest extends CleanupHelper
 
     @Test
     public void testManyWrites() throws IOException {
-        File f = tempSSTableFileName();
-
         TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
         for ( int i = 100; i < 1000; ++i )
         {
@@ -77,12 +72,8 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), 1000, new OrderPreservingPartitioner());
-        for (String key: map.navigableKeySet())
-        {
-            writer.append(writer.partitioner.decorateKey(key), map.get(key));
-        }
-        SSTableReader ssTable = writer.closeAndOpenReader(0.01);
+        SSTableReader ssTable = SSTableUtils.writeSSTable("manywrites", map, 1000,
+                                                          new OrderPreservingPartitioner(), 0.01);
 
         // verify
         verifyMany(ssTable, map);
@@ -104,5 +95,37 @@ public class SSTableTest extends CleanupHelper
             file.readFully(bytes2);
             assert Arrays.equals(bytes2, map.get(key));
         }
+    }
+
+    @Test
+    public void testGetIndexedDecoratedKeysFor() throws IOException {
+        final String ssname = "indexedkeys";
+
+        int numkeys = 1000;
+        TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
+        for ( int i = 0; i < numkeys; i++ )
+        {
+            map.put(Integer.toString(i), "blah".getBytes());
+        }
+
+        // write
+        SSTableReader ssTable = SSTableUtils.writeSSTable(ssname, map, 1000,
+                                                          new OrderPreservingPartitioner(), 0.01);
+
+
+        // verify
+        Predicate<SSTable> cfpred;
+        Predicate<DecoratedKey> dkpred;
+
+        cfpred = new Predicate<SSTable>() {
+            public boolean apply(SSTable ss)
+            {
+                return ss.getColumnFamilyName().equals(ssname);
+            }
+            };
+        dkpred = Predicates.alwaysTrue();
+        int actual = SSTableReader.getIndexedDecoratedKeysFor(cfpred, dkpred).size();
+        assert 0 < actual;
+        assert actual <= Math.ceil((double)numkeys/SSTableReader.indexInterval());
     }
 }

@@ -57,17 +57,15 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     @Test
     public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
-
-        // add data
         rm = new RowMutation("Keyspace1", "key1");
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
-        rm.apply();
-        store.forceBlockingFlush();
+        rms.add(rm);
+        ColumnFamilyStore store = ColumnFamilyStoreUtils.writeColumnFamily(rms);
 
+        Table table = Table.open("Keyspace1");
         List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceBloomFilterFailures();
@@ -106,18 +104,16 @@ public class ColumnFamilyStoreTest extends CleanupHelper
      */
     private void testAntiCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
-
+        List<RowMutation> rms = new ArrayList<RowMutation>();
         for (int j = 0; j < insertsPerTable; j++)
         {
             String key = String.valueOf(j);
             RowMutation rm = new RowMutation("Keyspace1", key);
             rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
-            rm.apply();
+            rms.add(rm);
         }
+        ColumnFamilyStore store = ColumnFamilyStoreUtils.writeColumnFamily(rms);
 
-        store.forceBlockingFlush();
         List<Range> ranges  = new ArrayList<Range>();
         IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
         Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
