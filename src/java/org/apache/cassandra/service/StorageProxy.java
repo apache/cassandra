@@ -40,6 +40,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -533,39 +535,64 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
 
-        InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.startKey.key);
+        InetAddress endPoint = StorageService.instance().getPrimary(command.startKey.token);
         InetAddress startEndpoint = endPoint;
+        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getReplicationFactor(), consistency_level);
 
         Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
         do
         {
-            Message message = command.getMessage();
+            Range primaryRange = StorageService.instance().getPrimaryRangeForEndPoint(endPoint);
+            List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(primaryRange.right());
+            if (endpoints.size() < responseCount)
+                throw new UnavailableException();
+
+            // to make comparing the results from each node easy, we restrict each command to the data in the primary range for this iteration
+            IPartitioner<?> p = StorageService.getPartitioner();
+            DecoratedKey startKey;
+            DecoratedKey finishKey;
+            if (primaryRange.left().equals(primaryRange.right()))
+            {
+                startKey = command.startKey;
+                finishKey = command.finishKey;
+            }
+            else
+            {
+                startKey = Collections.max(Arrays.asList(command.startKey, new DecoratedKey(primaryRange.left(), null)));
+                finishKey = command.finishKey.isEmpty()
+                                       ? new DecoratedKey(primaryRange.right(), null)
+                                       : Collections.min(Arrays.asList(command.finishKey, new DecoratedKey(primaryRange.right(), null)));
+            }
+            RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys);
+            Message message = c2.getMessage();
+
+            // collect replies and resolve according to consistency level
+            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, primaryRange, endpoints);
+            QuorumResponseHandler<Map<String, ColumnFamily>> handler = new QuorumResponseHandler<Map<String, ColumnFamily>>(responseCount, resolver);
             if (logger.isDebugEnabled())
-                logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            IAsyncResult iar = MessagingService.instance().sendRR(message, endPoint);
-            byte[] responseBody;
+                logger.debug("reading " + command + " for " + primaryRange + " from " + message.getMessageId() + "@" + endPoint);
+            for (InetAddress replicaEndpoint : endpoints)
+            {
+                MessagingService.instance().sendRR(message, replicaEndpoint, handler);
+            }
+
+            // if we're done, great, otherwise, move to the next range
             try
             {
-                responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+                rows.putAll(handler.get());
             }
-            catch (TimeoutException ex)
+            catch (TimeoutException e)
             {
                 throw new TimedOutException();
             }
-            RangeSliceReply reply = RangeSliceReply.read(responseBody);
-            for (Row row : reply.rows)
+            catch (DigestMismatchException e)
             {
-                rows.put(row.key, ColumnFamily.resolve(row.cf, rows.get(row.key)));
+                throw new AssertionError(e); // no digests in range slices yet
             }
-
-            if (rows.size() >= command.max_keys || reply.rangeCompletedLocally)
+            if (rows.size() >= command.max_keys || resolver.completed())
                 break;
 
-            do
-            {
-                endPoint = tokenMetadata.getSuccessor(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
-            }
-            while (!FailureDetector.instance().isAlive(endPoint));
+            endPoint = tokenMetadata.getSuccessor(endPoint);
         }
         while (!endPoint.equals(startEndpoint));
 

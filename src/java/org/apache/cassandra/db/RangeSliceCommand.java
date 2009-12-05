@@ -81,6 +81,17 @@ public class RangeSliceCommand
         this.max_keys = max_keys;
     }
 
+    public RangeSliceCommand(String keyspace, String column_family, byte[] super_column, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys)
+    {
+        this.keyspace = keyspace;
+        this.column_family = column_family;
+        this.super_column = super_column;
+        this.predicate = predicate;
+        this.startKey = startKey;
+        this.finishKey = finishKey;
+        this.max_keys = max_keys;
+    }
+
     public Message getMessage() throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();

@@ -801,8 +801,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public InetAddress getPrimary(String key)
     {
+        return getPrimary(partitioner_.getToken(key));
+    }
+
+    public InetAddress getPrimary(Token token)
+    {
         InetAddress endpoint = FBUtilities.getLocalAddress();
-        Token token = partitioner_.getToken(key);
         List tokens = new ArrayList<Token>(tokenMetadata_.sortedTokens());
         if (tokens.size() > 0)
         {
@@ -849,8 +853,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public List<InetAddress> getNaturalEndpoints(String key)
     {
         return replicationStrategy_.getNaturalEndpoints(partitioner_.getToken(key));
-    }    
-    
+    }
+
     /**
      * This method attempts to return N endpoints that are responsible for storing the
      * specified key i.e for replication.
@@ -860,15 +864,20 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public List<InetAddress> getLiveNaturalEndpoints(String key)
     {
+        return getLiveNaturalEndpoints(partitioner_.getToken(key));
+    }
+
+    public List<InetAddress> getLiveNaturalEndpoints(Token token)
+    {
         List<InetAddress> liveEps = new ArrayList<InetAddress>();
-        List<InetAddress> endpoints = getNaturalEndpoints(key);
-        
-        for ( InetAddress endpoint : endpoints )
+        List<InetAddress> endpoints = replicationStrategy_.getNaturalEndpoints(token);
+
+        for (InetAddress endpoint : endpoints)
         {
-            if ( FailureDetector.instance().isAlive(endpoint) )
+            if (FailureDetector.instance().isAlive(endpoint))
                 liveEps.add(endpoint);
         }
-        
+
         return liveEps;
     }
 

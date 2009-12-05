@@ -37,6 +37,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.log4j.Logger;
 
+/**
+ * Turns ReadResponse messages into Row objects, resolving to the most recent
+ * version and setting up read repairs as necessary.
+ */
 public class ReadResponseResolver implements IResponseResolver<Row>
 {
 	private static Logger logger_ = Logger.getLogger(ReadResponseResolver.class);
