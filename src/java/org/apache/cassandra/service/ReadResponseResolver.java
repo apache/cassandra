@@ -62,7 +62,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 	public Row resolve(List<Message> responses) throws DigestMismatchException, IOException
     {
         long startTime = System.currentTimeMillis();
-		List<Row> rows = new ArrayList<Row>();
+		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
 		List<InetAddress> endPoints = new ArrayList<InetAddress>();
 		String key = null;
 		byte[] digest = new byte[0];
@@ -87,7 +87,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             }
             else
             {
-                rows.add(result.row());
+                versions.add(result.row().cf);
                 endPoints.add(response.getFrom());
                 key = result.row().key;
             }
@@ -96,55 +96,62 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 		// If there is a mismatch then throw an exception so that read repair can happen.
         if (isDigestQuery)
         {
-            for (Row row : rows)
+            for (ColumnFamily cf : versions)
             {
-                if (!Arrays.equals(row.digest(), digest))
+                if (!Arrays.equals(ColumnFamily.digest(cf), digest))
                 {
                     /* Wrap the key as the context in this exception */
-                    String s = String.format("Mismatch for key %s (%s vs %s)", row.key, FBUtilities.bytesToHex(row.digest()), FBUtilities.bytesToHex(digest));
+                    String s = String.format("Mismatch for key %s (%s vs %s)", key, FBUtilities.bytesToHex(ColumnFamily.digest(cf)), FBUtilities.bytesToHex(digest));
                     throw new DigestMismatchException(s);
                 }
             }
         }
 
-        Row resolved = resolveSuperset(rows);
+        ColumnFamily resolved = resolveSuperset(versions);
+        maybeScheduleRepairs(resolved, table, key, versions, endPoints);
 
-        // At this point we have the return row;
-        // Now we need to calculate the difference so that we can schedule read repairs
-        for (int i = 0; i < rows.size(); i++)
+        if (logger_.isDebugEnabled())
+            logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
+		return new Row(key, resolved);
+	}
+
+    /**
+     * For each row version, compare with resolved (the superset of all row versions);
+     * if it is missing anything, send a mutation to the endpoint it come from.
+     */
+    public static void maybeScheduleRepairs(ColumnFamily resolved, String table, String key, List<ColumnFamily> versions, List<InetAddress> endPoints)
+    {
+        for (int i = 0; i < versions.size(); i++)
         {
-            // since retRow is the resolved row it can be used as the super set
-            ColumnFamily diffCf = rows.get(i).diff(resolved);
+            ColumnFamily diffCf = ColumnFamily.diff(versions.get(i), resolved);
             if (diffCf == null) // no repair needs to happen
                 continue;
-            // create the row mutation message based on the diff and schedule a read repair
+
+            // create and send the row mutation message based on the diff
             RowMutation rowMutation = new RowMutation(table, key);
             rowMutation.add(diffCf);
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
             ReadRepairManager.instance().schedule(endPoints.get(i), rowMutationMessage);
         }
-        if (logger_.isDebugEnabled())
-            logger_.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
-		return resolved;
-	}
+    }
 
-    static Row resolveSuperset(List<Row> rows)
+    static ColumnFamily resolveSuperset(List<ColumnFamily> versions)
     {
-        assert rows.size() > 0;
-        Row resolved = null;
-        for (Row row : rows)
+        assert versions.size() > 0;
+        ColumnFamily resolved = null;
+        for (ColumnFamily cf : versions)
         {
-            if (row.cf != null)
+            if (cf != null)
             {
-                resolved = new Row(row.key, row.cf.cloneMe());
+                resolved = cf.cloneMe();
                 break;
             }
         }
         if (resolved == null)
-            return rows.get(0);
-        for (Row row : rows)
+            return null;
+        for (ColumnFamily cf : versions)
         {
-            resolved = resolved.resolve(row);
+            resolved.resolve(cf);
         }
         return resolved;
     }

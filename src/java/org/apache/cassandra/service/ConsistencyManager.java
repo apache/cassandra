@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.io.DataInputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -64,7 +65,7 @@ class ConsistencyManager implements Runnable
                     bufIn.reset(body, body.length);
                     ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
                     byte[] digest = result.digest();
-                    if (!Arrays.equals(row_.digest(), digest))
+                    if (!Arrays.equals(ColumnFamily.digest(row_.cf), digest))
                     {
                         doReadRepair();
                         break;

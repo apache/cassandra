@@ -50,43 +50,6 @@ public class Row
         this.cf = cf;
     }
 
-    /**
-     * This function will repair the current row with the input row
-     * what that means is that if there are any differences between the 2 rows then
-     * this function will make the current row take the latest changes.
-     */
-    public Row resolve(Row other)
-    {
-        if (cf == null)
-            return other;
-        cf.resolve(other.cf);
-        return this;
-    }
-
-    public ColumnFamily diff (Row other)
-    {
-        if (cf == null)
-            return other.cf;
-        return cf.diff(other.cf);
-    }
-
-    public byte[] digest()
-    {
-        MessageDigest digest;
-        try
-        {
-            digest = MessageDigest.getInstance("MD5");
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new AssertionError(e);
-        }
-        if (cf != null)
-            cf.updateDigest(digest);
-
-        return digest.digest();
-    }
-
     @Override
     public String toString()
     {

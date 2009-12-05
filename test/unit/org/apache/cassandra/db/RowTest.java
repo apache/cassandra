@@ -61,15 +61,12 @@ public class RowTest
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("one", "A", 0));
-        Row row1 = new Row("", cf1);
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("one", "B", 1));
         cf2.addColumn(column("two", "C", 1));
-        Row row2 = new Row("", cf2);
 
-        row1.resolve(row2);
-        cf1 = row1.cf;
+        cf1.resolve(cf2);
         assert Arrays.equals(cf1.getColumn("one".getBytes()).value(), "B".getBytes());
         assert Arrays.equals(cf1.getColumn("two".getBytes()).value(), "C".getBytes());
     }

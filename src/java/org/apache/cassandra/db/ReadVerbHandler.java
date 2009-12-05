@@ -81,8 +81,8 @@ public class ReadVerbHandler implements IVerbHandler
             if (command.isDigestQuery())
             {
                 if (logger_.isDebugEnabled())
-                    logger_.debug("digest is " + FBUtilities.bytesToHex(row.digest()));
-                readResponse = new ReadResponse(row.digest());
+                    logger_.debug("digest is " + FBUtilities.bytesToHex(ColumnFamily.digest(row.cf)));
+                readResponse = new ReadResponse(ColumnFamily.digest(row.cf));
             }
             else
             {

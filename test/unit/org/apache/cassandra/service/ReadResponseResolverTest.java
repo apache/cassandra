@@ -17,16 +17,14 @@ public class ReadResponseResolverTest
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("c1", "v1", 0));
-        Row row1 = new Row("key1", cf1);
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("c1", "v2", 1));
-        Row row2 = new Row("key1", cf2);
 
-        Row resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(row1, row2));
-        assertColumns(resolved.cf, "c1");
-        assertColumns(row1.diff(resolved), "c1");
-        assertNull(row2.diff(resolved));
+        ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(cf1, cf2));
+        assertColumns(resolved, "c1");
+        assertColumns(ColumnFamily.diff(cf1, resolved), "c1");
+        assertNull(ColumnFamily.diff(cf2, resolved));
     }
 
     @Test
@@ -34,31 +32,26 @@ public class ReadResponseResolverTest
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("c1", "v1", 0));
-        Row row1 = new Row("key1", cf1);
 
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("c2", "v2", 1));
-        Row row2 = new Row("key1", cf2);
 
-        Row resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(row1, row2));
-        assertColumns(resolved.cf, "c1", "c2");
-        assertColumns(row1.diff(resolved), "c2");
-        assertColumns(row2.diff(resolved), "c1");
+        ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(cf1, cf2));
+        assertColumns(resolved, "c1", "c2");
+        assertColumns(ColumnFamily.diff(cf1, resolved), "c2");
+        assertColumns(ColumnFamily.diff(cf2, resolved), "c1");
     }
 
     @Test
     public void testResolveSupersetNullOne()
     {
-        Row row1 = new Row("key1", null);
-
         ColumnFamily cf2 = ColumnFamily.create("Keyspace1", "Standard1");
         cf2.addColumn(column("c2", "v2", 1));
-        Row row2 = new Row("key1", cf2);
 
-        Row resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(row1, row2));
-        assertColumns(resolved.cf, "c2");
-        assertColumns(row1.diff(resolved), "c2");
-        assertNull(row2.diff(resolved));
+        ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(null, cf2));
+        assertColumns(resolved, "c2");
+        assertColumns(ColumnFamily.diff(null, resolved), "c2");
+        assertNull(ColumnFamily.diff(cf2, resolved));
     }
 
     @Test
@@ -66,25 +59,16 @@ public class ReadResponseResolverTest
     {
         ColumnFamily cf1 = ColumnFamily.create("Keyspace1", "Standard1");
         cf1.addColumn(column("c1", "v1", 0));
-        Row row1 = new Row("key1", cf1);
 
-        Row row2 = new Row("key1", null);
-
-        Row resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(row1, row2));
-        assertColumns(resolved.cf, "c1");
-        assertNull(row1.diff(resolved));
-        assertColumns(row2.diff(resolved), "c1");
+        ColumnFamily resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(cf1, null));
+        assertColumns(resolved, "c1");
+        assertNull(ColumnFamily.diff(cf1, resolved));
+        assertColumns(ColumnFamily.diff(null, resolved), "c1");
     }
 
     @Test
     public void testResolveSupersetNullBoth()
     {
-        Row row1 = new Row("key1", null);
-        Row row2 = new Row("key1", null);
-
-        Row resolved = ReadResponseResolver.resolveSuperset(Arrays.asList(row1, row2));
-        assertNull(resolved.cf);
-        assertNull(row1.diff(resolved));
-        assertNull(row2.diff(resolved));
+        assertNull(ReadResponseResolver.resolveSuperset(Arrays.<ColumnFamily>asList(null, null)));
     }
 }

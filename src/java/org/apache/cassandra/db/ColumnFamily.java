@@ -27,6 +27,7 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import org.apache.log4j.Logger;
 
@@ -346,6 +347,23 @@ public final class ColumnFamily implements IColumnContainer
     	return sb.toString();
     }
 
+    public static byte[] digest(ColumnFamily cf)
+    {
+        MessageDigest digest;
+        try
+        {
+            digest = MessageDigest.getInstance("MD5");
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new AssertionError(e);
+        }
+        if (cf != null)
+            cf.updateDigest(digest);
+
+        return digest.digest();
+    }
+
     public void updateDigest(MessageDigest digest)
     {
         for (IColumn column : columns_.values())
@@ -395,6 +413,13 @@ public final class ColumnFamily implements IColumnContainer
         return superColumnName == null
                ? DatabaseDescriptor.getComparator(table, columnFamilyName)
                : DatabaseDescriptor.getSubComparator(table, columnFamilyName);
+    }
+
+    public static ColumnFamily diff(ColumnFamily cf1, ColumnFamily cf2)
+    {
+        if (cf1 == null)
+            return cf2;
+        return cf1.diff(cf2);
     }
 
     public static ColumnFamily resolve(ColumnFamily cf1, ColumnFamily cf2)
