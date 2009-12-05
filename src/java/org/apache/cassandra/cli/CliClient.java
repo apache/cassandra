@@ -32,7 +32,7 @@ public class CliClient
 {
     private Cassandra.Client thriftClient_ = null;
     private CliSessionState css_ = null;
-    Map<String, Map<String, String>> columnFamiliesMap;
+    private Map<String, Map<String, Map<String, String>>> keyspacesMap = new HashMap<String, Map<String,Map<String,String>>>();
 
     public CliClient(CliSessionState css, Cassandra.Client thriftClient)
     {
@@ -126,6 +126,15 @@ public class CliClient
         CliMain.disconnect();
         System.exit(0);
     }
+    
+    Map<String, Map<String, String>> getCFMetaData(String keyspace) throws NotFoundException, TException
+    {
+        // Lazily lookup column family meta-data.
+        if (!(keyspacesMap.containsKey(keyspace)))
+            keyspacesMap.put(keyspace, thriftClient_.describe_keyspace(keyspace));
+        return keyspacesMap.get(keyspace);
+    }
+    
     private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
     {
        if (!CliMain.isConnected())
@@ -238,13 +247,15 @@ public class CliClient
         String tableName = CliCompiler.getTableName(columnFamilySpec);
         String key = CliCompiler.getKey(columnFamilySpec);
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
-        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec); 
         
-        // Lazily lookup column family meta-data.
-        if (columnFamiliesMap == null)
-            columnFamiliesMap = thriftClient_.describe_keyspace(tableName);
+        if (!(getCFMetaData(tableName).containsKey(columnFamily)))
+        {
+            css_.out.println("No such column family: " + columnFamily);
+            return;
+        }
         
-        boolean isSuper = columnFamiliesMap.get(columnFamily).get("Type").equals("Super") ? true : false;
+        boolean isSuper = getCFMetaData(tableName).get(columnFamily).get("Type").equals("Super") ? true : false;
         
         byte[] superColumnName = null;
         byte[] columnName = null;
