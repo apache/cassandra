@@ -88,7 +88,7 @@ public class MessagingService
     private final static ReentrantLock lock_ = new ReentrantLock();
     private static Map<String, TcpConnectionManager> poolTable_ = new Hashtable<String, TcpConnectionManager>();
     
-    private static boolean bShutdown_ = false;
+    private static volatile boolean bShutdown_ = false;
     
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     

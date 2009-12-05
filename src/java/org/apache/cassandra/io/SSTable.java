@@ -142,6 +142,11 @@ public abstract class SSTable
         return columnFamilyName;
     }
 
+    public String getTableName()
+    {
+        return parseTableName(path);
+    }
+
     public static String parseTableName(String filename)
     {
         return new File(filename).getParentFile().getName();        

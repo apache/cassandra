@@ -72,15 +72,9 @@ public class Range implements Comparable<Range>, Serializable
         return right_;
     }
 
-    /**
-     * Helps determine if a given point on the DHT ring is contained
-     * in the range in question.
-     * @param bi point in question
-     * @return true if the point contains within the range else false.
-     */
-    public boolean contains(Token bi)
+    public static boolean contains(Token left, Token right, Token bi)
     {
-        if ( isWrapAround(this) )
+        if ( isWrapAround(left, right) )
         {
             /* 
              * We are wrapping around, so the interval is (a,b] where a >= b,
@@ -89,24 +83,66 @@ public class Range implements Comparable<Range>, Serializable
              * (2) k <= b -- return true
              * (3) b < k <= a -- return false
              */
-            if ( bi.compareTo(left_) > 0 )
+            if ( bi.compareTo(left) > 0 )
                 return true;
             else
-                return right_.compareTo(bi) >= 0;
+                return right.compareTo(bi) >= 0;
         }
         else
         {
             /*
              * This is the range (a, b] where a < b. 
              */
-            return ( bi.compareTo(left_) > 0 && right_.compareTo(bi) >= 0 );
+            return ( bi.compareTo(left) > 0 && right.compareTo(bi) >= 0 );
         }        
     }
 
-    public boolean contains(Range range)
+    public boolean contains(Range that)
     {
-        return (contains(range.left_) || range.left_.equals(left_))
-               && contains(range.right_);
+        boolean thiswraps = isWrapAround(this.left(), this.right());
+        boolean thatwraps = isWrapAround(that.left(), that.right());
+        if (thiswraps == thatwraps)
+            return this.left().compareTo(that.left()) <= 0 &&
+                that.right().compareTo(this.right()) <= 0;
+        else if (thiswraps)
+            // wrapping might contain non-wrapping
+            return this.left().compareTo(that.left()) <= 0 ||
+                that.right().compareTo(this.right()) <= 0;
+        else // (thatwraps)
+            // non-wrapping cannot contain wrapping
+            return false;
+    }
+
+    /**
+     * Helps determine if a given point on the DHT ring is contained
+     * in the range in question.
+     * @param bi point in question
+     * @return true if the point contains within the range else false.
+     */
+    public boolean contains(Token bi)
+    {
+        return contains(left_, right_, bi);
+    }
+
+    /**
+     * @param range range to check for intersection
+     * @return true if the given range intersects with this range.
+     */
+    public boolean intersects(Range that)
+    {
+        boolean thiswraps = isWrapAround(this.left(), this.right());
+        boolean thatwraps = isWrapAround(that.left(), that.right());
+        if (thiswraps && thatwraps)
+            // both (must contain the minimum token)
+            return true;
+        else if (!thiswraps && !thatwraps)
+            // neither
+            return this.left().compareTo(that.right()) < 0 &&
+                that.left().compareTo(this.right()) < 0;
+        else
+            // either
+            return this.left().compareTo(that.right()) < 0 ||
+                that.left().compareTo(this.right()) < 0;
     }
 
     /**
@@ -114,9 +150,9 @@ public class Range implements Comparable<Range>, Serializable
      * @param range
      * @return
      */
-    private static boolean isWrapAround(Range range)
+    public static boolean isWrapAround(Token left, Token right)
     {
-        return range.left_.compareTo(range.right_) >= 0;
+        return left.compareTo(right) >= 0;
     }
     
     public int compareTo(Range rhs)
@@ -125,10 +161,10 @@ public class Range implements Comparable<Range>, Serializable
          * If the range represented by the "this" pointer
          * is a wrap around then it is the smaller one.
          */
-        if ( isWrapAround(this) )
+        if ( isWrapAround(left(), right()) )
             return -1;
         
-        if ( isWrapAround(rhs) )
+        if ( isWrapAround(rhs.left(), rhs.right()) )
             return 1;
         
         return right_.compareTo(rhs.right_);
@@ -141,7 +177,7 @@ public class Range implements Comparable<Range>, Serializable
 
         for (Range range : ranges)
         {
-            if(range.contains(token))
+            if (range.contains(token))
             {
                 return true;
             }
@@ -157,6 +193,7 @@ public class Range implements Comparable<Range>, Serializable
         return left_.equals(rhs.left_) && right_.equals(rhs.right_);
     }
     
+    @Override
     public int hashCode()
     {
         return toString().hashCode();

@@ -35,7 +35,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
 /**
@@ -109,19 +112,21 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /**
-     * Get all indexed keys in any SSTable for our primary range
-     * TODO add option to include keys from one or more other ranges
+     * Get all indexed keys defined by the two predicates.
+     * @param cfpred A Predicate defining matching column families.
+     * @param dkpred A Predicate defining matching DecoratedKeys.
      */
-    public static List<DecoratedKey> getIndexedDecoratedKeys()
+    public static List<DecoratedKey> getIndexedDecoratedKeysFor(Predicate<SSTable> cfpred, Predicate<DecoratedKey> dkpred)
     {
-        Range range = StorageService.instance().getLocalPrimaryRange();
         List<DecoratedKey> indexedKeys = new ArrayList<DecoratedKey>();
         
         for (SSTableReader sstable : openedFiles.values())
         {
+            if (!cfpred.apply(sstable))
+                continue;
             for (KeyPosition kp : sstable.getIndexPositions())
             {
-                if (range.contains(kp.key.token))
+                if (dkpred.apply(kp.key))
                 {
                     indexedKeys.add(kp.key);
                 }
@@ -130,6 +135,23 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         Collections.sort(indexedKeys);
 
         return indexedKeys;
+    }
+
+    /**
+     * Get all indexed keys in any SSTable for our primary range.
+     */
+    public static List<DecoratedKey> getIndexedDecoratedKeys()
+    {
+        final Range range = StorageService.instance().getLocalPrimaryRange();
+
+        Predicate<SSTable> cfpred = Predicates.alwaysTrue();
+        return getIndexedDecoratedKeysFor(cfpred,
+                                          new Predicate<DecoratedKey>(){
+            public boolean apply(DecoratedKey dk)
+            {
+               return range.contains(dk.token);
+            }
+        });
     }
 
     public static SSTableReader open(String dataFileName) throws IOException
@@ -384,11 +406,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public SSTableScanner getScanner() throws IOException
     {
         return new SSTableScanner(this);
-    }
-
-    public String getTableName()
-    {
-        return parseTableName(path);
     }
 
     public AbstractType getColumnComparator()

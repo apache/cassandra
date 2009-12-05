@@ -129,13 +129,15 @@ public class FBUtilities
         return hash.abs();        
     }
 
-    public static byte[] hash(String type, byte[] data)
+    public static byte[] hash(String type, byte[]... data)
     {
     	byte[] result = null;
     	try
         {
-    		MessageDigest messageDigest = MessageDigest.getInstance(type);
-    		result = messageDigest.digest(data);
+            MessageDigest messageDigest = MessageDigest.getInstance(type);
+            for(byte[] block : data)
+                messageDigest.update(block);
+            result = messageDigest.digest();
     	}
     	catch (Exception e)
         {
