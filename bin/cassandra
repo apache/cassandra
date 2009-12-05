@@ -103,7 +103,7 @@ launch_service()
     pidpath=$1
     foreground=$2
     props=$3
-    cassandra_parms="-Dcassandra -Dstorage-config=$CASSANDRA_CONF"
+    cassandra_parms="-Dstorage-config=$CASSANDRA_CONF"
 
     if [ "x$pidpath" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
