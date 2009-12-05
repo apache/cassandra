@@ -157,12 +157,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         {
             int oldSize = oldCf.size();
             int oldObjectCount = oldCf.getColumnCount();
-            oldCf.addAll(columnFamily);
+            oldCf.resolve(columnFamily);
             int newSize = oldCf.size();
             int newObjectCount = oldCf.getColumnCount();
             resolveSize(oldSize, newSize);
             resolveCount(oldObjectCount, newObjectCount);
-            oldCf.delete(columnFamily);
         }
     }
 

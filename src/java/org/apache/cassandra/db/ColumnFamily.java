@@ -397,6 +397,14 @@ public final class ColumnFamily implements IColumnContainer
                : DatabaseDescriptor.getSubComparator(table, columnFamilyName);
     }
 
+    public static ColumnFamily resolve(ColumnFamily cf1, ColumnFamily cf2)
+    {
+        if (cf1 == null)
+            return cf2;
+        cf1.resolve(cf2);
+        return cf1;
+    }
+
     public void resolve(ColumnFamily cf)
     {
         // Row _does_ allow null CF objects :(  seems a necessary evil for efficiency

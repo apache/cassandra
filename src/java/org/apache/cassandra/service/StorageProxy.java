@@ -37,6 +37,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.TimedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.gms.FailureDetector;
@@ -527,20 +528,17 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static Map<String, Collection<IColumn>> getRangeSlice(RangeSliceCommand rawCommand) throws IOException, UnavailableException, TimedOutException
+    static List<Pair<String, Collection<IColumn>>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
-        RangeSliceCommand command = rawCommand;
 
         InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.start_key);
         InetAddress startEndpoint = endPoint;
-        InetAddress wrapEndpoint = tokenMetadata.getFirstEndpoint();
 
-        TreeSet<Row> allRows = new TreeSet<Row>(rowComparator);
+        Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
         do
         {
-
             Message message = command.getMessage();
             if (logger.isDebugEnabled())
                 logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endPoint);
@@ -555,44 +553,12 @@ public class StorageProxy implements StorageProxyMBean
                 throw new TimedOutException();
             }
             RangeSliceReply reply = RangeSliceReply.read(responseBody);
-            List<Row> rangeRows = new ArrayList<Row>(reply.rows);
-
-            // combine these what what has been seen so far.
-            if (rangeRows.size() > 0)
+            for (Row row : reply.rows)
             {
-                if (allRows.size() > 0)
-                {
-                    if (keyComparator.compare(rangeRows.get(rangeRows.size() - 1).key, allRows.first().key) <= 0)
-                    {
-                        // unlikely, but possible
-                        if (rangeRows.get(rangeRows.size() - 1).equals(allRows.first().key))
-                        {
-                            rangeRows.remove(rangeRows.size() - 1);
-                        }
-                        // put all from rangeRows into allRows.
-                        allRows.addAll(rangeRows);
-                    }
-                    else if (keyComparator.compare(allRows.last().key, rangeRows.get(0).key) <= 0)
-                    {
-                        // common case. deal with simple start/end key overlaps
-                        if (allRows.last().key.equals(rangeRows.get(0)))
-                        {
-                            allRows.remove(allRows.last().key);
-                        }
-                        allRows.addAll(rangeRows); // todo: check logic.
-                    }
-                    else
-                    {
-                        // deal with potential large overlap from scanning the first endpoint, which contains
-                        // both the smallest and largest keys
-                        allRows.addAll(rangeRows); // todo: check logic.
-                    }
-                }
-                else
-                    allRows.addAll(rangeRows); // todo: check logic.
+                rows.put(row.key, ColumnFamily.resolve(row.cf, rows.get(row.key)));
             }
 
-            if (allRows.size() >= rawCommand.max_keys || reply.rangeCompletedLocally)
+            if (rows.size() >= command.max_keys || reply.rangeCompletedLocally)
                 break;
 
             do
@@ -600,33 +566,35 @@ public class StorageProxy implements StorageProxyMBean
                 endPoint = tokenMetadata.getSuccessor(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
             }
             while (!FailureDetector.instance().isAlive(endPoint));
-            int maxResults = endPoint == wrapEndpoint ? rawCommand.max_keys : rawCommand.max_keys - allRows.size();
-            command = new RangeSliceCommand(command, maxResults);
         }
         while (!endPoint.equals(startEndpoint));
 
-        Map<String, Collection<IColumn>> results = new TreeMap<String, Collection<IColumn>>();
-        for (Row row : allRows)
+        List<Pair<String, Collection<IColumn>>> results = new ArrayList<Pair<String, Collection<IColumn>>>(rows.size());
+        for (Map.Entry<String, ColumnFamily> entry : rows.entrySet())
         {
-            if (row.cf == null)
-                results.put(row.key, Collections.<IColumn>emptyList());
-            else
-                results.put(row.key, row.cf.getSortedColumns());
+            ColumnFamily cf = entry.getValue();
+            Collection<IColumn> columns = (cf == null) ? Collections.<IColumn>emptyList() : cf.getSortedColumns();
+            results.add(new Pair<String, Collection<IColumn>>(entry.getKey(), columns));
         }
+        Collections.sort(results, new Comparator<Pair<String, Collection<IColumn>>>()
+        {
+            public int compare(Pair<String, Collection<IColumn>> o1, Pair<String, Collection<IColumn>> o2)
+            {
+                return keyComparator.compare(o1.left, o2.left);
+            }
+        });
         rangeStats.add(System.currentTimeMillis() - startTime);
         return results;
     }
 
-    static List<String> getKeyRange(RangeCommand rawCommand) throws IOException, UnavailableException, TimedOutException
+    static List<String> getKeyRange(RangeCommand command) throws IOException, UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
-        List<String> allKeys = new ArrayList<String>();
-        RangeCommand command = rawCommand;
+        Set<String> uniqueKeys = new HashSet<String>(command.maxResults);
 
         InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.startWith);
         InetAddress startEndpoint = endPoint;
-        InetAddress wrapEndpoint = tokenMetadata.getFirstEndpoint();
 
         do
         {
@@ -646,49 +614,9 @@ public class StorageProxy implements StorageProxyMBean
                 throw new TimedOutException();
             }
             RangeReply rangeReply = RangeReply.read(responseBody);
-            List<String> rangeKeys = rangeReply.keys;
+            uniqueKeys.addAll(rangeReply.keys);
 
-            // combine keys from most recent response with the others seen so far
-            if (rangeKeys.size() > 0)
-            {
-                if (allKeys.size() > 0)
-                {
-                    if (keyComparator.compare(rangeKeys.get(rangeKeys.size() - 1), allKeys.get(0)) <= 0)
-                    {
-                        // unlikely, but possible
-                        if (rangeKeys.get(rangeKeys.size() - 1).equals(allKeys.get(0)))
-                        {
-                            rangeKeys.remove(rangeKeys.size() - 1);
-                        }
-                        rangeKeys.addAll(allKeys);
-                        allKeys = rangeKeys;
-                    }
-                    else if (keyComparator.compare(allKeys.get(allKeys.size() - 1), rangeKeys.get(0)) <= 0)
-                    {
-                        // common case. deal with simple start/end key overlaps
-                        if (allKeys.get(allKeys.size() - 1).equals(rangeKeys.get(0)))
-                        {
-                            allKeys.remove(allKeys.size() - 1);
-                        }
-                        allKeys.addAll(rangeKeys);
-                    }
-                    else
-                    {
-                        // deal with potential large overlap from scanning the first endpoint, which contains
-                        // both the smallest and largest keys
-                        HashSet<String> keys = new HashSet<String>(allKeys);
-                        keys.addAll(rangeKeys);
-                        allKeys = new ArrayList<String>(keys);
-                        Collections.sort(allKeys);
-                    }
-                }
-                else
-                {
-                    allKeys = rangeKeys;
-                }
-            }
-
-            if (allKeys.size() >= rawCommand.maxResults || rangeReply.rangeCompletedLocally)
+            if (uniqueKeys.size() >= command.maxResults || rangeReply.rangeCompletedLocally)
             {
                 break;
             }
@@ -700,15 +628,15 @@ public class StorageProxy implements StorageProxyMBean
             // so starting with the largest in our scan of the next node means we'd never see keys from the middle.
             do
             {
-                endPoint = tokenMetadata.getSuccessor(endPoint); // TODO move this into the Strategies & modify for RackAwareStrategy
+                endPoint = tokenMetadata.getSuccessor(endPoint);
             } while (!FailureDetector.instance().isAlive(endPoint));
-            int maxResults = endPoint.equals(wrapEndpoint) ? rawCommand.maxResults : rawCommand.maxResults - allKeys.size();
-            command = new RangeCommand(command.table, command.columnFamily, command.startWith, command.stopAt, maxResults);
         } while (!endPoint.equals(startEndpoint));
 
         rangeStats.add(System.currentTimeMillis() - startTime);
-        return (allKeys.size() > rawCommand.maxResults)
-               ? allKeys.subList(0, rawCommand.maxResults)
+        List<String> allKeys = new ArrayList<String>(uniqueKeys);
+        Collections.sort(allKeys, keyComparator);
+        return (allKeys.size() > command.maxResults)
+               ? allKeys.subList(0, command.maxResults)
                : allKeys;
     }
 

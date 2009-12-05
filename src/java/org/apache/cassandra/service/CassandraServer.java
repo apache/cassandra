@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
 
 import flexjson.JSONSerializer;
@@ -568,24 +569,23 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("maxRows must be positive");
         }
 
-        Map<String, Collection<IColumn>> colMap; // keys are sorted.
+        List<Pair<String,Collection<IColumn>>> rows;
         try
         {
-            colMap = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, start_key, finish_key, maxRows));
-            if (colMap == null)
-                throw new RuntimeException("KeySlice list should never be null.");
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, start_key, finish_key, maxRows), consistency_level);
+            assert rows != null;
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
 
-        List<KeySlice> keySlices = new ArrayList<KeySlice>(colMap.size());
-        for (String key : colMap.keySet())
+        List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
+        for (Pair<String, Collection<IColumn>> row : rows)
         {
-            Collection<IColumn> dbList = colMap.get(key);
-            List<ColumnOrSuperColumn> svcList = new ArrayList<ColumnOrSuperColumn>(dbList.size());
-            for (org.apache.cassandra.db.IColumn col : dbList)
+            Collection<IColumn> columns = row.right;
+            List<ColumnOrSuperColumn> svcList = new ArrayList<ColumnOrSuperColumn>(columns.size());
+            for (org.apache.cassandra.db.IColumn col : columns)
             {
                 if (col instanceof org.apache.cassandra.db.Column)
                     svcList.add(new ColumnOrSuperColumn(new org.apache.cassandra.service.Column(col.name(), col.value(), col.timestamp()), null));
@@ -598,7 +598,7 @@ public class CassandraServer implements Cassandra.Iface
                     svcList.add(new ColumnOrSuperColumn(null, new org.apache.cassandra.service.SuperColumn(col.name(), subCols)));
                 }
             }
-            keySlices.add(new KeySlice(key, svcList));
+            keySlices.add(new KeySlice(row.left, svcList));
         }
 
         return keySlices;
