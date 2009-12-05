@@ -39,9 +39,6 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     private static final String DELIMITER = ":";
     
-    //to avoid having to create the pattern on every String.split
-    private Pattern diskDelimiter = Pattern.compile(DELIMITER);
-
     private static final Comparator<DecoratedKey<BigIntegerToken>> comparator =
         new Comparator<DecoratedKey<BigIntegerToken>>() {
         public int compare(DecoratedKey<BigIntegerToken> o1, DecoratedKey<BigIntegerToken> o2)
@@ -64,9 +61,11 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     
     public DecoratedKey<BigIntegerToken> convertFromDiskFormat(String key)
     {
-        String[] parts = diskDelimiter.split(key, 2);
-        assert parts.length == 2;
-        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(parts[0]), parts[1]);
+        int splitPoint = key.indexOf(DELIMITER);
+        String first = key.substring(0, splitPoint);
+        String second = key.substring(splitPoint+1);
+
+        return new DecoratedKey<BigIntegerToken>(new BigIntegerToken(first), second);
     }
 
     public String convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
