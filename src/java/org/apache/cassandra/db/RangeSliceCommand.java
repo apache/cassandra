@@ -37,15 +37,12 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.ColumnParent;
 import org.apache.cassandra.service.SlicePredicate;
-import org.apache.cassandra.service.SliceRange;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
@@ -56,10 +53,7 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 public class RangeSliceCommand
 {
@@ -72,30 +66,19 @@ public class RangeSliceCommand
 
     public final SlicePredicate predicate;
 
-    public final String start_key;
-    public final String finish_key;
+    public final DecoratedKey startKey;
+    public final DecoratedKey finishKey;
     public final int max_keys;
 
-    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int max_keys)
+    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys)
     {
         this.keyspace = keyspace;
         column_family = column_parent.getColumn_family();
         super_column = column_parent.getSuper_column();
         this.predicate = predicate;
-        this.start_key = start_key;
-        this.finish_key = finish_key;
+        this.startKey = startKey;
+        this.finishKey = finishKey;
         this.max_keys = max_keys;
-    }
-
-    public RangeSliceCommand(RangeSliceCommand cmd, int max_keys)
-    {
-        this(cmd.keyspace,
-             new ColumnParent(cmd.column_family, cmd.super_column),
-             new SlicePredicate(cmd.predicate),
-             cmd.start_key,
-             cmd.finish_key,
-             max_keys);
-
     }
 
     public Message getMessage() throws IOException
@@ -139,8 +122,8 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
             throw new IOException(ex);
         }
 
-        dos.writeUTF(sliceCommand.start_key);
-        dos.writeUTF(sliceCommand.finish_key);
+        DecoratedKey.serializer().serialize(sliceCommand.startKey, dos);
+        DecoratedKey.serializer().serialize(sliceCommand.finishKey, dos);
         dos.writeInt(sliceCommand.max_keys);
     }
 
@@ -167,14 +150,14 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
             throw new IOException(ex);
         }
 
-        String start_key = dis.readUTF();
-        String finish_key = dis.readUTF();
+        DecoratedKey startKey = DecoratedKey.serializer().deserialize(dis);
+        DecoratedKey finishKey = DecoratedKey.serializer().deserialize(dis);
         int max_keys = dis.readInt();
         return new RangeSliceCommand(keyspace,
                                      new ColumnParent(column_family, super_column),
                                      pred,
-                                     start_key,
-                                     finish_key,
+                                     startKey,
+                                     finishKey,
                                      max_keys);
 
     }

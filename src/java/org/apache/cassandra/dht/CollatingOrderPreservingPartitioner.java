@@ -39,7 +39,7 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     private static final Comparator<DecoratedKey<BytesToken>> comparator = new Comparator<DecoratedKey<BytesToken>>() {
         public int compare(DecoratedKey<BytesToken> o1, DecoratedKey<BytesToken> o2)
         {
-            return collator.compare(o1.key, o2.key);
+            return FBUtilities.compareByteArrays(o1.token.token, o2.token.token);
         }
     };
 

@@ -572,7 +572,9 @@ public class CassandraServer implements Cassandra.Iface
         List<Pair<String,Collection<IColumn>>> rows;
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, start_key, finish_key, maxRows), consistency_level);
+            DecoratedKey startKey = StorageService.getPartitioner().decorateKey(start_key);
+            DecoratedKey finishKey = StorageService.getPartitioner().decorateKey(finish_key);
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, startKey, finishKey, maxRows), consistency_level);
             assert rows != null;
         }
         catch (IOException e)

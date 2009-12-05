@@ -38,8 +38,8 @@ public class RangeSliceVerbHandler implements IVerbHandler
             RangeSliceCommand command = RangeSliceCommand.read(message);
             RangeSliceReply reply = Table.open(command.keyspace).getColumnFamilyStore(command.column_family).getRangeSlice(
                     command.super_column,
-                    command.start_key,
-                    command.finish_key,
+                    command.startKey,
+                    command.finishKey,
                     command.max_keys,
                     command.predicate.slice_range,
                     command.predicate.column_names);

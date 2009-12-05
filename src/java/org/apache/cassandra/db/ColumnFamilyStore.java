@@ -1334,11 +1334,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    public RangeReply getKeyRangeRaw(final String startWith, final String stopAt, int maxResults)
+    public RangeReply getKeyRangeRaw(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
-        final DecoratedKey startWithDK = partitioner.decorateKey(startWith);
-        final DecoratedKey stopAtDK = partitioner.decorateKey(stopAt);
         // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
         final Comparator<DecoratedKey> comparator = partitioner.getDecoratedKeyComparator();
 
@@ -1352,8 +1350,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public boolean apply(DecoratedKey key)
             {
-                return comparator.compare(startWithDK, key) <= 0
-                       && (stopAt.isEmpty() || comparator.compare(key, stopAtDK) <= 0);
+                return comparator.compare(startWith, key) <= 0
+                       && (stopAt.isEmpty() || comparator.compare(key,  stopAt) <= 0);
             }
         };
 
@@ -1369,7 +1367,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (SSTableReader sstable : ssTables_)
         {
             final SSTableScanner scanner = sstable.getScanner();
-            scanner.seekTo(startWithDK);
+            scanner.seekTo(startWith);
             Iterator<DecoratedKey> iter = new CloseableIterator<DecoratedKey>()
             {
                 public boolean hasNext()
@@ -1415,7 +1413,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             boolean rangeCompletedLocally = false;
             for (DecoratedKey current : reduced)
             {
-                if (!stopAt.isEmpty() && comparator.compare(stopAtDK, current) < 0)
+                if (!stopAt.isEmpty() && comparator.compare( stopAt, current) < 0)
                 {
                     rangeCompletedLocally = true;
                     break;
@@ -1453,7 +1451,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public RangeSliceReply getRangeSlice(byte[] super_column, final String startKey, final String finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
+    public RangeSliceReply getRangeSlice(byte[] super_column, final DecoratedKey startKey, final DecoratedKey finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
     throws IOException, ExecutionException, InterruptedException
     {
         RangeReply rr = getKeyRangeRaw(startKey, finishKey, keyMax);

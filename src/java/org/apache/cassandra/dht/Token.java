@@ -18,12 +18,12 @@
 */
 package org.apache.cassandra.dht;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.service.StorageService;
 
 public abstract class Token<T> implements Comparable<Token<T>>, Serializable
@@ -72,9 +72,9 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
         public abstract Token<T> fromString(String string); // deserialize
     }
 
-    public static class TokenSerializer implements ICompactSerializer<Token>
+    public static class TokenSerializer implements ICompactSerializer2<Token>
     {
-        public void serialize(Token token, DataOutputStream dos) throws IOException
+        public void serialize(Token token, DataOutput dos) throws IOException
         {
             IPartitioner p = StorageService.getPartitioner();
             byte[] b = p.getTokenFactory().toByteArray(token);
@@ -82,7 +82,7 @@ public abstract class Token<T> implements Comparable<Token<T>>, Serializable
             dos.write(b);
         }
 
-        public Token deserialize(DataInputStream dis) throws IOException
+        public Token deserialize(DataInput dis) throws IOException
         {
             IPartitioner p = StorageService.getPartitioner();
             int size = dis.readInt();

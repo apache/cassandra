@@ -533,7 +533,7 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
 
-        InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.start_key);
+        InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.startKey.key);
         InetAddress startEndpoint = endPoint;
 
         Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);

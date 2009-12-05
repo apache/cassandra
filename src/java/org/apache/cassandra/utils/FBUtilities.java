@@ -231,4 +231,20 @@ public class FBUtilities
 
         return sb.append("}").toString();
     }
+
+    public static void writeNullableString(String key, DataOutput dos) throws IOException
+    {
+        dos.writeBoolean(key == null);
+        if (key != null)
+        {
+            dos.writeUTF(key);
+        }
+    }
+
+    public static String readNullableString(DataInput dis) throws IOException
+    {
+        if (dis.readBoolean())
+            return null;
+        return dis.readUTF();
+    }
 }

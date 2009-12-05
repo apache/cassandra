@@ -18,21 +18,39 @@
 
 package org.apache.cassandra.db;
 
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.DataInput;
+
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Represents a decorated key, handy for certain operations
  * where just working with strings gets slow.
+ *
+ * We do a lot of sorting of DecoratedKeys, so for speed, we assume that tokens correspond one-to-one with keys.
+ * This is not quite correct in the case of RandomPartitioner (which uses MD5 to hash keys to tokens);
+ * if this matters, you can subclass RP to use a stronger hash, or use a non-lossy tokenization scheme (as in the
+ * OrderPreservingPartitioner classes).
  */
 public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 {
+    private static DecoratedKeySerializer serializer = new DecoratedKeySerializer();
+
+    public static DecoratedKeySerializer serializer()
+    {
+        return serializer;
+    }
+
     public final T token;
     public final String key;
 
     public DecoratedKey(T token, String key)
     {
         super();
-        assert key != null;
+        assert token != null;
         this.token = token;
         this.key = key;
     }
@@ -58,25 +76,36 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
             return false;
 
         DecoratedKey other = (DecoratedKey) obj;
-        // either both should be of a class where all tokens are null, or neither
-        assert (token == null) == (other.token == null);
-        if (token == null)
-            return key.equals(other.key);
-        return token.equals(other.token) && key.equals(other.key);
+        return token.equals(other.token);
     }
 
     public int compareTo(DecoratedKey other)
     {
-        assert (token == null) == (other.token == null);
-        if (token == null)
-            return key.compareTo(other.key);
-        int i = token.compareTo(other.token);
-        return i == 0 ? key.compareTo(other.key) : i;
+        return token.compareTo(other.token);
+    }
+
+    public boolean isEmpty()
+    {
+        return key != null && key.isEmpty();
     }
 
     @Override
     public String toString()
     {
         return "DecoratedKey(" + token + ", " + key + ")";
+    }
+}
+
+class DecoratedKeySerializer implements ICompactSerializer2<DecoratedKey>
+{
+    public void serialize(DecoratedKey dk, DataOutput dos) throws IOException
+    {
+        Token.serializer().serialize(dk.token, dos);
+        FBUtilities.writeNullableString(dk.key, dos);
+    }
+
+    public DecoratedKey deserialize(DataInput dis) throws IOException
+    {
+        return new DecoratedKey(Token.serializer().deserialize(dis), FBUtilities.readNullableString(dis));
     }
 }
