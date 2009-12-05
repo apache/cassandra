@@ -224,7 +224,7 @@ public class CliClient
             else
             {
                 Column column = cosc.column;
-                css_.out.printf("=> (column=%s, value=%s; timestamp=%d)\n", new String(column.name, "UTF-8"),
+                css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", new String(column.name, "UTF-8"),
                                 new String(column.value, "UTF-8"), column.timestamp);
             }
         }
