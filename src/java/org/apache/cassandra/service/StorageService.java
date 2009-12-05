@@ -37,6 +37,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -47,6 +48,7 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.HashMultimap;
 
@@ -84,7 +86,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
     private static volatile StorageService instance_;
 
-    public static IPartitioner<?> getPartitioner() {
+    public static IPartitioner getPartitioner() {
         return partitioner_;
     }
 
@@ -276,6 +278,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
 
+        AntiEntropyService.instance();
         StorageLoadBalancer.instance().startBroadcasting();
 
         // have to start the gossip service before we can see any info on other nodes.  this is necessary
@@ -686,12 +689,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     }
 
     /**
-     * Flush all memtables for a table and column families.
-     * @param tableName
-     * @param columnFamilies
+     * Applies the given Function to all matching column families.
+     * @param function Function taking a column family and possibly returning an IOException.
+     * @param tableName Name of matching table.
+     * @param columnFamilies Names of matching column families, or null for all.
      * @throws IOException
      */
-    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException
+    public void foreachColumnFamily(Function<ColumnFamilyStore, IOException> function, String tableName, String... columnFamilies) throws IOException
     {
         if (DatabaseDescriptor.getTable(tableName) == null)
         {
@@ -709,14 +713,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         for (String columnFamily : columnFamilies)
         {
-
             if (positiveColumnFamilies.contains(columnFamily))
             {
                 ColumnFamilyStore cfStore = table.getColumnFamilyStore(columnFamily);
-                logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + columnFamily);
-                cfStore.forceFlushBinary();
-                logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + columnFamily);
-                cfStore.forceFlush();
+                IOException result = function.apply(cfStore);
+                if (result != null)
+                    throw result;
             }
             else
             {
@@ -724,6 +726,59 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 logger_.warn(String.format("Invalid column family specified: %s. Proceeding with others.", columnFamily));
             }
         }
+    }
+
+    /**
+     * Flush all memtables for a table and column families.
+     * @param tableName
+     * @param columnFamilies
+     * @throws IOException
+     */
+    public void forceTableFlush(final String tableName, final String... columnFamilies) throws IOException
+    {
+        foreachColumnFamily(new Function<ColumnFamilyStore, IOException>()
+            {
+                public IOException apply(ColumnFamilyStore cfStore)
+                {
+                    try
+                    {
+                        logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
+                        cfStore.forceFlushBinary();
+                        logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
+                        cfStore.forceFlush();
+                    }
+                    catch(IOException e)
+                    {
+                        return e;
+                    }
+                    return null;
+                }
+            }, tableName, columnFamilies);
+    }
+
+    /**
+     * Trigger proactive repair for a table and column families.
+     * @param tableName
+     * @param columnFamilies
+     * @throws IOException
+     */
+    public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
+    {
+        // request that all relevant endpoints generate trees
+        final MessagingService ms = MessagingService.instance();
+        final List<InetAddress> endpoints = getNaturalEndpoints(getLocalToken());
+        foreachColumnFamily(new Function<ColumnFamilyStore, IOException>()
+            {
+                public IOException apply(ColumnFamilyStore cfStore)
+                {
+                    Message request = TreeRequestVerbHandler.makeVerb(tableName,
+                                                                      cfStore.getColumnFamilyName());
+                    for (InetAddress endpoint : endpoints)
+                        ms.sendOneWay(request, endpoint);
+
+                    return null;
+                }
+            }, tableName, columnFamilies);
     }
 
     /* End of MBean interface methods */
@@ -852,9 +907,21 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public List<InetAddress> getNaturalEndpoints(String key)
     {
-        return replicationStrategy_.getNaturalEndpoints(partitioner_.getToken(key));
-    }
+        return getNaturalEndpoints(partitioner_.getToken(key));
+    }    
 
+    /**
+     * This method returns the N endpoints that are responsible for storing the
+     * specified key i.e for replication.
+     *
+     * @param token - token for which we need to find the endpoint return value -
+     * the endpoint responsible for this token
+     */
+    public List<InetAddress> getNaturalEndpoints(Token token)
+    {
+        return replicationStrategy_.getNaturalEndpoints(token);
+    }    
+    
     /**
      * This method attempts to return N endpoints that are responsible for storing the
      * specified key i.e for replication.

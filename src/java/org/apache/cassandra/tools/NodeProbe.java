@@ -186,6 +186,11 @@ public class NodeProbe
         ssProxy.forceTableFlush(tableName, columnFamilies);
     }
 
+    public void forceTableRepair(String tableName, String... columnFamilies) throws IOException
+    {
+        ssProxy.forceTableRepair(tableName, columnFamilies);
+    }
+
     /**
      * Write a textual representation of the Cassandra ring.
      * 
@@ -493,7 +498,7 @@ public class NodeProbe
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, " +
-                "tpstats, flush, decommission, move, loadbalance, cancelpending, " +
+                "tpstats, flush, repair, decommission, move, loadbalance, cancelpending, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -589,7 +594,7 @@ public class NodeProbe
         {
             probe.printThreadPoolStats(System.out);
         }
-        else if (cmdName.equals("flush"))
+        else if (cmdName.equals("flush") || cmdName.equals("repair"))
         {
             if (probe.getArgs().length < 2)
             {
@@ -602,8 +607,11 @@ public class NodeProbe
             for (int i = 0; i < columnFamilies.length; i++)
             {
                 columnFamilies[i] = probe.getArgs()[i + 2];
-            }   
-            probe.forceTableFlush(probe.getArgs()[1], columnFamilies);
+            }
+            if (cmdName.equals("flush"))
+                probe.forceTableFlush(probe.getArgs()[1], columnFamilies);
+            else // cmdName.equals("repair")
+                probe.forceTableRepair(probe.getArgs()[1], columnFamilies);
         }
         else if (cmdName.equals("getcompactionthreshold"))
         {

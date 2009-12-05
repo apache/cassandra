@@ -115,6 +115,15 @@ public interface StorageServiceMBean
     public void forceTableFlush(String tableName, String... columnFamilies) throws IOException;
 
     /**
+     * Triggers proactive repair for given column families, or all columnfamilies for the given table
+     * if none are explicitly listed.
+     * @param tableName
+     * @param columnFamilies
+     * @throws IOException
+     */
+    public void forceTableRepair(String tableName, String... columnFamilies) throws IOException;
+
+    /**
      * transfer this node's data to other machines and remove it from service.
      */
     public void decommission() throws InterruptedException;
