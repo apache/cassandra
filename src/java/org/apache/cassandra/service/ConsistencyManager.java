@@ -79,10 +79,9 @@ class ConsistencyManager implements Runnable
 		
 		private void doReadRepair() throws IOException
 		{
-			IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_);
-            /* Add the local storage endpoint to the replicas_ list */
             replicas_.add(FBUtilities.getLocalAddress());
-			IAsyncCallback responseHandler = new DataRepairHandler(ConsistencyManager.this.replicas_.size(), readResponseResolver);	
+            IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_, replicas_.size());
+            IAsyncCallback responseHandler = new DataRepairHandler(replicas_.size(), readResponseResolver);
             ReadCommand readCommand = constructReadMessage(false);
             Message message = readCommand.makeReadMessage();
             if (logger_.isDebugEnabled())

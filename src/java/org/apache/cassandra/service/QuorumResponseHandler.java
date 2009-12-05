@@ -36,17 +36,12 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     protected static final Logger logger = Logger.getLogger( QuorumResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
-    private final int responseCount;
     protected final List<Message> responses;
     private IResponseResolver<T> responseResolver;
     private final long startTime;
 
     public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver)
     {
-        assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor()
-            : "invalid response count " + responseCount;
-
-        this.responseCount = responseCount;
         responses = new ArrayList<Message>(responseCount);
         this.responseResolver =  responseResolver;
         startTime = System.currentTimeMillis();
@@ -94,7 +89,7 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
             return;
 
         responses.add(message);
-        if (responses.size() >= responseCount && responseResolver.isDataPresent(responses))
+        if (responseResolver.isDataPresent(responses))
         {
             condition.signal();
         }

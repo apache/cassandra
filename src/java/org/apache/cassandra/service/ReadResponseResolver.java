@@ -33,23 +33,22 @@ import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.log4j.Logger;
 
-
-/**
- * This class is used by all read functions and is called by the Quorum 
- * when at least a few of the servers (few is specified in Quorum)
- * have sent the response . The resolve function then schedules read repair 
- * and resolution of read data from the various servers.
- */
 public class ReadResponseResolver implements IResponseResolver<Row>
 {
 	private static Logger logger_ = Logger.getLogger(ReadResponseResolver.class);
     private final String table;
+    private final int responseCount;
 
-    public ReadResponseResolver(String table)
+    public ReadResponseResolver(String table, int responseCount)
     {
+        assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor()
+            : "invalid response count " + responseCount;
+
+        this.responseCount = responseCount;
         this.table = table;
     }
 
@@ -152,6 +151,9 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
 	public boolean isDataPresent(List<Message> responses)
 	{
+        if (responses.size() < responseCount)
+            return false;
+
         boolean isDataPresent = false;
         for (Message response : responses)
         {
