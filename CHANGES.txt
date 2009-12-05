@@ -6,7 +6,8 @@
  * fix potential NPE in hinted handoff (CASSANDRA-585)
  * fix cleanup of local "system" keyspace (CASSANDRA-576)
  * improve computation of cluster load balance (CASSANDRA-554)
- * added count and column/row delete to cassandra-cli (CASSANDRA-594)
+ * added super column read/write, column count, and column/row delete to
+   cassandra-cli (CASSANDRA-567, CASSANDRA-594)
  * fix returning live subcolumns of deleted supercolumns (CASSANDRA-583)
  * respect JAVA_HOME in bin/ scripts (several tickets)
  * add StorageService.initClient for fat clients on the JVM (CASSANDRA-535)
