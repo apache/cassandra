@@ -12,6 +12,7 @@
  * add StorageService.initClient for fat clients on the JVM (CASSANDRA-535)
    (see contrib/client_only for an example of use)
  * make consistency_level functional in get_range_slice (CASSANDRA-568)
+ * optimize key deserialization for RandomPartitioner (CASSANDRA-581)
 
 
 0.5.0 beta
