@@ -32,6 +32,7 @@ public class CliClient
 {
     private Cassandra.Client thriftClient_ = null;
     private CliSessionState css_ = null;
+    Map<String, Map<String, String>> columnFamiliesMap;
 
     public CliClient(CliSessionState css, Cassandra.Client thriftClient)
     {
@@ -51,7 +52,14 @@ public class CliClient
             cleanupAndExit();
             break;
         case CliParser.NODE_THRIFT_GET:
-            executeGet(ast);
+            try
+            {
+                executeGet(ast);
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                throw new RuntimeException(e);
+            }
             break;
         case CliParser.NODE_HELP:
             printCmdHelp();
@@ -189,68 +197,112 @@ public class CliClient
         thriftClient_.remove(tableName, key, new ColumnPath(columnFamily, null, name), System.currentTimeMillis(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }  
- 
-    // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException
+    
+    private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
+    throws InvalidRequestException, UnavailableException, TimedOutException, TException
     {
-        if (!CliMain.isConnected())
-            return;
-
-        int childCount = ast.getChildCount();
-        assert(childCount == 1);
-
-        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
-
-        String tableName     = CliCompiler.getTableName(columnFamilySpec);
-        String key           = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily  = CliCompiler.getColumnFamily(columnFamilySpec);
-        int    columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-
-        // assume simple columnFamily for now
-        if (columnSpecCnt == 0)
+        SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
+        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key, new ColumnParent(columnFamily, superColumnName),
+                                                                    new SlicePredicate(null, range), ConsistencyLevel.ONE);
+        int size = columns.size();
+        
+        // Print out super columns or columns.
+        for (ColumnOrSuperColumn cosc : columns)
         {
-            // table.cf['key']
-            SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
-            List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(tableName, key, new ColumnParent(columnFamily, null), new SlicePredicate(null, range), ConsistencyLevel.ONE);
-            int size = columns.size();
-            for (ColumnOrSuperColumn cosc : columns)
-            {
-                Column column = cosc.column;
-                try
-                {
-                    css_.out.printf("  (column=%s, value=%s; timestamp=%d)\n",
-                                    new String(column.name, "UTF-8"),
-                                    new String(column.value, "UTF-8"),
-                                    column.timestamp);
-                }
-                catch (UnsupportedEncodingException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-            css_.out.println("Returned " + size + " rows.");
-        }
-        else
-        {
-            assert columnSpecCnt == 1;
-            // table.cf['key']['column']
-            String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-            ColumnOrSuperColumn cosc;
             try
             {
-                cosc = thriftClient_.get(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")), ConsistencyLevel.ONE);
-                Column column = cosc.column;
-                css_.out.printf("==> (name=%s, value=%s; timestamp=%d)\n",
-                        new String(column.name, "UTF-8"),
-                        new String(column.value, "UTF-8"),
-                        column.timestamp);
+                if (cosc.isSetSuper_column())
+                {
+                    SuperColumn superColumn = cosc.super_column;
+                    css_.out.printf("=> (super_column=%s,", new String(superColumn.name, "UTF-8"));
+                    for (Column col : superColumn.getColumns())
+                        css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", new String(col.name, "UTF-8"),
+                                        new String(col.value, "UTF-8"), col.timestamp);
+                    
+                    css_.out.println(")"); 
+                }
+                else
+                {
+                    Column column = cosc.column;
+                    css_.out.printf("=> (column=%s, value=%s; timestamp=%d)\n", new String(column.name, "UTF-8"),
+                                    new String(column.value, "UTF-8"), column.timestamp);
+                }
             }
             catch (UnsupportedEncodingException e)
             {
                 throw new RuntimeException(e);
             }
         }
+        
+        css_.out.println("Returned " + size + " results.");
+    }
+ 
+    // Execute GET statement
+    // FIXME: really throw unsupported encoding exception?
+    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
+    {
+        if (!CliMain.isConnected())
+            return;
+
+        // This will never happen unless the grammar is broken
+        assert (ast.getChildCount() == 1) : "serious parsing error (this is a bug).";
+
+        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
+        assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
+
+        String tableName = CliCompiler.getTableName(columnFamilySpec);
+        String key = CliCompiler.getKey(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+        
+        // Lazily lookup column family meta-data.
+        if (columnFamiliesMap == null)
+            columnFamiliesMap = thriftClient_.describe_keyspace(tableName);
+        
+        boolean isSuper = columnFamiliesMap.get(columnFamily).get("Type").equals("Super") ? true : false;
+        
+        byte[] superColumnName = null;
+        byte[] columnName = null;
+        
+        // table.cf['key'] -- row slice
+        if (columnSpecCnt == 0)
+        {
+            doSlice(tableName, key, columnFamily, superColumnName);
+            return;
+        }
+        
+        // table.cf['key']['column'] -- slice of a super, or get of a standard
+        if (columnSpecCnt == 1)
+        {
+            if (isSuper)
+            {
+                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+                doSlice(tableName, key, columnFamily, superColumnName);
+                return;
+            }
+            else
+            {
+                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            }
+        }
+        // table.cf['key']['column']['column'] -- get of a sub-column
+        else if (columnSpecCnt == 2)
+        {
+            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+        }
+        // The parser groks an arbitrary number of these so it is possible to get here.
+        else
+        {
+            css_.out.println("Invalid row, super column, or column specification.");
+            return;
+        }
+        
+        // Perform a get(), print out the results.
+        ColumnPath path = new ColumnPath(columnFamily, superColumnName, columnName);
+        Column column = thriftClient_.get(tableName, key, path, ConsistencyLevel.ONE).column;
+        css_.out.printf("=> (column=%s, value=%s; timestamp=%d)\n", new String(column.name, "UTF-8"),
+                        new String(column.value, "UTF-8"), column.timestamp);
     }
 
     // Execute SET statement
