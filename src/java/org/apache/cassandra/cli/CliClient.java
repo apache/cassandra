@@ -259,45 +259,49 @@ public class CliClient
         if (!CliMain.isConnected())
             return;
 
-        int childCount = ast.getChildCount();
-        assert(childCount == 2);
+        assert (ast.getChildCount() == 2) : "serious parsing error (this is a bug).";
 
         CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
         assert(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS);
 
-        String tableName     = CliCompiler.getTableName(columnFamilySpec);
-        String key           = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily  = CliCompiler.getColumnFamily(columnFamilySpec);
-        int    columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-        String value         = CliUtils.unescapeSQLString(ast.getChild(1).getText());
+        String tableName = CliCompiler.getTableName(columnFamilySpec);
+        String key = CliCompiler.getKey(columnFamilySpec);
+        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+        String value = CliUtils.unescapeSQLString(ast.getChild(1).getText());
 
-        // assume simple columnFamily for now
-        if (columnSpecCnt == 1)
+        byte[] superColumnName = null;
+        byte[] columnName = null;
+ 
+        try
         {
-            // We have the table.cf['key']['column'] = 'value' case.
-
-            // get the column name
-            String columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-
-            // do the insert
-            try
+            // table.cf['key']['column'] = 'value'
+            if (columnSpecCnt == 1)
             {
-                thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, null, columnName.getBytes("UTF-8")),
-                                     value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
+                // get the column name
+                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
             }
-            catch (UnsupportedEncodingException e)
+            // table.cf['key']['super_column']['column'] = 'value'
+            else
             {
-                throw new RuntimeException(e);
+                assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
+                
+                // get the super column and column names
+                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+                columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
             }
-
-            css_.out.println("Value inserted.");
         }
-        else
+        catch (UnsupportedEncodingException e)
         {
-            /* for now (until we support batch sets) */
-            assert(false);
+            throw new RuntimeException("Unable to encode column name as UTF-8", e);
         }
-    } 
+        
+        // do the insert
+        thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, superColumnName, columnName),
+                             value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
+        
+        css_.out.println("Value inserted.");
+    }
 
     private void executeShowProperty(CommonTree ast, String propertyName) throws TException
     {
