@@ -47,56 +47,56 @@ public class CliClient
 
         ast = CliCompiler.compileQuery(stmt);
 
-        switch (ast.getType()) {
-        case CliParser.NODE_EXIT:
-            cleanupAndExit();
-            break;
-        case CliParser.NODE_THRIFT_GET:
-            try
-            {
-                executeGet(ast);
+        try
+        {
+            switch (ast.getType()) {
+                case CliParser.NODE_EXIT:
+                    cleanupAndExit();
+                    break;
+                case CliParser.NODE_THRIFT_GET:
+                    executeGet(ast);
+                    break;
+                case CliParser.NODE_HELP:
+                    printCmdHelp();
+                    break;
+                case CliParser.NODE_THRIFT_SET:
+                    executeSet(ast);
+                    break;
+                case CliParser.NODE_THRIFT_DEL:
+                    executeDelete(ast);
+                    break;
+                case CliParser.NODE_THRIFT_COUNT:
+                    executeCount(ast);
+                    break;
+                case CliParser.NODE_SHOW_CLUSTER_NAME:
+                    executeShowProperty(ast, "cluster name");
+                    break;
+                case CliParser.NODE_SHOW_CONFIG_FILE:
+                    executeShowProperty(ast, "config file");
+                    break;
+                case CliParser.NODE_SHOW_VERSION:
+                    executeShowProperty(ast, "version");
+                    break;
+                case CliParser.NODE_SHOW_TABLES:
+                    executeShowTables(ast);
+                    break;
+                case CliParser.NODE_DESCRIBE_TABLE:
+                    executeDescribeTable(ast);
+                    break;
+                case CliParser.NODE_CONNECT:
+                    executeConnect(ast);
+                    break;
+                case CliParser.NODE_NO_OP:
+                    // comment lines come here; they are treated as no ops.
+                    break;
+                default:
+                    css_.err.println("Invalid Statement (Type: " + ast.getType() + ")");
+                    break;
             }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new RuntimeException(e);
-            }
-            break;
-        case CliParser.NODE_HELP:
-            printCmdHelp();
-            break;
-        case CliParser.NODE_THRIFT_SET:
-            executeSet(ast);
-            break;
-        case CliParser.NODE_THRIFT_DEL:
-            executeDelete(ast);
-            break;
-        case CliParser.NODE_THRIFT_COUNT:
-            executeCount(ast);
-            break;
-        case CliParser.NODE_SHOW_CLUSTER_NAME:
-            executeShowProperty(ast, "cluster name");
-            break;
-        case CliParser.NODE_SHOW_CONFIG_FILE:
-            executeShowProperty(ast, "config file");
-            break;
-        case CliParser.NODE_SHOW_VERSION:
-            executeShowProperty(ast, "version");
-            break;
-        case CliParser.NODE_SHOW_TABLES:
-            executeShowTables(ast);
-            break;
-        case CliParser.NODE_DESCRIBE_TABLE:
-            executeDescribeTable(ast);
-            break;
-        case CliParser.NODE_CONNECT:
-            executeConnect(ast);
-            break;
-        case CliParser.NODE_NO_OP:
-            // comment lines come here; they are treated as no ops.
-            break;
-        default:
-            css_.err.println("Invalid Statement (Type: " + ast.getType() + ")");
-            break;
+        }
+        catch (UnsupportedEncodingException e)
+        {
+            throw new RuntimeException("Unable to encode string as UTF-8", e);
         }
     }
     
@@ -156,7 +156,7 @@ public class CliClient
        }
     }
     
-    private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
+    private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
     {
         if (!CliMain.isConnected())
             return;
@@ -185,21 +185,14 @@ public class CliClient
             assert columnSpecCnt == 1;
             // table.cf['key']['column']
             columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-            try
-            {
-                name = columnName.getBytes("UTF-8");
-            }
-            catch (UnsupportedEncodingException e)
-            {
-                throw new RuntimeException(e);
-            }
+            name = columnName.getBytes("UTF-8");
         }
         thriftClient_.remove(tableName, key, new ColumnPath(columnFamily, null, name), System.currentTimeMillis(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }  
     
     private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
-    throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException
     {
         SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
         List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key, new ColumnParent(columnFamily, superColumnName),
@@ -209,28 +202,21 @@ public class CliClient
         // Print out super columns or columns.
         for (ColumnOrSuperColumn cosc : columns)
         {
-            try
+            if (cosc.isSetSuper_column())
             {
-                if (cosc.isSetSuper_column())
-                {
-                    SuperColumn superColumn = cosc.super_column;
-                    css_.out.printf("=> (super_column=%s,", new String(superColumn.name, "UTF-8"));
-                    for (Column col : superColumn.getColumns())
-                        css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", new String(col.name, "UTF-8"),
-                                        new String(col.value, "UTF-8"), col.timestamp);
-                    
-                    css_.out.println(")"); 
-                }
-                else
-                {
-                    Column column = cosc.column;
-                    css_.out.printf("=> (column=%s, value=%s; timestamp=%d)\n", new String(column.name, "UTF-8"),
-                                    new String(column.value, "UTF-8"), column.timestamp);
-                }
+                SuperColumn superColumn = cosc.super_column;
+                css_.out.printf("=> (super_column=%s,", new String(superColumn.name, "UTF-8"));
+                for (Column col : superColumn.getColumns())
+                    css_.out.printf("\n     (column=%s, value=%s, timestamp=%d)", new String(col.name, "UTF-8"),
+                                    new String(col.value, "UTF-8"), col.timestamp);
+                
+                css_.out.println(")"); 
             }
-            catch (UnsupportedEncodingException e)
+            else
             {
-                throw new RuntimeException(e);
+                Column column = cosc.column;
+                css_.out.printf("=> (column=%s, value=%s; timestamp=%d)\n", new String(column.name, "UTF-8"),
+                                new String(column.value, "UTF-8"), column.timestamp);
             }
         }
         
@@ -238,7 +224,6 @@ public class CliClient
     }
  
     // Execute GET statement
-    // FIXME: really throw unsupported encoding exception?
     private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
     {
         if (!CliMain.isConnected())
@@ -306,8 +291,8 @@ public class CliClient
     }
 
     // Execute SET statement
-    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
-    {
+    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
+    { 
         if (!CliMain.isConnected())
             return;
 
@@ -325,27 +310,20 @@ public class CliClient
         byte[] superColumnName = null;
         byte[] columnName = null;
  
-        try
+        // table.cf['key']['column'] = 'value'
+        if (columnSpecCnt == 1)
         {
-            // table.cf['key']['column'] = 'value'
-            if (columnSpecCnt == 1)
-            {
-                // get the column name
-                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            }
-            // table.cf['key']['super_column']['column'] = 'value'
-            else
-            {
-                assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
-                
-                // get the super column and column names
-                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-                columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
-            }
+            // get the column name
+            columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
         }
-        catch (UnsupportedEncodingException e)
+        // table.cf['key']['super_column']['column'] = 'value'
+        else
         {
-            throw new RuntimeException("Unable to encode column name as UTF-8", e);
+            assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
+            
+            // get the super column and column names
+            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
         
         // do the insert
