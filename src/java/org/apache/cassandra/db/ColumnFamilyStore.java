@@ -189,6 +189,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (File file : files)
             {
                 String filename = file.getName();
+                String cfName = getColumnFamilyFromFileName(filename);
+
+                // skip files that are not from this column family
+                if (!cfName.equals(columnFamily_))
+                    continue;
 
                 /* look for and remove orphans. An orphan is a -Filter.db or -Index.db with no corresponding -Data.db. */
                 Matcher matcher = auxFilePattern.matcher(file.getAbsolutePath());
@@ -203,14 +208,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     }
                 }
 
-                if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))) && (filename.contains(columnFamily_)))
+                if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))))
                 {
                     FileUtils.deleteWithConfirm(file);
                     continue;
                 }
 
-                String cfName = getColumnFamilyFromFileName(filename);
-                if (cfName.equals(columnFamily_) && filename.contains("-Data.db"))
+                if (filename.contains("-Data.db"))
                 {
                     sstableFiles.add(file.getAbsoluteFile());
                 }
