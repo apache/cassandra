@@ -112,15 +112,13 @@ public class Streaming
 
         if (streamContexts.length > 0)
         {
-            if (logger.isDebugEnabled())
-              logger.debug("Waiting for transfer to " + target + " to complete");
+            logger.info("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
             for (SSTableReader sstable : sstables)
             {
                 sstable.markCompacted();
             }
-            if (logger.isDebugEnabled())
-                logger.debug("Done with transfer to " + target);
+            logger.info("Done with transfer to " + target);
         }
     }
 

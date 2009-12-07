@@ -180,7 +180,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         SystemTable.setBootstrapped(true);
         setToken(getLocalToken());
         Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(getLocalToken())));
-        logger_.info("Bootstrap completed! Now serving reads.");
+        logger_.info("Bootstrap/move completed! Now serving reads.");
     }
 
     /** This method updates the local token on disk  */
