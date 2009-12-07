@@ -50,9 +50,6 @@ public class ProtocolHeaderState extends StartState
         int stream = MessagingService.getBits(pH, 3, 1);
         stream_.getProtocolHeader().isStreamingMode_ = (stream == 1) ? true : false;
         
-        if ( stream_.getProtocolHeader().isStreamingMode_ )
-            MessagingService.setStreamingMode(true);
-        
         int version = MessagingService.getBits(pH, 15, 8);
         stream_.getProtocolHeader().version_ = version;
         

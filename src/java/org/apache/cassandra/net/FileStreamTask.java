@@ -53,7 +53,6 @@ class FileStreamTask implements Runnable
             connection = new TcpConnection(from_, to_);
             File file = new File(file_);             
             connection.stream(file, startPosition_, total_);
-            MessagingService.setStreamingMode(false);
             if (logger_.isDebugEnabled())
               logger_.debug("Done streaming " + file);
         }            

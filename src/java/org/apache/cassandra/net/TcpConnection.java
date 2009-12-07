@@ -459,7 +459,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                     }
                     else
                     {
-                        MessagingService.setStreamingMode(false);
                         /* Close this socket connection  used for streaming */
                         closeSocket();
                     }                    

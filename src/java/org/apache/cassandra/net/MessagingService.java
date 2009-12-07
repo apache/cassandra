@@ -57,8 +57,6 @@ public class MessagingService
     };
     
     private static Map<String, String> reservedVerbs_ = new Hashtable<String, String>();
-    /* Indicate if we are currently streaming data to another node or receiving streaming data */
-    private static AtomicBoolean isStreaming_ = new AtomicBoolean(false);
     
     /* This records all the results mapped by message Id */
     private static ICachetable<String, IAsyncCallback> callbackMap_;
@@ -485,15 +483,9 @@ public class MessagingService
 
     public void stream(String file, long startPosition, long total, InetAddress from, InetAddress to)
     {
-        isStreaming_.set(true);
         /* Streaming asynchronously on streamExector_ threads. */
         Runnable streamingTask = new FileStreamTask(file, startPosition, total, from, to);
         streamExecutor_.execute(streamingTask);
-    }
-
-    public static void setStreamingMode(boolean bVal)
-    {
-        isStreaming_.set(bVal);
     }
 
     public static void shutdown()

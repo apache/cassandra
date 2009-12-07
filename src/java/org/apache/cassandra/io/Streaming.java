@@ -51,7 +51,7 @@ public class Streaming
     public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
     /**
-     * split out files on disk locally for each range and then stream them to the target endpoint
+     * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
     */
     public static void transferRanges(InetAddress target, Collection<Range> ranges, Runnable callback)
     {
@@ -77,7 +77,7 @@ public class Streaming
                 if (logger.isDebugEnabled())
                   logger.debug("Performing anticompaction ...");
                 /* Get the list of files that need to be streamed */
-                transferOneTable(target, table.forceAntiCompaction(ranges, target), tName); // SSTR GC deletes the file when done
+                transferSSTables(target, table.forceAntiCompaction(ranges, target), tName); // SSTR GC deletes the file when done
             }
             catch (IOException e)
             {
@@ -88,7 +88,11 @@ public class Streaming
             callback.run();
     }
 
-    private static void transferOneTable(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
+    /**
+     * Transfers a group of sstables from a single table to the target endpoint
+     * and then marks them as ready for local deletion.
+     */
+    public static void transferSSTables(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
         StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[SSTable.FILES_ON_DISK * sstables.size()];
         int i = 0;
