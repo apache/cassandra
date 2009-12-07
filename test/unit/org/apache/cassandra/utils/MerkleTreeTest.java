@@ -527,7 +527,7 @@ public class MerkleTreeTest
             range.validate(new HIterator(range.right()));
         
         // trees should disagree for leftmost, (middle.left, rightmost.right]
-        List<Range> diffs = MerkleTree.difference(mt, mt2);
+        List<TreeRange> diffs = MerkleTree.difference(mt, mt2);
         assertEquals(diffs + " contains wrong number of differences:", 2, diffs.size());
         assertTrue(diffs.contains(leftmost));
         assertTrue(diffs.contains(new Range(middle.left(), rightmost.right())));

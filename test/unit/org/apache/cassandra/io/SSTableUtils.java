@@ -23,24 +23,85 @@ import java.io.IOException;
 
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.Set;
+import java.util.TreeMap;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.service.StorageService;
 
+/**
+ * TODO: These methods imitate Memtable.writeSortedKeys to some degree, but
+ * because it is so monolithic, we can't reuse much.
+ */
 public class SSTableUtils
 {
-    public static File tempSSTableFileName(String cfname) throws IOException
+    // first configured table and cf
+    public static String TABLENAME;
+    public static String CFNAME;
+    static
     {
-        return File.createTempFile(cfname + "-", "-" + SSTable.TEMPFILE_MARKER + "-Data.db");
+        try
+        {
+            TABLENAME = DatabaseDescriptor.getTables().get(0);
+            CFNAME = Table.open(TABLENAME).getColumnFamilies().iterator().next();
+        }
+        catch(IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
-    public static SSTableReader writeSSTable(String cfname, SortedMap<String, byte[]> entries, int expectedKeys, IPartitioner partitioner, double cacheFraction) throws IOException
+    public static File tempSSTableFile(String tablename, String cfname) throws IOException
     {
-        File f = tempSSTableFileName(cfname);
-        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), expectedKeys, partitioner);
-        for (Map.Entry<String, byte[]> entry : entries.entrySet())
+        File tempdir = File.createTempFile(tablename, cfname);
+        if(!tempdir.delete() || !tempdir.mkdir())
+            throw new IOException("Temporary directory creation failed.");
+        tempdir.deleteOnExit();
+        File tabledir = new File(tempdir, tablename);
+        tabledir.mkdir();
+        tabledir.deleteOnExit();
+        return File.createTempFile(cfname + "-",
+                                   "-" + SSTable.TEMPFILE_MARKER + "-Data.db",
+                                   tabledir);
+    }
+
+    public static SSTableReader writeSSTable(Set<String> keys) throws IOException
+    {
+        TreeMap<String, ColumnFamily> map = new TreeMap<String, ColumnFamily>();
+        for (String key : keys)
         {
-            writer.append(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());
+            ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
+            cf.addColumn(new Column(key.getBytes(), key.getBytes(), 0));
+            map.put(key, cf);
         }
-        return writer.closeAndOpenReader(cacheFraction);
+        return writeSSTable(map);
+    }
+
+    public static SSTableReader writeSSTable(SortedMap<String, ColumnFamily> entries) throws IOException
+    {
+        TreeMap<String, byte[]> map = new TreeMap<String, byte[]>();
+        for (Map.Entry<String, ColumnFamily> entry : entries.entrySet())
+        {
+            DataOutputBuffer buffer = new DataOutputBuffer();
+            ColumnFamily.serializer().serializeWithIndexes(entry.getValue(), buffer);
+            map.put(entry.getKey(), buffer.getData());
+        }
+        return writeRawSSTable(TABLENAME, CFNAME, map);
+    }
+
+    public static SSTableReader writeRawSSTable(String tablename, String cfname, SortedMap<String, byte[]> entries) throws IOException
+    {
+        File f = tempSSTableFile(tablename, cfname);
+        SSTableWriter writer = new SSTableWriter(f.getAbsolutePath(), entries.size(), StorageService.getPartitioner());
+        for (Map.Entry<String, byte[]> entry : entries.entrySet())
+            writer.append(writer.partitioner.decorateKey(entry.getKey()),
+                          entry.getValue());
+        new File(writer.indexFilename()).deleteOnExit();
+        new File(writer.filterFilename()).deleteOnExit();
+        return writer.closeAndOpenReader(1.0);
     }
 }

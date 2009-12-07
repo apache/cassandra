@@ -27,9 +27,9 @@ import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.CompactionIterator.CompactedRow;
@@ -37,7 +37,7 @@ import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.io.Streaming;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -47,7 +47,6 @@ import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.MerkleTree;
 
 import org.apache.log4j.Logger;
-import org.apache.commons.lang.StringUtils;
 
 import com.google.common.collect.Collections2;
 import com.google.common.base.Predicate;
@@ -158,11 +157,12 @@ public class AntiEntropyService
         if (etrees == null)
         {
             // double check the creation
-            Cachetable<CFTuple, MerkleTree> probable =
-                new Cachetable<CFTuple, MerkleTree>(TREE_CACHE_LIFETIME);
+            Cachetable<CFTuple, MerkleTree> probable = new Cachetable<CFTuple, MerkleTree>(TREE_CACHE_LIFETIME);
             if ((etrees = trees.putIfAbsent(endpoint, probable)) == null)
+            {
                 // created new store for this endpoint
                 etrees = probable;
+            }
         }
         return etrees;
     }
@@ -189,12 +189,16 @@ public class AntiEntropyService
             for (Map.Entry<InetAddress, Cachetable<CFTuple, MerkleTree>> entry : trees.entrySet())
             {
                 if (LOCAL.equals(entry.getKey()))
+                {
                     // don't compare to ourself
                     continue;
+                }
                 MerkleTree remotetree = entry.getValue().remove(cf);
                 if (remotetree == null)
+                {
                     // no tree stored for this endpoint at the moment
                     continue;
+                }
 
                 differencers.add(new Differencer(cf, LOCAL, entry.getKey(), tree, remotetree));
             }
@@ -206,8 +210,10 @@ public class AntiEntropyService
             // we stored a remote tree: queue differencing for local tree
             MerkleTree localtree = cacheForEndpoint(LOCAL).get(cf);
             if (localtree != null)
+            {
                 // compare immediately
                 differencers.add(new Differencer(cf, LOCAL, endpoint, localtree, tree));
+            }
             else
             {
                 // cache for later comparison
@@ -317,12 +323,11 @@ public class AntiEntropyService
         
         Validator(CFTuple cf, InetAddress initiator)
         {
-            this(cf, initiator,
+            this(cf,
+                 initiator,
                  // TODO: memory usage (maxsize) should either be tunable per
                  // CF, globally, or as shared for all CFs in a cluster
-                 new MerkleTree(DatabaseDescriptor.getPartitioner(),
-                                MerkleTree.RECOMMENDED_DEPTH,
-                                (int)Math.pow(2,15)));
+                 new MerkleTree(DatabaseDescriptor.getPartitioner(), MerkleTree.RECOMMENDED_DEPTH, (int)Math.pow(2, 15)));
         }
 
         Validator(CFTuple cf, InetAddress initiator, MerkleTree tree)
@@ -340,17 +345,20 @@ public class AntiEntropyService
         
         public void prepare()
         {
-            Predicate<SSTable> cfpred = new Predicate<SSTable>(){
+            Predicate<SSTable> cfpred = new Predicate<SSTable>()
+            {
                 public boolean apply(SSTable ss)
                 {
                     return cf.table.equals(ss.getTableName()) && cf.cf.equals(ss.getColumnFamilyName());
                 }
-                };
+            };
             List<DecoratedKey> keys = SSTableReader.getIndexedDecoratedKeysFor(cfpred, DKPRED);
 
             if (keys.isEmpty())
+            {
                 // use an even tree distribution
                 tree.init();
+            }
             else
             {
                 int numkeys = keys.size();
@@ -428,8 +436,7 @@ public class AntiEntropyService
 
         private MerkleTree.RowHash rowHash(CompactedRow row)
         {
-            byte[] rowhash = FBUtilities.hash("MD5", row.key.key.getBytes(),
-                                                     row.buffer.getData());
+            byte[] rowhash = FBUtilities.hash("MD5", row.key.key.getBytes(), row.buffer.getData());
             return new MerkleTree.RowHash(row.key.token, rowhash);
         }
 
@@ -445,8 +452,7 @@ public class AntiEntropyService
             while (ranges.hasNext())
             {
                 MerkleTree.TreeRange range = ranges.next();
-                if (!ranges.hasNext() && !minrows.isEmpty() &&
-                        range.contains(tree.partitioner().getMinimumToken()))
+                if (!ranges.hasNext() && !minrows.isEmpty() && range.contains(tree.partitioner().getMinimumToken()))
                 {
                     // append rows with the minimum token into the last range
                     rows.addAll(minrows);
@@ -474,16 +480,17 @@ public class AntiEntropyService
             InetAddress local = FBUtilities.getLocalAddress();
             StorageService ss = StorageService.instance();
 
-            Collection<InetAddress> neighbors =
-                Collections2.filter(ss.getNaturalEndpoints(ss.getLocalToken()),
-                                    Predicates.not(Predicates.equalTo(local)));
+            Collection<InetAddress> neighbors = Collections2.filter(ss.getNaturalEndpoints(ss.getLocalToken()),
+                                                                    Predicates.not(Predicates.equalTo(local)));
 
             // cache the local tree
             aes.register(cf, local, tree);
 
             if (!local.equals(initiator))
+            {
                 // one of our neighbors initiated: broadcast the tree to all of them
                 aes.notifyNeighbors(this, local, neighbors);
+            }
             // else: we initiated this validation session: wait for responses
 
             // return any old object
@@ -532,7 +539,7 @@ public class AntiEntropyService
         public final InetAddress remote;
         public final MerkleTree ltree;
         public final MerkleTree rtree;
-        public final List<Range> differences;
+        public final List<MerkleTree.TreeRange> differences;
 
         public Differencer(CFTuple cf, InetAddress local, InetAddress remote, MerkleTree ltree, MerkleTree rtree)
         {
@@ -541,7 +548,7 @@ public class AntiEntropyService
             this.remote = remote;
             this.ltree = ltree;
             this.rtree = rtree;
-            differences = new ArrayList<Range>();
+            differences = new ArrayList<MerkleTree.TreeRange>();
         }
 
         /**
@@ -563,7 +570,7 @@ public class AntiEntropyService
             interesting.retainAll(ss.getRangesForEndPoint(remote));
 
             // compare trees, and filter out uninteresting differences
-            for (Range diff : MerkleTree.difference(ltree, rtree))
+            for (MerkleTree.TreeRange diff : MerkleTree.difference(ltree, rtree))
             {
                 for (Range localrange: interesting)
                 {
@@ -575,13 +582,71 @@ public class AntiEntropyService
                 }
             }
             
-            // TODO: calculating a percentage here would be all kinds of awesome
-            logger.info("Found " + differences.size() + " differing ranges between local " +
-                local + " and remote " + remote + " endpoints for " + cf + ".");
+            // choose a repair method based on the significance of the difference
+            float difference = differenceFraction();
+            try
+            {
+                if (difference == 0.0)
+                {
+                    logger.debug("Endpoints " + local + " and " + remote + " are consistent for " + cf);
+                    return;
+                }
 
-            // FIXME: trigger repairs!
+                if (difference < 0.05)
+                    performRangeRepair();
+                else
+                    performStreamingRepair();
+            }
+            catch(IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         
+        /**
+         * @return the fraction of the keyspace that is different, as represented by our
+         * list of different ranges. A range at depth 0 == 1.0, at depth 1 == 0.5, etc.
+         */
+        float differenceFraction()
+        {
+            double fraction = 0.0;
+            for (MerkleTree.TreeRange diff : differences)
+                fraction += 1.0 / Math.pow(2, diff.depth);
+            return (float)fraction;
+        }
+
+        /**
+         * Sends our list of differences to the remote endpoint using read
+         * repairs via the query API.
+         */
+        void performRangeRepair() throws IOException
+        {
+            logger.info("Performing range read repair of " + differences.size() + " ranges for " + cf);
+            // FIXME
+            logger.debug("Finished range read repair for " + cf);
+        }
+
+        /**
+         * Sends our list of differences to the remote endpoint using the
+         * Streaming API.
+         */
+        void performStreamingRepair() throws IOException
+        {
+            logger.info("Performing streaming repair of " + differences.size() + " ranges to " + remote + " for " + cf);
+            ColumnFamilyStore cfstore = Table.open(cf.table).getColumnFamilyStore(cf.cf);
+            try
+            {
+                List<Range> ranges = new ArrayList<Range>(differences);
+                List<SSTableReader> sstables = CompactionManager.instance().submitAnti(cfstore, ranges, remote).get();
+                Streaming.transferSSTables(remote, sstables, cf.table);
+            }
+            catch(Exception e)
+            {
+                throw new IOException("Streaming repair failed.", e);
+            }
+            logger.debug("Finished streaming repair to " + remote + " for " + cf);
+        }
+
         public String toString()
         {
             return "#<Differencer " + cf + " local=" + local + " remote=" + remote + ">";
@@ -604,8 +669,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(new CFTuple(table, cf), dos);
-                return new Message(FBUtilities.getLocalAddress(), AE_SERVICE_STAGE,
-                                   TREE_REQUEST_VERB, bos.toByteArray());
+                return new Message(FBUtilities.getLocalAddress(), AE_SERVICE_STAGE, TREE_REQUEST_VERB, bos.toByteArray());
             }
             catch(IOException e)
             {
@@ -641,31 +705,27 @@ public class AntiEntropyService
 
                 // check for cached local tree
                 InetAddress local = FBUtilities.getLocalAddress();
-                MerkleTree cached =
-                    AntiEntropyService.instance().getCachedTree(request.table,
-                                                                request.cf,
-                                                                local);
+                MerkleTree cached = AntiEntropyService.instance().getCachedTree(request.table, request.cf, local);
                 if (cached != null)
                 {
                     if (local.equals(message.getFrom()))
+                    {
                         // we are the requestor, and we already have a cached tree
                         return;
+                    }
                     // respond immediately with the recently generated tree
                     Validator valid = new Validator(request, message.getFrom(), cached);
                     Message response = TreeResponseVerbHandler.makeVerb(local, valid);
                     MessagingService.instance().sendOneWay(response, message.getFrom());
-                    logger.debug("Answered request from " + message.getFrom() +
-                                 " for " + request + " with cached tree.");
+                    logger.debug("Answered request from " + message.getFrom() + " for " + request + " with cached tree.");
                     return;
                 }
 
                 // trigger readonly-compaction
-                logger.debug("Queueing readonly compaction for request from " +
-                             message.getFrom() + " for " + request);
+                logger.debug("Queueing readonly compaction for request from " + message.getFrom() + " for " + request);
                 Table table = Table.open(request.table);
-                CompactionManager.instance().submitReadonly(table.getColumnFamilyStore(request.cf),
-                                                            message.getFrom());
-            }        
+                CompactionManager.instance().submitReadonly(table.getColumnFamilyStore(request.cf), message.getFrom());
+            }
             catch (Exception e)
             {
                 logger.warn(LogUtil.throwableToString(e));            
@@ -711,8 +771,7 @@ public class AntiEntropyService
             ObjectInputStream ois = new ObjectInputStream(dis);
             try
             {
-                Validator v = new Validator(cf, (InetAddress)ois.readObject(),
-                                            (MerkleTree)ois.readObject());
+                Validator v = new Validator(cf, (InetAddress)ois.readObject(), (MerkleTree)ois.readObject());
                 return v;
             }
             catch(Exception e)
@@ -731,9 +790,8 @@ public class AntiEntropyService
             {
                 // deserialize the remote tree, and register it
                 Validator rvalidator = this.deserialize(buffer);
-                AntiEntropyService.instance().register(rvalidator.cf, message.getFrom(),
-                                                       rvalidator.tree);
-            }        
+                AntiEntropyService.instance().register(rvalidator.cf, message.getFrom(), rvalidator.tree);
+            }
             catch (Exception e)
             {
                 logger.warn(LogUtil.throwableToString(e));            

@@ -43,8 +43,7 @@ public class SSTableTest extends CleanupHelper
 
         TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
         map.put(key, bytes);
-        SSTableReader ssTable = SSTableUtils.writeSSTable("singlewrite", map, 1,
-                                                          new OrderPreservingPartitioner(), 0.01);
+        SSTableReader ssTable = SSTableUtils.writeRawSSTable("table", "singlewrite", map);
 
         // verify
         verifySingle(ssTable, bytes, key);
@@ -72,8 +71,7 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTableReader ssTable = SSTableUtils.writeSSTable("manywrites", map, 1000,
-                                                          new OrderPreservingPartitioner(), 0.01);
+        SSTableReader ssTable = SSTableUtils.writeRawSSTable("table", "manywrites", map);
 
         // verify
         verifyMany(ssTable, map);
@@ -109,9 +107,7 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTableReader ssTable = SSTableUtils.writeSSTable(ssname, map, 1000,
-                                                          new OrderPreservingPartitioner(), 0.01);
-
+        SSTableReader ssTable = SSTableUtils.writeRawSSTable("table", ssname, map);
 
         // verify
         Predicate<SSTable> cfpred;

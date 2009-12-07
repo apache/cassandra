@@ -168,11 +168,11 @@ public class MerkleTree implements Serializable
      * @param active Only ranges that intersect this range will be returned.
      * @return A list of the largest contiguous ranges where the given trees disagree.
      */
-    public static List<Range> difference(MerkleTree ltree, MerkleTree rtree)
+    public static List<TreeRange> difference(MerkleTree ltree, MerkleTree rtree)
     {
-        List<Range> diff = new ArrayList<Range>();
+        List<TreeRange> diff = new ArrayList<TreeRange>();
         Token mintoken = ltree.partitioner.getMinimumToken();
-        Range active = new Range(mintoken, mintoken);
+        TreeRange active = new TreeRange(null, mintoken, mintoken, (byte)0, null);
         
         byte[] lhash = ltree.hash(active);
         byte[] rhash = rtree.hash(active);
@@ -194,11 +194,11 @@ public class MerkleTree implements Serializable
      * Takes two trees and a range for which they have hashes, but are inconsistent.
      * @return FULLY_INCONSISTENT if active is inconsistent, PARTIALLY_INCONSISTENT if only a subrange is inconsistent.
      */
-    static int differenceHelper(MerkleTree ltree, MerkleTree rtree, List<Range> diff, Range active)
+    static int differenceHelper(MerkleTree ltree, MerkleTree rtree, List<TreeRange> diff, TreeRange active)
     {
         Token midpoint = ltree.partitioner().midpoint(active.left(), active.right());
-        Range left = new Range(active.left(), midpoint);
-        Range right = new Range(midpoint, active.right());
+        TreeRange left = new TreeRange(null, active.left(), midpoint, inc(active.depth), null);
+        TreeRange right = new TreeRange(null, midpoint, active.right(), inc(active.depth), null);
         byte[] lhash;
         byte[] rhash;
         
@@ -471,7 +471,8 @@ public class MerkleTree implements Serializable
      *
      * NB: A TreeRange should not be returned by a public method unless the
      * parents of the range it represents are already invalidated, since it
-     * will allow someone to modify the hash.
+     * will allow someone to modify the hash. Alternatively, a TreeRange
+     * may be created with a null tree, indicating that it is read only.
      */
     public static class TreeRange extends Range
     {
@@ -489,6 +490,7 @@ public class MerkleTree implements Serializable
 
         public void hash(byte[] hash)
         {
+            assert tree != null : "Not intended for modification!";
             hashable.hash(hash);
         }
 
@@ -512,6 +514,7 @@ public class MerkleTree implements Serializable
          */
         public void validate(PeekingIterator<RowHash> entries)
         {
+            assert tree != null : "Not intended for modification!";
             assert hashable instanceof Leaf;
             byte[] roothash;
             try
@@ -587,7 +590,7 @@ public class MerkleTree implements Serializable
         {
             StringBuilder buff = new StringBuilder("#<TreeRange ");
             buff.append(super.toString()).append(" depth=").append(depth);
-            return buff.append(" hash=").append(hashable.hash()).append(">").toString();
+            return buff.append(">").toString();
         }
     }
 

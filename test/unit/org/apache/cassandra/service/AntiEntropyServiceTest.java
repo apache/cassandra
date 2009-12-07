@@ -91,18 +91,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
     {
         Validator validator;
 
-        // open an SSTable to give us something to sample
-        TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
-        for ( int i = 0; i < 1000; i++ )
-        {
-            map.put(Integer.toString(i), "blah".getBytes());
-        }
-
         // write
-        SSTableReader ssTable =
-            SSTableUtils.writeSSTable(cfname, map, 1000,
-                                      StorageService.instance().getPartitioner(), 0.01);
-        tablename = ssTable.getTableName();
+        List<RowMutation> rms = new LinkedList<RowMutation>();
+        RowMutation rm;
+        rm = new RowMutation(tablename, "key1");
+        rm.add(new QueryPath(cfname, null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rms.add(rm);
+        ColumnFamilyStoreUtils.writeColumnFamily(rms);
 
         // sample
         validator = new Validator(new CFTuple(tablename, cfname), LOCAL);

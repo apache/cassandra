@@ -20,7 +20,10 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import java.net.InetAddress;
 
@@ -40,15 +43,16 @@ public final class StreamManager
 {   
     private static Logger logger_ = Logger.getLogger( StreamManager.class );
         
-    private static Map<InetAddress, StreamManager> streamManagers_ = new HashMap<InetAddress, StreamManager>();
+    private static ConcurrentMap<InetAddress, StreamManager> streamManagers_ = new ConcurrentHashMap<InetAddress, StreamManager>();
     
     public static StreamManager instance(InetAddress to)
     {
         StreamManager streamManager = streamManagers_.get(to);
         if ( streamManager == null )
         {
-            streamManager = new StreamManager(to);
-            streamManagers_.put(to, streamManager);
+            StreamManager possibleNew = new StreamManager(to);
+            if ((streamManager = streamManagers_.putIfAbsent(to, possibleNew)) == null)
+                streamManager = possibleNew;
         }
         return streamManager;
     }
@@ -79,7 +83,7 @@ public final class StreamManager
         {
             File file = filesToStream_.get(0);
             if (logger_.isDebugEnabled())
-              logger_.debug("Streaming file " + file + " ...");
+              logger_.debug("Streaming " + file.length() + " length file " + file + " ...");
             MessagingService.instance().stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to_);
         }
     }
