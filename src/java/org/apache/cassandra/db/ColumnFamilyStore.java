@@ -593,8 +593,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * onMemtableFlush() need not be invoked.
      *
      * param @ filename - filename just flushed to disk
-     * param @ bf - bloom filter which indicates the keys that are in this file.
-    */
+     */
     public void addSSTable(SSTableReader sstable)
     {
         ssTables_.add(sstable);
@@ -802,6 +801,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             throw new UnsupportedOperationException("disk full");
         }
+        if (target != null)
+        {
+            // compacting for streaming: send to subdirectory
+            compactionFileLocation = compactionFileLocation + File.separator + DatabaseDescriptor.STREAMING_SUBDIR;
+        }
         List<SSTableReader> results = new ArrayList<SSTableReader>();
 
         long startTime = System.currentTimeMillis();
@@ -829,10 +833,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     if (writer == null)
                     {
-                        if (target != null)
-                        {
-                            compactionFileLocation = compactionFileLocation + File.separator + DatabaseDescriptor.STREAMING_SUBDIR;
-                        }
                         FileUtils.createDirectory(compactionFileLocation);
                         String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
                         writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
