@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.dht;
 
+import java.math.BigInteger;
 import java.text.Collator;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -26,12 +27,15 @@ import java.util.Random;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesToken>
 {
     static final Collator collator = Collator.getInstance(new Locale("en", "US"));
 
     public static final BytesToken MINIMUM = new BytesToken(new byte[0]);
+    
+    public static final BigInteger BYTE_MASK = new BigInteger("255");
 
     /**
      * Comparators for decorated keys.
@@ -63,82 +67,51 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
         return comparator;
     }
 
-    /**
-     * @return A new byte array that will compare (via compareByteArrays)
-     * approximately halfway between the parameters.
-     */
-    private static byte[] midpoint(byte[] lbytes, byte[] rbytes)
-    {
-        // pad the arrays to equal length, for convenience
-        int inlength;
-        int comparison = FBUtilities.compareByteArrays(lbytes, rbytes);
-        if (comparison < 0)
-        {
-            inlength = Math.max(lbytes.length, rbytes.length);
-            if (lbytes.length < inlength)
-                lbytes = Arrays.copyOf(lbytes, inlength);
-            else if (rbytes.length < inlength)
-                rbytes = Arrays.copyOf(rbytes, inlength);
-        }
-        else
-        {
-            // wrapping range must involve the minimum token
-            assert Arrays.equals(MINIMUM.token, rbytes);
-
-            inlength = Math.max(lbytes.length, 1);
-            if (lbytes.length < inlength)
-                lbytes = Arrays.copyOf(lbytes, inlength);
-            rbytes = new byte[inlength];
-            Arrays.fill(rbytes, (byte)0xFF);
-        }
-
-        // if the lsbits of the two inputs are not equal we have to extend
-        // the result array to make room for a carried bit during the right shift
-        int outlength = (((int)lbytes[inlength-1] & 0x01) == ((int)rbytes[inlength-1] & 0x01))
-                        ? inlength
-                        : inlength+1;
-        byte[] result = new byte[outlength];
-        boolean carrying = false;
-
-        // perform the addition
-        for (int i = inlength-1; i >= 0; i--)
-        {
-            // initialize the lsbit if we're carrying
-            int sum = carrying ? 1 : 0;
-
-            // remove the sign bit, and sum left and right
-            sum += (lbytes[i] & 0xFF) + (rbytes[i] & 0xFF);
-            
-            // see if we'll need to carry
-            carrying = sum > 0xFF;
-
-            // set to the sum (truncating the msbit)
-            result[i] = (byte)sum;
-        }
-        // the carried bit from addition will be shifted in as the msbit
-
-        // perform the division (as a right shift)
-        for (int i = 0; i < inlength; i++)
-        {
-            // initialize the msbit if we're carrying
-            byte shifted = (byte)(carrying ? 0x80 : 0x00);
-
-            // check the lsbit to see if we'll need to continue carrying
-            carrying = (result[i] & 0x01) == 0x01;
-
-            // OR the right shifted value into the result byte
-            result[i] = (byte)(shifted | ((result[i] & 0xFF) >>> 1));
-        }
-
-        if (carrying)
-            // the last byte in the result array
-            result[inlength] |= 0x80;
-        return result;
-    }
-
     public BytesToken midpoint(BytesToken ltoken, BytesToken rtoken)
     {
-        return new BytesToken(midpoint(ltoken.token, rtoken.token));
+        int sigbytes = Math.max(ltoken.token.length, rtoken.token.length);
+        BigInteger left = bigForBytes(ltoken.token, sigbytes);
+        BigInteger right = bigForBytes(rtoken.token, sigbytes);
+
+        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 8*sigbytes);
+        return new BytesToken(bytesForBig(midpair.left, sigbytes, midpair.right));
+    }
+
+    /**
+     * Convert a byte array containing the most significant of 'sigbytes' bytes
+     * representing a big-endian magnitude into a BigInteger.
+     */
+    private BigInteger bigForBytes(byte[] bytes, int sigbytes)
+    {
+        if (bytes.length != sigbytes)
+        {
+            // append zeros
+            bytes = Arrays.copyOf(bytes, sigbytes);
+        }
+        return new BigInteger(1, bytes);
+    }
+
+    /**
+     * Convert a (positive) BigInteger into a byte array representing its magnitude.
+     * If remainder is true, an additional byte with the high order bit enabled
+     * will be added to the end of the array
+     */
+    private byte[] bytesForBig(BigInteger big, int sigbytes, boolean remainder)
+    {
+        byte[] bytes = new byte[sigbytes + (remainder ? 1 : 0)];
+        if (remainder)
+        {
+            // remaining bit is the most significant in the last byte
+            bytes[sigbytes] |= 0x80;
+        }
+        // bitmask for a single byte
+        for (int i = 0; i < sigbytes; i++)
+        {
+            int maskpos = 8 * (sigbytes - (i + 1));
+            // apply bitmask and get byte value
+            bytes[i] = (byte)(big.and(BYTE_MASK.shiftLeft(maskpos)).shiftRight(maskpos).intValue() & 0xFF);
+        }
+        return bytes;
     }
 
     public BytesToken getMinimumToken()

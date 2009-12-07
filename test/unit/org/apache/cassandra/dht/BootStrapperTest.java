@@ -124,9 +124,7 @@ public class BootStrapperTest
         for (int i = 1; i <= numOldNodes; i++)
         {
             // leave .1 for myEndpoint
-            // TODO use this when #519 is fixed
-            // tmd.update(p.getRandomToken(), InetAddress.getByName("127.0.0." + (i + 1)));
-            tmd.update(p.getToken(FBUtilities.bytesToHex(FBUtilities.toByteArray(i * 13))), InetAddress.getByName("127.0.0." + (i + 1)));
+            tmd.update(p.getRandomToken(), InetAddress.getByName("127.0.0." + (i + 1)));
         }
     }
 }

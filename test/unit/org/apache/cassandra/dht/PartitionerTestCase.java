@@ -18,6 +18,8 @@
 */
 package org.apache.cassandra.dht;
 
+import java.util.Random;
+
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Before;
@@ -28,37 +30,43 @@ import org.apache.cassandra.db.DecoratedKey;
 public abstract class PartitionerTestCase<T extends Token> {
     protected IPartitioner<T> partitioner;
 
-    public abstract IPartitioner<T> getPartitioner();
-    public abstract T tok(String string);
-    public abstract String tos(T token);
+    public abstract void initPartitioner();
 
     @Before
     public void clean()
     {
-        this.partitioner = this.getPartitioner();
+        initPartitioner();
     }
 
-    @Test
-    public void testCompare()
+    public T tok(String string)
     {
-        assert tok("").compareTo(tok("asdf")) < 0;
-        assert tok("asdf").compareTo(tok("")) > 0;
-        assert tok("").compareTo(tok("")) == 0;
-        assert tok("z").compareTo(tok("a")) > 0;
-        assert tok("a").compareTo(tok("z")) < 0;
-        assert tok("asdf").compareTo(tok("asdf")) == 0;
-        assert tok("asdz").compareTo(tok("asdf")) > 0;
+        return partitioner.getToken(string);
     }
 
+    /**
+     * Recurses randomly to the given depth a few times.
+     */
     public void assertMidpoint(T left, T right, int depth)
     {
-        T mid = this.partitioner.midpoint(left, right);
+        Random rand = new Random();
+        for (int i = 0; i < 1000; i++)
+        {
+            assertMidpoint(left, right, rand, depth);
+        }
+    }
+
+    private void assertMidpoint(T left, T right, Random rand, int depth)
+    {
+        T mid = partitioner.midpoint(left, right);
         assert new Range(left, right).contains(mid)
-                : "For " + tos(left) + "," + tos(right) + ": range did not contain mid:" + tos(mid);
-        if (depth > 0)
-            assertMidpoint(left, mid, depth-1);
-        if (depth > 0)
-            assertMidpoint(mid, right, depth-1);
+                : "For " + left + "," + right + ": range did not contain mid:" + mid;
+        if (depth < 1)
+            return;
+
+        if (rand.nextBoolean())
+            assertMidpoint(left, mid, rand, depth-1);
+        else
+            assertMidpoint(mid, right, rand, depth-1);
     }
 
     @Test
@@ -71,15 +79,19 @@ public abstract class PartitionerTestCase<T extends Token> {
     @Test
     public void testMidpointMinimum()
     {
-        assertMidpoint(tok(""), tok("a"), 16);
-        assertMidpoint(tok(""), tok("aaa"), 16);
+        T mintoken = partitioner.getMinimumToken(); 
+        assert mintoken.compareTo(partitioner.midpoint(mintoken, mintoken)) != 0;
+        assertMidpoint(mintoken, tok("a"), 16);
+        assertMidpoint(mintoken, tok("aaa"), 16);
+        assertMidpoint(mintoken, mintoken, 126);
+        assertMidpoint(tok("a"), mintoken, 16);
     }
 
     @Test
     public void testMidpointWrapping()
     {
-        assertMidpoint(tok(""), tok(""), 16);
-        assertMidpoint(tok("a"), tok(""), 16);
+        assertMidpoint(tok("b"), tok("a"), 16);
+        assertMidpoint(tok("bbb"), tok("a"), 16);
     }
     
     @Test
@@ -94,14 +106,14 @@ public abstract class PartitionerTestCase<T extends Token> {
     @Test
     public void testTokenFactoryBytes()
     {
-        Token.TokenFactory factory = this.partitioner.getTokenFactory();
+        Token.TokenFactory factory = partitioner.getTokenFactory();
         assert tok("a").compareTo(factory.fromByteArray(factory.toByteArray(tok("a")))) == 0;
     }
     
     @Test
     public void testTokenFactoryStrings()
     {
-        Token.TokenFactory factory = this.partitioner.getTokenFactory();
+        Token.TokenFactory factory = partitioner.getTokenFactory();
         assert tok("a").compareTo(factory.fromString(factory.toString(tok("a")))) == 0;
     }
 }

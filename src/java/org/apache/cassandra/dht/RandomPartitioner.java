@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * This class generates a BigIntegerToken using MD5 hash.
@@ -33,7 +34,6 @@ import org.apache.cassandra.utils.GuidGenerator;
 public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 {
     public static final BigInteger TWO = new BigInteger("2");
-    public static final BigInteger MD5_MAX = TWO.pow(127);
 
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
 
@@ -80,22 +80,9 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)
     {
-        BigInteger left = ltoken.token;
-        BigInteger right = rtoken.token;
-
-        BigInteger midpoint;
-        if (left.compareTo(right) < 0)
-        {
-            midpoint = left.add(right).divide(TWO);
-        }
-        else
-        {
-            // wrapping case
-            BigInteger distance = MD5_MAX.add(right).subtract(left);
-            BigInteger unchecked = distance.divide(TWO).add(left);
-            midpoint = (unchecked.compareTo(MD5_MAX) > 0) ? unchecked.subtract(MD5_MAX) : unchecked;
-        }
-        return new BigIntegerToken(midpoint);
+        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(ltoken.token, rtoken.token, 127);
+        // discard the remainder
+        return new BigIntegerToken(midpair.left);
     }
 
 	public BigIntegerToken getMinimumToken()

@@ -19,16 +19,21 @@
 package org.apache.cassandra.dht;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 {
     public static final StringToken MINIMUM = new StringToken("");
+
+    public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
     /**
      * Comparators for decorated keys.
@@ -61,102 +66,53 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         return comparator;
     }
 
-    /**
-     * Copies the given string into a char array, padding the end
-     * with empty chars up to length.
-     */
-    private static char[] getChars(String str, int length)
-    {
-        char[] chars;
-        if (str.length() < length)
-        {
-            chars = new char[length];
-            str.getChars(0, str.length(), chars, 0);
-        }
-        else if (str.length() == length)
-        {
-            chars = str.toCharArray();
-        }
-        else
-            throw new RuntimeException("Cannot truncate string of length " + str.length() + " to length " + length);
-        return chars;
-    }
-
-    /**
-     * @return A new String array that will compare
-     * approximately halfway between the parameters.
-     */
-    private static String midpoint(String left, String right)
-    {
-        int inlength;
-        char[] lchars;
-        char[] rchars;
-        int comparison = left.compareTo(right);
-        if (comparison < 0)
-        {
-            inlength = Math.max(left.length(), right.length());
-            lchars = getChars(left, inlength);
-            rchars = getChars(right, inlength);
-        }
-        else
-        {
-            // wrapping range must involve the minimum token
-            assert MINIMUM.token.equals(right);
-            
-            inlength = Math.max(left.length(), 1);
-            lchars = getChars(left, inlength);
-            rchars = new char[inlength];
-            Arrays.fill(rchars, (char)0xFFFF);
-        }
-
-
-        // if the lsbits of the two inputs are not equal we have to extend
-        // the result array to make room for a carried bit during the right shift
-        int outlength = (((int)lchars[inlength-1] & 0x0001) == ((int)rchars[inlength-1] & 0x0001))
-                        ? inlength
-                        : inlength+1;
-        char[] result = new char[outlength];
-        boolean carrying = false;
-
-        // perform the addition
-        for (int i = inlength-1; i >= 0; i--)
-        {
-            // initialize the lsbit if we're carrying
-            int sum = carrying ? 0x0001 : 0x0000;
-
-            // remove the sign bit, and sum left and right
-            sum += (lchars[i] & 0xFFFF) + (rchars[i] & 0xFFFF);
-            
-            // see if we'll need to carry
-            carrying = sum > 0xFFFF;
-
-            // set to the sum (truncating the msbit)
-            result[i] = (char)sum;
-        }
-        // the carried bit from addition will be shifted in as the msbit
-
-        // perform the division (as a right shift)
-        for (int i = 0; i < inlength; i++)
-        {
-            // initialize the msbit if we're carrying
-            char shifted = (char)(carrying ? 0x8000 : 0x0000);
-
-            // check the lsbit to see if we'll need to continue carrying
-            carrying = (result[i] & 0x0001) == 0x0001;
-
-            // OR the right shifted value into the result char
-            result[i] = (char)(shifted | ((result[i] & 0xFFFF) >>> 1));
-        }
-
-        if (carrying)
-            // the last char in the result array
-            result[inlength] |= 0x8000;
-        return new String(result);
-    }
-
     public StringToken midpoint(StringToken ltoken, StringToken rtoken)
     {
-        return new StringToken(midpoint(ltoken.token, rtoken.token));
+        int sigchars = Math.max(ltoken.token.length(), rtoken.token.length());
+        BigInteger left = bigForString(ltoken.token, sigchars);
+        BigInteger right = bigForString(rtoken.token, sigchars);
+
+        Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 16*sigchars);
+        return new StringToken(stringForBig(midpair.left, sigchars, midpair.right));
+    }
+
+    /**
+     * Copies the characters of the given string into a BigInteger.
+     *
+     * TODO: Does not acknowledge any codepoints above 0xFFFF... problem?
+     */
+    private static BigInteger bigForString(String str, int sigchars)
+    {
+        assert str.length() <= sigchars;
+
+        BigInteger big = BigInteger.ZERO;
+        for (int i = 0; i < str.length(); i++)
+        {
+            int charpos = 16 * (sigchars - (i + 1));
+            BigInteger charbig = BigInteger.valueOf(str.charAt(i) & 0xFFFF);
+            big = big.or(charbig.shiftLeft(charpos));
+        }
+        return big;
+    }
+
+    /**
+     * Convert a (positive) BigInteger into a String.
+     * If remainder is true, an additional char with the high order bit enabled
+     * will be added to the end of the String.
+     */
+    private String stringForBig(BigInteger big, int sigchars, boolean remainder)
+    {
+        char[] chars = new char[sigchars + (remainder ? 1 : 0)];
+        if (remainder)
+            // remaining bit is the most significant in the last char
+            chars[sigchars] |= 0x8000;
+        for (int i = 0; i < sigchars; i++)
+        {
+            int maskpos = 16 * (sigchars - (i + 1));
+            // apply bitmask and get char value
+            chars[i] = (char)(big.and(CHAR_MASK.shiftLeft(maskpos)).shiftRight(maskpos).intValue() & 0xFFFF);
+        }
+        return new String(chars);
     }
 
     public StringToken getMinimumToken()

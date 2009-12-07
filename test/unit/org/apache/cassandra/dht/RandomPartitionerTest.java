@@ -26,16 +26,10 @@ import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.db.DecoratedKey;
 import org.junit.Test;
 
-public class RandomPartitionerTest
+public class RandomPartitionerTest extends PartitionerTestCase<BigIntegerToken>
 {
-
-    @Test
-    public void testDiskFormat()
+    public void initPartitioner()
     {
-        RandomPartitioner part = new RandomPartitioner();
-        String key = "key";
-        DecoratedKey decKey = part.decorateKey(key);
-        DecoratedKey result = part.convertFromDiskFormat(part.convertToDiskFormat(decKey));
-        assertEquals(decKey, result);
+        partitioner = new RandomPartitioner();
     }
 }

@@ -24,29 +24,9 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class CollatingOrderPreservingPartitionerTest extends PartitionerTestCase<BytesToken> {
     @Override
-    public IPartitioner<BytesToken> getPartitioner()
+    public void initPartitioner()
     {
-        return new CollatingOrderPreservingPartitioner();
-    }
-
-    @Override
-    public BytesToken tok(String string)
-    {
-        // we just need some kind of byte array
-        try
-        {
-            return new BytesToken(string.getBytes("US-ASCII"));
-        }
-        catch(Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public String tos(BytesToken token)
-    {
-        return FBUtilities.bytesToHex(token.token);
+        partitioner = new CollatingOrderPreservingPartitioner();
     }
 
     /**
@@ -58,5 +38,17 @@ public class CollatingOrderPreservingPartitionerTest extends PartitionerTestCase
         Token.TokenFactory factory = this.partitioner.getTokenFactory();
         BytesToken tok = new BytesToken((byte)0xFF, (byte)0xFF);
         assert tok.compareTo(factory.fromString(factory.toString(tok))) == 0;
+    }
+
+    @Test
+    public void testCompare()
+    {
+        assert tok("").compareTo(tok("asdf")) < 0;
+        assert tok("asdf").compareTo(tok("")) > 0;
+        assert tok("").compareTo(tok("")) == 0;
+        assert tok("z").compareTo(tok("a")) > 0;
+        assert tok("a").compareTo(tok("z")) < 0;
+        assert tok("asdf").compareTo(tok("asdf")) == 0;
+        assert tok("asdz").compareTo(tok("asdf")) > 0;
     }
 }

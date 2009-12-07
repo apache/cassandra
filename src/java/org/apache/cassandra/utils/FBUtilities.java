@@ -36,6 +36,8 @@ public class FBUtilities
 {
     private static Logger logger_ = Logger.getLogger(FBUtilities.class);
 
+    public static final BigInteger TWO = new BigInteger("2");
+
     private static InetAddress localInetAddress_;
 
     public static String[] strip(String string, String token)
@@ -64,7 +66,38 @@ public class FBUtilities
             }
         return localInetAddress_;
     }
-    
+
+    /**
+     * Given two bit arrays represented as BigIntegers, containing the given
+     * number of significant bits, calculate a midpoint.
+     *
+     * @param left The left point.
+     * @param right The right point.
+     * @param sigbits The number of bits in the points that are significant.
+     * @return A midpoint that will compare bitwise halfway between the params, and
+     * a boolean representing whether a non-zero lsbit remainder was generated.
+     */
+    public static Pair<BigInteger,Boolean> midpoint(BigInteger left, BigInteger right, int sigbits)
+    {
+        BigInteger midpoint;
+        boolean remainder;
+        if (left.compareTo(right) < 0)
+        {
+            BigInteger sum = left.add(right);
+            remainder = sum.testBit(0);
+            midpoint = sum.shiftRight(1);
+        }
+        else
+        {
+            BigInteger max = TWO.pow(sigbits);
+            // wrapping case
+            BigInteger distance = max.add(right).subtract(left);
+            remainder = distance.testBit(0);
+            midpoint = distance.shiftRight(1).add(left).mod(max);
+        }
+        return new Pair(midpoint, remainder);
+    }
+
     public static byte[] toByteArray(int i)
     {
         byte[] bytes = new byte[4];
@@ -141,8 +174,7 @@ public class FBUtilities
     	}
     	catch (Exception e)
         {
-    		if (logger_.isDebugEnabled())
-                logger_.debug(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
     	}
     	return result;
 	}
@@ -167,7 +199,6 @@ public class FBUtilities
             bos.write(buf, 0, count);
         }
     }
-
 
     public static byte[] decompress(byte[] compressedData, int off, int len) throws IOException, DataFormatException
     {
@@ -208,7 +239,7 @@ public class FBUtilities
         return bytes;
     }
 
-    public static String bytesToHex(byte[] bytes)
+    public static String bytesToHex(byte... bytes)
     {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes)

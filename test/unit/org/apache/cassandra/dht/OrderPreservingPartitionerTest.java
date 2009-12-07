@@ -27,20 +27,20 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class OrderPreservingPartitionerTest extends PartitionerTestCase<StringToken> {
     @Override
-    public IPartitioner<StringToken> getPartitioner()
+    public void initPartitioner()
     {
-        return new OrderPreservingPartitioner();
+        partitioner = new OrderPreservingPartitioner();
     }
 
-    @Override
-    public StringToken tok(String string)
+    @Test
+    public void testCompare()
     {
-        return new StringToken(string);
-    }
-
-    @Override
-    public String tos(StringToken token)
-    {
-        return FBUtilities.bytesToHex(token.token.getBytes());
+        assert tok("").compareTo(tok("asdf")) < 0;
+        assert tok("asdf").compareTo(tok("")) > 0;
+        assert tok("").compareTo(tok("")) == 0;
+        assert tok("z").compareTo(tok("a")) > 0;
+        assert tok("a").compareTo(tok("z")) < 0;
+        assert tok("asdf").compareTo(tok("asdf")) == 0;
+        assert tok("asdz").compareTo(tok("asdf")) > 0;
     }
 }
