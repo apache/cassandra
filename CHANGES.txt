@@ -16,6 +16,8 @@
  * make consistency_level functional in get_range_slice (CASSANDRA-568)
  * optimize key deserialization for RandomPartitioner (CASSANDRA-581)
  * avoid GCing tombstones except on major compaction (CASSANDRA-604)
+ * increase failure conviction threshold, resulting in less nodes
+   incorrectly (and temporarily) marked as down (CASSANDRA-610)
 
 
 0.5.0 beta

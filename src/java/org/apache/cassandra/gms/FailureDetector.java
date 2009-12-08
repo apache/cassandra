@@ -45,7 +45,6 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {
     private static Logger logger_ = Logger.getLogger(FailureDetector.class);
     private static final int sampleSize_ = 1000;
-    private static final int phiSuspectThreshold_ = 5;
     private static final int phiConvictThreshold_ = 8;
     /* The Failure Detector has to have been up for at least 1 min. */
     private static final long uptimeThreshold_ = 60000;
@@ -169,27 +168,15 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return;
         }
         long now = System.currentTimeMillis();
-        /* We need this so that we do not suspect a convict. */
-        boolean isConvicted = false;
         double phi = hbWnd.phi(now);
         if (logger_.isTraceEnabled())
             logger_.trace("PHI for " + ep + " : " + phi);
         
-        /*
         if ( phi > phiConvictThreshold_ )
-        {            
-            isConvicted = true;     
-            for ( IFailureDetectionEventListener listener : fdEvntListeners_ )
-            {
-                listener.convict(ep);                
-            }
-        }
-        */
-        if ( !isConvicted && phi > phiSuspectThreshold_ )
         {     
             for ( IFailureDetectionEventListener listener : fdEvntListeners_ )
             {
-                listener.suspect(ep);
+                listener.convict(ep);
             }
         }        
     }

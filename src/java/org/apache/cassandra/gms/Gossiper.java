@@ -186,32 +186,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
      *
      * param @ endpoint end point that is convicted.
     */
-
     public void convict(InetAddress endpoint)
-    {
-        EndPointState epState = endPointStateMap_.get(endpoint);
-        if (epState != null)
-        {
-            if (!epState.isAlive() && epState.isAGossiper())
-            {
-                // just to be sure - should already have been done by suspect()
-                if (liveEndpoints_.contains(endpoint))
-                {
-                    logger_.info("InetAddress " + endpoint + " is now dead.");
-                    isAlive(endpoint, epState, false);
-                }
-                epState.isAGossiper(false);
-            }
-        }
-    }
-
-    /**
-     * This method is part of IFailureDetectionEventListener interface. This is invoked
-     * by the Failure Detector when it suspects an end point.
-     *
-     * param @ endpoint end point that is suspected.
-    */
-    public void suspect(InetAddress endpoint)
     {
         EndPointState epState = endPointStateMap_.get(endpoint);
         if (epState.isAlive())
