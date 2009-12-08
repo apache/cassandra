@@ -42,6 +42,9 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * A specific column was requested that does not exist.
+ */
 public class NotFoundException extends Exception implements TBase, java.io.Serializable, Cloneable, Comparable<NotFoundException> {
   private static final TStruct STRUCT_DESC = new TStruct("NotFoundException");
 

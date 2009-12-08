@@ -42,6 +42,13 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * Basic unit of data within a ColumnFamily.
+ * @param name. A column name can act both as structure (a label) or as data (like value). Regardless, the name of the column
+ *        is used as a key to its value.
+ * @param value. Some data
+ * @param timestamp. Used to record when data was sent to be written.
+ */
 public class Column implements TBase, java.io.Serializable, Cloneable, Comparable<Column> {
   private static final TStruct STRUCT_DESC = new TStruct("Column");
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);

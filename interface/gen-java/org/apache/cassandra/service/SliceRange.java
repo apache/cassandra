@@ -42,6 +42,22 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * A slice range is a structure that stores basic range, ordering and limit information for a query that will return
+ * multiple columns. It could be thought of as Cassandra's version of LIMIT and ORDER BY
+ * 
+ * @param start. The column name to start the slice with. This attribute is not required, though there is no default value,
+ *               and can be safely set to '', i.e., an empty byte array, to start with the first column name. Otherwise, it
+ *               must a valid value under the rules of the Comparator defined for the given ColumnFamily.
+ * @param finish. The column name to stop the slice at. This attribute is not required, though there is no default value,
+ *                and can be safely set to an empty byte array to not stop until 'count' results are seen. Otherwise, it
+ *                must also be a value value to the ColumnFamily Comparator.
+ * @param reversed. Whether the results should be ordered in reversed order. Similar to ORDER BY blah DESC in SQL.
+ * @param count. How many keys to return. Similar to LIMIT 100 in SQL. May be arbitrarily large, but Thrift will
+ *               materialize the whole result into memory before returning it to the client, so be aware that you may
+ *               be better served by iterating through slices by passing the last value of one call in as the 'start'
+ *               of the next instead of increasing 'count' arbitrarily large.
+ */
 public class SliceRange implements TBase, java.io.Serializable, Cloneable, Comparable<SliceRange> {
   private static final TStruct STRUCT_DESC = new TStruct("SliceRange");
   private static final TField START_FIELD_DESC = new TField("start", TType.STRING, (short)1);

@@ -42,6 +42,9 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * Not all the replicas required could be created and/or read.
+ */
 public class UnavailableException extends Exception implements TBase, java.io.Serializable, Cloneable, Comparable<UnavailableException> {
   private static final TStruct STRUCT_DESC = new TStruct("UnavailableException");
 

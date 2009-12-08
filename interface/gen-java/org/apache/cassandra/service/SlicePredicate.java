@@ -42,6 +42,18 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * A SlicePredicate is similar to a mathematic predicate (see http://en.wikipedia.org/wiki/Predicate_(mathematical_logic)),
+ * which is described as "a property that the elements of a set have in common."
+ * 
+ * SlicePredicate's in Cassandra are described with either a list of column_names or a SliceRange.  If column_names is
+ * specified, slice_range is ignored.
+ * 
+ * @param column_name. A list of column names to retrieve. This can be used similar to Memcached's "multi-get" feature
+ *                     to fetch N known column names. For instance, if you know you wish to fetch columns 'Joe', 'Jack',
+ *                     and 'Jim' you can pass those column names as a list to fetch all three at once.
+ * @param slice_range. A SliceRange describing how to range, order, and/or limit the slice.
+ */
 public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, Comparable<SlicePredicate> {
   private static final TStruct STRUCT_DESC = new TStruct("SlicePredicate");
   private static final TField COLUMN_NAMES_FIELD_DESC = new TField("column_names", TType.LIST, (short)1);
@@ -103,6 +115,21 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
   @Deprecated
   public SlicePredicate clone() {
     return new SlicePredicate(this);
+  }
+
+  public int getColumn_namesSize() {
+    return (this.column_names == null) ? 0 : this.column_names.size();
+  }
+
+  public java.util.Iterator<byte[]> getColumn_namesIterator() {
+    return (this.column_names == null) ? null : this.column_names.iterator();
+  }
+
+  public void addToColumn_names(byte[] elem) {
+    if (this.column_names == null) {
+      this.column_names = new ArrayList<byte[]>();
+    }
+    this.column_names.add(elem);
   }
 
   public List<byte[]> getColumn_names() {

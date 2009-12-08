@@ -42,6 +42,13 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * A KeySlice is key followed by the data it maps to. A collection of KeySlice is returned by the get_range_slice operation.
+ * 
+ * @param key. a row key
+ * @param columns. List of data represented by the key. Typically, the list is pared down to only the columns specified by
+ *                 a SlicePredicate.
+ */
 public class KeySlice implements TBase, java.io.Serializable, Cloneable, Comparable<KeySlice> {
   private static final TStruct STRUCT_DESC = new TStruct("KeySlice");
   private static final TField KEY_FIELD_DESC = new TField("key", TType.STRING, (short)1);
@@ -125,6 +132,21 @@ public class KeySlice implements TBase, java.io.Serializable, Cloneable, Compara
     if (!value) {
       this.key = null;
     }
+  }
+
+  public int getColumnsSize() {
+    return (this.columns == null) ? 0 : this.columns.size();
+  }
+
+  public java.util.Iterator<ColumnOrSuperColumn> getColumnsIterator() {
+    return (this.columns == null) ? null : this.columns.iterator();
+  }
+
+  public void addToColumns(ColumnOrSuperColumn elem) {
+    if (this.columns == null) {
+      this.columns = new ArrayList<ColumnOrSuperColumn>();
+    }
+    this.columns.add(elem);
   }
 
   public List<ColumnOrSuperColumn> getColumns() {

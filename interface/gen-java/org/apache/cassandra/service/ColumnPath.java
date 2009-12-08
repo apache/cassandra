@@ -42,6 +42,16 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * The ColumnPath is the path to a single column in Cassandra. It might make sense to think of ColumnPath and
+ * ColumnParent in terms of a directory structure.
+ * 
+ * ColumnPath is used to looking up a single column.
+ * 
+ * @param column_family. The name of the CF of the column being looked up.
+ * @param super_column. The super column name.
+ * @param column. The column name.
+ */
 public class ColumnPath implements TBase, java.io.Serializable, Cloneable, Comparable<ColumnPath> {
   private static final TStruct STRUCT_DESC = new TStruct("ColumnPath");
   private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);

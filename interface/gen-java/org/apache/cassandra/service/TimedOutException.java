@@ -42,6 +42,9 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * RPC timeout was exceeded.  either a node failed mid-operation, or load was too high, or the requested op was too large.
+ */
 public class TimedOutException extends Exception implements TBase, java.io.Serializable, Cloneable, Comparable<TimedOutException> {
   private static final TStruct STRUCT_DESC = new TStruct("TimedOutException");
 

@@ -42,6 +42,12 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * ColumnParent is used when selecting groups of columns from the same ColumnFamily. In directory structure terms, imagine
+ * ColumnParent as ColumnPath + '/../'.
+ * 
+ * See also <a href="cassandra.html#Struct_ColumnPath">ColumnPath</a>
+ */
 public class ColumnParent implements TBase, java.io.Serializable, Cloneable, Comparable<ColumnParent> {
   private static final TStruct STRUCT_DESC = new TStruct("ColumnParent");
   private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);

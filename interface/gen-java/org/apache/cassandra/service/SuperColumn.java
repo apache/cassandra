@@ -42,6 +42,12 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
+/**
+ * A named list of columns.
+ * @param name. see Column.name.
+ * @param columns. A collection of standard Columns.  The columns within a super column are defined in an adhoc manner.
+ *                 Columns within a super column do not have to have matching structures (similarly named child columns).
+ */
 public class SuperColumn implements TBase, java.io.Serializable, Cloneable, Comparable<SuperColumn> {
   private static final TStruct STRUCT_DESC = new TStruct("SuperColumn");
   private static final TField NAME_FIELD_DESC = new TField("name", TType.STRING, (short)1);
@@ -126,6 +132,21 @@ public class SuperColumn implements TBase, java.io.Serializable, Cloneable, Comp
     if (!value) {
       this.name = null;
     }
+  }
+
+  public int getColumnsSize() {
+    return (this.columns == null) ? 0 : this.columns.size();
+  }
+
+  public java.util.Iterator<Column> getColumnsIterator() {
+    return (this.columns == null) ? null : this.columns.iterator();
+  }
+
+  public void addToColumns(Column elem) {
+    if (this.columns == null) {
+      this.columns = new ArrayList<Column>();
+    }
+    this.columns.add(elem);
   }
 
   public List<Column> getColumns() {

@@ -46,14 +46,60 @@ public class Cassandra {
 
   public interface Iface {
 
+    /**
+     * Get the Column or SuperColumn at the given column_path. If no value is present, NotFoundException is thrown. (This is
+     * the only method that can throw an exception under non-failure conditions.)
+     * 
+     * @param keyspace
+     * @param key
+     * @param column_path
+     * @param consistency_level
+     */
     public ColumnOrSuperColumn get(String keyspace, String key, ColumnPath column_path, int consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * Get the group of columns contained by column_parent (either a ColumnFamily name or a ColumnFamily/SuperColumn name
+     * pair) specified by the given SlicePredicate. If no matching values are found, an empty list is returned.
+     * 
+     * @param keyspace
+     * @param key
+     * @param column_parent
+     * @param predicate
+     * @param consistency_level
+     */
     public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * Perform a get for column_path in parallel on the given list<string> keys. The return value maps keys to the
+     * ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
+     * the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.
+     * 
+     * @param keyspace
+     * @param keys
+     * @param column_path
+     * @param consistency_level
+     */
     public Map<String,ColumnOrSuperColumn> multiget(String keyspace, List<String> keys, ColumnPath column_path, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * Performs a get_slice for column_parent and predicate for the given keys in parallel.
+     * 
+     * @param keyspace
+     * @param keys
+     * @param column_parent
+     * @param predicate
+     * @param consistency_level
+     */
     public Map<String,List<ColumnOrSuperColumn>> multiget_slice(String keyspace, List<String> keys, ColumnParent column_parent, SlicePredicate predicate, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * returns the number of columns for a particular <code>key</code> and <code>ColumnFamily</code> or <code>SuperColumn</code>.
+     * 
+     * @param keyspace
+     * @param key
+     * @param column_parent
+     * @param consistency_level
+     */
     public int get_count(String keyspace, String key, ColumnParent column_parent, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
@@ -68,18 +114,77 @@ public class Cassandra {
      */
     public List<String> get_key_range(String keyspace, String column_family, String start, String finish, int count, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * returns a subset of columns for a range of keys.
+     * 
+     * @param keyspace
+     * @param column_parent
+     * @param predicate
+     * @param start_key
+     * @param finish_key
+     * @param row_count
+     * @param consistency_level
+     */
     public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int row_count, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * Insert a Column consisting of (column_path.column, value, timestamp) at the given column_path.column_family and optional
+     * column_path.super_column. Note that column_path.column is here required, since a SuperColumn cannot directly contain binary
+     * values -- it can only contain sub-Columns.
+     * 
+     * @param keyspace
+     * @param key
+     * @param column_path
+     * @param value
+     * @param timestamp
+     * @param consistency_level
+     */
     public void insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * Insert Columns or SuperColumns across different Column Families for the same row key. batch_mutation is a
+     * map<string, list<ColumnOrSuperColumn>> -- a map which pairs column family names with the relevant ColumnOrSuperColumn
+     * objects to insert.
+     * 
+     * @param keyspace
+     * @param key
+     * @param cfmap
+     * @param consistency_level
+     */
     public void batch_insert(String keyspace, String key, Map<String,List<ColumnOrSuperColumn>> cfmap, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
+     * that all the values in column_path besides column_path.column_family are truly optional: you can remove the entire
+     * row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
+     * 
+     * @param keyspace
+     * @param key
+     * @param column_path
+     * @param timestamp
+     * @param consistency_level
+     */
     public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     * get property whose value is of type string.
+     * 
+     * @param property
+     */
     public String get_string_property(String property) throws TException;
 
+    /**
+     * get property whose value is list of strings.
+     * 
+     * @param property
+     */
     public List<String> get_string_list_property(String property) throws TException;
 
+    /**
+     * describe specified keyspace
+     * 
+     * @param keyspace
+     */
     public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException;
 
   }
@@ -2842,6 +2947,21 @@ public class Cassandra {
       return new get_slice_result(this);
     }
 
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<ColumnOrSuperColumn> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(ColumnOrSuperColumn elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<ColumnOrSuperColumn>();
+      }
+      this.success.add(elem);
+    }
+
     public List<ColumnOrSuperColumn> getSuccess() {
       return this.success;
     }
@@ -3370,6 +3490,21 @@ public class Cassandra {
       }
     }
 
+    public int getKeysSize() {
+      return (this.keys == null) ? 0 : this.keys.size();
+    }
+
+    public java.util.Iterator<String> getKeysIterator() {
+      return (this.keys == null) ? null : this.keys.iterator();
+    }
+
+    public void addToKeys(String elem) {
+      if (this.keys == null) {
+        this.keys = new ArrayList<String>();
+      }
+      this.keys.add(elem);
+    }
+
     public List<String> getKeys() {
       return this.keys;
     }
@@ -3877,6 +4012,17 @@ public class Cassandra {
       return new multiget_result(this);
     }
 
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(String key, ColumnOrSuperColumn val) {
+      if (this.success == null) {
+        this.success = new HashMap<String,ColumnOrSuperColumn>();
+      }
+      this.success.put(key, val);
+    }
+
     public Map<String,ColumnOrSuperColumn> getSuccess() {
       return this.success;
     }
@@ -4373,6 +4519,21 @@ public class Cassandra {
       if (!value) {
         this.keyspace = null;
       }
+    }
+
+    public int getKeysSize() {
+      return (this.keys == null) ? 0 : this.keys.size();
+    }
+
+    public java.util.Iterator<String> getKeysIterator() {
+      return (this.keys == null) ? null : this.keys.iterator();
+    }
+
+    public void addToKeys(String elem) {
+      if (this.keys == null) {
+        this.keys = new ArrayList<String>();
+      }
+      this.keys.add(elem);
     }
 
     public List<String> getKeys() {
@@ -4962,6 +5123,17 @@ public class Cassandra {
     @Deprecated
     public multiget_slice_result clone() {
       return new multiget_slice_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(String key, List<ColumnOrSuperColumn> val) {
+      if (this.success == null) {
+        this.success = new HashMap<String,List<ColumnOrSuperColumn>>();
+      }
+      this.success.put(key, val);
     }
 
     public Map<String,List<ColumnOrSuperColumn>> getSuccess() {
@@ -7099,6 +7271,21 @@ public class Cassandra {
       return new get_key_range_result(this);
     }
 
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<String> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(String elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<String>();
+      }
+      this.success.add(elem);
+    }
+
     public List<String> getSuccess() {
       return this.success;
     }
@@ -8363,6 +8550,21 @@ public class Cassandra {
     @Deprecated
     public get_range_slice_result clone() {
       return new get_range_slice_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<KeySlice> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(KeySlice elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<KeySlice>();
+      }
+      this.success.add(elem);
     }
 
     public List<KeySlice> getSuccess() {
@@ -10001,6 +10203,17 @@ public class Cassandra {
       if (!value) {
         this.key = null;
       }
+    }
+
+    public int getCfmapSize() {
+      return (this.cfmap == null) ? 0 : this.cfmap.size();
+    }
+
+    public void putToCfmap(String key, List<ColumnOrSuperColumn> val) {
+      if (this.cfmap == null) {
+        this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>();
+      }
+      this.cfmap.put(key, val);
     }
 
     public Map<String,List<ColumnOrSuperColumn>> getCfmap() {
@@ -12457,6 +12670,21 @@ public class Cassandra {
       return new get_string_list_property_result(this);
     }
 
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<String> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(String elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<String>();
+      }
+      this.success.add(elem);
+    }
+
     public List<String> getSuccess() {
       return this.success;
     }
@@ -12953,6 +13181,17 @@ public class Cassandra {
     @Deprecated
     public describe_keyspace_result clone() {
       return new describe_keyspace_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public void putToSuccess(String key, Map<String,String> val) {
+      if (this.success == null) {
+        this.success = new HashMap<String,Map<String,String>>();
+      }
+      this.success.put(key, val);
     }
 
     public Map<String,Map<String,String>> getSuccess() {
