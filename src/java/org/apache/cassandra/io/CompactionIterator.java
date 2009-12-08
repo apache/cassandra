@@ -23,6 +23,7 @@ package org.apache.cassandra.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.IOError;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -41,12 +42,14 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
     private final int gcBefore;
+    private boolean major;
 
     @SuppressWarnings("unchecked")
-    public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore) throws IOException
+    public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
         super(getCollatingIterator(sstables));
         this.gcBefore = gcBefore;
+        this.major = major;
     }
 
     @SuppressWarnings("unchecked")
@@ -84,35 +87,54 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         DataOutputBuffer buffer = new DataOutputBuffer();
         DecoratedKey key = rows.get(0).getKey();
 
-        ColumnFamily cf = null;
-        for (IteratingRow row : rows)
+        try
         {
-            ColumnFamily thisCF;
-            try
+            if (rows.size() > 1 || major)
             {
-                thisCF = row.getColumnFamily();
-            }
-            catch (IOException e)
-            {
-                logger.error("Skipping row " + key + " in " + row.getPath(), e);
-                continue;
-            }
-            if (cf == null)
-            {
-                cf = thisCF;
+                ColumnFamily cf = null;
+                for (IteratingRow row : rows)
+                {
+                    ColumnFamily thisCF;
+                    try
+                    {
+                        thisCF = row.getColumnFamily();
+                    }
+                    catch (IOException e)
+                    {
+                        logger.error("Skipping row " + key + " in " + row.getPath(), e);
+                        continue;
+                    }
+                    if (cf == null)
+                    {
+                        cf = thisCF;
+                    }
+                    else
+                    {
+                        cf.addAll(thisCF);
+                    }
+                }
+                ColumnFamily cfPurged = major ? ColumnFamilyStore.removeDeleted(cf, gcBefore) : cf;
+                if (cfPurged == null)
+                    return null;
+                ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
             }
             else
             {
-                cf.addAll(thisCF);
+                assert rows.size() == 1;
+                try
+                {
+                    rows.get(0).echoData(buffer);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
             }
         }
-        rows.clear();
-
-        ColumnFamily cfPurged = ColumnFamilyStore.removeDeleted(cf, gcBefore);
-        if (cfPurged == null)
-            return null;
-        ColumnFamily.serializer().serializeWithIndexes(cfPurged, buffer);
-
+        finally
+        {
+            rows.clear();
+        }
         return new CompactedRow(key, buffer);
     }
 

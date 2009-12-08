@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Collection;
 
 import org.junit.Test;
 
@@ -105,15 +106,25 @@ public class CompactionsTest extends CleanupHelper
         }
         store.forceBlockingFlush();
 
-        // resurrect one row
+        // resurrect one column
         rm = new RowMutation(TABLE1, key);
         rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], 2);
         rm.apply();
         store.forceBlockingFlush();
 
-        // compact and test that all columns but the resurrected one is completely gone
-        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
+        // verify that non-major compaction does no GC to ensure correctness (see CASSANDRA-604)
+        Collection<SSTableReader> sstablesIncomplete = store.getSSTables();
+        rm = new RowMutation(TABLE1, key + "x");
+        rm.add(new QueryPath(cfName, null, "0".getBytes()), new byte[0], 0);
+        rm.apply();
+        store.forceBlockingFlush();
+        store.doFileCompaction(sstablesIncomplete, Integer.MAX_VALUE);
         ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        assert cf.getColumnCount() == 10;
+
+        // major compact and test that all columns but the resurrected one is completely gone
+        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
+        cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
         assert cf.getColumnCount() == 1;
         assert cf.getColumn(String.valueOf(5).getBytes()) != null;
     }

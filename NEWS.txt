@@ -7,7 +7,7 @@
    (If more writes come in after the flush command, starting 0.5 will error
    out; if that happens, just go back to 0.4 and flush again.)
 
-1. Bootstrap, move, and load balancing have been added.
+1. Bootstrap, move, load balancing, and active repair have been added.
    See http://wiki.apache.org/cassandra/Operations
 
 2. Performance improvements across the board, especially on the write

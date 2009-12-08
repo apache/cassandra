@@ -815,7 +815,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer = null;
-        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore());
+        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), sstables.size() == ssTables_.size());
         Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
@@ -905,7 +905,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer;
-        CompactionIterator ci = new CompactionIterator(sstables, gcBefore); // retain a handle so we can call close()
+        CompactionIterator ci = new CompactionIterator(sstables, gcBefore, major); // retain a handle so we can call close()
         Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
@@ -958,7 +958,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void doReadonlyCompaction(InetAddress initiator) throws IOException
     {
         Collection<SSTableReader> sstables = ssTables_.getSSTables();
-        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore());
+        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), true);
         try
         {
             Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
