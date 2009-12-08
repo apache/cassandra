@@ -34,6 +34,8 @@ import org.apache.cassandra.io.ICompactSerializer;
  */
 public class Range implements Comparable<Range>, Serializable
 {
+    public static final long serialVersionUID = 1L;
+    
     private static ICompactSerializer<Range> serializer_;
     static
     {

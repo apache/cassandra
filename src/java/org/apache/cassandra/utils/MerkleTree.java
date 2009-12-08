@@ -20,7 +20,6 @@ package org.apache.cassandra.utils;
 
 import java.io.Serializable;
 import java.util.*;
-import java.math.BigInteger;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
@@ -165,7 +164,6 @@ public class MerkleTree implements Serializable
     /**
      * @param ltree First tree.
      * @param rtree Second tree.
-     * @param active Only ranges that intersect this range will be returned.
      * @return A list of the largest contiguous ranges where the given trees disagree.
      */
     public static List<TreeRange> difference(MerkleTree ltree, MerkleTree rtree)
@@ -273,11 +271,10 @@ public class MerkleTree implements Serializable
      */
     public void invalidate(Token t)
     {
-        Token mintoken = partitioner.getMinimumToken();
-        invalidateHelper(root, mintoken, mintoken, (byte)0, t);
+        invalidateHelper(root, partitioner.getMinimumToken(), t);
     }
 
-    public void invalidateHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t)
+    private void invalidateHelper(Hashable hashable, Token pleft, Token t)
     {
         hashable.hash(null);
         if (hashable instanceof Leaf)
@@ -287,10 +284,10 @@ public class MerkleTree implements Serializable
         Inner node = (Inner)hashable;
         if (Range.contains(pleft, node.token, t))
             // left child contains token
-            invalidateHelper(node.lchild, pleft, node.token, inc(depth), t);
+            invalidateHelper(node.lchild, pleft, t);
         else
             // right child contains token
-            invalidateHelper(node.rchild, node.token, pright, inc(depth), t);
+            invalidateHelper(node.rchild, node.token, t);
     }
 
     /**
@@ -319,7 +316,7 @@ public class MerkleTree implements Serializable
     /**
      * @throws StopRecursion If no match could be found for the range.
      */
-    byte[] hashHelper(Hashable hashable, Range active, Range range) throws StopRecursion
+    private byte[] hashHelper(Hashable hashable, Range active, Range range) throws StopRecursion
     {
         if (hashable instanceof Leaf)
         {
@@ -382,7 +379,7 @@ public class MerkleTree implements Serializable
         return true;
     }
 
-    Hashable splitHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t) throws StopRecursion.TooDeep
+    private Hashable splitHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t) throws StopRecursion.TooDeep
     {
         if (depth >= hashdepth)
             throw new StopRecursion.TooDeep();
@@ -415,11 +412,10 @@ public class MerkleTree implements Serializable
      */
     public void compact(Token t)
     {
-        Token mintoken = partitioner.getMinimumToken();
-        root = compactHelper(root, mintoken, mintoken, t);
+        root = compactHelper(root, t);
     }
 
-    Hashable compactHelper(Hashable hashable, Token pleft, Token pright, Token t)
+    private Hashable compactHelper(Hashable hashable, Token t)
     {
         // we reached a Leaf without finding an Inner to compact
         assert !(hashable instanceof Leaf);
@@ -438,10 +434,10 @@ public class MerkleTree implements Serializable
         }
         else if (comp < 0)
             // recurse to the left
-            node.lchild(compactHelper(node.lchild(), pleft, node.token, t));
+            node.lchild(compactHelper(node.lchild(), t));
         else
             // recurse to the right
-            node.rchild(compactHelper(node.rchild(), node.token, pright, t));
+            node.rchild(compactHelper(node.rchild(), t));
         return node;
     }
 
@@ -476,6 +472,7 @@ public class MerkleTree implements Serializable
      */
     public static class TreeRange extends Range
     {
+        public static final long serialVersionUID = 1L;
         private final MerkleTree tree;
         public final byte depth;
         public final Hashable hashable;
@@ -563,7 +560,7 @@ public class MerkleTree implements Serializable
                 }
 
                 // hash relevant values from the iterator, and add to the context
-                return consume(left, right, depth, entries);
+                return consume(left, right, entries);
             }
             else
             {
@@ -577,7 +574,7 @@ public class MerkleTree implements Serializable
          * Consumes and sequentially hashes values from the iterator that fall into the active
          * range. Should be called with an iterator that contains at least one matching entry.
          */
-        private byte[] consume(Token left, Token right, byte depth, PeekingIterator<RowHash> entries)
+        private byte[] consume(Token left, Token right, PeekingIterator<RowHash> entries)
         {
             byte[] sequentialHash = entries.next().hash;
             while (entries.hasNext() && Range.contains(left, right, entries.peek().token))
@@ -661,6 +658,7 @@ public class MerkleTree implements Serializable
      */
     static class Inner extends Hashable
     {
+        public static final long serialVersionUID = 1L;
         public final Token token;
         private Hashable lchild;
         private Hashable rchild;
@@ -745,6 +743,7 @@ public class MerkleTree implements Serializable
      */
     static class Leaf extends Hashable
     {
+        public static final long serialVersionUID = 1L;
         /**
          * Constructs a null hash.
          */

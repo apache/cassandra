@@ -557,7 +557,6 @@ public class AntiEntropyService
         public void run()
         {
             StorageService ss = StorageService.instance();
-            Token minimum = ss.getPartitioner().getMinimumToken();
 
             // restore partitioners (in case we were serialized)
             if (ltree.partitioner() == null)

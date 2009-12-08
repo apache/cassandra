@@ -548,7 +548,6 @@ public class StorageProxy implements StorageProxyMBean
                 throw new UnavailableException();
 
             // to make comparing the results from each node easy, we restrict each command to the data in the primary range for this iteration
-            IPartitioner<?> p = StorageService.getPartitioner();
             DecoratedKey startKey;
             DecoratedKey finishKey;
             if (primaryRange.left().equals(primaryRange.right()))
@@ -560,8 +559,8 @@ public class StorageProxy implements StorageProxyMBean
             {
                 startKey = Collections.max(Arrays.asList(command.startKey, new DecoratedKey(primaryRange.left(), null)));
                 finishKey = command.finishKey.isEmpty()
-                                       ? new DecoratedKey(primaryRange.right(), null)
-                                       : Collections.min(Arrays.asList(command.finishKey, new DecoratedKey(primaryRange.right(), null)));
+                          ? new DecoratedKey(primaryRange.right(), null)
+                          : Collections.min(Arrays.asList(command.finishKey, new DecoratedKey(primaryRange.right(), null)));
             }
             RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys);
             Message message = c2.getMessage();
