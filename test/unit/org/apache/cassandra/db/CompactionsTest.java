@@ -112,7 +112,7 @@ public class CompactionsTest extends CleanupHelper
         store.forceBlockingFlush();
 
         // compact and test that all columns but the resurrected one is completely gone
-        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE, false);
+        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
         ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
         assert cf.getColumnCount() == 1;
         assert cf.getColumn(String.valueOf(5).getBytes()) != null;
@@ -150,7 +150,7 @@ public class CompactionsTest extends CleanupHelper
         assert store.getSSTables().size() == 1 : store.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
-        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE, false);
+        store.doFileCompaction(store.getSSTables(), Integer.MAX_VALUE);
         assert store.getSSTables().isEmpty();
         ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
         assert cf == null : cf;

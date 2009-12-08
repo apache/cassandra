@@ -660,7 +660,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // re-compacting files we just created.
                 Collections.sort(sstables);
                 boolean major = sstables.size() == ssTables_.size();
-                filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)), major);
+                filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
             }
             logger_.debug(filesCompacted + " files compacted");
         }
@@ -702,7 +702,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             sstables = ssTables_.getSSTables();
         }
 
-        doFileCompaction(sstables, major);
+        doFileCompaction(sstables);
     }
 
     /*
@@ -858,9 +858,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return results;
     }
 
-    private int doFileCompaction(Collection<SSTableReader> sstables, boolean major) throws IOException
+    private int doFileCompaction(Collection<SSTableReader> sstables) throws IOException
     {
-        return doFileCompaction(sstables, getDefaultGCBefore(), major);
+        return doFileCompaction(sstables, getDefaultGCBefore());
     }
 
     /*
@@ -876,7 +876,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     * The collection of sstables passed may be empty (but not null); even if
     * it is not empty, it may compact down to nothing if all rows are deleted.
     */
-    int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
+    int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore) throws IOException
     {
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             Table.open(table_).snapshot("compact-" + columnFamily_);
@@ -889,8 +889,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader maxFile = getMaxSizeFile(sstables);
             List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
             smallerSSTables.remove(maxFile);
-            return doFileCompaction(smallerSSTables, gcBefore, false);
+            return doFileCompaction(smallerSSTables, gcBefore);
         }
+
+        // new sstables from flush can be added during a compaction, but only the compaction can remove them,
+        // so in our single-threaded compaction world this is a valid way of determining if we're compacting
+        // all the sstables (that existed when we started)
+        boolean major = sstables.size() == ssTables_.size();
 
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
