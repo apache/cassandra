@@ -26,6 +26,7 @@ import java.util.*;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.hamcrest.core.IsSame;
 
 // Cli Client Side Library
 public class CliClient 
@@ -121,7 +122,8 @@ public class CliClient
        css_.out.println("set <ksp>.<cf>['<key>']['<super>']['<col>'] = '<value>'        Set a sub column.");
        css_.out.println("del <ksp>.<cf>['<key>']                                           Delete record.");
        css_.out.println("del <ksp>.<cf>['<key>']['<col>']                                  Delete column.");
-       css_.out.println("count <ksp>.<cf>['<key>']                                  Count columns in row.");
+       css_.out.println("del <ksp>.<cf>['<key>']['<super>']['<col>']                   Delete sub column.");
+       css_.out.println("count <ksp>.<cf>['<key>']                               Count columns in record.");
     }
 
     private void cleanupAndExit()
@@ -184,22 +186,49 @@ public class CliClient
         String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
         int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
 
-        // assume simple columnFamily for now
-        String columnName = null;
-        final byte[] name;
-        if (columnSpecCnt == 0)
+        byte[] superColumnName = null;
+        byte[] columnName = null;
+        boolean isSuper;
+        
+        try
         {
-            // table.cf['key']
-            name = null;
+            if (!(getCFMetaData(tableName).containsKey(columnFamily)))
+            {
+                css_.out.println("No such column family: " + columnFamily);
+                return;
+            }
+            
+            isSuper = getCFMetaData(tableName).get(columnFamily).get("Type").equals("Super") ? true : false;
         }
-        else
+        catch (NotFoundException nfe)
         {
-            assert columnSpecCnt == 1;
+            css_.out.printf("No such keyspace: %s\n", tableName);
+            return;
+        }
+     
+        if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
+        {
+            css_.out.println("Invalid row, super column, or column specification.");
+            return;
+        }
+        
+        if (columnSpecCnt == 1)
+        {
             // table.cf['key']['column']
-            columnName = CliCompiler.getColumn(columnFamilySpec, 0);
-            name = columnName.getBytes("UTF-8");
+            if (isSuper)
+                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            else
+                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
         }
-        thriftClient_.remove(tableName, key, new ColumnPath(columnFamily, null, name), System.currentTimeMillis(), ConsistencyLevel.ONE);
+        else if (columnSpecCnt == 2)
+        {
+            // table.cf['key']['column']['column']
+            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+        }
+        
+        thriftClient_.remove(tableName, key, new ColumnPath(columnFamily, superColumnName, columnName),
+                             System.currentTimeMillis(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }  
     
