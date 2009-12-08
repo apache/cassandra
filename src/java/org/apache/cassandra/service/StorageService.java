@@ -32,7 +32,6 @@ import javax.management.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
@@ -652,14 +651,19 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void takeSnapshot(String tableName, String tag) throws IOException
     {
+        Table tableInstance = getValidTable(tableName);
+        tableInstance.snapshot(tag);
+    }
+
+    private Table getValidTable(String tableName) throws IOException
+    {
         if (DatabaseDescriptor.getTable(tableName) == null)
         {
             throw new IOException("Table " + tableName + "does not exist");
         }
-        Table tableInstance = Table.open(tableName);
-        tableInstance.snapshot(tag);
+        return Table.open(tableName);
     }
-    
+
     /**
      * Takes a snapshot for every table.
      * 
@@ -688,44 +692,23 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             logger_.debug("Cleared out all snapshot directories");
     }
 
-    /**
-     * Applies the given Function to all matching column families.
-     * @param function Function taking a column family and possibly returning an IOException.
-     * @param tableName Name of matching table.
-     * @param columnFamilies Names of matching column families, or null for all.
-     * @throws IOException
-     */
-    public void foreachColumnFamily(Function<ColumnFamilyStore, IOException> function, String tableName, String... columnFamilies) throws IOException
+    public Iterable<ColumnFamilyStore> getValidColumnFamilies(String tableName, String... columnFamilies) throws IOException
     {
-        if (DatabaseDescriptor.getTable(tableName) == null)
-        {
-            throw new IOException("Table " + tableName + "does not exist");
-        }
+        Table table = getValidTable(tableName);
+        Set<ColumnFamilyStore> valid = new HashSet<ColumnFamilyStore>();
 
-        Table table = Table.open(tableName);
-        Set<String> positiveColumnFamilies = table.getColumnFamilies();
-
-        // no columnFamilies means flush'em all.
-        if (columnFamilies == null || columnFamilies.length == 0)
+        for (String cfName : columnFamilies.length == 0 ? table.getColumnFamilies() : Arrays.asList(columnFamilies))
         {
-            columnFamilies = positiveColumnFamilies.toArray(new String[positiveColumnFamilies.size()]);
-        }
-
-        for (String columnFamily : columnFamilies)
-        {
-            if (positiveColumnFamilies.contains(columnFamily))
-            {
-                ColumnFamilyStore cfStore = table.getColumnFamilyStore(columnFamily);
-                IOException result = function.apply(cfStore);
-                if (result != null)
-                    throw result;
-            }
-            else
+            ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
+            if (cfStore == null)
             {
                 // this means there was a cf passed in that is not recognized in the keyspace. report it and continue.
-                logger_.warn(String.format("Invalid column family specified: %s. Proceeding with others.", columnFamily));
+                logger_.warn(String.format("Invalid column family specified: %s. Proceeding with others.", cfName));
+                continue;
             }
+            valid.add(cfStore);
         }
+        return valid;
     }
 
     /**
@@ -736,24 +719,13 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
      */
     public void forceTableFlush(final String tableName, final String... columnFamilies) throws IOException
     {
-        foreachColumnFamily(new Function<ColumnFamilyStore, IOException>()
-            {
-                public IOException apply(ColumnFamilyStore cfStore)
-                {
-                    try
-                    {
-                        logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
-                        cfStore.forceFlushBinary();
-                        logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
-                        cfStore.forceFlush();
-                    }
-                    catch(IOException e)
-                    {
-                        return e;
-                    }
-                    return null;
-                }
-            }, tableName, columnFamilies);
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        {
+            logger_.debug("Forcing binary flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
+            cfStore.forceFlushBinary();
+            logger_.debug("Forcing flush on keyspace " + tableName + ", CF " + cfStore.getColumnFamilyName());
+            cfStore.forceFlush();
+        }
     }
 
     /**
@@ -767,18 +739,12 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // request that all relevant endpoints generate trees
         final MessagingService ms = MessagingService.instance();
         final List<InetAddress> endpoints = getNaturalEndpoints(getLocalToken());
-        foreachColumnFamily(new Function<ColumnFamilyStore, IOException>()
-            {
-                public IOException apply(ColumnFamilyStore cfStore)
-                {
-                    Message request = TreeRequestVerbHandler.makeVerb(tableName,
-                                                                      cfStore.getColumnFamilyName());
-                    for (InetAddress endpoint : endpoints)
-                        ms.sendOneWay(request, endpoint);
-
-                    return null;
-                }
-            }, tableName, columnFamilies);
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
+        {
+            Message request = TreeRequestVerbHandler.makeVerb(tableName, cfStore.getColumnFamilyName());
+            for (InetAddress endpoint : endpoints)
+                ms.sendOneWay(request, endpoint);
+        }
     }
 
     /* End of MBean interface methods */
