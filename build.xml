@@ -292,6 +292,9 @@
       <fileset dir="${build.src}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
+      <fileset dir="${interface.src.dir}" defaultexcludes="yes">
+        <include name="org/apache/**/*.java"/>
+      </fileset>
     </javadoc>
    </target>
 
