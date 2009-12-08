@@ -124,6 +124,7 @@ public class CliClient
        css_.out.println("del <ksp>.<cf>['<key>']['<col>']                                  Delete column.");
        css_.out.println("del <ksp>.<cf>['<key>']['<super>']['<col>']                   Delete sub column.");
        css_.out.println("count <ksp>.<cf>['<key>']                               Count columns in record.");
+       css_.out.println("count <ksp>.<cf>['<key>']['<super>']            Count columns in a super column.");
     }
 
     private void cleanupAndExit()
@@ -140,7 +141,7 @@ public class CliClient
         return keyspacesMap.get(keyspace);
     }
     
-    private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException
+    private void executeCount(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
     {
        if (!CliMain.isConnected())
            return;
@@ -156,18 +157,20 @@ public class CliClient
        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
        
+       ColumnParent colParent;
+       
        if (columnSpecCnt == 0)
        {
-           ColumnParent cp = new ColumnParent(columnFamily, null);
-           int count = thriftClient_.get_count(tableName, key, cp, ConsistencyLevel.ONE);
-           css_.out.printf("%d columns\n", count);
+           colParent = new ColumnParent(columnFamily, null);
        }
        else
        {
-           //TODO could support sub columns?
-           css_.err.println("Only column count for a top level row key supported");
-           return;
+           assert (columnSpecCnt == 1);
+           colParent = new ColumnParent(columnFamily, CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
        }
+       
+       int count = thriftClient_.get_count(tableName, key, colParent, ConsistencyLevel.ONE);
+       css_.out.printf("%d columns\n", count);
     }
     
     private void executeDelete(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
