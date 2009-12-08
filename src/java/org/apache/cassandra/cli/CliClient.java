@@ -103,22 +103,25 @@ public class CliClient
     private void printCmdHelp()
     {
        css_.out.println("List of all CLI commands:");
-       css_.out.println("?                                                      Same as help.");
-       css_.out.println("connect <hostname>/<port>                              Connect to Cassandra's thrift service.");
-       css_.out.println("describe keyspace <keyspacename>                       Describe keyspace.");
-       css_.out.println("exit                                                   Exit CLI.");
-       css_.out.println("help                                                   Display this help.");
-       css_.out.println("quit                                                   Exit CLI.");
-       css_.out.println("show config file                                       Display contents of config file");
-       css_.out.println("show cluster name                                      Display cluster name.");
-       css_.out.println("show keyspaces                                         Show list of keyspaces.");
-       css_.out.println("show version                                           Show server version.");
-       css_.out.println("get <tbl>.<cf>['<rowKey>']                             Get a slice of columns.");            
-       css_.out.println("get <tbl>.<cf>['<rowKey>']['<colKey>']                 Get a column value.");            
-       css_.out.println("set <tbl>.<cf>['<rowKey>']['<colKey>'] = '<value>'     Set a column.");    
-       css_.out.println("count <tbl>.<cf>['<rowKey>']                           Count columns in row.");
-       css_.out.println("del <tbl>.<cf>['<rowKey>']                             Delete row.");
-       css_.out.println("del <tbl>.<cf>['<rowKey>']['<colKey>']                 Delete column.");
+       css_.out.println("?                                                                  Same as help.");
+       css_.out.println("help                                                          Display this help.");
+       css_.out.println("connect <hostname>/<port>                             Connect to thrift service.");
+       css_.out.println("describe keyspace <keyspacename>                              Describe keyspace.");
+       css_.out.println("exit                                                                   Exit CLI.");
+       css_.out.println("quit                                                                   Exit CLI.");
+       css_.out.println("show config file                                Display contents of config file.");
+       css_.out.println("show cluster name                                          Display cluster name.");
+       css_.out.println("show keyspaces                                           Show list of keyspaces.");
+       css_.out.println("show version                                                Show server version.");
+       css_.out.println("get <ksp>.<cf>['<key>']                                  Get a slice of columns.");
+       css_.out.println("get <ksp>.<cf>['<key>']['<super>']                   Get a slice of sub columns.");
+       css_.out.println("get <ksp>.<cf>['<key>']['<col>']                             Get a column value.");
+       css_.out.println("get <ksp>.<cf>['<key>']['<super>']['<col>']              Get a sub column value.");
+       css_.out.println("set <ksp>.<cf>['<key>']['<col>'] = '<value>'                       Set a column.");
+       css_.out.println("set <ksp>.<cf>['<key>']['<super>']['<col>'] = '<value>'        Set a sub column.");
+       css_.out.println("del <ksp>.<cf>['<key>']                                           Delete record.");
+       css_.out.println("del <ksp>.<cf>['<key>']['<col>']                                  Delete column.");
+       css_.out.println("count <ksp>.<cf>['<key>']                                  Count columns in row.");
     }
 
     private void cleanupAndExit()
