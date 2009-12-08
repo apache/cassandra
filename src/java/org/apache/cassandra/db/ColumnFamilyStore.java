@@ -685,8 +685,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void doMajorCompactionInternal(long skip) throws IOException
     {
         Collection<SSTableReader> sstables;
-        boolean major = skip < 1L;
-        if (!major)
+        if (skip > 0)
         {
             sstables = new ArrayList<SSTableReader>();
             for (SSTableReader sstable : ssTables_)
