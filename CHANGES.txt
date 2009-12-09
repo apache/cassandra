@@ -18,6 +18,7 @@
  * avoid GCing tombstones except on major compaction (CASSANDRA-604)
  * increase failure conviction threshold, resulting in less nodes
    incorrectly (and temporarily) marked as down (CASSANDRA-610)
+ * respect memtable thresholds during log replay (CASSANDRA-609)
 
 
 0.5.0 beta

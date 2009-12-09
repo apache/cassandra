@@ -428,14 +428,15 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    void apply(RowMutation mutation, DataOutputBuffer serializedMutation) throws IOException
+    void apply(RowMutation mutation, DataOutputBuffer serializedMutation, boolean writeCommitLog) throws IOException
     {
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
         flusherLock_.readLock().lock();
         try
         {
-            CommitLog.open().add(mutation, serializedMutation);
+            if (writeCommitLog)
+                CommitLog.open().add(mutation, serializedMutation);
         
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
@@ -452,17 +453,7 @@ public class Table
 
         // usually mTF will be empty and this will be a no-op
         for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-            entry.getKey().switchMemtable(entry.getValue());
-    }
-
-    void applyNow(RowMutation row) throws IOException
-    {
-        String key = row.key();
-        for (ColumnFamily columnFamily : row.getColumnFamilies())
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
-            cfStore.applyNow( key, columnFamily );
-        }
+            entry.getKey().switchMemtable(entry.getValue(), writeCommitLog);
     }
 
     public List<Future<?>> flush() throws IOException

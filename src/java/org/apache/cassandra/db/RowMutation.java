@@ -199,8 +199,13 @@ public class RowMutation implements Serializable
      * to the table that is obtained by calling Table.open().
     */
     public void apply() throws IOException
-    {   
-        Table.open(table_).apply(this, this.getSerializedBuffer());
+    {
+        apply(true);
+    }
+
+    public void apply(boolean writeCommitLog) throws IOException
+    {
+        Table.open(table_).apply(this, this.getSerializedBuffer(), writeCommitLog);
     }
 
     /*

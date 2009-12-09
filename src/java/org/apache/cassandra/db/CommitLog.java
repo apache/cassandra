@@ -352,11 +352,11 @@ public class CommitLog
                         {
                             try
                             {
-                                table.applyNow(rm);
+                                rm.apply(false);
                             }
                             catch (IOException e)
                             {
-                                throw new RuntimeException(e);
+                                throw new IOError(e);
                             }
                         }
                     }
