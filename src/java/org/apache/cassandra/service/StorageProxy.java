@@ -286,7 +286,7 @@ public class StorageProxy implements StorageProxyMBean
     }    
 
     /**
-     * Read the data from one replica.  If there is no reply, read the data from another.  In the event we get
+     * Read the data from one replica.  When we get
      * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
      * @param commands a set of commands to perform reads
      * @return the row associated with command.key
@@ -484,10 +484,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /*
-    * This function executes the read protocol locally and should be used only if consistency is not a concern.
-    * Read the data from the local disk and return if the row is NOT NULL. If the data is NULL do the read from
-    * one of the other replicas (in the same data center if possible) till we get the data. In the event we get
-    * the data we perform consistency checks and figure out if any repairs need to be done to the replicas.
+    * This function executes the read protocol locally.  Consistency checks are performed in the background.
     */
     private static List<Row> weakReadLocal(List<ReadCommand> commands)
     {
