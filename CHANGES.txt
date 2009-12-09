@@ -19,6 +19,7 @@
  * increase failure conviction threshold, resulting in less nodes
    incorrectly (and temporarily) marked as down (CASSANDRA-610)
  * respect memtable thresholds during log replay (CASSANDRA-609)
+ * support ConsistencyLevel.ALL on read (CASSANDRA-584)
 
 
 0.5.0 beta

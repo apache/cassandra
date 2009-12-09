@@ -407,6 +407,7 @@ public class StorageProxy implements StorageProxyMBean
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
         List<Row> rows = new ArrayList<Row>();
 
+        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getReplicationFactor(), consistency_level);
         int commandIndex = 0;
 
         for (ReadCommand command: commands)
@@ -419,28 +420,24 @@ public class StorageProxy implements StorageProxyMBean
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
             InetAddress dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-            List<InetAddress> endpointList = StorageService.instance().getNaturalEndpoints(command.key);
+            List<InetAddress> endpointList = StorageService.instance().getLiveNaturalEndpoints(command.key);
+            if (endpointList.size() < responseCount)
+                throw new UnavailableException();
 
             InetAddress[] endPoints = new InetAddress[endpointList.size()];
             Message messages[] = new Message[endpointList.size()];
-            /*
-             * data-request message is sent to dataPoint, the node that will actually get
-             * the data for us. The other replicas are only sent a digest query.
-            */
+            // data-request message is sent to dataPoint, the node that will actually get
+            // the data for us. The other replicas are only sent a digest query.
             int n = 0;
             for (InetAddress endpoint : endpointList)
             {
-                if (!FailureDetector.instance().isAlive(endpoint))
-                    continue;
                 Message m = endpoint.equals(dataPoint) ? message : messageDigestOnly;
                 endPoints[n] = endpoint;
                 messages[n++] = m;
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            if (n < DatabaseDescriptor.getQuorum())
-                throw new UnavailableException();
-            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver(command.table, DatabaseDescriptor.getQuorum()));
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver(command.table, responseCount));
             MessagingService.instance().sendRR(messages, endPoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndPoints.add(endPoints);
