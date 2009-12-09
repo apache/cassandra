@@ -403,6 +403,11 @@ public class NodeProbe
         ssProxy.cancelPendingRanges();
     }
 
+    public void removeToken(String token)
+    {
+        ssProxy.removeToken(token);
+    }
+
     /**
      * Print out the size of the queues in the thread pools
      *
@@ -498,7 +503,7 @@ public class NodeProbe
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, " +
-                "tpstats, flush, repair, decommission, move, loadbalance, cancelpending, " +
+                "tpstats, flush, repair, decommission, move, loadbalance, cancelpending, removetoken, " +
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
@@ -576,6 +581,14 @@ public class NodeProbe
         else if (cmdName.equals("cancelpending"))
         {
             probe.cancelPendingRanges();
+        }
+        else if (cmdName.equals("removetoken"))
+        {
+            if (arguments.length <= 1)
+            {
+                System.err.println("missing token argument");
+            }
+            probe.removeToken(arguments[1]);
         }
         else if (cmdName.equals("snapshot"))
         {

@@ -147,6 +147,12 @@ public interface StorageServiceMBean
      */
     public void cancelPendingRanges();
 
+    /**
+     * removeToken removes token (and all data associated with
+     * enpoint that had it) from the ring
+     */
+    public void removeToken(String token);
+
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
 }
