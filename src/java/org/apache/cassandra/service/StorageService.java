@@ -626,7 +626,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         List<String> tables = DatabaseDescriptor.getTables();
         for (String tName : tables)
         {
-            if (tName.equals("system"))
+            if (tName.equals(Table.SYSTEM_TABLE))
                 continue;
             Table table = Table.open(tName);
             table.forceCleanup();

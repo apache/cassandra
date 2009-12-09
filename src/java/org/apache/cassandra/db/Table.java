@@ -257,7 +257,7 @@ public class Table
      */
     public void forceCleanup()
     {
-        if (table_.equals("system"))
+        if (table_.equals(SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
         Set<String> columnFamilies = tableMetadata_.getColumnFamilies();

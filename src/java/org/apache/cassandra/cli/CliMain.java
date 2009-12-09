@@ -27,6 +27,7 @@ import jline.*;
 import java.io.*;
 
 import org.apache.cassandra.service.Cassandra;
+import static org.apache.cassandra.db.Table.SYSTEM_TABLE;
 
 //
 // Cassandra Command Line Interface (CLI) Main
@@ -79,7 +80,7 @@ public class CliMain
             for (String keyspace : thriftClient_.get_string_list_property("keyspaces"))
             {
                 // Ignore system column family
-                if (keyspace.equals("system"))
+                if (keyspace.equals(SYSTEM_TABLE))
                     continue;
                 
                 for (String cf : cliClient_.getCFMetaData(keyspace).keySet())
