@@ -62,7 +62,7 @@ public class RecoveryManager
 
         Arrays.sort(files, new FileUtils.FileComparator());
         logger_.info("Replaying " + StringUtils.join(files, ", "));
-        new CommitLog(true).recover(files);
+        CommitLog.open().recover(files);
         FileUtils.delete(files);
     }
 }

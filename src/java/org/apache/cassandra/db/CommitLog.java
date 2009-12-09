@@ -73,12 +73,9 @@ public class CommitLog
 {
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
     private static volatile CommitLog instance_;
-    private static Lock lock_ = new ReentrantLock();
-    private static Logger logger_ = Logger.getLogger(CommitLog.class);
-    private static Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
-
-    private ExecutorService executor;
-
+    private static final Lock lock_ = new ReentrantLock();
+    private static final Logger logger_ = Logger.getLogger(CommitLog.class);
+    private static final Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
 
     public static final class CommitLogContext
     {
@@ -147,7 +144,7 @@ public class CommitLog
 
                 if ( instance_ == null )
                 {
-                    instance_ = new CommitLog(false);
+                    instance_ = new CommitLog();
                 }
             }
             finally
@@ -163,6 +160,7 @@ public class CommitLog
     /* header for current commit log */
     private CommitLogHeader clHeader_;
     private BufferedRandomAccessFile logWriter_;
+    private final ExecutorService executor = new CommitLogExecutorService();
 
     /*
      * Generates a file name of the format CommitLog-<table>-<timestamp>.log in the
@@ -180,51 +178,47 @@ public class CommitLog
      * param @ recoverymode - is commit log being instantiated in
      *                        in recovery mode.
     */
-    CommitLog(boolean recoveryMode) throws IOException
+    private CommitLog() throws IOException
     {
-        if (!recoveryMode)
-        {
-            executor = new CommitLogExecutorService();
-            setNextFileName();
-            logWriter_ = CommitLog.createWriter(logFile_);
-            writeCommitLogHeader();
+        setNextFileName();
+        logWriter_ = CommitLog.createWriter(logFile_);
+        writeCommitLogHeader();
 
-            if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
+        if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
+        {
+            final Runnable syncer = new Runnable()
             {
-                final Runnable syncer = new Runnable()
+                public void run()
                 {
-                    public void run()
+                    try
                     {
+                        sync();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            };
+
+            new Thread(new Runnable()
+            {
+                public void run()
+                {
+                    while (true)
+                    {
+                        executor.submit(syncer);
                         try
                         {
-                            sync();
+                            Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
                         }
-                        catch (IOException e)
+                        catch (InterruptedException e)
                         {
                             throw new RuntimeException(e);
                         }
                     }
-                };
-
-                new Thread(new Runnable()
-                {
-                    public void run()
-                    {
-                        while (true)
-                        {
-                            executor.submit(syncer);
-                            try
-                            {
-                                Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
-                            }
-                            catch (InterruptedException e)
-                            {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    }
-                }, "PERIODIC-COMMIT-LOG-SYNCER").start();
-            }
+                }
+            }, "PERIODIC-COMMIT-LOG-SYNCER").start();
         }
     }
 
