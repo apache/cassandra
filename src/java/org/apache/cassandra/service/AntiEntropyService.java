@@ -273,12 +273,13 @@ public class AntiEntropyService
      *
      * @param table The table name containing the column family.
      * @param cf The column family name.
-     * @param initiator Endpoint that initially triggered this validation, or null.
+     * @param initiator Endpoint that initially triggered this validation, or null if
+     * the validation will not see all of the data contained in the column family.
      * @return A Validator.
      */
     public IValidator getValidator(String table, String cf, InetAddress initiator)
     {
-        if (initiator == null)
+        if (initiator == null || table.equals(Table.SYSTEM_TABLE))
             return new NoopValidator();
         else if (StorageService.instance().getTokenMetadata().sortedTokens().size()  < 1)
             // gossiper isn't started
