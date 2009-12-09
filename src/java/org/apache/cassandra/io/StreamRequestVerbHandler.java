@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.dht;
+package org.apache.cassandra.io;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,9 +27,6 @@ import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.io.DataInputBuffer;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.Streaming;
 
 import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
@@ -43,34 +40,31 @@ import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
  /**
- * This verb handler handles the BootstrapMetadataMessage that is sent
- * by the leader to the nodes that are responsible for handing off data. 
+ * This verb handler handles the StreamRequestMessage that is sent by
+ * the node requesting range transfer.
 */
-public class BootstrapMetadataVerbHandler implements IVerbHandler
+public class StreamRequestVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = Logger.getLogger(BootstrapMetadataVerbHandler.class);
+    private static Logger logger_ = Logger.getLogger(StreamRequestVerbHandler.class);
     
     public void doVerb(Message message)
     {
         if (logger_.isDebugEnabled())
-          logger_.debug("Received a BootstrapMetadataMessage from " + message.getFrom());
-        
-        /* Cannot bootstrap another node if I'm in bootstrap mode myself! */
-        assert !StorageService.instance().isBootstrapMode();
+            logger_.debug("Received a StreamRequestMessage from " + message.getFrom());
         
         byte[] body = message.getMessageBody();
         DataInputBuffer bufIn = new DataInputBuffer();
         bufIn.reset(body, body.length);
         try
         {
-            BootstrapMetadataMessage bsMetadataMessage = BootstrapMetadataMessage.serializer().deserialize(bufIn);
-            BootstrapMetadata[] bsMetadata = bsMetadataMessage.bsMetadata_;
+            StreamRequestMessage streamRequestMessage = StreamRequestMessage.serializer().deserialize(bufIn);
+            StreamRequestMetadata[] streamRequestMetadata = streamRequestMessage.streamRequestMetadata_;
 
-            for (BootstrapMetadata bsmd : bsMetadata)
+            for (StreamRequestMetadata srm : streamRequestMetadata)
             {
                 if (logger_.isDebugEnabled())
-                    logger_.debug(bsmd.toString());
-                Streaming.transferRanges(bsmd.target_, bsmd.ranges_, null);
+                    logger_.debug(srm.toString());
+                Streaming.transferRanges(srm.target_, srm.ranges_, null);
             }
         }
         catch (IOException ex)

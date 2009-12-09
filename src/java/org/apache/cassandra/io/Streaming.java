@@ -126,6 +126,16 @@ public class Streaming
         }
     }
 
+    /**
+     * Request ranges to be transferred
+     */
+    public static void requestRanges(InetAddress source, Collection<Range> ranges)
+    {
+        StreamRequestMetadata streamRequestMetadata = new StreamRequestMetadata(FBUtilities.getLocalAddress(), ranges);
+        Message message = StreamRequestMessage.makeStreamRequestMessage(new StreamRequestMessage(streamRequestMetadata));
+        MessagingService.instance().sendOneWay(message, source);
+    }
+
     public static class StreamInitiateVerbHandler implements IVerbHandler
     {
         /*

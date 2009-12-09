@@ -16,37 +16,34 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.dht;
+package org.apache.cassandra.io;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collection;
 
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
-import java.net.InetAddress;
-
-
+import org.apache.cassandra.dht.Range;
 
 /**
- * This encapsulates information of the list of 
- * ranges that a target node requires in order to 
- * be bootstrapped. This will be bundled in a 
- * BootstrapMetadataMessage and sent to nodes that
- * are going to handoff the data.
+ * This encapsulates information of the list of ranges that a target
+ * node requires to be transferred. This will be bundled in a
+ * StreamRequestsMessage and sent to nodes that are going to handoff
+ * the data.
 */
-class BootstrapMetadata
+class StreamRequestMetadata
 {
-    private static ICompactSerializer<BootstrapMetadata> serializer_;
+    private static ICompactSerializer<StreamRequestMetadata> serializer_;
     static
     {
-        serializer_ = new BootstrapMetadataSerializer();
+        serializer_ = new StreamRequestMetadataSerializer();
     }
     
-    protected static ICompactSerializer<BootstrapMetadata> serializer()
+    protected static ICompactSerializer<StreamRequestMetadata> serializer()
     {
         return serializer_;
     }
@@ -54,7 +51,7 @@ class BootstrapMetadata
     protected InetAddress target_;
     protected Collection<Range> ranges_;
     
-    BootstrapMetadata(InetAddress target, Collection<Range> ranges)
+    StreamRequestMetadata(InetAddress target, Collection<Range> ranges)
     {
         target_ = target;
         ranges_ = ranges;
@@ -74,19 +71,19 @@ class BootstrapMetadata
     }
 }
 
-class BootstrapMetadataSerializer implements ICompactSerializer<BootstrapMetadata>
+class StreamRequestMetadataSerializer implements ICompactSerializer<StreamRequestMetadata>
 {
-    public void serialize(BootstrapMetadata bsMetadata, DataOutputStream dos) throws IOException
+    public void serialize(StreamRequestMetadata srMetadata, DataOutputStream dos) throws IOException
     {
-        CompactEndPointSerializationHelper.serialize(bsMetadata.target_, dos);
-        dos.writeInt(bsMetadata.ranges_.size());
-        for (Range range : bsMetadata.ranges_)
+        CompactEndPointSerializationHelper.serialize(srMetadata.target_, dos);
+        dos.writeInt(srMetadata.ranges_.size());
+        for (Range range : srMetadata.ranges_)
         {
             Range.serializer().serialize(range, dos);
         }
     }
 
-    public BootstrapMetadata deserialize(DataInputStream dis) throws IOException
+    public StreamRequestMetadata deserialize(DataInputStream dis) throws IOException
     {            
         InetAddress target = CompactEndPointSerializationHelper.deserialize(dis);
         int size = dis.readInt();
@@ -95,7 +92,7 @@ class BootstrapMetadataSerializer implements ICompactSerializer<BootstrapMetadat
         {
             ranges.add(Range.serializer().deserialize(dis));
         }            
-        return new BootstrapMetadata( target, ranges );
+        return new StreamRequestMetadata( target, ranges );
     }
 }
 

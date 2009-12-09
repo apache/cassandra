@@ -33,21 +33,13 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;
- import org.apache.cassandra.net.io.StreamContextManager;
- import org.apache.cassandra.net.io.IStreamComplete;
  import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.service.StreamManager;
- import org.apache.cassandra.utils.LogUtil;
  import org.apache.cassandra.utils.SimpleCondition;
  import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.gms.IFailureDetector;
- import org.apache.cassandra.io.DataInputBuffer;
- import org.apache.cassandra.io.SSTableReader;
- import org.apache.cassandra.io.SSTableWriter;
- import org.apache.cassandra.db.ColumnFamilyStore;
- import org.apache.cassandra.db.Table;
+ import org.apache.cassandra.io.Streaming;
  import com.google.common.collect.Multimap;
  import com.google.common.collect.ArrayListMultimap;
 
@@ -56,7 +48,7 @@ package org.apache.cassandra.dht;
   * This class handles the bootstrapping responsibilities for the local endpoint.
   *
   *  - bootstrapTokenVerb asks the most-loaded node what Token to use to split its Range in two.
-  *  - bootstrapMetadataVerb tells source nodes to send us the necessary Ranges
+  *  - streamRequestVerb tells source nodes to send us the necessary Ranges
   *  - source nodes send streamInitiateVerb to us to say "get ready to receive data" [if there is data to send]
   *  - when we have everything set up to receive the data, we send streamInitiateDoneVerb back to the source nodes and they start streaming
   *  - when streaming is complete, we send streamFinishedVerb to the source so it can clean up on its end
@@ -96,12 +88,10 @@ public class BootStrapper
                 for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
                 {
                     InetAddress source = entry.getKey();
-                    if (logger.isDebugEnabled())
-                        logger.debug("Sending BootstrapMetadataMessage to " + source + " for " + StringUtils.join(entry.getValue(), ", "));
-                    BootstrapMetadata bsMetadata = new BootstrapMetadata(address, entry.getValue());
-                    Message message = BootstrapMetadataMessage.makeBootstrapMetadataMessage(new BootstrapMetadataMessage(bsMetadata));
-                    MessagingService.instance().sendOneWay(message, source);
                     StorageService.instance().addBootstrapSource(source);
+                    if (logger.isDebugEnabled())
+                        logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
+                    Streaming.requestRanges(source, entry.getValue());
                 }
             }
         }).start();
