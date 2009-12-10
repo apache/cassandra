@@ -44,9 +44,6 @@ public class Pair<T1, T2>
     @Override
     public String toString()
     {
-        return "Pair(" +
-               "left=" + left +
-               ", right=" + right +
-               ')';
+        return "(" + left + "," + right + ")";
     }
 }
