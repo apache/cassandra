@@ -164,7 +164,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile
         if (syncNeeded_)
         {
             flush();
-            getChannel().force(true);
+            getChannel().force(true); // true, because file length counts as "metadata"
             syncNeeded_ = false;
         }
     }
