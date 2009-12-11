@@ -35,8 +35,7 @@ public class RecoveryManagerTest extends CleanupHelper
     @Test
     public void testNothing() throws IOException {
         // TODO nothing to recover
-        RecoveryManager rm = RecoveryManager.instance();
-        rm.doRecovery();  
+        RecoveryManager.doRecovery();
     }
 
     @Test

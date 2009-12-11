@@ -28,17 +28,7 @@ import org.apache.commons.lang.StringUtils;
 
 public class RecoveryManager
 {
-    private static RecoveryManager instance_;
     private static Logger logger_ = Logger.getLogger(RecoveryManager.class);
-
-    public synchronized static RecoveryManager instance() throws IOException
-    {
-        if (instance_ == null)
-        {
-            instance_ = new RecoveryManager();
-        }
-        return instance_;
-    }
 
     public static File[] getListofCommitLogs()
     {

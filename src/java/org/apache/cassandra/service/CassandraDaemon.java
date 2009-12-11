@@ -91,7 +91,6 @@ public class CassandraDaemon
         }
 
         // replay the log if necessary
-        RecoveryManager recoveryMgr = RecoveryManager.instance();
         RecoveryManager.doRecovery();
 
         // now we start listening for clients
