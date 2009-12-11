@@ -811,7 +811,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         SSTableWriter writer = null;
         CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), sstables.size() == ssTables_.size());
-        Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+        Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
         {
@@ -822,7 +822,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             while (nni.hasNext())
             {
-                CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
+                CompactionIterator.CompactedRow row = nni.next();
                 if (Range.isTokenInRanges(row.key.token, ranges))
                 {
                     if (writer == null)
@@ -901,7 +901,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         SSTableWriter writer;
         CompactionIterator ci = new CompactionIterator(sstables, gcBefore, major); // retain a handle so we can call close()
-        Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+        Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
         {
@@ -923,7 +923,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             validator.prepare();
             while (nni.hasNext())
             {
-                CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
+                CompactionIterator.CompactedRow row = nni.next();
                 writer.append(row.key, row.buffer);
                 validator.add(row);
                 totalkeysWritten++;
@@ -971,8 +971,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * Performs a readonly compaction of all sstables in order to validate
-     * them on request, but without performing any writes.
+     * Performs a readonly "compaction" of all sstables in order to validate complete rows,
+     * but without writing the merge result
      */
     void doReadonlyCompaction(InetAddress initiator) throws IOException
     {
@@ -980,14 +980,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), true);
         try
         {
-            Iterator nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+            Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
             // validate the CF as we iterate over it
             AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator);
             validator.prepare();
             while (nni.hasNext())
             {
-                CompactionIterator.CompactedRow row = (CompactionIterator.CompactedRow) nni.next();
+                CompactionIterator.CompactedRow row = nni.next();
                 validator.add(row);
             }
             validator.complete();
