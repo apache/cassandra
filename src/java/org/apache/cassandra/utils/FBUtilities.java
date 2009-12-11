@@ -280,4 +280,12 @@ public class FBUtilities
             return null;
         return dis.readUTF();
     }
+
+    public static void renameWithConfirm(String tmpFilename, String filename) throws IOException
+    {
+        if (!new File(tmpFilename).renameTo(new File(filename)))
+        {
+            throw new IOException("rename failed of " + filename);
+        }
+    }
 }
