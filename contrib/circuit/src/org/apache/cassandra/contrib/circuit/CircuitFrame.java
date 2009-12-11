@@ -25,7 +25,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
@@ -41,13 +40,15 @@ import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import com.google.common.collect.Sets;
+import org.apache.commons.lang.time.FastDateFormat;
 
 public class CircuitFrame extends JFrame implements ActionListener
 {
     private static final long serialVersionUID = 1L;
     private static final String appTitle = "Circuit";
     private static final Dimension defaultSize = new Dimension(550, 600);
-    private static final SimpleDateFormat dateFormatter;
+    private static final FastDateFormat DATE_FORMATTER = FastDateFormat.getInstance("HH:mm:ss");
+
     private static final Lock verifyLock = new ReentrantLock();
     
     private RingModel ringModel;
@@ -56,11 +57,6 @@ public class CircuitFrame extends JFrame implements ActionListener
     
     private JMenuBar menuBar;
     private JMenuItem quitMI, verifyMI, aboutMI;
-    
-    static
-    {
-        dateFormatter = new SimpleDateFormat("HH:mm:ss");
-    }
     
     public CircuitFrame(String hostname, int port)
     {
@@ -210,7 +206,7 @@ public class CircuitFrame extends JFrame implements ActionListener
     // TODO: use StatusLevel to distinguish message priorities.
     private void writeStatusOutput(String msg, StatusLevel level, Object...args)
     {
-        String pref = String.format("[%s] ", dateFormatter.format(new Date()));
+        String pref = String.format("[%s] ", DATE_FORMATTER.format(new Date()));
         statusOutput.append(String.format(pref + msg + "\n", args));
         statusOutput.setCaretPosition(statusOutput.getDocument().getLength());
     }
