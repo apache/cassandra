@@ -19,11 +19,8 @@
 package org.apache.cassandra.net;
 
 import java.io.*;
-import java.net.SocketException;
 import java.net.InetAddress;
 
-import org.apache.cassandra.net.sink.SinkManager;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 class FileStreamTask implements Runnable
@@ -55,27 +52,15 @@ class FileStreamTask implements Runnable
             connection.stream(file, startPosition_, total_);
             if (logger_.isDebugEnabled())
               logger_.debug("Done streaming " + file);
-        }            
-        catch ( SocketException se )
-        {                        
-            logger_.info(LogUtil.throwableToString(se));
         }
-        catch ( IOException e )
+        catch (Exception e)
         {
-            logConnectAndIOException(e, connection);
+            if (connection != null)
+            {
+                connection.errorClose();
+            }
+            throw new RuntimeException(e);
         }
-        catch (Throwable th)
-        {
-            logger_.warn(LogUtil.throwableToString(th));
-        }        
     }
-    
-    private void logConnectAndIOException(IOException ex, TcpConnection connection)
-    {                    
-        if ( connection != null )
-        {
-            connection.errorClose();
-        }
-        logger_.info(LogUtil.throwableToString(ex));
-    }
+
 }

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,7 +25,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 class AsyncResult implements IAsyncResult
@@ -49,19 +47,19 @@ class AsyncResult implements IAsyncResult
         lock_.lock();
         try
         {
-            if ( !done_.get() )
+            if (!done_.get())
             {
-                condition_.await();                    
+                condition_.await();
             }
         }
-        catch ( InterruptedException ex )
+        catch (InterruptedException ex)
         {
-            logger_.warn( LogUtil.throwableToString(ex) );
+            throw new AssertionError(ex);
         }
         finally
         {
-            lock_.unlock();            
-        }        
+            lock_.unlock();
+        }
         return result_;
     }
     
@@ -87,9 +85,9 @@ class AsyncResult implements IAsyncResult
                         bVal = false;
                 }
             }
-            catch ( InterruptedException ex )
+            catch (InterruptedException ex)
             {
-                logger_.warn( LogUtil.throwableToString(ex) );
+                throw new AssertionError(ex);
             }
             
             if ( !bVal && !done_.get() )

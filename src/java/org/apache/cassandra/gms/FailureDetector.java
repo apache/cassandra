@@ -19,8 +19,9 @@
 package org.apache.cassandra.gms;
 
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.IOError;
 import java.lang.management.ManagementFactory;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -29,10 +30,8 @@ import javax.management.ObjectName;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import java.net.InetAddress;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.apache.log4j.Logger;
 
@@ -88,7 +87,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
         catch (Exception e)
         {
-            logger_.error(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
     }
     
@@ -103,9 +102,9 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             fos.write(toString().getBytes());
             fos.close();
         }
-        catch(Throwable th)
+        catch (IOException e)
         {
-            logger_.warn(LogUtil.throwableToString(th));
+            throw new IOError(e);
         }
     }
     
@@ -128,9 +127,9 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             fos.write(hWnd.toString().getBytes());
             fos.close();
         }
-        catch(Throwable th)
+        catch (IOException e)
         {
-            logger_.warn(LogUtil.throwableToString(th));
+            throw new IOError(e);
         }
     }
     

@@ -43,7 +43,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.StreamManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LogUtil;
 
 public class Streaming
 {

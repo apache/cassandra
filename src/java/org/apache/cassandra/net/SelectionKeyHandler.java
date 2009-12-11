@@ -19,6 +19,7 @@
 package org.apache.cassandra.net;
 
 import java.nio.channels.*;
+import java.io.IOException;
 
 public class SelectionKeyHandler 
 {
@@ -47,7 +48,7 @@ public class SelectionKeyHandler
      *
      * @param key The key which is readable.
      */
-    public void read(SelectionKey key)
+    public void read(SelectionKey key) throws IOException
     {
         throw new UnsupportedOperationException("read() cannot be called on " + getClass().getName() + "!");
     }

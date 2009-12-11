@@ -30,7 +30,6 @@ import java.net.InetAddress;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.log4j.Logger;
@@ -120,9 +119,9 @@ public final class StreamManager
         {
             wait();
         }
-        catch(InterruptedException ex)
+        catch (InterruptedException ex)
         {
-            logger_.warn(LogUtil.throwableToString(ex));
+            throw new AssertionError(ex);
         }
     }
 }

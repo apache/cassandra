@@ -20,13 +20,10 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.net.io.FastSerializer;
 import org.apache.cassandra.net.io.ISerializer;
 import org.apache.cassandra.net.sink.SinkManager;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
 
 class MessageDeserializationTask implements Runnable

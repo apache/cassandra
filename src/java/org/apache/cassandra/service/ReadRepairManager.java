@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.io.IOError;
 import java.util.concurrent.locks.*;
 
 import org.apache.cassandra.db.RowMutationMessage;
@@ -31,7 +32,7 @@ import org.apache.cassandra.utils.Cachetable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ICacheExpungeHook;
 import org.apache.cassandra.utils.ICachetable;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
 
 
@@ -117,9 +118,9 @@ class ReadRepairManager
     		String key = target.getHostAddress() + ":" + message.getMessageId();
     		readRepairTable_.put(key, message);
         }
-        catch ( IOException ex )
+        catch (IOException ex)
         {
-            logger_.error(LogUtil.throwableToString(ex));
+            throw new IOError(ex);
         }
-	}
+    }
 }

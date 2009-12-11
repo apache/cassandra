@@ -42,8 +42,7 @@ public class GuidGenerator {
             s_id = InetAddress.getLocalHost().toString();
         }
         catch (UnknownHostException e) {
-            if (logger_.isDebugEnabled())
-                logger_.debug(LogUtil.throwableToString(e));
+            throw new AssertionError(e);
         }
 
         try {
@@ -51,8 +50,7 @@ public class GuidGenerator {
             md5 = new SafeMessageDigest(myMd5);
         }
         catch (NoSuchAlgorithmException e) {
-            if (logger_.isDebugEnabled())
-                logger_.debug(LogUtil.throwableToString(e));
+            throw new AssertionError(e);
         }
     }
 

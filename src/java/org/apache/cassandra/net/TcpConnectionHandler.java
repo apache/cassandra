@@ -22,7 +22,6 @@ import java.nio.channels.*;
 import java.io.IOException;
 import java.net.*;
 
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 public class TcpConnectionHandler extends SelectionKeyHandler
@@ -48,9 +47,9 @@ public class TcpConnectionHandler extends SelectionKeyHandler
                 TcpConnection.acceptConnection(client, localEp_, true);                
             }            
         } 
-        catch(IOException e) 
+        catch (IOException e)
         {
-            logger_.warn(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
     }
 }

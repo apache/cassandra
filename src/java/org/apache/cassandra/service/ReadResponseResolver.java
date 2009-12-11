@@ -31,7 +31,6 @@ import org.apache.cassandra.db.RowMutationMessage;
 import org.apache.cassandra.io.DataInputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -182,7 +181,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             }
             catch (IOException ex)
             {
-                logger_.info(LogUtil.throwableToString(ex));
+                throw new RuntimeException(ex);
             }
         }
         return isDataPresent;

@@ -29,7 +29,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.utils.*;
@@ -93,9 +92,9 @@ public class UdpConnection extends SelectionKeyHandler
             if ( socketChannel_ != null )
                 socketChannel_.close();
         }
-        catch ( IOException ex )
+        catch (IOException ex)
         {
-            logger_.error( LogUtil.throwableToString(ex) );
+            logger_.error("error closing channel", ex);
         }
     }
     
@@ -121,7 +120,7 @@ public class UdpConnection extends SelectionKeyHandler
         return body;
     }
     
-    public void read(SelectionKey key)
+    public void read(SelectionKey key) throws IOException
     {        
         turnOffInterestOps(key, SelectionKey.OP_READ);
         ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
@@ -146,10 +145,6 @@ public class UdpConnection extends SelectionKeyHandler
                     MessagingService.receive(message);
                 }
             }
-        }
-        catch ( IOException ioe )
-        {
-            logger_.warn(LogUtil.throwableToString(ioe));
         }
         finally
         {

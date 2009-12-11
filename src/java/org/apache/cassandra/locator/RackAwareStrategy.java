@@ -22,13 +22,11 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.LogUtil;
 
 /*
  * This class returns the nodes responsible for a given
@@ -103,8 +101,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             }
             catch (UnknownHostException e)
             {
-                if (logger_.isDebugEnabled())
-                    logger_.debug(LogUtil.throwableToString(e));
+                throw new RuntimeException(e);
             }
 
         }

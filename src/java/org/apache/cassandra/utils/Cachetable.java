@@ -91,20 +91,13 @@ public class Cachetable<K,V> implements ICachetable<K,V>
             {                                
                 V value = expungedValues.get(key);
                 ICacheExpungeHook<K,V> hook = hooks_.remove(key);
-                try 
+                if (hook != null)
                 {
-                    if ( hook != null )
-                    {
-                        hook.callMe(key, value);                    
-                    }
-                    else if ( globalHook_ != null )
-                    {
-                        globalHook_.callMe(key, value);
-                    }
+                    hook.callMe(key, value);
                 }
-                catch(Throwable e)
+                else if (globalHook_ != null)
                 {
-                    logger_.info(LogUtil.throwableToString(e));
+                    globalHook_.callMe(key, value);
                 }
             }
             expungedValues.clear();

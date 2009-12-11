@@ -23,12 +23,8 @@ import java.io.*;
 import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
-import org.apache.cassandra.service.*;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.concurrent.*;
-import org.apache.cassandra.net.*;
 
 public class ReadRepairVerbHandler implements IVerbHandler
 {
@@ -46,10 +42,9 @@ public class ReadRepairVerbHandler implements IVerbHandler
             RowMutation rm = rmMsg.getRowMutation();
             rm.apply();                                   
         }
-        catch ( IOException e )
+        catch (IOException e)
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug(LogUtil.throwableToString(e));            
-        }        
+            throw new IOError(e);
+        }
     }
 }

@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.io.DataInputBuffer;
 
 import org.apache.log4j.Logger;
@@ -35,17 +34,16 @@ public class BinaryVerbHandler implements IVerbHandler
         DataInputBuffer buffer = new DataInputBuffer();
         buffer.reset(bytes, bytes.length);
 
-	    try
-	    {
+        try
+        {
             RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(buffer);
-            RowMutation rm = rmMsg.getRowMutation();            	                
+            RowMutation rm = rmMsg.getRowMutation();
             rm.applyBinary();
-	    }        
-	    catch ( Exception e )
-	    {
-	        if (logger_.isDebugEnabled())
-                logger_.debug(LogUtil.throwableToString(e));            
-	    }        
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
 }

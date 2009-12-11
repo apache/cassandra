@@ -177,10 +177,9 @@ public class MessagingService
             MessageDigest messageDigest = MessageDigest.getInstance(type);
             result = messageDigest.digest(data);
         }
-        catch(Exception e)
+        catch (Exception e)
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
         return result;
     }
@@ -218,9 +217,9 @@ public class MessagingService
             endPoints_.add(localEp);
             udpConnections_.put(localEp, connection);
         }
-        catch ( IOException e )
+        catch (IOException e)
         {
-            logger_.warn(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
     }
     
@@ -462,10 +461,10 @@ public class MessagingService
             connection.init();            
             connection.write(message, to);            
         }            
-        catch ( IOException e )
-        {               
-            logger_.warn(LogUtil.throwableToString(e));
-        } 
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
         finally
         {
             if ( connection != null )

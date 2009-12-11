@@ -38,7 +38,6 @@ import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.utils.FileUtils;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.Streaming;
@@ -48,7 +47,6 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 
-import com.google.common.base.Function;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.HashMultimap;
 
@@ -116,15 +114,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             {
                 if (instance_ == null)
                 {
-                    try
-                    {
-                        instance_ = new StorageService();
-                    }
-                    catch (Throwable th)
-                    {
-                        logger_.error(LogUtil.throwableToString(th));
-                        System.exit(1);
-                    }
+                    instance_ = new StorageService();
                 }
             }
         }

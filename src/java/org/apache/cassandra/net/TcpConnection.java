@@ -31,7 +31,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.io.FastSerializer;
@@ -39,7 +38,7 @@ import org.apache.cassandra.net.io.ISerializer;
 import org.apache.cassandra.net.io.ProtocolState;
 import org.apache.cassandra.net.io.StartState;
 import org.apache.cassandra.net.io.TcpReader;
-import org.apache.cassandra.utils.LogUtil;
+
 import org.apache.log4j.Logger;
 
 public class TcpConnection extends SelectionKeyHandler implements Comparable
@@ -398,9 +397,9 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                 } 
             
             }
-            catch(IOException ex)
+            catch (IOException ex)
             {
-                logger_.error(LogUtil.throwableToString(ex));
+                logger_.error(ex);
                 // This is to fix the wierd Linux bug with NIO.
                 errorClose();
             }
@@ -481,8 +480,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         
         private void handleException(Throwable th)
         {
-            logger_.warn("Problem reading from socket connected to : " + socketChannel_);
-            logger_.warn(LogUtil.throwableToString(th));
+            logger_.warn("Problem reading from socket connected to : " + socketChannel_, th);
             // This is to fix the weird Linux bug with NIO.
             errorClose();
         }
