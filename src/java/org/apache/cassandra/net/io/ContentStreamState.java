@@ -86,9 +86,9 @@ class ContentStreamState extends StartState
             {       
                 if (logger_.isDebugEnabled())
                     logger_.debug("Removing stream context " + streamContext_);                 
-                handleStreamCompletion(remoteAddress.getAddress());                              
-                bytesRead_ = 0L;
                 fc_.close();
+                handleStreamCompletion(remoteAddress.getAddress());
+                bytesRead_ = 0L;
                 morphState();
             }                            
         }
