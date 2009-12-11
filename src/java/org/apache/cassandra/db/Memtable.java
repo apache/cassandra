@@ -153,16 +153,19 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
             currentObjectCount_.addAndGet(columnFamily.getColumnCount());
             return;
         }
+
+        int oldSize, newSize;
+        int oldObjectCount, newObjectCount;
         synchronized (keyLocks[Math.abs(key.hashCode() % keyLocks.length)])
         {
-            int oldSize = oldCf.size();
-            int oldObjectCount = oldCf.getColumnCount();
+            oldSize = oldCf.size();
+            oldObjectCount = oldCf.getColumnCount();
             oldCf.resolve(columnFamily);
-            int newSize = oldCf.size();
-            int newObjectCount = oldCf.getColumnCount();
-            resolveSize(oldSize, newSize);
-            resolveCount(oldObjectCount, newObjectCount);
+            newSize = oldCf.size();
+            newObjectCount = oldCf.getColumnCount();
         }
+        resolveSize(oldSize, newSize);
+        resolveCount(oldObjectCount, newObjectCount);
     }
 
     // for debugging
