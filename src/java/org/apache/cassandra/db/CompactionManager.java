@@ -39,37 +39,35 @@ import java.net.InetAddress;
 
 public class CompactionManager implements CompactionManagerMBean
 {
-    public static String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
-    private static CompactionManager instance_;
-    private static Lock lock_ = new ReentrantLock();
-    private static Logger logger_ = Logger.getLogger(CompactionManager.class);
-    private int minimumCompactionThreshold_ = 4; // compact this many sstables min at a time
+    public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
+    private static final Logger logger = Logger.getLogger(CompactionManager.class);
+    private static volatile CompactionManager instance;
+
+    private int minimumCompactionThreshold = 4; // compact this many sstables min at a time
     private int maximumCompactionThreshold = 32; // compact this many sstables max at a time
 
     public static CompactionManager instance()
     {
-        if ( instance_ == null )
+        if (instance == null)
         {
-            lock_.lock();
-            try
+            synchronized (CompactionManager.class)
             {
-                if ( instance_ == null )
+                try
                 {
-                    instance_ = new CompactionManager();
-                    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-                    mbs.registerMBean(instance_, new ObjectName(MBEAN_OBJECT_NAME));
+                    if (instance == null)
+                    {
+                        instance = new CompactionManager();
+                        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+                        mbs.registerMBean(instance, new ObjectName(MBEAN_OBJECT_NAME));
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
                 }
             }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-            finally
-            {
-                lock_.unlock();
-            }
         }
-        return instance_;
+        return instance;
     }
 
     static abstract class Compactor<T> implements Callable<T>
@@ -85,8 +83,8 @@ public class CompactionManager implements CompactionManagerMBean
         public T call()
         {
         	T results;
-            if (logger_.isDebugEnabled())
-                logger_.debug("Starting " + this + ".");
+            if (logger.isDebugEnabled())
+                logger.debug("Starting " + this + ".");
             try
             {
                 results = compact();
@@ -95,8 +93,8 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 throw new RuntimeException(e);
             }
-            if (logger_.isDebugEnabled())
-                logger_.debug("Finished " + this + ".");
+            if (logger.isDebugEnabled())
+                logger.debug("Finished " + this + ".");
             return results;
         }
 
@@ -200,7 +198,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public Future<Integer> submit(final ColumnFamilyStore columnFamilyStore)
     {
-        return submit(columnFamilyStore, minimumCompactionThreshold_, maximumCompactionThreshold);
+        return submit(columnFamilyStore, minimumCompactionThreshold, maximumCompactionThreshold);
     }
 
     Future<Integer> submit(final ColumnFamilyStore columnFamilyStore, final int minThreshold, final int maxThreshold)
@@ -233,7 +231,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public int getMinimumCompactionThreshold()
     {
-        return minimumCompactionThreshold_;
+        return minimumCompactionThreshold;
     }
 
     /**
@@ -241,7 +239,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public void setMinimumCompactionThreshold(int threshold)
     {
-        minimumCompactionThreshold_ = threshold;
+        minimumCompactionThreshold = threshold;
     }
 
     /**
@@ -262,7 +260,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void disableCompactions()
     {
-        minimumCompactionThreshold_ = 0;
+        minimumCompactionThreshold = 0;
         maximumCompactionThreshold = 0;
     }
 }
