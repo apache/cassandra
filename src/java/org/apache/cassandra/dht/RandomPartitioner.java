@@ -38,21 +38,6 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("0");
 
     private static final String DELIMITER = ":";
-    
-    private static final Comparator<DecoratedKey<BigIntegerToken>> comparator =
-        new Comparator<DecoratedKey<BigIntegerToken>>() {
-        public int compare(DecoratedKey<BigIntegerToken> o1, DecoratedKey<BigIntegerToken> o2)
-        {
-            // first, compare on the bigint hash "decoration".  usually this will be enough.
-            int v = o1.token.compareTo(o2.token);
-            if (v != 0) {
-                return v;
-            }
-
-            // if the hashes are equal, compare the strings
-            return o1.key.compareTo(o2.key);
-        }
-    };
 
     public DecoratedKey<BigIntegerToken> decorateKey(String key)
     {
@@ -71,11 +56,6 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
     public String convertToDiskFormat(DecoratedKey<BigIntegerToken> key)
     {
         return key.token + DELIMITER + key.key;
-    }
-
-    public Comparator<DecoratedKey<BigIntegerToken>> getDecoratedKeyComparator()
-    {
-        return comparator;
     }
 
     public BigIntegerToken midpoint(BigIntegerToken ltoken, BigIntegerToken rtoken)

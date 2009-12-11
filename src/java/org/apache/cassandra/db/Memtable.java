@@ -182,9 +182,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     {
         logger_.info("Sorting " + this);
         // sort keys in the order they would be in when decorated
-        Comparator<DecoratedKey> dc = partitioner_.getDecoratedKeyComparator();
         ArrayList<DecoratedKey> orderedKeys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
-        Collections.sort(orderedKeys, dc);
+        Collections.sort(orderedKeys);
         return orderedKeys;
     }
 
@@ -225,7 +224,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
             // cannot create a PQ of size zero (wtf?)
             return Arrays.asList(new DecoratedKey[0]).iterator();
         }
-        PriorityQueue<DecoratedKey> pq = new PriorityQueue<DecoratedKey>(columnFamilies_.size(), partitioner_.getDecoratedKeyComparator());
+        PriorityQueue<DecoratedKey> pq = new PriorityQueue<DecoratedKey>(columnFamilies_.size());
         pq.addAll(columnFamilies_.keySet());
         return new DestructivePQIterator<DecoratedKey>(pq);
     }

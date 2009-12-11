@@ -61,8 +61,7 @@ public class SSTableWriter extends SSTable
         {
             throw new IOException("Keys must not be null.");
         }
-        Comparator<DecoratedKey> c = partitioner.getDecoratedKeyComparator();
-        if (lastWrittenKey != null && c.compare(lastWrittenKey, decoratedKey) > 0)
+        if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) > 0)
         {
             logger.info("Last written key : " + lastWrittenKey);
             logger.info("Current key : " + decoratedKey);

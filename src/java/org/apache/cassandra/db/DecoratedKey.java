@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.DataInput;
+import java.util.Comparator;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.ICompactSerializer2;
@@ -43,6 +44,14 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     {
         return serializer;
     }
+
+    public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
+    {
+        public int compare(DecoratedKey o1, DecoratedKey o2)
+        {
+            return o1.compareTo(o2);
+        }
+    };
 
     public final T token;
     public final String key;

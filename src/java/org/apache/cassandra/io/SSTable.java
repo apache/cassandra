@@ -179,7 +179,7 @@ public abstract class SSTable
 
         public int compareTo(KeyPosition kp)
         {
-            return partitioner.getDecoratedKeyComparator().compare(key, kp.key);
+            return key.compareTo(kp.key);
         }
 
         public String toString()

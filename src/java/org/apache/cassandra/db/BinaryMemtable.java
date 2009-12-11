@@ -132,7 +132,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         assert !columnFamilies_.isEmpty();
         logger_.info("Sorting " + this);
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
-        Collections.sort(keys, partitioner_.getDecoratedKeyComparator());
+        Collections.sort(keys);
         return keys;
     }
 

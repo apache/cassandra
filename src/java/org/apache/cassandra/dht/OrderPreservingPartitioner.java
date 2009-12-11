@@ -35,17 +35,6 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
-    /**
-     * Comparators for decorated keys.
-     */
-    private static final Comparator<DecoratedKey<StringToken>> comparator =
-        new Comparator<DecoratedKey<StringToken>>() {
-        public int compare(DecoratedKey<StringToken> o1, DecoratedKey<StringToken> o2)
-        {
-            return o1.key.compareTo(o2.key);
-        }
-    };
-
     public DecoratedKey<StringToken> decorateKey(String key)
     {
         return new DecoratedKey<StringToken>(new StringToken(key), key);
@@ -59,11 +48,6 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     public String convertToDiskFormat(DecoratedKey<StringToken> key)
     {
         return key.key;
-    }
-
-    public Comparator<DecoratedKey<StringToken>> getDecoratedKeyComparator()
-    {
-        return comparator;
     }
 
     public StringToken midpoint(StringToken ltoken, StringToken rtoken)
