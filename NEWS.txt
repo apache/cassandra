@@ -6,6 +6,7 @@
    or simply remove the commitlog directory if you only have test data.
    (If more writes come in after the flush command, starting 0.5 will error
    out; if that happens, just go back to 0.4 and flush again.)
+   The format changed twice: from 0.4 to beta1, and from beta2 to RC1.
 
 1. Bootstrap, move, load balancing, and active repair have been added.
    See http://wiki.apache.org/cassandra/Operations
