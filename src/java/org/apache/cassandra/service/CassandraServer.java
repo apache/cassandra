@@ -65,7 +65,6 @@ public class CassandraServer implements Cassandra.Iface
 	public void start() throws IOException
     {
 		LogUtil.init();
-		//LogUtil.setLogLevel("com.facebook", "DEBUG");
 		// Start the storage service
 		storageService.initServer();
 	}

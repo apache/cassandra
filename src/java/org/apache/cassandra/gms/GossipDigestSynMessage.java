@@ -26,9 +26,7 @@ import java.util.*;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
 import java.net.InetAddress;
-import org.apache.cassandra.utils.Log4jLogger;
 import org.apache.log4j.Logger;
-import org.apache.cassandra.utils.*;
 
 
 /**
@@ -113,7 +111,7 @@ class GossipDigestSerializationHelper
 
 class EndPointStatesSerializationHelper
 {
-    private static Log4jLogger logger_ = new Log4jLogger(EndPointStatesSerializationHelper.class.getName());
+    private static final Logger logger_ = Logger.getLogger(EndPointStatesSerializationHelper.class);
     
     static boolean serialize(Map<InetAddress, EndPointState> epStateMap, DataOutputStream dos) throws IOException
     {

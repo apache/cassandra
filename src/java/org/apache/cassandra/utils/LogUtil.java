@@ -25,26 +25,21 @@ import org.apache.log4j.*;
 import org.apache.log4j.spi.LoggerFactory;
 import org.apache.log4j.xml.DOMConfigurator;
 
+@Deprecated
 public class LogUtil
 {
 
-    public LogUtil()
+    private LogUtil()
     {
     }
 
     public static void init()
     {
-        //BasicConfigurator.configure();
         String file = System.getProperty("storage-config");
         file += File.separator + "log4j.properties";
         PropertyConfigurator.configure(file);
     }
 
-    public static Logger getLogger(String name)
-    {
-        return Logger.getLogger(name);
-    }
-    
     public static String stackTrace(Throwable e)
     {
         StringWriter sw = new StringWriter();
@@ -79,41 +74,4 @@ public class LogUtil
         return sbuf.toString();
     }
 
-    public static String getLogMessage(String message)
-    {
-        StringBuilder sbuf = new StringBuilder((new StringBuilder())
-        		.append("Log started at : ")
-        		.append(getTimestamp())
-        		.toString());
-        sbuf.append(File.separator)
-        	.append(message);
-        return sbuf.toString();
-    }
-
-    public static void setLogLevel(String logger, String level)
-    {        
-        Logger loggerObj = LogManager.getLogger(logger);
-        if(null == loggerObj)
-            return;
-        level = level.toUpperCase();
-        if(level.equals("DEBUG"))
-            loggerObj.setLevel(Level.DEBUG);
-        else
-        if(level.equals("ERROR"))
-            loggerObj.setLevel(Level.ERROR);
-        else
-        if(level.equals("FATAL"))
-            loggerObj.setLevel(Level.FATAL);
-        else
-        if(level.equals("INFO"))
-            loggerObj.setLevel(Level.INFO);
-        else
-        if(level.equals("OFF"))
-            loggerObj.setLevel(Level.OFF);
-        else
-        if(level.equals("WARN"))
-            loggerObj.setLevel(Level.WARN);
-        else
-            loggerObj.setLevel(Level.ALL);
-    }
 }
