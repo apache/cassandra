@@ -31,6 +31,8 @@ import org.apache.log4j.Logger;
 
 import java.io.*;
 import java.util.*;
+import java.util.zip.Checksum;
+import java.util.zip.CRC32;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -305,11 +307,13 @@ public class CommitLog
                 if (logger_.isDebugEnabled())
                     logger_.debug("Reading mutation at " + reader.getFilePointer());
 
+                long claimedCRC32;
                 byte[] bytes;
                 try
                 {
                     bytes = new byte[(int) reader.readLong()]; // readlong can throw EOFException too
                     reader.readFully(bytes);
+                    claimedCRC32 = reader.readLong();
                 }
                 catch (EOFException e)
                 {
@@ -317,8 +321,16 @@ public class CommitLog
                     break;
                 }
                 bufIn.reset(bytes, bytes.length);
+                Checksum checksum = new CRC32();
+                checksum.update(bytes, 0, bytes.length);
+                if (claimedCRC32 != checksum.getValue())
+                {
+                    // this part of the log must not have been fsynced.  probably the rest is bad too,
+                    // but just in case there is no harm in trying them.
+                    continue;
+                }
 
-                /* read the commit log entry */
+                /* deserialize the commit log entry */
                 final RowMutation rm = RowMutation.serializer().deserialize(bufIn);
                 if (logger_.isDebugEnabled())
                     logger_.debug(String.format("replaying mutation for %s.%s: %s",
@@ -620,16 +632,16 @@ public class CommitLog
             long currentPosition = -1L;
             try
             {
-                /* serialize the row */
                 currentPosition = logWriter_.getFilePointer();
                 CommitLogContext cLogCtx = new CommitLogContext(logFile_, currentPosition);
-                /* Update the header */
                 maybeUpdateHeader(rowMutation);
+                Checksum checkum = new CRC32();
                 if (serializedRow instanceof DataOutputBuffer)
                 {
                     DataOutputBuffer buffer = (DataOutputBuffer) serializedRow;
                     logWriter_.writeLong(buffer.getLength());
                     logWriter_.write(buffer.getData(), 0, buffer.getLength());
+                    checkum.update(buffer.getData(), 0, buffer.getLength());
                 }
                 else
                 {
@@ -637,7 +649,9 @@ public class CommitLog
                     byte[] bytes = (byte[]) serializedRow;
                     logWriter_.writeLong(bytes.length);
                     logWriter_.write(bytes);
+                    checkum.update(bytes, 0, bytes.length);
                 }
+                logWriter_.writeLong(checkum.getValue());
                 maybeRollLog();
                 return cLogCtx;
             }
