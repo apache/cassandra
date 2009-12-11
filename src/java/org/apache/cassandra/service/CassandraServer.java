@@ -52,33 +52,17 @@ public class CassandraServer implements Cassandra.Iface
       * Handle to the storage service to interact with the other machines in the
       * cluster.
       */
-	protected StorageService storageService;
+	private final StorageService storageService;
 
     public CassandraServer()
 	{
 		storageService = StorageService.instance();
 	}
 
-	/*
-	 * The start function initializes the server and start's listening on the
-	 * specified port.
-	 */
-	public void start() throws IOException
-    {
-        // log4j
-        String file = System.getProperty("storage-config") + File.separator + "log4j.properties";
-        PropertyConfigurator.configure(file);
-
-        // Start the storage service
-		storageService.initServer();
-	}
-
     protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         // TODO - Support multiple column families per row, right now row only contains 1 column family
-        String cfName = commands.get(0).getColumnFamilyName();
-
         Map<String, ColumnFamily> columnFamilyKeyMap = new HashMap<String,ColumnFamily>();
 
         if (consistency_level == ConsistencyLevel.ZERO)

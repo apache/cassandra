@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.InetAddress;
 
 import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
 
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
@@ -54,6 +55,10 @@ public class CassandraDaemon
 
     private void setup() throws IOException, TTransportException
     {
+        // log4j
+        String file = System.getProperty("storage-config") + File.separator + "log4j.properties";
+        PropertyConfigurator.configure(file);
+
         int listenPort = DatabaseDescriptor.getThriftPort();
         InetAddress listenAddr = DatabaseDescriptor.getThriftAddress();
         
@@ -87,12 +92,12 @@ public class CassandraDaemon
 
         // replay the log if necessary
         RecoveryManager recoveryMgr = RecoveryManager.instance();
-        recoveryMgr.doRecovery();
+        RecoveryManager.doRecovery();
 
         // now we start listening for clients
-        CassandraServer peerStorageServer = new CassandraServer();
-        peerStorageServer.start();
-        Cassandra.Processor processor = new Cassandra.Processor(peerStorageServer);
+        CassandraServer cassandraServer = new CassandraServer();
+        StorageService.instance().initServer();
+        Cassandra.Processor processor = new Cassandra.Processor(cassandraServer);
 
         // Transport
         TServerSocket tServerSocket = new TServerSocket(new InetSocketAddress(listenAddr, listenPort));
