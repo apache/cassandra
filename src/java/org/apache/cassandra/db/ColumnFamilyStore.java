@@ -1289,8 +1289,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         final DecoratedKey startWithDK = partitioner.decorateKey(startWith);
         final DecoratedKey stopAtDK = partitioner.decorateKey(stopAt);
-        // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
-        final Comparator<DecoratedKey> comparator = partitioner.getDecoratedKeyComparator();
 
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
@@ -1302,8 +1300,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public boolean apply(DecoratedKey key)
             {
-                return comparator.compare(startWithDK, key) <= 0
-                       && (stopAt.isEmpty() || comparator.compare(key, stopAtDK) <= 0);
+                return startWithDK.compareTo(key) <= 0
+                       && (stopAt.isEmpty() || key.compareTo(stopAtDK) <= 0);
             }
         };
 
@@ -1343,7 +1341,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             iterators.add(iter);
         }
 
-        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(comparator, iterators);
+        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(DecoratedKey.comparator, iterators);
         Iterable<DecoratedKey> reduced = new ReducingIterator<DecoratedKey, DecoratedKey>(collated) {
             DecoratedKey current;
 
@@ -1366,7 +1364,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             boolean rangeCompletedLocally = false;
             for (DecoratedKey current : reduced)
             {
-                if (!stopAt.isEmpty() && comparator.compare(stopAtDK, current) < 0)
+                if (!stopAt.isEmpty() && stopAtDK.compareTo(current) < 0)
                 {
                     rangeCompletedLocally = true;
                     break;
@@ -1411,9 +1409,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public RangeReply getKeyRangeRaw(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
-        // (OPP key decoration is a no-op so using the "decorated" comparator against raw keys is fine)
-        final Comparator<DecoratedKey> comparator = partitioner.getDecoratedKeyComparator();
-
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
         List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
@@ -1424,8 +1419,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public boolean apply(DecoratedKey key)
             {
-                return comparator.compare(startWith, key) <= 0
-                       && (stopAt.isEmpty() || comparator.compare(key,  stopAt) <= 0);
+                return startWith.compareTo(key) <= 0
+                       && (stopAt.isEmpty() || key.compareTo(stopAt) <= 0);
             }
         };
 
@@ -1465,7 +1460,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             iterators.add(iter);
         }
 
-        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(comparator, iterators);
+        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(DecoratedKey.comparator, iterators);
         Iterable<DecoratedKey> reduced = new ReducingIterator<DecoratedKey, DecoratedKey>(collated) {
             DecoratedKey current;
 
@@ -1487,7 +1482,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             boolean rangeCompletedLocally = false;
             for (DecoratedKey current : reduced)
             {
-                if (!stopAt.isEmpty() && comparator.compare( stopAt, current) < 0)
+                if (!stopAt.isEmpty() && stopAt.compareTo(current) < 0)
                 {
                     rangeCompletedLocally = true;
                     break;

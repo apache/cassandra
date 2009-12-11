@@ -310,7 +310,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     return -1;
                 }
                 long position = input.readLong();
-                int v = partitioner.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
+                int v = indexDecoratedKey.compareTo(decoratedKey);
                 if (v == 0)
                 {
                     if (keyCache != null)
@@ -352,7 +352,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     return -1;
                 }
                 long position = input.readLong();
-                int v = partitioner.getDecoratedKeyComparator().compare(indexDecoratedKey, decoratedKey);
+                int v = indexDecoratedKey.compareTo(decoratedKey);
                 if (v >= 0)
                     return position;
             }

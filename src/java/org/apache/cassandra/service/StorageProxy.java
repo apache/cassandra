@@ -78,7 +78,7 @@ public class StorageProxy implements StorageProxyMBean
         public int compare(String o1, String o2)
         {
             IPartitioner p = StorageService.getPartitioner();
-            return p.getDecoratedKeyComparator().compare(p.decorateKey(o1), p.decorateKey(o2));
+            return p.decorateKey(o1).compareTo(p.decorateKey(o2));
         }
     };
 

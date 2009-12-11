@@ -49,11 +49,6 @@ public interface IPartitioner<T extends Token>
     public DecoratedKey<T> decorateKey(String key);
 
     /**
-     * @return a comparator for decorated key objects, not strings
-     */
-    public Comparator<DecoratedKey<T>> getDecoratedKeyComparator();
-
-    /**
      * Calculate a Token representing the approximate "middle" of the given
      * range.
      *

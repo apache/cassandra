@@ -37,16 +37,6 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     
     public static final BigInteger BYTE_MASK = new BigInteger("255");
 
-    /**
-     * Comparators for decorated keys.
-     */
-    private static final Comparator<DecoratedKey<BytesToken>> comparator = new Comparator<DecoratedKey<BytesToken>>() {
-        public int compare(DecoratedKey<BytesToken> o1, DecoratedKey<BytesToken> o2)
-        {
-            return FBUtilities.compareByteArrays(o1.token.token, o2.token.token);
-        }
-    };
-
     public DecoratedKey<BytesToken> decorateKey(String key)
     {
         return new DecoratedKey<BytesToken>(getToken(key), key);
@@ -60,11 +50,6 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
     public String convertToDiskFormat(DecoratedKey<BytesToken> key)
     {
         return key.key;
-    }
-
-    public Comparator<DecoratedKey<BytesToken>> getDecoratedKeyComparator()
-    {
-        return comparator;
     }
 
     public BytesToken midpoint(BytesToken ltoken, BytesToken rtoken)
