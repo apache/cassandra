@@ -26,6 +26,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.lang.management.ManagementFactory;
 
+import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,6 +42,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -52,12 +54,12 @@ import javax.management.ObjectName;
 
 public class StorageProxy implements StorageProxyMBean
 {
-    private static Logger logger = Logger.getLogger(StorageProxy.class);
+    private static final Logger logger = Logger.getLogger(StorageProxy.class);
 
     // mbean stuff
-    private static TimedStatsDeque readStats = new TimedStatsDeque(60000);
-    private static TimedStatsDeque rangeStats = new TimedStatsDeque(60000);
-    private static TimedStatsDeque writeStats = new TimedStatsDeque(60000);
+    private static final TimedStatsDeque readStats = new TimedStatsDeque(60000);
+    private static final TimedStatsDeque rangeStats = new TimedStatsDeque(60000);
+    private static final TimedStatsDeque writeStats = new TimedStatsDeque(60000);
 
     private StorageProxy() {}
     static
@@ -73,11 +75,11 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static Comparator<String> keyComparator = new Comparator<String>()
+    private static final Comparator<String> keyComparator = new Comparator<String>()
     {
         public int compare(String o1, String o2)
         {
-            IPartitioner p = StorageService.getPartitioner();
+            IPartitioner<?> p = StorageService.getPartitioner();
             return p.decorateKey(o1).compareTo(p.decorateKey(o2));
         }
     };
@@ -530,8 +532,8 @@ public class StorageProxy implements StorageProxyMBean
                 throw new UnavailableException();
 
             // to make comparing the results from each node easy, we restrict each command to the data in the primary range for this iteration
-            DecoratedKey startKey;
-            DecoratedKey finishKey;
+            DecoratedKey<?> startKey;
+            DecoratedKey<?> finishKey;
             if (primaryRange.left().equals(primaryRange.right()))
             {
                 startKey = command.startKey;
@@ -539,10 +541,10 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                startKey = Collections.max(Arrays.asList(command.startKey, new DecoratedKey(primaryRange.left(), null)));
+                startKey = (DecoratedKey<?>) ObjectUtils.max(command.startKey, new DecoratedKey<Token<?>>(primaryRange.left(), null));
                 finishKey = command.finishKey.isEmpty()
-                          ? new DecoratedKey(primaryRange.right(), null)
-                          : Collections.min(Arrays.asList(command.finishKey, new DecoratedKey(primaryRange.right(), null)));
+                          ? new DecoratedKey<Token<?>>(primaryRange.right(), null)
+                          : (DecoratedKey<?>) ObjectUtils.min(command.finishKey, new DecoratedKey<Token<?>>(primaryRange.right(), null));
             }
             RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys);
             Message message = c2.getMessage();
