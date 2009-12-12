@@ -145,7 +145,7 @@ public class StorageProxy implements StorageProxyMBean
                     Message hintedMessage = rm.makeRowMutationMessage();
                     hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
                     if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
+                        logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
                     MessagingService.instance().sendOneWay(hintedMessage, hintedTarget);
                 }
             }
