@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
@@ -37,13 +36,11 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.CompactionIterator.CompactedRow;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.SSTableReader;
 import static org.apache.cassandra.service.AntiEntropyService.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.io.SSTableUtils;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -162,7 +159,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         
         // force a major compaction, and wait for it to finish
         MerkleTree old = aes.getCachedTree(tablename, cfname, LOCAL);
-        CompactionManager.instance().submitMajor(store, 0).get(5000, TimeUnit.MILLISECONDS);
+        CompactionManager.instance.submitMajor(store, 0).get(5000, TimeUnit.MILLISECONDS);
 
         // check that a tree was created and cached
         flushAES().get(5000, TimeUnit.MILLISECONDS);

@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.Test;
@@ -38,7 +37,7 @@ public class RecoveryManager2Test extends CleanupHelper
     @Test
     public void testWithFlush() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance().disableCompactions();
+        CompactionManager.instance.disableCompactions();
 
         for (int i = 0; i < 100; i++)
         {

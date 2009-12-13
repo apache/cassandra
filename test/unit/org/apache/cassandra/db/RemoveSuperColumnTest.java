@@ -59,7 +59,7 @@ public class RemoveSuperColumnTest
         store.forceBlockingFlush();
         validateRemoveTwoSources();
 
-        Future<Integer> ft = CompactionManager.instance().submit(store, 2, 32);
+        Future<Integer> ft = CompactionManager.instance.submitMinor(store, 2, 32);
         ft.get();
         assertEquals(1, store.getSSTables().size());
         validateRemoveCompacted();
@@ -144,7 +144,7 @@ public class RemoveSuperColumnTest
         store.forceBlockingFlush();
         validateRemoveWithNewData();
 
-        Future<Integer> ft = CompactionManager.instance().submit(store, 2, 32);
+        Future<Integer> ft = CompactionManager.instance.submitMinor(store, 2, 32);
         ft.get();
         assertEquals(1, store.getSSTables().size());
         validateRemoveWithNewData();

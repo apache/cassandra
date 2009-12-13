@@ -245,7 +245,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.onStart(sstables);
 
         // submit initial check-for-compaction request
-        CompactionManager.instance().submit(ColumnFamilyStore.this);
+        CompactionManager.instance.submitMinor(ColumnFamilyStore.this);
 
         // schedule hinted handoff
         if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
@@ -298,7 +298,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
     {
         assert ranges != null;
-        Future<List<SSTableReader>> futurePtr = CompactionManager.instance().submitAnti(ColumnFamilyStore.this,
+        Future<List<SSTableReader>> futurePtr = CompactionManager.instance.submitAnti(ColumnFamilyStore.this,
                                                                                         ranges, target);
 
         List<SSTableReader> result;
@@ -591,7 +591,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void addSSTable(SSTableReader sstable)
     {
         ssTables_.add(sstable);
-        CompactionManager.instance().submit(this);
+        CompactionManager.instance.submitMinor(this);
     }
 
     /*
@@ -738,7 +738,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void forceCleanup()
     {
-        CompactionManager.instance().submitCleanup(ColumnFamilyStore.this);
+        CompactionManager.instance.submitCleanup(ColumnFamilyStore.this);
     }
 
     /**
@@ -939,7 +939,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.add(ssTable);
         ssTables_.markCompacted(sstables);
         gcAfterRpcTimeout();
-        CompactionManager.instance().submit(ColumnFamilyStore.this);
+        CompactionManager.instance.submitMinor(ColumnFamilyStore.this);
 
         String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;

@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
@@ -65,7 +64,7 @@ public class CompactionsTest extends CleanupHelper
         }
         while (true)
         {
-            Future<Integer> ft = CompactionManager.instance().submit(store);
+            Future<Integer> ft = CompactionManager.instance.submitMinor(store);
             if (ft.get() == 0)
                 break;
         }
@@ -79,7 +78,7 @@ public class CompactionsTest extends CleanupHelper
     @Test
     public void testCompactionPurge() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance().disableCompactions();
+        CompactionManager.instance.disableCompactions();
 
         Table table = Table.open(TABLE1);
         String cfName = "Standard1";
@@ -132,7 +131,7 @@ public class CompactionsTest extends CleanupHelper
     @Test
     public void testCompactionPurgeOneFile() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance().disableCompactions();
+        CompactionManager.instance.disableCompactions();
 
         Table table = Table.open(TABLE1);
         String cfName = "Standard2";

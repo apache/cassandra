@@ -636,7 +636,7 @@ public class AntiEntropyService
             try
             {
                 List<Range> ranges = new ArrayList<Range>(differences);
-                List<SSTableReader> sstables = CompactionManager.instance().submitAnti(cfstore, ranges, remote).get();
+                List<SSTableReader> sstables = CompactionManager.instance.submitAnti(cfstore, ranges, remote).get();
                 Streaming.transferSSTables(remote, sstables, cf.table);
             }
             catch(Exception e)
@@ -723,7 +723,7 @@ public class AntiEntropyService
                 // trigger readonly-compaction
                 logger.debug("Queueing readonly compaction for request from " + message.getFrom() + " for " + request);
                 Table table = Table.open(request.table);
-                CompactionManager.instance().submitReadonly(table.getColumnFamilyStore(request.cf), message.getFrom());
+                CompactionManager.instance.submitReadonly(table.getColumnFamilyStore(request.cf), message.getFrom());
             }
             catch (IOException e)
             {

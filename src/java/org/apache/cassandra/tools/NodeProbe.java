@@ -639,7 +639,7 @@ public class NodeProbe
                 System.exit(1);
             }
             int minthreshold = Integer.parseInt(arguments[1]);
-            int maxthreshold = CompactionManager.instance().getMaximumCompactionThreshold();
+            int maxthreshold = CompactionManager.instance.getMaximumCompactionThreshold();
             if (arguments.length > 2)
             {
                 maxthreshold = Integer.parseInt(arguments[2]);
