@@ -115,7 +115,7 @@ public class SSTableImport
             }
             
             SuperColumn superColumn = (SuperColumn)cfamily.getColumn(superName);
-            superColumn.markForDeleteAt((int)System.currentTimeMillis(), deletedAt);
+            superColumn.markForDeleteAt((int)(System.currentTimeMillis()/1000), deletedAt);
         }
     }
 
