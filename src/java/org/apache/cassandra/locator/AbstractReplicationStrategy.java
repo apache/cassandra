@@ -91,11 +91,11 @@ public abstract class AbstractReplicationStrategy
 
         List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
 
-        for (Map.Entry<Range, InetAddress> entry : tokenMetadata_.getPendingRanges().entrySet())
+        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges().entrySet())
         {
             if (entry.getKey().contains(token))
             {
-                endpoints.add(entry.getValue());
+                endpoints.addAll(entry.getValue());
             }
         }
 
