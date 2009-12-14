@@ -47,10 +47,10 @@ import org.apache.log4j.Logger;
  */
 class ReadRepairManager
 {
-    private static Logger logger_ = Logger.getLogger(ReadRepairManager.class);
+    private static final Logger logger_ = Logger.getLogger(ReadRepairManager.class);
 	private static final long expirationTimeInMillis = 2000;
-	private static Lock lock_ = new ReentrantLock();
-	private static ReadRepairManager self_ = null;
+	private static final Lock lock_ = new ReentrantLock();
+	private static volatile ReadRepairManager self_ = null;
 
 	/*
 	 * This is the internal class which actually
@@ -94,7 +94,7 @@ class ReadRepairManager
             lock_.lock();
             try
             {
-                if ( self_ == null )
+                if (self_ == null)
                     self_ = new ReadRepairManager();
             }
             finally

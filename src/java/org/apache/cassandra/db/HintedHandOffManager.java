@@ -74,23 +74,23 @@ import org.apache.cassandra.db.filter.QueryPath;
 
 public class HintedHandOffManager
 {
-    private static HintedHandOffManager instance_;
-    private static Lock lock_ = new ReentrantLock();
-    private static Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
+    private static volatile HintedHandOffManager instance_;
+    private static final Lock lock_ = new ReentrantLock();
+    private static final Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     final static long INTERVAL_IN_MS = 3600 * 1000;
-    private ExecutorService executor_ = new DebuggableThreadPoolExecutor("HINTED-HANDOFF-POOL");
-    Timer timer = new Timer("HINTED-HANDOFF-TIMER");
+    private final ExecutorService executor_ = new DebuggableThreadPoolExecutor("HINTED-HANDOFF-POOL");
+    final Timer timer = new Timer("HINTED-HANDOFF-TIMER");
     public static final String HINTS_CF = "HintsColumnFamily";
 
 
     public static HintedHandOffManager instance()
     {
-        if ( instance_ == null )
+        if (instance_ == null)
         {
             lock_.lock();
             try
             {
-                if ( instance_ == null )
+                if (instance_ == null)
                     instance_ = new HintedHandOffManager();
             }
             finally
