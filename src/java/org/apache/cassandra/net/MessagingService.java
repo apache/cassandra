@@ -192,6 +192,7 @@ public class MessagingService
     {        
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         ServerSocket ss = serverChannel.socket();
+        ss.setReuseAddress(true);
         ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
         serverChannel.configureBlocking(false);
         

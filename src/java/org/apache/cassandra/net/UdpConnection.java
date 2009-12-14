@@ -43,19 +43,18 @@ public class UdpConnection extends SelectionKeyHandler
     private DatagramChannel socketChannel_;
     private SelectionKey key_;
     
-    public void init() throws IOException
+    public void init() throws IOException // for outgoing messages
     {
         socketChannel_ = DatagramChannel.open();
-        socketChannel_.socket().setReuseAddress(true);
         socketChannel_.configureBlocking(false);        
     }
     
     public void init(InetAddress localEp) throws IOException
     {
         socketChannel_ = DatagramChannel.open();
-        socketChannel_.socket().bind(new InetSocketAddress(localEp, DatabaseDescriptor.getControlPort()));
         socketChannel_.socket().setReuseAddress(true);
-        socketChannel_.configureBlocking(false);        
+        socketChannel_.socket().bind(new InetSocketAddress(localEp, DatabaseDescriptor.getControlPort()));
+        socketChannel_.configureBlocking(false);
         key_ = SelectorManager.getUdpSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
     }
     
