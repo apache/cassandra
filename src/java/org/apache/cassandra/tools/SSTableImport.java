@@ -29,7 +29,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.SSTableWriter;
-import org.apache.cassandra.utils.FBUtilities;
+import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import org.apache.commons.cli.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -85,9 +85,9 @@ public class SSTableImport
     {
         for (Object c : row)
         {
-            JsonColumn col = new JsonColumn(c);  
-            QueryPath path = new QueryPath(cfamily.name(), null, col.name.getBytes());
-            cfamily.addColumn(path, FBUtilities.hexToBytes(col.value), col.timestamp, col.isDeleted);
+            JsonColumn col = new JsonColumn(c);
+            QueryPath path = new QueryPath(cfamily.name(), null, hexToBytes(col.name));
+            cfamily.addColumn(path, hexToBytes(col.value), col.timestamp, col.isDeleted);
         }
     }
     
@@ -102,7 +102,7 @@ public class SSTableImport
         // Super columns
         for (Map.Entry<String, JSONObject> entry : (Set<Map.Entry<String, JSONObject>>)row.entrySet())
         {
-            byte[] superName = entry.getKey().getBytes();
+            byte[] superName = hexToBytes(entry.getKey());
             long deletedAt = (Long)entry.getValue().get("deletedAt");
             JSONArray subColumns = (JSONArray)entry.getValue().get("subColumns");
             
@@ -110,8 +110,8 @@ public class SSTableImport
             for (Object c : subColumns)
             {
                 JsonColumn col = new JsonColumn(c);
-                QueryPath path = new QueryPath(cfamily.name(), superName, col.name.getBytes());
-                cfamily.addColumn(path, FBUtilities.hexToBytes(col.value), col.timestamp, col.isDeleted);
+                QueryPath path = new QueryPath(cfamily.name(), superName, hexToBytes(col.name));
+                cfamily.addColumn(path, hexToBytes(col.value), col.timestamp, col.isDeleted);
             }
             
             SuperColumn superColumn = (SuperColumn)cfamily.getColumn(superName);

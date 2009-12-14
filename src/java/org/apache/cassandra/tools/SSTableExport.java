@@ -31,7 +31,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IteratingRow;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableScanner;
-import org.apache.cassandra.utils.FBUtilities;
+import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
 import org.apache.commons.cli.*;
 
 /**
@@ -77,9 +77,9 @@ public class SSTableExport
         {
             json.append("[");
             IColumn column = iter.next();
-            json.append(quote(comp.getString(column.name())));
+            json.append(quote(bytesToHex(column.name())));
             json.append(", ");
-            json.append(quote(FBUtilities.bytesToHex(column.value())));
+            json.append(quote(bytesToHex(column.value())));
             json.append(", ");
             json.append(column.timestamp());
             json.append(", ");
@@ -108,7 +108,7 @@ public class SSTableExport
             while (iter.hasNext())
             {
                 IColumn column = iter.next();
-                json.append(asKey(comparator.getString(column.name())));
+                json.append(asKey(bytesToHex(column.name())));
                 json.append("{");
                 json.append(asKey("deletedAt"));
                 json.append(column.getMarkedForDeleteAt());
