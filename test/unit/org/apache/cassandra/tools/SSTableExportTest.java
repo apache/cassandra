@@ -25,16 +25,21 @@ import java.io.PrintStream;
 import java.util.Arrays;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.SSTableAccessor;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
 import static org.apache.cassandra.Util.createTemporarySSTable;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
+import static org.junit.Assert.assertTrue;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
+import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
 public class SSTableExportTest
@@ -118,4 +123,38 @@ public class SSTableExportTest
         assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
         assert !(Boolean)colA.get(3);       
     }
+    
+    @Test
+    public void testRoundTripStandardCf() throws IOException, ParseException
+    {
+        File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
+        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
+        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
+        DataOutputBuffer dob = new DataOutputBuffer();
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
+        
+        // Add rowA
+        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1, false);
+        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
+        writer.append(partitioner.decorateKey("rowA"), dob);
+        dob.reset();
+        cfamily.clear();
+        
+        SSTableReader reader = writer.closeAndOpenReader(0);
+        
+        // Export to JSON and verify
+        File tempJson = File.createTempFile("Standard1", ".json");
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()));
+        
+        // Import JSON to another SSTable file
+        File tempSS2 = createTemporarySSTable("Keyspace1", "Standard1");
+        SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());        
+        
+        reader = SSTableAccessor.getSSTableReader(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());
+        NamesQueryFilter qf = new NamesQueryFilter("rowA", new QueryPath("Standard1", null, null), "name".getBytes());
+        ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
+        assertTrue(cf != null);
+        assertTrue(Arrays.equals(cf.getColumn("name".getBytes()).value(), hexToBytes("76616c")));
+    }
+    
 }
