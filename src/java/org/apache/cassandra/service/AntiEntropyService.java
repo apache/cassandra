@@ -311,15 +311,16 @@ public class AntiEntropyService
         public final InetAddress initiator;
         public final MerkleTree tree;
 
-        private transient final List<MerkleTree.RowHash> rows;
         // the minimum token sorts first, but falls into the last range
         private transient List<MerkleTree.RowHash> minrows;
         // null when all rows with the min token have been consumed
         private transient Token mintoken;
         private transient long validated;
+        private transient MerkleTree.TreeRange range;
         private transient MerkleTree.TreeRangeIterator ranges;
 
         public final static Predicate<DecoratedKey> DKPRED = Predicates.alwaysTrue();
+        public final static MerkleTree.RowHash EMPTY_ROW = new MerkleTree.RowHash(null, new byte[0]);
         
         Validator(CFTuple cf, InetAddress initiator)
         {
@@ -336,10 +337,10 @@ public class AntiEntropyService
             this.cf = cf;
             this.initiator = initiator;
             this.tree = tree;
-            rows = new ArrayList<MerkleTree.RowHash>();
             minrows = new ArrayList<MerkleTree.RowHash>();
             mintoken = null;
             validated = 0;
+            range = null;
             ranges = null;
         }
         
@@ -380,10 +381,14 @@ public class AntiEntropyService
          * Called (in order) for every row present in the CF.
          * Hashes the row, and adds it to the tree being built.
          *
-         * There are three possible cases:
+         * There are four possible cases:
          *  1. Token is greater than range.right (we haven't generated a range for it yet),
          *  2. Token is less than/equal to range.left (the range was valid),
-         *  3. Token is contained in the range (the range is in progress).
+         *  3. Token is contained in the range (the range is in progress),
+         *  4. No more invalid ranges exist.
+         *
+         * TODO: Because we only validate completely empty trees at the moment, we
+         * do not both dealing with case 2 and case 4 should result in an error.
          *
          * Additionally, there is a special case for the minimum token, because
          * although it sorts first, it is contained in the last possible range.
@@ -401,42 +406,31 @@ public class AntiEntropyService
                 {
                     // and store it to be appended when we complete
                     minrows.add(rowHash(row));
-                    validated++;
                     return;
                 }
                 mintoken = null;
             }
 
-            if (!ranges.hasNext())
-                return;
+            if (range == null)
+                range = ranges.next();
 
-            MerkleTree.TreeRange range = ranges.peek();
             // generate new ranges as long as case 1 is true
-            while (range.right().compareTo(row.key.token) < 0)
+            while (!range.contains(row.key.token))
             {
-                // token is past the current range: finalize
-                range.validate(rows);
-                rows.clear();
-
-                // and generate a new range
-                ranges.next();
-                if (!ranges.hasNext())
-                    return;
-                range = ranges.peek();
+                // add the empty hash, and move to the next range
+                range.addHash(EMPTY_ROW);
+                range = ranges.next();
             }
 
-            // if case 2 is true, ignore the token
-            if (row.key.token.compareTo(range.left()) <= 0)
-                return;
-            
-            // case 3 must be true: buffer the hashed row
-            rows.add(rowHash(row));
-            validated++;
+            // case 3 must be true: mix in the hashed row
+            range.addHash(rowHash(row));
         }
 
         private MerkleTree.RowHash rowHash(CompactedRow row)
         {
-            byte[] rowhash = FBUtilities.hash("MD5", row.key.key.getBytes(), row.buffer.getData());
+            validated++;
+            // MerkleTree uses XOR internally, so we want lots of output bits here
+            byte[] rowhash = FBUtilities.hash("SHA-256", row.key.key.getBytes(), row.buffer.getData());
             return new MerkleTree.RowHash(row.key.token, rowhash);
         }
 
@@ -448,20 +442,17 @@ public class AntiEntropyService
         {
             assert ranges != null : "Validator was not prepared()";
 
-            // finish validating remaining rows
+            if (range != null)
+                range.addHash(EMPTY_ROW);
             while (ranges.hasNext())
             {
-                MerkleTree.TreeRange range = ranges.next();
-                if (!ranges.hasNext() && !minrows.isEmpty() && range.contains(tree.partitioner().getMinimumToken()))
-                {
-                    // append rows with the minimum token into the last range
-                    rows.addAll(minrows);
-                    minrows.clear();
-                }
-                range.validate(rows);
-                rows.clear();
+                range = ranges.next();
+                range.addHash(EMPTY_ROW);
             }
-            assert rows.isEmpty() && minrows.isEmpty();
+            // add rows with the minimum token to the final range
+            if (!minrows.isEmpty())
+                for (MerkleTree.RowHash minrow : minrows)
+                    range.addHash(minrow);
 
             StageManager.getStage(AE_SERVICE_STAGE).execute(this);
             logger.debug("Validated " + validated + " rows into AEService tree for " + cf);

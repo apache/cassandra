@@ -38,39 +38,28 @@ import org.apache.cassandra.dht.*;
  * which contain the computed values of the nodes that would be below them if
  * the tree were perfect.
  *
- * All nodes of the perfect tree are calculated using a MD5 hash: leaves are
- * sequential hashes of the rows that fall into the range they represent, and
- * inner nodes are a binary hash of their children.
+ * Inputs passed to TreeRange.validate should be calculated using a very secure hash,
+ * because all hashing internal to the tree is accomplished using XOR.
  *
  * If two MerkleTrees have the same hashdepth, they represent a perfect tree
  * of the same depth, and can always be compared, regardless of size or splits.
  */
 public class MerkleTree implements Serializable
 {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
-    public static final byte RECOMMENDED_DEPTH = (byte)64;
+    public static final byte RECOMMENDED_DEPTH = Byte.MAX_VALUE;
 
     public static final int CONSISTENT = 0;
     public static final int FULLY_INCONSISTENT = 1;
     public static final int PARTIALLY_INCONSISTENT = 2;
 
-    // cache of empty hash trees up to the maximum depth (0 to 127)
-    public static final byte[][] EMPTIES = new byte[Byte.MAX_VALUE][];
-    static {
-        EMPTIES[0] = new byte[0];
-        for (int i = 1; i < EMPTIES.length; i++)
-        {
-            EMPTIES[i] = Hashable.binaryHash(EMPTIES[i-1], EMPTIES[i-1]);
-        }
-    }
-
     public final byte hashdepth;
 
     private transient IPartitioner partitioner;
 
-    private int maxsize;
-    private int size;
+    private long maxsize;
+    private long size;
     private Hashable root;
 
     /**
@@ -79,7 +68,7 @@ public class MerkleTree implements Serializable
      *        of the key space covered by each subrange of a fully populated tree.
      * @param maxsize The maximum number of subranges in the tree.
      */
-    public MerkleTree(IPartitioner partitioner, byte hashdepth, int maxsize)
+    public MerkleTree(IPartitioner partitioner, byte hashdepth, long maxsize)
     {
         this.partitioner = partitioner;
         this.hashdepth = hashdepth;
@@ -96,32 +85,31 @@ public class MerkleTree implements Serializable
     }
 
     /**
-     * Initializes this tree by splitting it into maxsize ranges, or
-     * until hashdepth is reached.
+     * Initializes this tree by splitting it until hashdepth is reached,
+     * or until an additional level of splits would violate maxsize.
      *
-     * TODO: could be optimized as breadth first generation of nodes.
-     *
-     * NB: asserts that the tree is of size 1.
+     * NB: Replaces all nodes in the tree.
      */
     public void init()
     {
-        assert size() == 1;
+        // determine the depth to which we can safely split the tree
+        byte sizedepth = (byte)(Math.log10(maxsize) / Math.log10(2));
+        byte depth = (byte)Math.min(sizedepth, hashdepth);
 
-        Queue<Range> ranges = new ArrayDeque<Range>();
-        ranges.add(new Range(partitioner.getMinimumToken(),
-                             partitioner.getMinimumToken()));
-        while (true)
-        {
-            Range range = ranges.remove();
-            Token mid = partitioner.midpoint(range.left(),
-                                                   range.right());
-            if (!split(mid))
-                // we've reached maxsize or hashdepth
-                return;
+        Token mintoken = partitioner.getMinimumToken();
+        root = initHelper(mintoken, mintoken, (byte)0, depth);
+        size = (long)Math.pow(2, depth);
+    }
 
-            ranges.add(new Range(range.left(), mid));
-            ranges.add(new Range(mid, range.right()));
-        }
+    private Hashable initHelper(Token left, Token right, byte depth, byte max)
+    {
+        if (depth == max)
+            // we've reached the leaves
+            return new Leaf();
+        Token midpoint = partitioner.midpoint(left, right);
+        Hashable lchild = initHelper(left, midpoint, inc(depth), max);
+        Hashable rchild = initHelper(midpoint, right, inc(depth), max);
+        return new Inner(midpoint, lchild, rchild);
     }
 
     Hashable root()
@@ -138,17 +126,17 @@ public class MerkleTree implements Serializable
      * The number of distinct ranges contained in this tree. This is a reasonable
      * measure of the memory usage of the tree (assuming 'this.order' is significant).
      */
-    public int size()
+    public long size()
     {
         return size;
     }
 
-    public int maxsize()
+    public long maxsize()
     {
         return maxsize;
     }
 
-    public void maxsize(int maxsize)
+    public void maxsize(long maxsize)
     {
         this.maxsize = maxsize;
     }
@@ -475,7 +463,7 @@ public class MerkleTree implements Serializable
         public static final long serialVersionUID = 1L;
         private final MerkleTree tree;
         public final byte depth;
-        public final Hashable hashable;
+        private final Hashable hashable;
 
         TreeRange(MerkleTree tree, Token left, Token right, byte depth, Hashable hashable)
         {
@@ -497,89 +485,20 @@ public class MerkleTree implements Serializable
         }
 
         /**
-         * Consumes a collection of entries within this range.
+         * @param entry Row to mix into the hash for this range.
          */
-        public void validate(Collection<RowHash> entries)
-        {
-            PeekingIterator<RowHash> iter = Iterators.peekingIterator(entries.iterator());
-            validate(iter);
-        }
-
-        /**
-         * Consumes an iterator over entries within this range, setting the
-         * value of this range's Leaf to the computed value.
-         */
-        public void validate(PeekingIterator<RowHash> entries)
+        public void addHash(RowHash entry)
         {
             assert tree != null : "Not intended for modification!";
             assert hashable instanceof Leaf;
-            byte[] roothash;
-            try
-            {
-                roothash = validateHelper(left(), right(), depth, entries);
-            }
-            catch (StopRecursion e)
-            {
-                throw new RuntimeException("Iterator contained invalid entry!");
-            }
 
-            // check that all values were consumed from the iterator, and that
-            // a valid hash could be generated 
-            if (entries.hasNext() || roothash == null)
-                throw new RuntimeException("Bad iterator for " + this + "!");
-            hashable.hash(roothash);
+            hashable.addHash(entry.hash);
         }
 
-        /**
-         * Collects values from the given iterator that fall into the
-         * range represented by left and right. Recurses until we reach
-         * hashdepth, where hashes are added sequentially, and then binary
-         * hashes the results back to the root.
-         *
-         * @param left The left token of the active range.
-         * @param right The right token of the active range.
-         * @param depth The depth of the active range.
-         * @param entries A peek()able iterator.
-         */
-        private byte[] validateHelper(Token left, Token right, byte depth, PeekingIterator<RowHash> entries) throws StopRecursion.InvalidHash
+        public void addAll(Iterator<RowHash> entries)
         {
-            if (entries.hasNext() && Range.contains(left, right, entries.peek().token))
-            {
-                // see if we can recurse deeper
-                if (depth < tree.hashdepth)
-                {
-                    Token midpoint = tree.partitioner().midpoint(left, right);
-                    if (left.compareTo(midpoint) < 0 && midpoint.compareTo(right) < 0)
-                    {
-                        // we can recurse deeper
-                        byte[] lhash = validateHelper(left, midpoint, inc(depth), entries);
-                        byte[] rhash = validateHelper(midpoint, right, inc(depth), entries);
-                        return Hashable.binaryHash(lhash, rhash);
-                    }
-                    // else: the Token impl. cannot provide more resolution for this range
-                }
-
-                // hash relevant values from the iterator, and add to the context
-                return consume(left, right, entries);
-            }
-            else
-            {
-                // this range is empty: return static hash value:
-                // the hash is the one generated by a binary tree of depth (tree.hashdepth-depth)
-                return EMPTIES[tree.hashdepth-depth];
-            }
-        }
-
-        /**
-         * Consumes and sequentially hashes values from the iterator that fall into the active
-         * range. Should be called with an iterator that contains at least one matching entry.
-         */
-        private byte[] consume(Token left, Token right, PeekingIterator<RowHash> entries)
-        {
-            byte[] sequentialHash = entries.next().hash;
-            while (entries.hasNext() && Range.contains(left, right, entries.peek().token))
-                sequentialHash = Hashable.binaryHash(sequentialHash, entries.next().hash);
-            return sequentialHash;
+            while (entries.hasNext())
+                addHash(entries.next());
         }
 
         @Override
@@ -777,7 +696,8 @@ public class MerkleTree implements Serializable
 
     /**
      * Hash value representing a row, to be used to pass hashes to the MerkleTree.
-     * The byte[] hash value should contain a digest of the key and value of the row.
+     * The byte[] hash value should contain a digest of the key and value of the row
+     * created using a very strong hash function.
      */
     public static class RowHash
     {
@@ -831,15 +751,24 @@ public class MerkleTree implements Serializable
         }
 
         /**
+         * Mixes the given value into our hash. If our hash is null,
+         * our hash will become the given value.
+         */
+        void addHash(byte[] righthash)
+        {
+            if (hash == null)
+                hash = righthash;
+            else
+                hash = binaryHash(hash, righthash);
+        }
+
+        /**
          * The primitive with which all hashing should be accomplished: hashes
          * a left and right value together.
          */
         static byte[] binaryHash(final byte[] left, final byte[] right)
         {
-            if (left == null || right == null)
-                return null;
-            else
-                return FBUtilities.hash("MD5", left, right);
+            return FBUtilities.xor(left, right);
         }
 
         public abstract void toString(StringBuilder buff, int maxdepth);

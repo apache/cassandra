@@ -405,7 +405,7 @@ public class MerkleTreeTest
         // validate the tree
         TreeRangeIterator ranges = mt.invalids(new Range(tok(0), tok(0)));
         for (TreeRange range : ranges)
-            range.validate(new HIterator(/*empty*/ new int[0]));
+            range.addHash(new RowHash(range.right(), new byte[0]));
 
         assert null != mt.hash(new Range(tok(0), tok(0))) :
             "Could not hash tree " + mt;
@@ -433,12 +433,12 @@ public class MerkleTreeTest
         mt.split(tok(10));
         
         ranges = mt.invalids(full);
-        ranges.next().validate(new HIterator(2, 4)); // (0,4]: depth 2
-        ranges.next().validate(new HIterator(6)); // (4,6]
-        ranges.next().validate(new HIterator(8)); // (6,8]
-        ranges.next().validate(new HIterator(/*empty*/ new int[0])); // (8,10]
-        ranges.next().validate(new HIterator(12)); // (10,12]
-        ranges.next().validate(new HIterator(14, 0)); // (12,0]: depth 2
+        ranges.next().addAll(new HIterator(2, 4)); // (0,4]: depth 2
+        ranges.next().addAll(new HIterator(6)); // (4,6]
+        ranges.next().addAll(new HIterator(8)); // (6,8]
+        ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (8,10]
+        ranges.next().addAll(new HIterator(12)); // (10,12]
+        ranges.next().addAll(new HIterator(14, 0)); // (12,0]: depth 2
 
 
         mt2.split(tok(8));
@@ -450,14 +450,14 @@ public class MerkleTreeTest
         mt2.split(tok(11));
 
         ranges = mt2.invalids(full);
-        ranges.next().validate(new HIterator(2)); // (0,2]
-        ranges.next().validate(new HIterator(4)); // (2,4]
-        ranges.next().validate(new HIterator(6, 8)); // (4,8]: depth 2
-        ranges.next().validate(new HIterator(/*empty*/ new int[0])); // (8,9]
-        ranges.next().validate(new HIterator(/*empty*/ new int[0])); // (9,10]
-        ranges.next().validate(new HIterator(/*empty*/ new int[0])); // (10,11]: depth 4
-        ranges.next().validate(new HIterator(12)); // (11,12]: depth 4
-        ranges.next().validate(new HIterator(14, 0)); // (12,0]: depth 2
+        ranges.next().addAll(new HIterator(2)); // (0,2]
+        ranges.next().addAll(new HIterator(4)); // (2,4]
+        ranges.next().addAll(new HIterator(6, 8)); // (4,8]: depth 2
+        ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (8,9]
+        ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (9,10]
+        ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (10,11]: depth 4
+        ranges.next().addAll(new HIterator(12)); // (11,12]: depth 4
+        ranges.next().addAll(new HIterator(14, 0)); // (12,0]: depth 2
 
         byte[] mthash = mt.hash(full);
         byte[] mt2hash = mt2.hash(full);
@@ -475,7 +475,7 @@ public class MerkleTreeTest
         mt.maxsize(256);
         mt.init();
         for (TreeRange range : mt.invalids(full))
-            range.validate(new HIterator(range.right()));
+            range.addAll(new HIterator(range.right()));
 
         byte[] initialhash = mt.hash(full);
         oout.writeObject(mt);
@@ -522,9 +522,9 @@ public class MerkleTreeTest
 
         // add dummy hashes to the rest of both trees
         for (TreeRange range : mt.invalids(full))
-            range.validate(new HIterator(range.right()));
+            range.addAll(new HIterator(range.right()));
         for (TreeRange range : mt2.invalids(full))
-            range.validate(new HIterator(range.right()));
+            range.addAll(new HIterator(range.right()));
         
         // trees should disagree for leftmost, (middle.left, rightmost.right]
         List<TreeRange> diffs = MerkleTree.difference(mt, mt2);
@@ -564,7 +564,7 @@ public class MerkleTreeTest
         return hstack.pop();
     }
 
-    static class HIterator extends AbstractIterator<RowHash> implements PeekingIterator<RowHash>
+    static class HIterator extends AbstractIterator<RowHash>
     {
         private Iterator<Token> tokens;
 
