@@ -156,9 +156,9 @@ class Reader(Operation):
         p = SlicePredicate(slice_range=SliceRange('', '', False, columns_per_key))
         if 'super' == options.cftype:
             for i in xrange(keys_per_thread):
+                key = str(key_generator())
                 for j in xrange(supers_per_key):
                     parent = ColumnParent('Super1', chr(ord('A') + j))
-                    key = str(key_generator())
                     self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
                     self.counts[self.idx]=self.counts[self.idx]+1
         else:
