@@ -76,6 +76,11 @@ parser.add_option('-m', '--framed', action="store_true", dest="framed",
 parser.add_option('-o', '--operation', type="choice", dest="operation",
                   default="insert", choices=('insert', 'read'),
                   help="operation to perform")
+parser.add_option('-u', '--supercolumns', type="int", dest="supers", default=1,
+                  help="number of super columns per key")
+parser.add_option('-y', '--family-type', type="choice", dest="cftype",
+                  choices=('regular','super'), default='regular',
+                  help="column family type")
 
 (options, args) = parser.parse_args()
  
@@ -83,6 +88,7 @@ total_keys = options.numkeys
 n_threads = options.threads
 keys_per_thread = total_keys / n_threads
 columns_per_key = options.columns
+supers_per_key = options.supers
 # this allows client to round robin requests directly for
 # simple request load-balancing
 nodes = options.nodes.split(',')
@@ -134,20 +140,33 @@ class Inserter(Operation):
     def run(self):
         data = md5(str(get_ident())).hexdigest()
         columns = [Column(chr(ord('A') + j), data, 0) for j in xrange(columns_per_key)]
+        if 'super' == options.cftype:
+            supers = [SuperColumn(chr(ord('A') + j), columns) for j in xrange(supers_per_key)]
         for i in self.range:
             key = str(i)
-            cfmap = {'Standard1': [ColumnOrSuperColumn(column=c) for c in columns]}
+            if supers:
+                cfmap= {'Super1': [ColumnOrSuperColumn(super_column=s) for s in supers]}
+            else:
+                cfmap = {'Standard1': [ColumnOrSuperColumn(column=c) for c in columns]}
             self.cclient.batch_insert('Keyspace1', key, cfmap, ConsistencyLevel.ONE)
             self.counts[self.idx]=self.counts[self.idx]+1
 
 class Reader(Operation):
     def run(self):
-        parent = ColumnParent('Standard1')
         p = SlicePredicate(slice_range=SliceRange('', '', False, columns_per_key))
-        for i in xrange(keys_per_thread):
-            key = str(key_generator())
-            self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
-            self.counts[self.idx]=self.counts[self.idx]+1
+        if 'super' == options.cftype:
+            for i in xrange(keys_per_thread):
+                for j in xrange(supers_per_key):
+                    parent = ColumnParent('Super1', chr(ord('A') + j))
+                    key = str(key_generator())
+                    self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                    self.counts[self.idx]=self.counts[self.idx]+1
+        else:
+            parent = ColumnParent('Standard1')
+            for i in xrange(keys_per_thread):
+                key = str(key_generator())
+                self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                self.counts[self.idx]=self.counts[self.idx]+1
 
 class OperationFactory:
     @staticmethod
