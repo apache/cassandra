@@ -388,7 +388,7 @@ public class AntiEntropyService
          *  4. No more invalid ranges exist.
          *
          * TODO: Because we only validate completely empty trees at the moment, we
-         * do not both dealing with case 2 and case 4 should result in an error.
+         * do not bother dealing with case 2 and case 4 should result in an error.
          *
          * Additionally, there is a special case for the minimum token, because
          * although it sorts first, it is contained in the last possible range.
@@ -474,15 +474,9 @@ public class AntiEntropyService
             Collection<InetAddress> neighbors = Collections2.filter(ss.getNaturalEndpoints(ss.getLocalToken()),
                                                                     Predicates.not(Predicates.equalTo(local)));
 
-            // cache the local tree
+            // cache the local tree and then broadcast it to our neighbors
             aes.register(cf, local, tree);
-
-            if (!local.equals(initiator))
-            {
-                // one of our neighbors initiated: broadcast the tree to all of them
-                aes.notifyNeighbors(this, local, neighbors);
-            }
-            // else: we initiated this validation session: wait for responses
+            aes.notifyNeighbors(this, local, neighbors);
 
             // return any old object
             return AntiEntropyService.class;
@@ -791,6 +785,7 @@ public class AntiEntropyService
 
     /**
      * A tuple of table and cf.
+     * TODO: Use utils.Pair once it implements hashCode/equals.
      */
     static final class CFTuple
     {

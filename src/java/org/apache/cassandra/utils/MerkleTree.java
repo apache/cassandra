@@ -30,16 +30,19 @@ import org.apache.cassandra.dht.*;
 /**
  * A MerkleTree implemented as a binary tree.
  *
- * A MerkleTree is a full binary that represents a perfect binary tree of
+ * A MerkleTree is a full binary tree that represents a perfect binary tree of
  * depth 'hashdepth'. In a perfect binary tree, each leaf contains a
  * sequentially hashed range, and each inner node contains the binary hash of
  * its two children. In the MerkleTree, many ranges will not be split to the
  * full depth of the perfect binary tree: the leaves of this tree are Leaf objects,
  * which contain the computed values of the nodes that would be below them if
  * the tree were perfect.
+ * 
+ * The hash values of the inner nodes of the MerkleTree are calculated lazily based
+ * on their children when the hash of a range is requested with hash(range).
  *
  * Inputs passed to TreeRange.validate should be calculated using a very secure hash,
- * because all hashing internal to the tree is accomplished using XOR.
+ * because all hashing internal to the tree is accomplished using XOR. 
  *
  * If two MerkleTrees have the same hashdepth, they represent a perfect tree
  * of the same depth, and can always be compared, regardless of size or splits.
