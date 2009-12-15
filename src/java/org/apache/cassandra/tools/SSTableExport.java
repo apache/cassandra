@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Collection;
@@ -302,20 +303,21 @@ public class SSTableExport
         }
         
         String[] keys = cmd.getOptionValues(KEY_OPTION);
+        String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
         
         if (outFile != null)
         {
             if ((keys != null) && (keys.length > 0))
-                export(cmd.getArgs()[0], outFile, keys);
+                export(ssTableFileName, outFile, keys);
             else
-                export(cmd.getArgs()[0], outFile);
+                export(ssTableFileName, outFile);
         }
         else
         {
             if ((keys != null) && (keys.length > 0))
-                export(cmd.getArgs()[0], System.out, keys);
+                export(ssTableFileName, System.out, keys);
             else
-                export(cmd.getArgs()[0]);
+                export(ssTableFileName);
         }
         System.exit(0);
     }
