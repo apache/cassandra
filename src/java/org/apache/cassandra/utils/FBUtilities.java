@@ -135,24 +135,40 @@ public class FBUtilities
         }
         if(null == bytes2) return 1;
 
-        for(int i = 0; i < bytes1.length && i < bytes2.length; i++){
-            int cmp = compareBytes(bytes1[i], bytes2[i]);
-            if(0 != cmp) return cmp;
+        int minLength = Math.min(bytes1.length, bytes2.length);
+        for(int i = 0; i < minLength; i++)
+        {
+            if(bytes1[i] == bytes2[i])
+                continue;
+            // compare non-equal bytes as unsigned
+            return (bytes1[i] & 0xFF) < (bytes2[i] & 0xFF) ? -1 : 1;
         }
         if(bytes1.length == bytes2.length) return 0;
         else return (bytes1.length < bytes2.length)? -1 : 1;
     }
 
-    public static int compareBytes(byte b1, byte b2){
-        return compareBytes((int)b1, (int)b2);
-    }
+    /**
+     * @return The bitwise XOR of the inputs. The output will be the same length as the
+     * longer input, but if either input is null, the output will be null.
+     */
+    public static byte[] xor(byte[] left, byte[] right)
+    {
+        if (left == null || right == null)
+            return null;
+        if (left.length > right.length)
+        {
+            byte[] swap = left;
+            left = right;
+            right = swap;
+        }
 
-    public static int compareBytes(int b1, int b2){
-        int i1 = b1 & 0xFF;
-        int i2 = b2 & 0xFF;
-        if(i1 < i2) return -1;
-        else if(i1 == i2) return 0;
-        else return 1;
+        // left.length is now <= right.length
+        byte[] out = Arrays.copyOf(right, right.length);
+        for (int i = 0; i < left.length; i++)
+        {
+            out[i] = (byte)((left[i] & 0xFF) ^ (right[i] & 0xFF));
+        }
+        return out;
     }
 
     public static BigInteger hash(String data)

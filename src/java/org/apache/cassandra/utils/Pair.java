@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.utils;
 
-public class Pair<T1, T2>
+public final class Pair<T1, T2>
 {
     public final T1 left;
     public final T2 right;
