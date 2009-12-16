@@ -753,6 +753,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             doCleanup(sstable);
         }
+        gcAfterRpcTimeout();
     }
 
     /**
@@ -937,12 +938,36 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
         ssTables_.add(ssTable);
         ssTables_.markCompacted(sstables);
+        gcAfterRpcTimeout();
         CompactionManager.instance().submit(ColumnFamilyStore.this);
 
         String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;
         logger_.info(String.format(format, writer.getFilename(), getTotalBytes(sstables), ssTable.length(), totalkeysWritten, dTime));
         return sstables.size();
+    }
+
+    /**
+     * perform a GC to clean out obsolete sstables, sleeping rpc timeout first so that most in-progress ops can complete
+     * (thus, no longer reference the sstables in question)
+     */
+    private void gcAfterRpcTimeout()
+    {
+        new Thread(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    Thread.sleep(DatabaseDescriptor.getRpcTimeout());
+                }
+                catch (InterruptedException e)
+                {
+                    throw new AssertionError(e);
+                }
+                System.gc();
+            }
+        });
     }
 
     /**
