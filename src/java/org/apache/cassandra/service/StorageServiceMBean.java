@@ -141,13 +141,6 @@ public interface StorageServiceMBean
     public void loadBalance() throws IOException, InterruptedException;
 
     /**
-     * cancel writes to nodes that are set to be changing ranges.
-     * Only do this if the reason for the range changes no longer exists
-     * (e.g., a bootstrapping node was killed or crashed.)
-     */
-    public void cancelPendingRanges();
-
-    /**
      * removeToken removes token (and all data associated with
      * enpoint that had it) from the ring
      */

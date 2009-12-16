@@ -91,11 +91,11 @@ public abstract class AbstractReplicationStrategy
 
         List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
 
-        for (Map.Entry<Range, InetAddress> entry : tokenMetadata_.getPendingRanges().entrySet())
+        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges().entrySet())
         {
             if (entry.getKey().contains(token))
             {
-                endpoints.add(entry.getValue());
+                endpoints.addAll(entry.getValue());
             }
         }
 
@@ -202,26 +202,9 @@ public abstract class AbstractReplicationStrategy
 
     public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)
     {
-        TokenMetadata temp = metadata.cloneWithoutPending();
-        temp.update(pendingToken, pendingAddress);
+        TokenMetadata temp = metadata.cloneOnlyTokenMap();
+        temp.updateNormalToken(pendingToken, pendingAddress);
         return getAddressRanges(temp).get(pendingAddress);
     }
 
-    public void removeObsoletePendingRanges()
-    {
-        Multimap<InetAddress, Range> ranges = getAddressRanges();
-        for (Map.Entry<Range, InetAddress> entry : tokenMetadata_.getPendingRanges().entrySet())
-        {
-            for (Range currentRange : ranges.get(entry.getValue()))
-            {
-                if (currentRange.contains(entry.getKey()))
-                {
-                    if (logger_.isDebugEnabled())
-                        logger_.debug("Removing obsolete pending range " + entry.getKey() + " from " + entry.getValue());
-                    tokenMetadata_.removePendingRange(entry.getKey());
-                    break;
-                }
-            }
-        }
-    }
 }
