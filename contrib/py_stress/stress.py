@@ -144,7 +144,7 @@ class Inserter(Operation):
             supers = [SuperColumn(chr(ord('A') + j), columns) for j in xrange(supers_per_key)]
         for i in self.range:
             key = str(i)
-            if supers:
+            if 'super' == options.cftype:
                 cfmap= {'Super1': [ColumnOrSuperColumn(super_column=s) for s in supers]}
             else:
                 cfmap = {'Standard1': [ColumnOrSuperColumn(column=c) for c in columns]}
