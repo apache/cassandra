@@ -8,6 +8,10 @@
    out; if that happens, just go back to 0.4 and flush again.)
    The format changed twice: from 0.4 to beta1, and from beta2 to RC1.
 
+.5 The gossip protocol has changed, meaning 0.5 nodes cannot coexist
+   in a cluster of 0.4 nodes or vice versa; you must upgrade your
+   whole cluster at the same time.
+
 1. Bootstrap, move, load balancing, and active repair have been added.
    See http://wiki.apache.org/cassandra/Operations.  When upgrading
    from 0.4, leave autobootstrap set to false for the first restart

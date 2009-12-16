@@ -32,6 +32,7 @@ import org.junit.Test;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -61,7 +62,8 @@ public class BootStrapperTest
         Range range3 = ss.getPrimaryRangeForEndPoint(three);
         Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range3.left(), range3.right());
         assert range3.contains(fakeToken);
-        StorageService.updateBootstrapRanges(StorageService.instance().getReplicationStrategy(), tmd, fakeToken, myEndpoint);
+        ss.onChange(myEndpoint, StorageService.STATE_BOOTSTRAPPING, new ApplicationState(ss.getPartitioner().getTokenFactory().toString(fakeToken)));
+        tmd = ss.getTokenMetadata();
 
         InetAddress source2 = BootStrapper.getBootstrapSource(tmd, load);
         assert two.equals(source2) : source2;
@@ -124,7 +126,7 @@ public class BootStrapperTest
         for (int i = 1; i <= numOldNodes; i++)
         {
             // leave .1 for myEndpoint
-            tmd.update(p.getRandomToken(), InetAddress.getByName("127.0.0." + (i + 1)));
+            tmd.updateNormalToken(p.getRandomToken(), InetAddress.getByName("127.0.0." + (i + 1)));
         }
     }
 }

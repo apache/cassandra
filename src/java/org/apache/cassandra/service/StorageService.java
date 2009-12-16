@@ -183,7 +183,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         if (logger_.isDebugEnabled())
             logger_.debug("Setting token to " + token);
         SystemTable.updateToken(token);
-        tokenMetadata_.update(token, FBUtilities.getLocalAddress());
+        tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
     }
 
     public StorageService()
@@ -306,7 +306,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             SystemTable.setBootstrapped(true);
             Token token = storageMetadata_.getToken();
-            tokenMetadata_.update(token, FBUtilities.getLocalAddress());
+            tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
             Gossiper.instance().addApplicationState(StorageService.STATE_NORMAL, new ApplicationState(partitioner_.getTokenFactory().toString(token)));
         }
 
@@ -407,23 +407,25 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state bootstrapping, token " + token);
-            updateBootstrapRanges(token, endpoint);
+            tokenMetadata_.addBootstrapToken(token, endpoint);
+            calculatePendingRanges();
         }
         else if (STATE_NORMAL.equals(stateName))
         {
             Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             if (logger_.isDebugEnabled())
                 logger_.debug(endpoint + " state normal, token " + token);
-            tokenMetadata_.update(token, endpoint);
+            tokenMetadata_.updateNormalToken(token, endpoint);
+            calculatePendingRanges();
             if (!isClientMode)
                 SystemTable.updateToken(endpoint, token);
-            replicationStrategy_.removeObsoletePendingRanges();
         }
         else if (STATE_LEAVING.equals(stateName))
         {
             Token token = getPartitioner().getTokenFactory().fromString(state.getValue());
             assert tokenMetadata_.getToken(endpoint).equals(token);
-            updateLeavingRanges(endpoint);
+            tokenMetadata_.addLeavingEndPoint(endpoint);
+            calculatePendingRanges();
         }
         else if (STATE_LEFT.equals(stateName))
         {
@@ -442,6 +444,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                         logger_.debug(endpoint + " state left, token " + token);
                     assert tokenMetadata_.getToken(endpoint).equals(token);
                     tokenMetadata_.removeEndpoint(endpoint);
+                    calculatePendingRanges();
                 }
             }
             else
@@ -454,11 +457,94 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                 {
                     restoreReplicaCount(endPointThatLeft);
                     tokenMetadata_.removeEndpoint(endPointThatLeft);
+                    calculatePendingRanges();
                 }
             }
-
-            replicationStrategy_.removeObsoletePendingRanges();
         }
+    }
+
+    /**
+     * Calculate pending ranges according to bootsrapping and leaving nodes. Reasoning is:
+     *
+     * (1) When in doubt, it is better to write too much to a node than too little. That is, if
+     * there are multiple nodes moving, calculate the biggest ranges a node could have. Cleaning
+     * up unneeded data afterwards is better than missing writes during movement.
+     * (2) When a node leaves, ranges for other nodes can only grow (a node might get additional
+     * ranges, but it will not lose any of its current ranges as a result of a leave). Therefore
+     * we will first remove _all_ leaving tokens for the sake of calculation and then check what
+     * ranges would go where if all nodes are to leave. This way we get the biggest possible
+     * ranges with regard current leave operations, covering all subsets of possible final range
+     * values.
+     * (3) When a node bootstraps, ranges of other nodes can only get smaller. Without doing
+     * complex calculations to see if multiple bootstraps overlap, we simply base calculations
+     * on the same token ring used before (reflecting situation after all leave operations have
+     * completed). Bootstrapping nodes will be added and removed one by one to that metadata and
+     * checked what their ranges would be. This will give us the biggest possible ranges the
+     * node could have. It might be that other bootstraps make our actual final ranges smaller,
+     * but it does not matter as we can clean up the data afterwards.
+     *
+     * NOTE: This is heavy and ineffective operation. This will be done only once when a node
+     * changes state in the cluster, so it should be manageable.
+     */
+    private void calculatePendingRanges()
+    {
+        calculatePendingRanges(tokenMetadata_, replicationStrategy_);
+    }
+
+    // public & static for testing purposes
+    public static void calculatePendingRanges(TokenMetadata tm, AbstractReplicationStrategy strategy)
+    {
+        Multimap<Range, InetAddress> pendingRanges = HashMultimap.create();
+        Map<Token, InetAddress> bootstrapTokens = tm.getBootstrapTokens();
+        Set<InetAddress> leavingEndPoints = tm.getLeavingEndPoints();
+
+        if (bootstrapTokens.isEmpty() && leavingEndPoints.isEmpty())
+        {
+            if (logger_.isDebugEnabled())
+                logger_.debug("No bootstrapping or leaving nodes -> empty pending ranges");
+            tm.setPendingRanges(pendingRanges);
+            return;
+        }
+
+        Multimap<InetAddress, Range> addressRanges = strategy.getAddressRanges();
+
+        // Copy of metadata reflecting the situation after all leave operations are finished.
+        TokenMetadata allLeftMetadata = tm.cloneAfterAllLeft();
+
+        // get all ranges that will be affected by leaving nodes
+        Set<Range> affectedRanges = new HashSet<Range>();
+        for (InetAddress endPoint : leavingEndPoints)
+            affectedRanges.addAll(addressRanges.get(endPoint));
+
+        // for each of those ranges, find what new nodes will be responsible for the range when
+        // all leaving nodes are gone.
+        for (Range range : affectedRanges)
+        {
+            List<InetAddress> currentEndPoints = strategy.getNaturalEndpoints(range.right(), tm);
+            List<InetAddress> newEndPoints = strategy.getNaturalEndpoints(range.right(), allLeftMetadata);
+            newEndPoints.removeAll(currentEndPoints);
+            pendingRanges.putAll(range, newEndPoints);
+        }
+
+        // At this stage pendingRanges has been updated according to leave operations. We can
+        // now finish the calculation by checking bootstrapping nodes.
+
+        // For each of the bootstrapping nodes, simply add and remove them one by one to
+        // allLeftMetadata and check in between what their ranges would be.
+        for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
+        {
+            InetAddress endPoint = entry.getValue();
+
+            allLeftMetadata.updateNormalToken(entry.getKey(), endPoint);
+            for (Range range : strategy.getAddressRanges(allLeftMetadata).get(endPoint))
+                pendingRanges.put(range, endPoint);
+            allLeftMetadata.removeEndpoint(endPoint);
+        }
+
+        tm.setPendingRanges(pendingRanges);
+
+        if (logger_.isDebugEnabled())
+            logger_.debug("Pending ranges:\n" + tm.printPendingRanges());
     }
 
     /**
@@ -534,7 +620,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Collection<Range> ranges = getRangesForEndPoint(endpoint);
 
         if (logger_.isDebugEnabled())
-            logger_.debug("leaving node ranges are [" + StringUtils.join(ranges, ", ") + "]");
+            logger_.debug("Node " + endpoint + " ranges [" + StringUtils.join(ranges, ", ") + "]");
 
         Map<Range, ArrayList<InetAddress>> currentReplicaEndpoints = new HashMap<Range, ArrayList<InetAddress>>();
 
@@ -542,7 +628,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         for (Range range : ranges)
             currentReplicaEndpoints.put(range, replicationStrategy_.getNaturalEndpoints(range.right(), tokenMetadata_));
 
-        TokenMetadata temp = tokenMetadata_.cloneWithoutPending();
+        TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
         temp.removeEndpoint(endpoint);
 
         Multimap<Range, InetAddress> changedRanges = HashMultimap.create();
@@ -557,41 +643,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             ArrayList<InetAddress> newReplicaEndpoints = replicationStrategy_.getNaturalEndpoints(range.right(), temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
-                logger_.debug("adding pending range " + range + " to endpoints " + StringUtils.join(newReplicaEndpoints, ", "));
+                logger_.debug("Range " + range + " will be responsibility of " + StringUtils.join(newReplicaEndpoints, ", "));
             changedRanges.putAll(range, newReplicaEndpoints);
         }
 
         return changedRanges;
-    }
-
-    private void updateLeavingRanges(final InetAddress endpoint)
-    {
-        if (logger_.isDebugEnabled())
-            logger_.debug(endpoint + " is leaving; calculating pendingranges");
-        Multimap<Range, InetAddress> ranges = getChangedRangesForLeaving(endpoint);
-        for (Range range : ranges.keySet())
-        {
-            for (InetAddress newEndpoint : ranges.get(range))
-            {
-                tokenMetadata_.addPendingRange(range, newEndpoint);
-            }
-        }
-    }
-
-    private void updateBootstrapRanges(Token token, InetAddress endpoint)
-    {
-        for (Range range : replicationStrategy_.getPendingAddressRanges(tokenMetadata_, token, endpoint))
-        {
-            tokenMetadata_.addPendingRange(range, endpoint);
-        }
-    }
-
-    public static void updateBootstrapRanges(AbstractReplicationStrategy strategy, TokenMetadata metadata, Token token, InetAddress endpoint)
-    {
-        for (Range range : strategy.getPendingAddressRanges(metadata, token, endpoint))
-        {
-            metadata.addPendingRange(range, endpoint);
-        }
     }
 
     public void onJoin(InetAddress endpoint, EndPointState epState)
@@ -1117,7 +1173,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         SystemTable.setBootstrapped(false);
         tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
-        replicationStrategy_.removeObsoletePendingRanges();
 
         if (logger_.isDebugEnabled())
             logger_.debug("");
@@ -1238,7 +1293,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
             restoreReplicaCount(endPoint);
             tokenMetadata_.removeEndpoint(endPoint);
-            replicationStrategy_.removeObsoletePendingRanges();
         }
 
         // This is not the cleanest way as we're adding STATE_LEFT for
@@ -1259,11 +1313,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     public AbstractReplicationStrategy getReplicationStrategy()
     {
         return replicationStrategy_;
-    }
-
-    public void cancelPendingRanges()
-    {
-        tokenMetadata_.clearPendingRanges();
     }
 
     public boolean isClientMode()

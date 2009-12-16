@@ -29,15 +29,33 @@ import java.net.InetAddress;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.HashMultimap;
 
 public class TokenMetadata
 {
     /* Maintains token to endpoint map of every node in the cluster. */
     private BiMap<Token, InetAddress> tokenToEndPointMap;
-    private Map<Range, InetAddress> pendingRanges;
+
+    // Suppose that there is a ring of nodes A, C and E, with replication factor 3.
+    // Node D bootstraps between C and E, so its pending ranges will be E-A, A-C and C-D.
+    // Now suppose node B bootstraps between A and C at the same time. Its pending ranges would be C-E, E-A and A-B.
+    // Now both nodes have pending range E-A in their list, which will cause pending range collision
+    // even though we're only talking about replica range, not even primary range. The same thing happens
+    // for any nodes that boot simultaneously between same two nodes. For this we cannot simply make pending ranges a multimap,
+    // since that would make us unable to notice the real problem of two nodes trying to boot using the same token.
+    // In order to do this properly, we need to know what tokens are booting at any time.
+    private Map<Token, InetAddress> bootstrapTokens;
+
+    // we will need to know at all times what nodes are leaving and calculate ranges accordingly.
+    // An anonymous pending ranges list is not enough, as that does not tell which node is leaving
+    // and/or if the ranges are there because of bootstrap or leave operation.
+    // (See CASSANDRA-603 for more detail + examples).
+    private Set<InetAddress> leavingEndPoints;
+
+    private Multimap<Range, InetAddress> pendingRanges;
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
@@ -53,7 +71,9 @@ public class TokenMetadata
         if (tokenToEndPointMap == null)
             tokenToEndPointMap = HashBiMap.create();
         this.tokenToEndPointMap = tokenToEndPointMap;
-        pendingRanges = new NonBlockingHashMap<Range, InetAddress>();
+        bootstrapTokens = new HashMap<Token, InetAddress>();
+        leavingEndPoints = new HashSet<InetAddress>();
+        pendingRanges = HashMultimap.create();
         sortedTokens = sortTokens();
     }
 
@@ -69,18 +89,13 @@ public class TokenMetadata
     {
         int n = 0;
         Range sourceRange = getPrimaryRangeFor(getToken(source));
-        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entrySet())
-        {
-            if (sourceRange.contains(entry.getKey()) || entry.getValue().equals(source))
+        for (Token token : bootstrapTokens.keySet())
+            if (sourceRange.contains(token))
                 n++;
-        }
         return n;
     }
 
-    /**
-     * Update the two maps in an safe mode. 
-    */
-    public void update(Token token, InetAddress endpoint)
+    public void updateNormalToken(Token token, InetAddress endpoint)
     {
         assert token != null;
         assert endpoint != null;
@@ -88,11 +103,47 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
+            bootstrapTokens.remove(token);
+
             tokenToEndPointMap.inverse().remove(endpoint);
             if (!endpoint.equals(tokenToEndPointMap.put(token, endpoint)))
             {
                 sortedTokens = sortTokens();
             }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void addBootstrapToken(Token token, InetAddress endpoint)
+    {
+        assert token != null;
+        assert endpoint != null;
+
+        lock.writeLock().lock();
+        try
+        {
+            InetAddress oldEndPoint = bootstrapTokens.get(token);
+            if (oldEndPoint != null && !oldEndPoint.equals(endpoint))
+                throw new RuntimeException("Bootstrap Token collision between " + oldEndPoint + " and " + endpoint + " (token " + token);
+            bootstrapTokens.put(token, endpoint);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void addLeavingEndPoint(InetAddress endpoint)
+    {
+        assert endpoint != null;
+
+        lock.writeLock().lock();
+        try
+        {
+            leavingEndPoints.add(endpoint);
         }
         finally
         {
@@ -106,7 +157,9 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
+            bootstrapTokens.remove(getToken(endpoint));
             tokenToEndPointMap.inverse().remove(endpoint);
+            leavingEndPoints.remove(endpoint);
             sortedTokens = sortTokens();
         }
         finally
@@ -161,7 +214,11 @@ public class TokenMetadata
         }
     }
 
-    public TokenMetadata cloneWithoutPending()
+    /**
+     * Create a copy of TokenMetadata with only tokenToEndPointMap. That is, pending ranges,
+     * bootstrap tokens and leaving endpoints are not included in the copy.
+     */
+    public TokenMetadata cloneOnlyTokenMap()
     {
         lock.readLock().lock();
         try
@@ -174,28 +231,24 @@ public class TokenMetadata
         }
     }
 
-    public String toString()
+    /**
+     * Create a copy of TokenMetadata with tokenToEndPointMap reflecting situation after all
+     * current leave operations have finished.
+     */
+    public TokenMetadata cloneAfterAllLeft()
     {
-        StringBuilder sb = new StringBuilder();
         lock.readLock().lock();
         try
         {
-            Set<InetAddress> eps = tokenToEndPointMap.inverse().keySet();
-
-            for (InetAddress ep : eps)
-            {
-                sb.append(ep);
-                sb.append(":");
-                sb.append(tokenToEndPointMap.inverse().get(ep));
-                sb.append(System.getProperty("line.separator"));
-            }
+            TokenMetadata allLeftMetadata = cloneOnlyTokenMap();
+            for (InetAddress endPoint : leavingEndPoints)
+                allLeftMetadata.removeEndpoint(endPoint);
+            return allLeftMetadata;
         }
         finally
         {
             lock.readLock().unlock();
         }
-
-        return sb.toString();
     }
 
     public InetAddress getEndPoint(Token token)
@@ -209,12 +262,6 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
-    }
-
-    public void clearUnsafe()
-    {
-        tokenToEndPointMap.clear();
-        pendingRanges.clear();
     }
 
     public Range getPrimaryRangeFor(Token right)
@@ -235,29 +282,16 @@ public class TokenMetadata
         }
     }
 
-    public void addPendingRange(Range range, InetAddress endpoint)
-    {
-        InetAddress oldEndpoint = pendingRanges.get(range);
-        if (oldEndpoint != null && !oldEndpoint.equals(endpoint))
-            throw new RuntimeException("pending range collision between " + oldEndpoint + " and " + endpoint);
-        pendingRanges.put(range, endpoint);
-    }
-
-    public void removePendingRange(Range range)
-    {
-        pendingRanges.remove(range);
-    }
-
     /** a mutable map may be returned but caller should not modify it */
-    public Map<Range, InetAddress> getPendingRanges()
+    public Map<Range, Collection<InetAddress>> getPendingRanges()
     {
-        return pendingRanges;
+        return pendingRanges.asMap();
     }
 
     public List<Range> getPendingRanges(InetAddress endpoint)
     {
         List<Range> ranges = new ArrayList<Range>();
-        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entrySet())
+        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entries())
         {
             if (entry.getValue().equals(endpoint))
             {
@@ -265,6 +299,11 @@ public class TokenMetadata
             }
         }
         return ranges;
+    }
+
+    public void setPendingRanges(Multimap<Range, InetAddress> pendingRanges)
+    {
+        this.pendingRanges = pendingRanges;
     }
 
     public Token getPredecessor(Token token)
@@ -288,8 +327,96 @@ public class TokenMetadata
         return getEndPoint(getSuccessor(getToken(endPoint)));
     }
 
-    public void clearPendingRanges()
+    /** caller should not modify bootstrapTokens */
+    public Map<Token, InetAddress> getBootstrapTokens()
     {
+        return bootstrapTokens;
+    }
+
+    /** caller should not modify leavigEndPoints */
+    public Set<InetAddress> getLeavingEndPoints()
+    {
+        return leavingEndPoints;
+    }
+
+    /** used by tests */
+    public void clearUnsafe()
+    {
+        bootstrapTokens.clear();
+        tokenToEndPointMap.clear();
+        leavingEndPoints.clear();
         pendingRanges.clear();
     }
+
+    public String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+        lock.readLock().lock();
+        try
+        {
+            Set<InetAddress> eps = tokenToEndPointMap.inverse().keySet();
+
+            if (!eps.isEmpty())
+            {
+                sb.append("Normal Tokens:");
+                sb.append(System.getProperty("line.separator"));
+                for (InetAddress ep : eps)
+                {
+                    sb.append(ep);
+                    sb.append(":");
+                    sb.append(tokenToEndPointMap.inverse().get(ep));
+                    sb.append(System.getProperty("line.separator"));
+                }
+            }
+
+            if (!bootstrapTokens.isEmpty())
+            {
+                sb.append("Bootstrapping Tokens:" );
+                sb.append(System.getProperty("line.separator"));
+                for (Map.Entry<Token, InetAddress> entry : bootstrapTokens.entrySet())
+                {
+                    sb.append(entry.getValue() + ":" + entry.getKey());
+                    sb.append(System.getProperty("line.separator"));
+                }
+            }
+
+            if (!leavingEndPoints.isEmpty())
+            {
+                sb.append("Leaving EndPoints:");
+                sb.append(System.getProperty("line.separator"));
+                for (InetAddress ep : leavingEndPoints)
+                {
+                    sb.append(ep);
+                    sb.append(System.getProperty("line.separator"));
+                }
+            }
+
+            if (!pendingRanges.isEmpty())
+            {
+                sb.append("Pending Ranges:");
+                sb.append(System.getProperty("line.separator"));
+                sb.append(printPendingRanges());
+            }
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+
+        return sb.toString();
+    }
+
+    public String printPendingRanges()
+    {
+        StringBuilder sb = new StringBuilder();
+
+        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entries())
+        {
+            sb.append(entry.getValue() + ":" + entry.getKey());
+            sb.append(System.getProperty("line.separator"));
+        }
+
+        return sb.toString();
+    }
+
 }

@@ -79,7 +79,7 @@ public class RackUnawareStrategyTest
         for (int i = 0; i < endPointTokens.length; i++)
         {
             InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            tmd.update(endPointTokens[i], ep);
+            tmd.updateNormalToken(endPointTokens[i], ep);
             hosts.add(ep);
         }
 
@@ -114,15 +114,16 @@ public class RackUnawareStrategyTest
         for (int i = 0; i < endPointTokens.length; i++)
         {
             InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            tmd.update(endPointTokens[i], ep);
+            tmd.updateNormalToken(endPointTokens[i], ep);
             hosts.add(ep);
         }
         
         //Add bootstrap node id=6
         Token bsToken = new BigIntegerToken(String.valueOf(25));
         InetAddress bootstrapEndPoint = InetAddress.getByName("127.0.0.6");
-        StorageService.updateBootstrapRanges(strategy, tmd, bsToken, bootstrapEndPoint);
-        
+        tmd.addBootstrapToken(bsToken, bootstrapEndPoint);
+        StorageService.calculatePendingRanges(tmd, strategy);
+
         for (int i = 0; i < keyTokens.length; i++)
         {
             Collection<InetAddress> endPoints = strategy.getWriteEndpoints(keyTokens[i], strategy.getNaturalEndpoints(keyTokens[i]));
@@ -136,6 +137,8 @@ public class RackUnawareStrategyTest
             // for 5, 15, 25 this should include bootstrap node
             if (i < 3)
                 assertTrue(endPoints.contains(bootstrapEndPoint));
+            else
+                assertFalse(endPoints.contains(bootstrapEndPoint));
         }
     }
 }
