@@ -187,7 +187,7 @@
       <artifactId>libthrift</artifactId>
       <version>UNKNOWN</version>
       <scope>system</scope>
-      <systemPath>${basedir}/lib/libthrift-r808609.jar</systemPath>
+      <systemPath>${basedir}/lib/libthrift-r820831.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>reardencommerce</groupId>
