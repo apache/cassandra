@@ -241,20 +241,20 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         int maxVersion = getMaxEndPointStateVersion(epState);
         gDigests.add( new GossipDigest(localEndPoint_, generation, maxVersion) );
 
-        List<InetAddress> endpoints = new ArrayList<InetAddress>( liveEndpoints_ );
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(endPointStateMap_.keySet());
         Collections.shuffle(endpoints, random_);
-        for ( InetAddress liveEndPoint : endpoints )
+        for (InetAddress endPoint : endpoints)
         {
-            epState = endPointStateMap_.get(liveEndPoint);
-            if ( epState != null )
+            epState = endPointStateMap_.get(endPoint);
+            if (epState != null)
             {
                 generation = epState.getHeartBeatState().getGeneration();
                 maxVersion = getMaxEndPointStateVersion(epState);
-                gDigests.add( new GossipDigest(liveEndPoint, generation, maxVersion) );
+                gDigests.add(new GossipDigest(endPoint, generation, maxVersion));
             }
             else
             {
-            	gDigests.add( new GossipDigest(liveEndPoint, 0, 0) );
+            	gDigests.add(new GossipDigest(endPoint, 0, 0));
             }
         }
 
@@ -541,13 +541,33 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     private void handleNewJoin(InetAddress ep, EndPointState epState)
     {
-    	logger_.info("Node " + ep + " has now joined.");
+    	logger_.info("Node " + ep + " is now part of the cluster");
+        handleMajorStateChange(ep, epState, false);
+    }
+
+    private void handleGenerationChange(InetAddress ep, EndPointState epState)
+    {
+        logger_.info("Node " + ep + " has restarted, now UP again");
+        handleMajorStateChange(ep, epState, true);
+    }
+
+    /**
+     * This method is called whenever there is a "big" change in ep state (either a previously
+     * unknown node or a generation change for a known node). If the node is new, it will be
+     * initially marked as dead. It will be marked alive as soon as another piece of gossip
+     * arrives. On the other hand if the node is already known (generation change), we will
+     * immediately mark it alive.
+     *
+     * @param ep endpoint
+     * @param epState EndPointState for the endpoint
+     * @param isKnownNode is this node familiar to us already (present in endPointStateMap)
+     */
+    private void handleMajorStateChange(InetAddress ep, EndPointState epState, boolean isKnownNode)
+    {
         endPointStateMap_.put(ep, epState);
-        isAlive(ep, epState, true);
+        isAlive(ep, epState, isKnownNode);
         for (IEndPointStateChangeSubscriber subscriber : subscribers_)
-        {
             subscriber.onJoin(ep, epState);
-        }
     }
 
     synchronized void applyStateLocally(Map<InetAddress, EndPointState> epStateMap)
@@ -571,7 +591,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
             	if (remoteGeneration > localGeneration)
             	{
-            		handleNewJoin(ep, remoteState);
+                    handleGenerationChange(ep, remoteState);
             	}
             	else if ( remoteGeneration == localGeneration )
             	{
@@ -601,7 +621,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
         if ( remoteHbState.getGeneration() > localHbState.getGeneration() )
         {
-            markAlive(addr, localState);
             localState.setHeartBeatState(remoteHbState);
         }
         if ( localHbState.getGeneration() == remoteHbState.getGeneration() )

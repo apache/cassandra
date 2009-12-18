@@ -51,7 +51,7 @@ public class MerkleTree implements Serializable
 {
     private static final long serialVersionUID = 2L;
 
-    public static final byte RECOMMENDED_DEPTH = Byte.MAX_VALUE;
+    public static final byte RECOMMENDED_DEPTH = Byte.MAX_VALUE - 1;
 
     public static final int CONSISTENT = 0;
     public static final int FULLY_INCONSISTENT = 1;
@@ -73,6 +73,7 @@ public class MerkleTree implements Serializable
      */
     public MerkleTree(IPartitioner partitioner, byte hashdepth, long maxsize)
     {
+        assert hashdepth < Byte.MAX_VALUE;
         this.partitioner = partitioner;
         this.hashdepth = hashdepth;
         this.maxsize = maxsize;

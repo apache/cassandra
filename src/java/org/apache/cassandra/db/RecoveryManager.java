@@ -54,5 +54,6 @@ public class RecoveryManager
         logger_.info("Replaying " + StringUtils.join(files, ", "));
         CommitLog.open().recover(files);
         FileUtils.delete(files);
+        logger_.info("Log replay complete");
     }
 }
