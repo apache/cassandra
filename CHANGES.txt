@@ -4,6 +4,7 @@
  * fix data streaming on windows (CASSANDRA-630)
  * GC compacted sstables after cleanup and compaction (CASSANDRA-621)
  * Speed up anti-entropy validation (CASSANDRA-629)
+ * Fix anti-entropy assertion error (CASSANDRA-639)
  * Fix pending range conflicts when bootstapping or moving
    multiple nodes at once (CASSANDRA-603)
 
