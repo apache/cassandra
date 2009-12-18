@@ -1,3 +1,7 @@
+dev
+ * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
+
+
 0.5.0 RC1
  * Fix potential NPE in get_range_slice (CASSANDRA-623)
  * add CRC32 to commitlog entries (CASSANDRA-605)

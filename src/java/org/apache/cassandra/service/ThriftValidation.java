@@ -205,4 +205,79 @@ public class ThriftValidation
             throw new InvalidRequestException("range finish must come after start in the order of traversal");
         }
     }
+
+    public static void validateColumnOrSuperColumn(String keyspace, String cfName, ColumnOrSuperColumn cosc)
+            throws InvalidRequestException
+    {
+        if (cosc.column != null)
+        {
+            ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, null, cosc.column.name));
+        }
+
+        if (cosc.super_column != null)
+        {
+            for (Column c : cosc.super_column.columns)
+            {
+                ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, cosc.super_column.name, c.name));
+            }
+        }
+
+        if (cosc.column == null && cosc.super_column == null) {
+            throw new InvalidRequestException("ColumnOrSuperColumn must have one or both of Column or SuperColumn");
+        }
+    }
+
+    public static void validateMutation(String keyspace, String cfName, Mutation mut)
+            throws InvalidRequestException
+    {
+        ColumnOrSuperColumn cosc = mut.column_or_supercolumn;
+        Deletion del = mut.deletion;
+
+        if (cosc != null && del != null) {
+            throw new InvalidRequestException("Mutation may have either a ColumnOrSuperColumn or a Deletion, but not both");
+        }
+
+        if (cosc != null)
+        {
+            ThriftValidation.validateColumnOrSuperColumn(keyspace, cfName, cosc);
+        }
+        else if (del != null)
+        {
+            ThriftValidation.validateDeletion(keyspace, cfName, del);
+        }
+        else
+        {
+            throw new InvalidRequestException("Mutation must have one ColumnOrSuperColumn or one Deletion");
+        }
+    }
+
+    public static void validateDeletion(String keyspace, String cfName, Deletion del) throws InvalidRequestException
+    {
+        if (del.super_column == null && del.predicate == null)
+        {
+            throw new InvalidRequestException("A Deletion must have a SuperColumn, a SlicePredicate or both.");
+        }
+
+        if (del.predicate != null)
+        {
+            validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);
+            if (del.predicate.slice_range != null)
+                throw new InvalidRequestException("Deletion does not yet work correctly with SliceRanges.");
+        }
+    }
+
+    public static void validateSlicePredicate(String keyspace, String cfName, byte[] scName, SlicePredicate predicate) throws InvalidRequestException
+    {
+        if (predicate.column_names == null && predicate.slice_range == null) {
+            throw new InvalidRequestException("A SlicePredicate must be given a list of Columns, a SliceRange, or both");
+        }
+
+        if (predicate.slice_range != null) {
+            validateRange(keyspace, new ColumnParent(cfName, scName), predicate.slice_range);
+        }
+
+        if (predicate.column_names != null) {
+            validateColumns(keyspace, cfName, scName, predicate.column_names);
+        }
+    }
 }

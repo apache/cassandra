@@ -163,11 +163,6 @@ public class RowMutation implements Serializable
         assert path.columnFamilyName != null;
         String cfName = path.columnFamilyName;
 
-        if (modifications_.containsKey(cfName))
-        {
-            throw new IllegalArgumentException("ColumnFamily " + cfName + " is already being modified");
-        }
-
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
 
         ColumnFamily columnFamily = modifications_.get(cfName);
@@ -230,6 +225,27 @@ public class RowMutation implements Serializable
         return new Message(FBUtilities.getLocalAddress(), StageManager.mutationStage_, verbHandlerName, bos.toByteArray());
     }
 
+    public static RowMutation getRowMutationFromMutations(String keyspace, String key, Map<String, List<Mutation>> cfmap)
+    {
+        RowMutation rm = new RowMutation(keyspace, key.trim());
+        for (Map.Entry<String, List<Mutation>> entry : cfmap.entrySet())
+        {
+            String cfName = entry.getKey();
+            for (Mutation mutation : entry.getValue())
+            {
+                if (mutation.deletion != null)
+                {
+                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion);
+                }
+                else
+                {
+                    addColumnOrSuperColumnToRowMutation(rm, cfName, mutation.column_or_supercolumn);
+                }
+            }
+        }
+        return rm;
+    }
+    
     public static RowMutation getRowMutation(String table, String key, Map<String, List<ColumnOrSuperColumn>> cfmap)
     {
         RowMutation rm = new RowMutation(table, key.trim());
@@ -270,6 +286,36 @@ public class RowMutation implements Serializable
                ", key='" + key_ + '\'' +
                ", modifications=[" + StringUtils.join(modifications_.values(), ", ") + "]" +
                ')';
+    }
+
+    private static void addColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, ColumnOrSuperColumn cosc)
+    {
+        if (cosc.column == null)
+        {
+            for (org.apache.cassandra.service.Column column : cosc.super_column.columns)
+            {
+                rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp);
+            }
+        }
+        else
+        {
+            rm.add(new QueryPath(cfName, null, cosc.column.name), cosc.column.value, cosc.column.timestamp);
+        }
+    }
+
+    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
+    {
+        if (del.predicate != null && del.predicate.column_names != null)
+        {
+            for(byte[] c : del.predicate.column_names)
+            {
+                rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
+            }
+        }
+        else
+        {
+            rm.delete(new QueryPath(cfName, del.super_column, null), del.timestamp);
+        }
     }
 }
 
@@ -323,4 +369,6 @@ class RowMutationSerializer implements ICompactSerializer<RowMutation>
         Map<String, ColumnFamily> modifications = defreezeTheMaps(dis);
         return new RowMutation(table, key, modifications);
     }
+
+  
 }

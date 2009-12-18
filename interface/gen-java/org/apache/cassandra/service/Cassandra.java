@@ -166,6 +166,8 @@ public class Cassandra {
      */
     public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
+
     /**
      * get property whose value is of type string.
      * 
@@ -670,6 +672,47 @@ public class Cassandra {
       return;
     }
 
+    public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, int consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+      send_batch_mutate(keyspace, mutation_map, consistency_level);
+      recv_batch_mutate();
+    }
+
+    public void send_batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, int consistency_level) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("batch_mutate", TMessageType.CALL, seqid_));
+      batch_mutate_args args = new batch_mutate_args();
+      args.keyspace = keyspace;
+      args.mutation_map = mutation_map;
+      args.consistency_level = consistency_level;
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public void recv_batch_mutate() throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      batch_mutate_result result = new batch_mutate_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.ire != null) {
+        throw result.ire;
+      }
+      if (result.ue != null) {
+        throw result.ue;
+      }
+      if (result.te != null) {
+        throw result.te;
+      }
+      return;
+    }
+
     public String get_string_property(String property) throws TException
     {
       send_get_string_property(property);
@@ -788,6 +831,7 @@ public class Cassandra {
       processMap_.put("insert", new insert());
       processMap_.put("batch_insert", new batch_insert());
       processMap_.put("remove", new remove());
+      processMap_.put("batch_mutate", new batch_mutate());
       processMap_.put("get_string_property", new get_string_property());
       processMap_.put("get_string_list_property", new get_string_list_property());
       processMap_.put("describe_keyspace", new describe_keyspace());
@@ -1134,6 +1178,38 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("remove", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class batch_mutate implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        batch_mutate_args args = new batch_mutate_args();
+        args.read(iprot);
+        iprot.readMessageEnd();
+        batch_mutate_result result = new batch_mutate_result();
+        try {
+          iface_.batch_mutate(args.keyspace, args.mutation_map, args.consistency_level);
+        } catch (InvalidRequestException ire) {
+          result.ire = ire;
+        } catch (UnavailableException ue) {
+          result.ue = ue;
+        } catch (TimedOutException te) {
+          result.te = te;
+        } catch (Throwable th) {
+          LOGGER.error("Internal error processing batch_mutate", th);
+          TApplicationException x = new TApplicationException(TApplicationException.INTERNAL_ERROR, "Internal error processing batch_mutate");
+          oprot.writeMessageBegin(new TMessage("batch_mutate", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
+        oprot.writeMessageBegin(new TMessage("batch_mutate", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -11951,6 +12027,881 @@ public class Cassandra {
 
   }
 
+  public static class batch_mutate_args implements TBase, java.io.Serializable, Cloneable   {
+    private static final TStruct STRUCT_DESC = new TStruct("batch_mutate_args");
+    private static final TField KEYSPACE_FIELD_DESC = new TField("keyspace", TType.STRING, (short)1);
+    private static final TField MUTATION_MAP_FIELD_DESC = new TField("mutation_map", TType.MAP, (short)2);
+    private static final TField CONSISTENCY_LEVEL_FIELD_DESC = new TField("consistency_level", TType.I32, (short)3);
+
+    public String keyspace;
+    public Map<String,Map<String,List<Mutation>>> mutation_map;
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public int consistency_level;
+    public static final int KEYSPACE = 1;
+    public static final int MUTATION_MAP = 2;
+    public static final int CONSISTENCY_LEVEL = 3;
+
+    // isset id assignments
+    private static final int __CONSISTENCY_LEVEL_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
+
+    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
+      put(KEYSPACE, new FieldMetaData("keyspace", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
+      put(MUTATION_MAP, new FieldMetaData("mutation_map", TFieldRequirementType.REQUIRED, 
+          new MapMetaData(TType.MAP, 
+              new FieldValueMetaData(TType.STRING), 
+              new MapMetaData(TType.MAP, 
+                  new FieldValueMetaData(TType.STRING), 
+                  new ListMetaData(TType.LIST, 
+                      new StructMetaData(TType.STRUCT, Mutation.class))))));
+      put(CONSISTENCY_LEVEL, new FieldMetaData("consistency_level", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.I32)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(batch_mutate_args.class, metaDataMap);
+    }
+
+    public batch_mutate_args() {
+      this.consistency_level = 0;
+
+    }
+
+    public batch_mutate_args(
+      String keyspace,
+      Map<String,Map<String,List<Mutation>>> mutation_map,
+      int consistency_level)
+    {
+      this();
+      this.keyspace = keyspace;
+      this.mutation_map = mutation_map;
+      this.consistency_level = consistency_level;
+      setConsistency_levelIsSet(true);
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public batch_mutate_args(batch_mutate_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
+      if (other.isSetKeyspace()) {
+        this.keyspace = other.keyspace;
+      }
+      if (other.isSetMutation_map()) {
+        Map<String,Map<String,List<Mutation>>> __this__mutation_map = new HashMap<String,Map<String,List<Mutation>>>();
+        for (Map.Entry<String, Map<String,List<Mutation>>> other_element : other.mutation_map.entrySet()) {
+
+          String other_element_key = other_element.getKey();
+          Map<String,List<Mutation>> other_element_value = other_element.getValue();
+
+          String __this__mutation_map_copy_key = other_element_key;
+
+          Map<String,List<Mutation>> __this__mutation_map_copy_value = new HashMap<String,List<Mutation>>();
+          for (Map.Entry<String, List<Mutation>> other_element_value_element : other_element_value.entrySet()) {
+
+            String other_element_value_element_key = other_element_value_element.getKey();
+            List<Mutation> other_element_value_element_value = other_element_value_element.getValue();
+
+            String __this__mutation_map_copy_value_copy_key = other_element_value_element_key;
+
+            List<Mutation> __this__mutation_map_copy_value_copy_value = new ArrayList<Mutation>();
+            for (Mutation other_element_value_element_value_element : other_element_value_element_value) {
+              __this__mutation_map_copy_value_copy_value.add(new Mutation(other_element_value_element_value_element));
+            }
+
+            __this__mutation_map_copy_value.put(__this__mutation_map_copy_value_copy_key, __this__mutation_map_copy_value_copy_value);
+          }
+
+          __this__mutation_map.put(__this__mutation_map_copy_key, __this__mutation_map_copy_value);
+        }
+        this.mutation_map = __this__mutation_map;
+      }
+      this.consistency_level = other.consistency_level;
+    }
+
+    public batch_mutate_args deepCopy() {
+      return new batch_mutate_args(this);
+    }
+
+    @Deprecated
+    public batch_mutate_args clone() {
+      return new batch_mutate_args(this);
+    }
+
+    public String getKeyspace() {
+      return this.keyspace;
+    }
+
+    public batch_mutate_args setKeyspace(String keyspace) {
+      this.keyspace = keyspace;
+      return this;
+    }
+
+    public void unsetKeyspace() {
+      this.keyspace = null;
+    }
+
+    // Returns true if field keyspace is set (has been asigned a value) and false otherwise
+    public boolean isSetKeyspace() {
+      return this.keyspace != null;
+    }
+
+    public void setKeyspaceIsSet(boolean value) {
+      if (!value) {
+        this.keyspace = null;
+      }
+    }
+
+    public int getMutation_mapSize() {
+      return (this.mutation_map == null) ? 0 : this.mutation_map.size();
+    }
+
+    public void putToMutation_map(String key, Map<String,List<Mutation>> val) {
+      if (this.mutation_map == null) {
+        this.mutation_map = new HashMap<String,Map<String,List<Mutation>>>();
+      }
+      this.mutation_map.put(key, val);
+    }
+
+    public Map<String,Map<String,List<Mutation>>> getMutation_map() {
+      return this.mutation_map;
+    }
+
+    public batch_mutate_args setMutation_map(Map<String,Map<String,List<Mutation>>> mutation_map) {
+      this.mutation_map = mutation_map;
+      return this;
+    }
+
+    public void unsetMutation_map() {
+      this.mutation_map = null;
+    }
+
+    // Returns true if field mutation_map is set (has been asigned a value) and false otherwise
+    public boolean isSetMutation_map() {
+      return this.mutation_map != null;
+    }
+
+    public void setMutation_mapIsSet(boolean value) {
+      if (!value) {
+        this.mutation_map = null;
+      }
+    }
+
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public int getConsistency_level() {
+      return this.consistency_level;
+    }
+
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public batch_mutate_args setConsistency_level(int consistency_level) {
+      this.consistency_level = consistency_level;
+      setConsistency_levelIsSet(true);
+      return this;
+    }
+
+    public void unsetConsistency_level() {
+      __isset_bit_vector.clear(__CONSISTENCY_LEVEL_ISSET_ID);
+    }
+
+    // Returns true if field consistency_level is set (has been asigned a value) and false otherwise
+    public boolean isSetConsistency_level() {
+      return __isset_bit_vector.get(__CONSISTENCY_LEVEL_ISSET_ID);
+    }
+
+    public void setConsistency_levelIsSet(boolean value) {
+      __isset_bit_vector.set(__CONSISTENCY_LEVEL_ISSET_ID, value);
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      switch (fieldID) {
+      case KEYSPACE:
+        if (value == null) {
+          unsetKeyspace();
+        } else {
+          setKeyspace((String)value);
+        }
+        break;
+
+      case MUTATION_MAP:
+        if (value == null) {
+          unsetMutation_map();
+        } else {
+          setMutation_map((Map<String,Map<String,List<Mutation>>>)value);
+        }
+        break;
+
+      case CONSISTENCY_LEVEL:
+        if (value == null) {
+          unsetConsistency_level();
+        } else {
+          setConsistency_level((Integer)value);
+        }
+        break;
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    public Object getFieldValue(int fieldID) {
+      switch (fieldID) {
+      case KEYSPACE:
+        return getKeyspace();
+
+      case MUTATION_MAP:
+        return getMutation_map();
+
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+    public boolean isSet(int fieldID) {
+      switch (fieldID) {
+      case KEYSPACE:
+        return isSetKeyspace();
+      case MUTATION_MAP:
+        return isSetMutation_map();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof batch_mutate_args)
+        return this.equals((batch_mutate_args)that);
+      return false;
+    }
+
+    public boolean equals(batch_mutate_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_keyspace = true && this.isSetKeyspace();
+      boolean that_present_keyspace = true && that.isSetKeyspace();
+      if (this_present_keyspace || that_present_keyspace) {
+        if (!(this_present_keyspace && that_present_keyspace))
+          return false;
+        if (!this.keyspace.equals(that.keyspace))
+          return false;
+      }
+
+      boolean this_present_mutation_map = true && this.isSetMutation_map();
+      boolean that_present_mutation_map = true && that.isSetMutation_map();
+      if (this_present_mutation_map || that_present_mutation_map) {
+        if (!(this_present_mutation_map && that_present_mutation_map))
+          return false;
+        if (!this.mutation_map.equals(that.mutation_map))
+          return false;
+      }
+
+      boolean this_present_consistency_level = true;
+      boolean that_present_consistency_level = true;
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
+          return false;
+        if (this.consistency_level != that.consistency_level)
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id)
+        {
+          case KEYSPACE:
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case MUTATION_MAP:
+            if (field.type == TType.MAP) {
+              {
+                TMap _map55 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<String,Map<String,List<Mutation>>>(2*_map55.size);
+                for (int _i56 = 0; _i56 < _map55.size; ++_i56)
+                {
+                  String _key57;
+                  Map<String,List<Mutation>> _val58;
+                  _key57 = iprot.readString();
+                  {
+                    TMap _map59 = iprot.readMapBegin();
+                    _val58 = new HashMap<String,List<Mutation>>(2*_map59.size);
+                    for (int _i60 = 0; _i60 < _map59.size; ++_i60)
+                    {
+                      String _key61;
+                      List<Mutation> _val62;
+                      _key61 = iprot.readString();
+                      {
+                        TList _list63 = iprot.readListBegin();
+                        _val62 = new ArrayList<Mutation>(_list63.size);
+                        for (int _i64 = 0; _i64 < _list63.size; ++_i64)
+                        {
+                          Mutation _elem65;
+                          _elem65 = new Mutation();
+                          _elem65.read(iprot);
+                          _val62.add(_elem65);
+                        }
+                        iprot.readListEnd();
+                      }
+                      _val58.put(_key61, _val62);
+                    }
+                    iprot.readMapEnd();
+                  }
+                  this.mutation_map.put(_key57, _val58);
+                }
+                iprot.readMapEnd();
+              }
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case CONSISTENCY_LEVEL:
+            if (field.type == TType.I32) {
+              this.consistency_level = iprot.readI32();
+              setConsistency_levelIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+            break;
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetConsistency_level()) {
+        throw new TProtocolException("Required field 'consistency_level' was not found in serialized data! Struct: " + toString());
+      }
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.keyspace != null) {
+        oprot.writeFieldBegin(KEYSPACE_FIELD_DESC);
+        oprot.writeString(this.keyspace);
+        oprot.writeFieldEnd();
+      }
+      if (this.mutation_map != null) {
+        oprot.writeFieldBegin(MUTATION_MAP_FIELD_DESC);
+        {
+          oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.mutation_map.size()));
+          for (Map.Entry<String, Map<String,List<Mutation>>> _iter66 : this.mutation_map.entrySet())
+          {
+            oprot.writeString(_iter66.getKey());
+            {
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.LIST, _iter66.getValue().size()));
+              for (Map.Entry<String, List<Mutation>> _iter67 : _iter66.getValue().entrySet())
+              {
+                oprot.writeString(_iter67.getKey());
+                {
+                  oprot.writeListBegin(new TList(TType.STRUCT, _iter67.getValue().size()));
+                  for (Mutation _iter68 : _iter67.getValue())
+                  {
+                    _iter68.write(oprot);
+                  }
+                  oprot.writeListEnd();
+                }
+              }
+              oprot.writeMapEnd();
+            }
+          }
+          oprot.writeMapEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+      oprot.writeI32(this.consistency_level);
+      oprot.writeFieldEnd();
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("batch_mutate_args(");
+      boolean first = true;
+
+      sb.append("keyspace:");
+      if (this.keyspace == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.keyspace);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("mutation_map:");
+      if (this.mutation_map == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.mutation_map);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("consistency_level:");
+      String consistency_level_name = ConsistencyLevel.VALUES_TO_NAMES.get(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(consistency_level_name);
+        sb.append(" (");
+      }
+      sb.append(this.consistency_level);
+      if (consistency_level_name != null) {
+        sb.append(")");
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      if (keyspace == null) {
+        throw new TProtocolException("Required field 'keyspace' was not present! Struct: " + toString());
+      }
+      if (mutation_map == null) {
+        throw new TProtocolException("Required field 'mutation_map' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'consistency_level' because it's a primitive and you chose the non-beans generator.
+      // check that fields of type enum have valid values
+      if (isSetConsistency_level() && !ConsistencyLevel.VALID_VALUES.contains(consistency_level)){
+        throw new TProtocolException("The field 'consistency_level' has been assigned the invalid value " + consistency_level);
+      }
+    }
+
+  }
+
+  public static class batch_mutate_result implements TBase, java.io.Serializable, Cloneable, Comparable<batch_mutate_result>   {
+    private static final TStruct STRUCT_DESC = new TStruct("batch_mutate_result");
+    private static final TField IRE_FIELD_DESC = new TField("ire", TType.STRUCT, (short)1);
+    private static final TField UE_FIELD_DESC = new TField("ue", TType.STRUCT, (short)2);
+    private static final TField TE_FIELD_DESC = new TField("te", TType.STRUCT, (short)3);
+
+    public InvalidRequestException ire;
+    public UnavailableException ue;
+    public TimedOutException te;
+    public static final int IRE = 1;
+    public static final int UE = 2;
+    public static final int TE = 3;
+
+    // isset id assignments
+
+    public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
+      put(IRE, new FieldMetaData("ire", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(UE, new FieldMetaData("ue", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+      put(TE, new FieldMetaData("te", TFieldRequirementType.DEFAULT, 
+          new FieldValueMetaData(TType.STRUCT)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(batch_mutate_result.class, metaDataMap);
+    }
+
+    public batch_mutate_result() {
+    }
+
+    public batch_mutate_result(
+      InvalidRequestException ire,
+      UnavailableException ue,
+      TimedOutException te)
+    {
+      this();
+      this.ire = ire;
+      this.ue = ue;
+      this.te = te;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public batch_mutate_result(batch_mutate_result other) {
+      if (other.isSetIre()) {
+        this.ire = new InvalidRequestException(other.ire);
+      }
+      if (other.isSetUe()) {
+        this.ue = new UnavailableException(other.ue);
+      }
+      if (other.isSetTe()) {
+        this.te = new TimedOutException(other.te);
+      }
+    }
+
+    public batch_mutate_result deepCopy() {
+      return new batch_mutate_result(this);
+    }
+
+    @Deprecated
+    public batch_mutate_result clone() {
+      return new batch_mutate_result(this);
+    }
+
+    public InvalidRequestException getIre() {
+      return this.ire;
+    }
+
+    public batch_mutate_result setIre(InvalidRequestException ire) {
+      this.ire = ire;
+      return this;
+    }
+
+    public void unsetIre() {
+      this.ire = null;
+    }
+
+    // Returns true if field ire is set (has been asigned a value) and false otherwise
+    public boolean isSetIre() {
+      return this.ire != null;
+    }
+
+    public void setIreIsSet(boolean value) {
+      if (!value) {
+        this.ire = null;
+      }
+    }
+
+    public UnavailableException getUe() {
+      return this.ue;
+    }
+
+    public batch_mutate_result setUe(UnavailableException ue) {
+      this.ue = ue;
+      return this;
+    }
+
+    public void unsetUe() {
+      this.ue = null;
+    }
+
+    // Returns true if field ue is set (has been asigned a value) and false otherwise
+    public boolean isSetUe() {
+      return this.ue != null;
+    }
+
+    public void setUeIsSet(boolean value) {
+      if (!value) {
+        this.ue = null;
+      }
+    }
+
+    public TimedOutException getTe() {
+      return this.te;
+    }
+
+    public batch_mutate_result setTe(TimedOutException te) {
+      this.te = te;
+      return this;
+    }
+
+    public void unsetTe() {
+      this.te = null;
+    }
+
+    // Returns true if field te is set (has been asigned a value) and false otherwise
+    public boolean isSetTe() {
+      return this.te != null;
+    }
+
+    public void setTeIsSet(boolean value) {
+      if (!value) {
+        this.te = null;
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      switch (fieldID) {
+      case IRE:
+        if (value == null) {
+          unsetIre();
+        } else {
+          setIre((InvalidRequestException)value);
+        }
+        break;
+
+      case UE:
+        if (value == null) {
+          unsetUe();
+        } else {
+          setUe((UnavailableException)value);
+        }
+        break;
+
+      case TE:
+        if (value == null) {
+          unsetTe();
+        } else {
+          setTe((TimedOutException)value);
+        }
+        break;
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    public Object getFieldValue(int fieldID) {
+      switch (fieldID) {
+      case IRE:
+        return getIre();
+
+      case UE:
+        return getUe();
+
+      case TE:
+        return getTe();
+
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
+    public boolean isSet(int fieldID) {
+      switch (fieldID) {
+      case IRE:
+        return isSetIre();
+      case UE:
+        return isSetUe();
+      case TE:
+        return isSetTe();
+      default:
+        throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
+      }
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof batch_mutate_result)
+        return this.equals((batch_mutate_result)that);
+      return false;
+    }
+
+    public boolean equals(batch_mutate_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_ire = true && this.isSetIre();
+      boolean that_present_ire = true && that.isSetIre();
+      if (this_present_ire || that_present_ire) {
+        if (!(this_present_ire && that_present_ire))
+          return false;
+        if (!this.ire.equals(that.ire))
+          return false;
+      }
+
+      boolean this_present_ue = true && this.isSetUe();
+      boolean that_present_ue = true && that.isSetUe();
+      if (this_present_ue || that_present_ue) {
+        if (!(this_present_ue && that_present_ue))
+          return false;
+        if (!this.ue.equals(that.ue))
+          return false;
+      }
+
+      boolean this_present_te = true && this.isSetTe();
+      boolean that_present_te = true && that.isSetTe();
+      if (this_present_te || that_present_te) {
+        if (!(this_present_te && that_present_te))
+          return false;
+        if (!this.te.equals(that.te))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(batch_mutate_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      batch_mutate_result typedOther = (batch_mutate_result)other;
+
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        switch (field.id)
+        {
+          case IRE:
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case UE:
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case TE:
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
+            break;
+        }
+        iprot.readFieldEnd();
+      }
+      iprot.readStructEnd();
+
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetIre()) {
+        oprot.writeFieldBegin(IRE_FIELD_DESC);
+        this.ire.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetUe()) {
+        oprot.writeFieldBegin(UE_FIELD_DESC);
+        this.ue.write(oprot);
+        oprot.writeFieldEnd();
+      } else if (this.isSetTe()) {
+        oprot.writeFieldBegin(TE_FIELD_DESC);
+        this.te.write(oprot);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("batch_mutate_result(");
+      boolean first = true;
+
+      sb.append("ire:");
+      if (this.ire == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ire);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("ue:");
+      if (this.ue == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.ue);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("te:");
+      if (this.te == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.te);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      // check that fields of type enum have valid values
+    }
+
+  }
+
   public static class get_string_property_args implements TBase, java.io.Serializable, Cloneable, Comparable<get_string_property_args>   {
     private static final TStruct STRUCT_DESC = new TStruct("get_string_property_args");
     private static final TField PROPERTY_FIELD_DESC = new TField("property", TType.STRING, (short)1);
@@ -12807,13 +13758,13 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.LIST) {
               {
-                TList _list55 = iprot.readListBegin();
-                this.success = new ArrayList<String>(_list55.size);
-                for (int _i56 = 0; _i56 < _list55.size; ++_i56)
+                TList _list69 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list69.size);
+                for (int _i70 = 0; _i70 < _list69.size; ++_i70)
                 {
-                  String _elem57;
-                  _elem57 = iprot.readString();
-                  this.success.add(_elem57);
+                  String _elem71;
+                  _elem71 = iprot.readString();
+                  this.success.add(_elem71);
                 }
                 iprot.readListEnd();
               }
@@ -12841,9 +13792,9 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
-          for (String _iter58 : this.success)
+          for (String _iter72 : this.success)
           {
-            oprot.writeString(_iter58);
+            oprot.writeString(_iter72);
           }
           oprot.writeListEnd();
         }
@@ -13343,27 +14294,27 @@ public class Cassandra {
           case SUCCESS:
             if (field.type == TType.MAP) {
               {
-                TMap _map59 = iprot.readMapBegin();
-                this.success = new HashMap<String,Map<String,String>>(2*_map59.size);
-                for (int _i60 = 0; _i60 < _map59.size; ++_i60)
+                TMap _map73 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map73.size);
+                for (int _i74 = 0; _i74 < _map73.size; ++_i74)
                 {
-                  String _key61;
-                  Map<String,String> _val62;
-                  _key61 = iprot.readString();
+                  String _key75;
+                  Map<String,String> _val76;
+                  _key75 = iprot.readString();
                   {
-                    TMap _map63 = iprot.readMapBegin();
-                    _val62 = new HashMap<String,String>(2*_map63.size);
-                    for (int _i64 = 0; _i64 < _map63.size; ++_i64)
+                    TMap _map77 = iprot.readMapBegin();
+                    _val76 = new HashMap<String,String>(2*_map77.size);
+                    for (int _i78 = 0; _i78 < _map77.size; ++_i78)
                     {
-                      String _key65;
-                      String _val66;
-                      _key65 = iprot.readString();
-                      _val66 = iprot.readString();
-                      _val62.put(_key65, _val66);
+                      String _key79;
+                      String _val80;
+                      _key79 = iprot.readString();
+                      _val80 = iprot.readString();
+                      _val76.put(_key79, _val80);
                     }
                     iprot.readMapEnd();
                   }
-                  this.success.put(_key61, _val62);
+                  this.success.put(_key75, _val76);
                 }
                 iprot.readMapEnd();
               }
@@ -13399,15 +14350,15 @@ public class Cassandra {
         oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
         {
           oprot.writeMapBegin(new TMap(TType.STRING, TType.MAP, this.success.size()));
-          for (Map.Entry<String, Map<String,String>> _iter67 : this.success.entrySet())
+          for (Map.Entry<String, Map<String,String>> _iter81 : this.success.entrySet())
           {
-            oprot.writeString(_iter67.getKey());
+            oprot.writeString(_iter81.getKey());
             {
-              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter67.getValue().size()));
-              for (Map.Entry<String, String> _iter68 : _iter67.getValue().entrySet())
+              oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, _iter81.getValue().size()));
+              for (Map.Entry<String, String> _iter82 : _iter81.getValue().entrySet())
               {
-                oprot.writeString(_iter68.getKey());
-                oprot.writeString(_iter68.getValue());
+                oprot.writeString(_iter82.getKey());
+                oprot.writeString(_iter82.getValue());
               }
               oprot.writeMapEnd();
             }

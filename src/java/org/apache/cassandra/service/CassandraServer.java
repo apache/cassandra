@@ -21,11 +21,9 @@ package org.apache.cassandra.service;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.File;
 import java.util.*;
 
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 
 import org.apache.commons.lang.ArrayUtils;
 
@@ -43,7 +41,7 @@ import flexjson.JSONSerializer;
 public class CassandraServer implements Cassandra.Iface
 {
     public static String TOKEN_MAP = "token map";
-	private static Logger logger = Logger.getLogger(CassandraServer.class);
+    private static Logger logger = Logger.getLogger(CassandraServer.class);
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
@@ -55,9 +53,9 @@ public class CassandraServer implements Cassandra.Iface
 	private final StorageService storageService;
 
     public CassandraServer()
-	{
-		storageService = StorageService.instance();
-	}
+    {
+        storageService = StorageService.instance();
+    }
 
     protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, int consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
@@ -89,7 +87,7 @@ public class CassandraServer implements Cassandra.Iface
             columnFamilyKeyMap.put(row.key, row.cf);
         }
         return columnFamilyKeyMap;
-	}
+    }
 
     public List<Column> thriftifySubColumns(Collection<IColumn> columns)
     {
@@ -404,7 +402,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         doInsert(consistency_level, rm);
     }
-
+    
     public void batch_insert(String keyspace, String key, Map<String, List<ColumnOrSuperColumn>> cfmap, int consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -416,21 +414,45 @@ public class CassandraServer implements Cassandra.Iface
         {
             for (ColumnOrSuperColumn cosc : cfmap.get(cfName))
             {
-                if (cosc.column != null)
-                {
-                    ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, null, cosc.column.name));
-                }
-                if (cosc.super_column != null)
-                {
-                    for (Column c : cosc.super_column.columns)
-                    {
-                        ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, cosc.super_column.name, c.name));
-                    }
-                }
+                ThriftValidation.validateColumnOrSuperColumn(keyspace, cfName, cosc);
             }
         }
 
         doInsert(consistency_level, RowMutation.getRowMutation(keyspace, key, cfmap));
+    }
+
+    public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, int consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("batch_mutate");
+        
+        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        for (Map.Entry<String, Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
+        {
+            String key = mutationEntry.getKey();
+
+            ThriftValidation.validateKey(key);
+            Map<String, List<Mutation>> columnFamilyToMutations = mutationEntry.getValue();
+            for (Map.Entry<String, List<Mutation>> columnFamilyMutations : columnFamilyToMutations.entrySet())
+            {
+                String cfName = columnFamilyMutations.getKey();
+
+                for (Mutation mutation : columnFamilyMutations.getValue())
+                {
+                    ThriftValidation.validateMutation(keyspace, cfName, mutation);
+                }
+            }
+            rowMutations.add(RowMutation.getRowMutationFromMutations(keyspace, key, columnFamilyToMutations));
+        }
+        if (consistency_level == ConsistencyLevel.ZERO)
+        {
+            StorageProxy.mutate(rowMutations);
+        }
+        else
+        {
+            StorageProxy.mutateBlocking(rowMutations, consistency_level);
+        }
     }
 
     public void remove(String table, String key, ColumnPath column_path, long timestamp, int consistency_level)
@@ -445,17 +467,17 @@ public class CassandraServer implements Cassandra.Iface
         rm.delete(new QueryPath(column_path), timestamp);
 
         doInsert(consistency_level, rm);
-	}
+    }
 
     private void doInsert(int consistency_level, RowMutation rm) throws UnavailableException, TimedOutException
     {
         if (consistency_level != ConsistencyLevel.ZERO)
         {
-            StorageProxy.insertBlocking(rm, consistency_level);
+            StorageProxy.mutateBlocking(Arrays.asList(rm), consistency_level);
         }
         else
         {
-            StorageProxy.insert(rm);
+            StorageProxy.mutate(Arrays.asList(rm));
         }
     }
 
@@ -543,10 +565,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
-        if (predicate.getSlice_range() != null)
-            ThriftValidation.validateRange(keyspace, column_parent, predicate.getSlice_range());
-        else
-            ThriftValidation.validateColumns(keyspace, column_parent, predicate.getColumn_names());
+
+        validatePredicate(keyspace, column_parent, predicate);
+
         if (!StorageService.getPartitioner().preservesOrder())
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
@@ -618,5 +639,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    private void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate) throws InvalidRequestException
+    {
+        if (predicate.getSlice_range() != null)
+            ThriftValidation.validateRange(keyspace, column_parent, predicate.getSlice_range());
+        else
+            ThriftValidation.validateColumns(keyspace, column_parent, predicate.getColumn_names());
+
+    }
     // main method moved to CassandraDaemon
 }

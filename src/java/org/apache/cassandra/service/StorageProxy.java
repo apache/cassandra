@@ -85,76 +85,82 @@ public class StorageProxy implements StorageProxyMBean
     };
 
     /**
-     * Use this method to have this RowMutation applied
+     * Use this method to have these RowMutations applied
      * across all replicas. This method will take care
      * of the possibility of a replica being down and hint
      * the data across to some other replica.
      *
      * This is the ZERO consistency level. We do not wait for replies.
      *
-     * @param rm the mutation to be applied across the replicas
+     * @param mutations the mutations to be applied across the replicas
     */
-    public static void insert(final RowMutation rm)
+    public static void mutate(List<RowMutation> mutations)
     {
         long startTime = System.currentTimeMillis();
         try
         {
-            List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
-            Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
-            Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
-
-            // 3 cases:
-            // 1. local, unhinted write: run directly on write stage
-            // 2. non-local, unhinted write: send row mutation message
-            // 3. hinted write: add hint header, and send message
-            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+            for (final RowMutation rm: mutations)
             {
-                InetAddress target = entry.getKey();
-                InetAddress hintedTarget = entry.getValue();
-                if (target.equals(hintedTarget))
-                {
-                    if (target.equals(FBUtilities.getLocalAddress()))
+                try
+        {
+            List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
+                    Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
+                    Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
+
+                    // 3 cases:
+                    // 1. local, unhinted write: run directly on write stage
+                    // 2. non-local, unhinted write: send row mutation message
+                    // 3. hinted write: add hint header, and send message
+                    for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
                     {
-                        if (logger.isDebugEnabled())
-                            logger.debug("insert writing local key " + rm.key());
-                        Runnable runnable = new Runnable()
+                        InetAddress target = entry.getKey();
+                        InetAddress hintedTarget = entry.getValue();
+                        if (target.equals(hintedTarget))
                         {
-                            public void run()
+                            if (target.equals(FBUtilities.getLocalAddress()))
                             {
-                                try
+                                if (logger.isDebugEnabled())
+                                    logger.debug("insert writing local key " + rm.key());
+                                Runnable runnable = new Runnable()
                                 {
-                                    rm.apply();
-                                }
-                                catch (IOException e)
-                                {
-                                    throw new IOError(e);
-                                }
+                                    public void run()
+                                    {
+                                        try
+                                        {
+                                            rm.apply();
+                                        }
+                                        catch (IOException e)
+                                        {
+                                            throw new IOError(e);
+                                        }
+                                    }
+                                };
+                                StageManager.getStage(StageManager.mutationStage_).execute(runnable);
                             }
-                        };
-                        StageManager.getStage(StageManager.mutationStage_).execute(runnable);
-                    }
-                    else
-                    {
-                        if (unhintedMessage == null)
-                            unhintedMessage = rm.makeRowMutationMessage();
-                        if (logger.isDebugEnabled())
-                            logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + target);
-                        MessagingService.instance().sendOneWay(unhintedMessage, target);
+                            else
+                            {
+                                if (unhintedMessage == null)
+                                    unhintedMessage = rm.makeRowMutationMessage();
+                                if (logger.isDebugEnabled())
+                                    logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + target);
+                                MessagingService.instance().sendOneWay(unhintedMessage, target);
+                            }
+                        }
+                        else
+                        {
+                            Message hintedMessage = rm.makeRowMutationMessage();
+                            hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
+                            if (logger.isDebugEnabled())
+                                logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
+                            MessagingService.instance().sendOneWay(hintedMessage, hintedTarget);
+                        }
                     }
                 }
-                else
+                catch (IOException e)
                 {
-                    Message hintedMessage = rm.makeRowMutationMessage();
-                    hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
-                    if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
-                    MessagingService.instance().sendOneWay(hintedMessage, hintedTarget);
+                    throw new RuntimeException("error inserting key " + rm.key(), e);
                 }
             }
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("error inserting key " + rm.key(), e);
         }
         finally
         {
@@ -162,98 +168,125 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    public static void insertBlocking(final RowMutation rm, int consistency_level) throws UnavailableException, TimedOutException
+    public static void mutateBlocking(List<RowMutation> mutations, int consistency_level) throws UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
+        ArrayList<WriteResponseHandler> responseHandlers = new ArrayList<WriteResponseHandler>();
+
+        RowMutation mostRecentRowMutation = null;
         try
         {
-            List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
-            Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
-            int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
-
-            // avoid starting a write we know can't achieve the required consistency
-            int liveNodes = 0;
-            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+            for (RowMutation rm: mutations)
             {
-                if (entry.getKey().equals(entry.getValue()))
+                mostRecentRowMutation = rm;
+                List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
+                Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
+                int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
+    
+                // avoid starting a write we know can't achieve the required consistency
+                assureSufficientLiveNodes(endpointMap, blockFor);
+                
+                // send out the writes, as in insert() above, but this time with a callback that tracks responses
+                final WriteResponseHandler responseHandler = StorageService.instance().getWriteResponseHandler(blockFor, consistency_level);
+                responseHandlers.add(responseHandler);
+                Message unhintedMessage = null;
+                for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
                 {
-                    liveNodes++;
-                }
-            }
-            if (liveNodes < blockFor)
-            {
-                throw new UnavailableException();
-            }
-
-            // send out the writes, as in insert() above, but this time with a callback that tracks responses
-            final WriteResponseHandler responseHandler = StorageService.instance().getWriteResponseHandler(blockFor, consistency_level);
-            Message unhintedMessage = null;
-            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
-            {
-                InetAddress target = entry.getKey();
-                InetAddress hintedTarget = entry.getValue();
-
-                if (target.equals(hintedTarget))
-                {
-                    if (target.equals(FBUtilities.getLocalAddress()))
+                    InetAddress naturalTarget = entry.getKey();
+                    InetAddress maybeHintedTarget = entry.getValue();
+    
+                    if (naturalTarget.equals(maybeHintedTarget))
                     {
-                        if (logger.isDebugEnabled())
-                            logger.debug("insert writing local key " + rm.key());
-                        Runnable runnable = new Runnable()
+                        // not hinted
+                        if (naturalTarget.equals(FBUtilities.getLocalAddress()))
                         {
-                            public void run()
+                            insertLocalMessage(rm, responseHandler);
+                        }
+                        else
+                        {
+                            // belongs on a different server.  send it there.
+                            if (unhintedMessage == null)
                             {
-                                try
-                                {
-                                    rm.apply();
-                                    responseHandler.localResponse();
-                                }
-                                catch (IOException e)
-                                {
-                                    throw new IOError(e);
-                                }
+                                unhintedMessage = rm.makeRowMutationMessage();
+                                MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
-                        };
-                        StageManager.getStage(StageManager.mutationStage_).execute(runnable);
+                            if (logger.isDebugEnabled())
+                                logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + naturalTarget);
+                            MessagingService.instance().sendOneWay(unhintedMessage, naturalTarget);
+                        }
                     }
                     else
                     {
-                        if (unhintedMessage == null)
-                        {
-                            unhintedMessage = rm.makeRowMutationMessage();
-                            MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
-                        }
+                        // (hints aren't part of the callback since they don't count towards consistency until they are on the final destination node)
+                        Message hintedMessage = rm.makeRowMutationMessage();
+                        hintedMessage.addHeader(RowMutation.HINT, naturalTarget.getAddress());
                         if (logger.isDebugEnabled())
-                            logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + target);
-                        MessagingService.instance().sendOneWay(unhintedMessage, target);
+                            logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + maybeHintedTarget + " for " + naturalTarget);
+                        MessagingService.instance().sendOneWay(hintedMessage, maybeHintedTarget);
                     }
                 }
-                else
-                {
-                    // (hints aren't part of the callback since they don't count towards consistency until they are on the final destination node)
-                    Message hintedMessage = rm.makeRowMutationMessage();
-                    hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
-                    if (logger.isDebugEnabled())
-                        logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
-                    MessagingService.instance().sendOneWay(hintedMessage, hintedTarget);
-                }
             }
-
             // wait for writes.  throws timeoutexception if necessary
-            responseHandler.get();
+            for( WriteResponseHandler responseHandler : responseHandlers )
+            {
+                responseHandler.get();
+            }
+        }
+        catch (IOException e)
+        {
+            if (mostRecentRowMutation == null)
+                throw new RuntimeException("no mutations were seen but found an error during write anyway", e);
+            else
+                throw new RuntimeException("error writing key " + mostRecentRowMutation.key(), e);
         }
         catch (TimeoutException e)
         {
             throw new TimedOutException();
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException("error writing key " + rm.key(), e);
-        }
         finally
         {
             writeStats.add(System.currentTimeMillis() - startTime);
         }
+
+    }
+
+    private static void assureSufficientLiveNodes(Map<InetAddress, InetAddress> endpointMap, int blockFor)
+            throws UnavailableException
+    {
+        int liveNodes = 0;
+        for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+        {
+            if (entry.getKey().equals(entry.getValue()))
+            {
+                liveNodes++;
+            }
+        }
+        if (liveNodes < blockFor)
+        {
+            throw new UnavailableException();
+        }
+    }
+
+    private static void insertLocalMessage(final RowMutation rm, final WriteResponseHandler responseHandler)
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("insert writing local key " + rm.key());
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    rm.apply();
+                    responseHandler.localResponse();
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
+            }
+        };
+        StageManager.getStage(StageManager.mutationStage_).execute(runnable);
     }
 
     private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)

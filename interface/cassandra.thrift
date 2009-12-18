@@ -223,6 +223,23 @@ struct KeySlice {
     2: required list<ColumnOrSuperColumn> columns,
 }
 
+struct Deletion {
+    1: required i64 timestamp,
+    2: optional binary super_column,
+    3: optional SlicePredicate predicate,
+}
+
+/**
+    A Mutation is either an insert, represented by filling column_or_supercolumn, or a deletion, represented by filling the deletion attribute.
+    @param column_or_supercolumn. An insert to a column or supercolumn
+    @param deletion. A deletion of a column or supercolumn
+*/
+struct Mutation {
+    1: optional ColumnOrSuperColumn column_or_supercolumn,
+    2: optional Deletion deletion,
+}
+
+
 service Cassandra {
   # retrieval methods
 
@@ -320,7 +337,7 @@ service Cassandra {
    */
   void batch_insert(1:required string keyspace, 
                     2:required string key, 
-                    3:required map<string, list<ColumnOrSuperColumn>> cfmap, 
+                    3:required map<string, list<ColumnOrSuperColumn>> cfmap,
                     4:required ConsistencyLevel consistency_level=0)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
@@ -330,13 +347,17 @@ service Cassandra {
     row by just specifying the ColumnFamily, or you can remove a SuperColumn or a single Column by specifying those levels too.
    */
   void remove(1:required string keyspace,
-              2:required string key, 
+              2:required string key,
               3:required ColumnPath column_path,
               4:required i64 timestamp,
               5:ConsistencyLevel consistency_level=0)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
-
+  void batch_mutate(1:required string keyspace,
+                    2:required map<string, map<string, list<Mutation>>> mutation_map,
+                    3:required ConsistencyLevel consistency_level=0)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+       
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
 
