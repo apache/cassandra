@@ -39,7 +39,7 @@ public class SSTableImportTest
     public void testImportSimpleCf() throws IOException, ParseException
     {
         // Import JSON to temp SSTable file
-        String jsonUrl = getClass().getClassLoader().getResource("resources/SimpleCF.json").getPath();
+        String jsonUrl = getClass().getClassLoader().getResource("SimpleCF.json").getPath();
         File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
@@ -53,7 +53,7 @@ public class SSTableImportTest
     @Test
     public void testImportSuperCf() throws IOException, ParseException
     {
-        String jsonUrl = getClass().getClassLoader().getResource("resources/SuperCF.json").getPath();
+        String jsonUrl = getClass().getClassLoader().getResource("SuperCF.json").getPath();
         File tempSS = createTemporarySSTable("Keyspace1", "Super4");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
         
