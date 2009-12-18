@@ -26,7 +26,6 @@ import java.util.*;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.commons.lang.ArrayUtils;
-import org.hamcrest.core.IsSame;
 
 // Cli Client Side Library
 public class CliClient 

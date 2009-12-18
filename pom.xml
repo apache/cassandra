@@ -226,6 +226,12 @@
           <include>**/*</include>
         </includes>
       </testResource>
+      <testResource>
+        <directory>${basedir}/test/resources</directory>
+        <includes>
+          <include>*.json</include>
+        </includes>
+      </testResource>
     </testResources>
 
     <plugins>

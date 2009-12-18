@@ -32,6 +32,7 @@
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.src.dir" value="${interface.dir}/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
+    <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
     <property name="test.conf" value="${test.dir}/conf"/>
     <property name="test.name" value="*Test"/>
@@ -215,10 +216,9 @@
       <src path="${test.unit.src}"/>
     </javac>
 
-    <!-- Non-java resources needed by the test suite -->
-    <mkdir dir="${test.classes}/resources" />
-    <copy todir="${test.classes}/resources">
-      <fileset dir="${test.dir}/resources"/>
+    <!-- Non-java resources needed by the test suite -->    
+    <copy todir="${test.classes}">
+      <fileset dir="${test.resources}"/>
     </copy>
   </target>
 
