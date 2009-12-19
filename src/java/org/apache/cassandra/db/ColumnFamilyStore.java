@@ -918,8 +918,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
 
             // validate the CF as we iterate over it
-            InetAddress initiator = major ? FBUtilities.getLocalAddress() : null;
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator);
+            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, null, major);
             validator.prepare();
             while (nni.hasNext())
             {
@@ -983,7 +982,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
             // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator);
+            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator, true);
             validator.prepare();
             while (nni.hasNext())
             {

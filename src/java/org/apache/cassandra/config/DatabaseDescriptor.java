@@ -989,4 +989,12 @@ public class DatabaseDescriptor
     {
         return autoBootstrap_;
     }
+
+    /**
+     * For testing purposes.
+     */
+    static void setReplicationFactorUnsafe(int factor)
+    {
+        replicationFactor_ = factor;
+    }
 }
