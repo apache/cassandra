@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.utils;
 
-public final class Pair<T1, T2>
+import com.google.common.base.Objects;
+
+public class Pair<T1, T2>
 {
     public final T1 left;
     public final T2 right;
@@ -30,17 +32,22 @@ public final class Pair<T1, T2>
     }
 
     @Override
-    public int hashCode()
+    public final int hashCode()
     {
-        throw new UnsupportedOperationException("todo");
+        int hashCode = 31 + (left == null ? 0 : left.hashCode());
+        return 31*hashCode + (right == null ? 0 : right.hashCode());
     }
-
+    
     @Override
-    public boolean equals(Object obj)
+    public final boolean equals(Object o)
     {
-        throw new UnsupportedOperationException("todo");
+        if(!(o instanceof Pair))
+            return false;
+        Pair that = (Pair)o;
+        // handles nulls properly
+        return Objects.equal(left, that.left) && Objects.equal(right, that.right);
     }
-
+    
     @Override
     public String toString()
     {

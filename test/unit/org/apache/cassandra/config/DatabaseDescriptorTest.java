@@ -28,4 +28,14 @@ public class DatabaseDescriptorTest
     {
         assertNotNull(DatabaseDescriptor.getConfigFileName(), "DatabaseDescriptor should always be able to return the file name of the config file");
     }
+
+    /**
+     * Allow modification of replicationFactor for testing purposes.
+     * TODO: A more general method of property modification would be useful, but
+     *       will probably have to wait for a refactor away from all the static fields.
+     */
+    public static void setReplicationFactor(int factor)
+    {
+        DatabaseDescriptor.setReplicationFactorUnsafe(factor);
+    }
 }
