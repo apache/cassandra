@@ -30,6 +30,8 @@ import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.locator.IEndPointSnitch;
+import org.apache.cassandra.locator.DatacenterEndPointSnitch;
 
 /**
  * This class will block for the replication factor which is
@@ -40,12 +42,14 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
 {
     private final Map<String, Integer> dcResponses = new HashMap<String, Integer>();
     private final Map<String, Integer> responseCounts;
+    private final DatacenterEndPointSnitch endPointSnitch;
 
     public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts)
     {
         // Response is been managed by the map so make it 1 for the superclass.
         super(1);
         this.responseCounts = responseCounts;
+        endPointSnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch();
     }
 
     @Override
@@ -57,7 +61,7 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
         }
         try
         {
-            String dataCenter = DatabaseDescriptor.getEndPointSnitch().getLocation(message.getFrom());
+            String dataCenter = endPointSnitch.getLocation(message.getFrom());
             Object blockFor = responseCounts.get(dataCenter);
             // If this DC needs to be blocked then do the below.
             if (blockFor != null)

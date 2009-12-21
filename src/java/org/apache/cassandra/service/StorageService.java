@@ -347,17 +347,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return endPointSnitch_;
     }
-    
-    /*
-     * Given an InetAddress this method will report if the
-     * endpoint is in the same data center as the local
-     * storage endpoint.
-    */
-    public boolean isInSameDataCenter(InetAddress endpoint) throws IOException
-    {
-        return endPointSnitch_.isInSameDataCenter(FBUtilities.getLocalAddress(), endpoint);
-    }
-    
+
     /**
      * This method performs the requisite operations to make
      * sure that the N replicas are in sync. We do this in the
@@ -686,7 +676,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             // find alive sources for our new ranges
             for (Range myNewRange : myNewRanges)
             {
-                List<InetAddress> sources = DatabaseDescriptor.getEndPointSnitch().sortByProximity(myAddress, rangeAddresses.get(myNewRange));
+                List<InetAddress> sources = DatabaseDescriptor.getEndPointSnitch().getSortedListByProximity(myAddress, rangeAddresses.get(myNewRange));
 
                 assert (!sources.contains(myAddress));
 

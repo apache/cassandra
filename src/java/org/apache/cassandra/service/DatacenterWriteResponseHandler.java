@@ -29,6 +29,7 @@ import java.net.UnknownHostException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndPointSnitch;
+import org.apache.cassandra.locator.DatacenterEndPointSnitch;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -40,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
     private int blockFor;
-    private IEndPointSnitch endpointsnitch;
+    private DatacenterEndPointSnitch endpointsnitch;
     private InetAddress localEndpoint;
 
     public DatacenterWriteResponseHandler(int blockFor)
@@ -48,7 +49,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
         // Response is been managed by the map so the waitlist size really doesnt matter.
         super(blockFor);
         this.blockFor = blockFor;
-        endpointsnitch = DatabaseDescriptor.getEndPointSnitch();
+        endpointsnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch();
         localEndpoint = FBUtilities.getLocalAddress();
     }
 

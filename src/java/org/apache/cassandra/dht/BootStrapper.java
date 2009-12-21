@@ -22,7 +22,6 @@ package org.apache.cassandra.dht;
  import java.util.concurrent.locks.Condition;
  import java.io.IOException;
  import java.io.UnsupportedEncodingException;
- import java.io.File;
  import java.net.InetAddress;
 
  import org.apache.log4j.Logger;
@@ -169,7 +168,7 @@ public class BootStrapper
             {
                 if (range.contains(myRange))
                 {
-                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch().sortByProximity(address, rangeAddresses.get(range));
+                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch().getSortedListByProximity(address, rangeAddresses.get(range));
                     myRangeAddresses.putAll(myRange, preferred);
                     break;
                 }

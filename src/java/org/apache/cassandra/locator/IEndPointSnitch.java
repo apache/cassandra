@@ -37,30 +37,13 @@ import java.util.Collection;
 public interface IEndPointSnitch
 {
     /**
-     * Helps determine if 2 nodes are in the same rack in the data center.
-     * @param host a specified endpoint
-     * @param host2 another specified endpoint
-     * @return true if on the same rack false otherwise
-     * @throws UnknownHostException
+     * returns a new List<InetAddress> sorted by proximity to the given endpoint
      */
-    public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException;
-    
-    /**
-     * Helps determine if 2 nodes are in the same data center.
-     * @param host a specified endpoint
-     * @param host2 another specified endpoint
-     * @return true if in the same data center false otherwise
-     * @throws UnknownHostException
-     */
-    public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException;
-    
-    /**
-     * Given endpoints this method will help us know the datacenter name where the node is located at.
-     */
-    public String getLocation(InetAddress endpoint) throws UnknownHostException;
+    public List<InetAddress> getSortedListByProximity(InetAddress address, Collection<InetAddress> unsortedAddress);
 
     /**
-     * This method will sort the Set<InetAddress> according to the proximity of the given address.
+     * This method will sort the List<InetAddress> according to the proximity of the given address.
      */
-    public List<InetAddress> sortByProximity(InetAddress address, Collection<InetAddress> unsortedAddress);
+    public List<InetAddress> sortByProximity(InetAddress address, List<InetAddress> addresses);
 }
+
