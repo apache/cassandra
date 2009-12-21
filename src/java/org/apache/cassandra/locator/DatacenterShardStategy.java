@@ -133,6 +133,10 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     private ArrayList<InetAddress> getNaturalEndpointsInternal(Token searchToken, TokenMetadata metadata) throws IOException
     {
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
+
+        if (metadata.sortedTokens().size() == 0)
+            return endpoints;
+
         if (null == tokens || tokens.size() != metadata.sortedTokens().size())
         {
             loadEndPoints(metadata);
