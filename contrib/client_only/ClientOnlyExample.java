@@ -23,6 +23,7 @@ import org.apache.cassandra.service.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -53,7 +54,7 @@ public class ClientOnlyExample
             // local storage initialization, which creates local directories.
             // change.apply();
 
-            StorageProxy.insert(change);
+            StorageProxy.mutate(Arrays.asList(change));
             try
             {
                 Thread.sleep(50L);
