@@ -47,7 +47,7 @@ public class TokenMetadata
     // for any nodes that boot simultaneously between same two nodes. For this we cannot simply make pending ranges a multimap,
     // since that would make us unable to notice the real problem of two nodes trying to boot using the same token.
     // In order to do this properly, we need to know what tokens are booting at any time.
-    private Map<Token, InetAddress> bootstrapTokens;
+    private BiMap<Token, InetAddress> bootstrapTokens;
 
     // we will need to know at all times what nodes are leaving and calculate ranges accordingly.
     // An anonymous pending ranges list is not enough, as that does not tell which node is leaving
@@ -71,7 +71,7 @@ public class TokenMetadata
         if (tokenToEndPointMap == null)
             tokenToEndPointMap = HashBiMap.create();
         this.tokenToEndPointMap = tokenToEndPointMap;
-        bootstrapTokens = new HashMap<Token, InetAddress>();
+        bootstrapTokens = HashBiMap.create();
         leavingEndPoints = new HashSet<InetAddress>();
         pendingRanges = HashMultimap.create();
         sortedTokens = sortTokens();
@@ -103,13 +103,13 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            bootstrapTokens.remove(token);
-
+            bootstrapTokens.inverse().remove(endpoint);
             tokenToEndPointMap.inverse().remove(endpoint);
             if (!endpoint.equals(tokenToEndPointMap.put(token, endpoint)))
             {
                 sortedTokens = sortTokens();
             }
+            leavingEndPoints.remove(endpoint);
         }
         finally
         {
@@ -125,10 +125,33 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            InetAddress oldEndPoint = bootstrapTokens.get(token);
+            InetAddress oldEndPoint = null;
+
+            oldEndPoint = bootstrapTokens.get(token);
             if (oldEndPoint != null && !oldEndPoint.equals(endpoint))
                 throw new RuntimeException("Bootstrap Token collision between " + oldEndPoint + " and " + endpoint + " (token " + token);
+
+            oldEndPoint = tokenToEndPointMap.get(token);
+            if (oldEndPoint != null && !oldEndPoint.equals(endpoint))
+                throw new RuntimeException("Bootstrap Token collision between " + oldEndPoint + " and " + endpoint + " (token " + token);
+
+            bootstrapTokens.inverse().remove(endpoint);
             bootstrapTokens.put(token, endpoint);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void removeBootstrapToken(Token token)
+    {
+        assert token != null;
+
+        lock.writeLock().lock();
+        try
+        {
+            bootstrapTokens.remove(token);
         }
         finally
         {
@@ -151,13 +174,28 @@ public class TokenMetadata
         }
     }
 
+    public void removeLeavingEndPoint(InetAddress endpoint)
+    {
+        assert endpoint != null;
+
+        lock.writeLock().lock();
+        try
+        {
+            leavingEndPoints.remove(endpoint);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
     public void removeEndpoint(InetAddress endpoint)
     {
         assert tokenToEndPointMap.containsValue(endpoint);
         lock.writeLock().lock();
         try
         {
-            bootstrapTokens.remove(getToken(endpoint));
+            bootstrapTokens.inverse().remove(endpoint);
             tokenToEndPointMap.inverse().remove(endpoint);
             leavingEndPoints.remove(endpoint);
             sortedTokens = sortTokens();
@@ -192,6 +230,21 @@ public class TokenMetadata
         try
         {
             return tokenToEndPointMap.inverse().containsKey(endpoint);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
+    public boolean isLeaving(InetAddress endpoint)
+    {
+        assert endpoint != null;
+
+        lock.readLock().lock();
+        try
+        {
+            return leavingEndPoints.contains(endpoint);
         }
         finally
         {
