@@ -62,7 +62,7 @@ public class BootStrapperTest
         Range range3 = ss.getPrimaryRangeForEndPoint(three);
         Token fakeToken = ((IPartitioner)StorageService.getPartitioner()).midpoint(range3.left(), range3.right());
         assert range3.contains(fakeToken);
-        ss.onChange(myEndpoint, StorageService.STATE_BOOTSTRAPPING, new ApplicationState(ss.getPartitioner().getTokenFactory().toString(fakeToken)));
+        ss.onChange(myEndpoint, StorageService.MOVE_STATE, new ApplicationState(StorageService.STATE_BOOTSTRAPPING + StorageService.Delimiter + ss.getPartitioner().getTokenFactory().toString(fakeToken)));
         tmd = ss.getTokenMetadata();
 
         InetAddress source2 = BootStrapper.getBootstrapSource(tmd, load);

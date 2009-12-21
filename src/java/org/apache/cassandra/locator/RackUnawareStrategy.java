@@ -45,6 +45,10 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         int startIndex;
         List<Token> tokenList = new ArrayList<Token>();
         List tokens = new ArrayList<Token>(metadata.sortedTokens());
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(tokenList.size());
+
+        if (tokens.isEmpty())
+            return endpoints;
 
         int index = Collections.binarySearch(tokens, token);
         if (index < 0)
@@ -64,7 +68,6 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
             assert !tokenList.contains(tokens.get(i));
             tokenList.add((Token) tokens.get(i));
         }
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(tokenList.size());
         for (Token t : tokenList)
             endpoints.add(metadata.getEndPoint(t));
         return endpoints;

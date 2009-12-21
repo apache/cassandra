@@ -206,9 +206,9 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         ThriftValidation.validateColumnParent(keyspace, column_parent);
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
-        SliceRange range = predicate.slice_range;
+        ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
 
+        List<ReadCommand> commands = new ArrayList<ReadCommand>();
         if (predicate.column_names != null)
         {
             for (String key: keys)
@@ -216,16 +216,15 @@ public class CassandraServer implements Cassandra.Iface
                 ThriftValidation.validateKey(key);
                 commands.add(new SliceByNamesReadCommand(keyspace, key, column_parent, predicate.column_names));
             }
-            ThriftValidation.validateColumns(keyspace, column_parent, predicate.column_names);
         }
         else
         {
+            SliceRange range = predicate.slice_range;
             for (String key: keys)
             {
                 ThriftValidation.validateKey(key);
                 commands.add(new SliceFromReadCommand(keyspace, key, column_parent, range.start, range.finish, range.reversed, range.count));
             }
-            ThriftValidation.validateRange(keyspace, column_parent, range);
         }
 
         return getSlice(commands, consistency_level);
@@ -566,8 +565,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
 
-        validatePredicate(keyspace, column_parent, predicate);
-
+        ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
         if (!StorageService.getPartitioner().preservesOrder())
         {
             throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");

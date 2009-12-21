@@ -50,6 +50,10 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         boolean bOtherRack = false;
         int foundCount = 0;
         List tokens = metadata.sortedTokens();
+
+        if (tokens.isEmpty())
+            return endpoints;
+
         int index = Collections.binarySearch(tokens, token);
         if(index < 0)
         {
