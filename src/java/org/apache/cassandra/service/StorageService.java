@@ -1448,4 +1448,21 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     {
         return isClientMode;
     }
+
+    // Never ever do this at home. Used by tests.
+    AbstractReplicationStrategy setReplicationStrategyUnsafe(AbstractReplicationStrategy newStrategy)
+    {
+        AbstractReplicationStrategy oldStrategy = replicationStrategy_;
+        replicationStrategy_ = newStrategy;
+        return oldStrategy;
+    }
+
+    // Never ever do this at home. Used by tests.
+    IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
+    {
+        IPartitioner oldPartitioner = partitioner_;
+        partitioner_ = newPartitioner;
+        return oldPartitioner;
+    }
+
 }
