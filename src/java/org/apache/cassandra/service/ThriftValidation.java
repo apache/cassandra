@@ -205,4 +205,18 @@ public class ThriftValidation
             throw new InvalidRequestException("range finish must come after start in the order of traversal");
         }
     }
+
+    public static void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate)
+            throws InvalidRequestException
+    {
+        if (predicate.column_names == null && predicate.slice_range == null)
+            throw new InvalidRequestException("predicate column_names and slice_range may not both be null");
+        if (predicate.column_names != null && predicate.slice_range != null)
+            throw new InvalidRequestException("predicate column_names and slice_range may not both be present");
+
+        if (predicate.getSlice_range() != null)
+            validateRange(keyspace, column_parent, predicate.slice_range);
+        else
+            validateColumns(keyspace, column_parent, predicate.column_names);
+    }
 }
