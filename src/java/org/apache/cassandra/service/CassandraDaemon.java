@@ -81,7 +81,7 @@ public class CassandraDaemon
             }
         });
 
-        // initialize stuff
+        // initialize keyspaces
         for (String table : Table.getAllTableNames())
         {
             if (logger.isDebugEnabled())
@@ -93,9 +93,11 @@ public class CassandraDaemon
         // replay the log if necessary
         RecoveryManager.doRecovery();
 
+        // start server internals
+        StorageService.instance().initServer();
+        
         // now we start listening for clients
         CassandraServer cassandraServer = new CassandraServer();
-        StorageService.instance().initServer();
         Cassandra.Processor processor = new Cassandra.Processor(cassandraServer);
 
         // Transport
