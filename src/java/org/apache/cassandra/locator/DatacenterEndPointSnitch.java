@@ -40,7 +40,7 @@ import org.xml.sax.SAXException;
  * EndPoints and also get details from the same.
  */
 
-public class DatacenterEndPointSnitch implements IEndPointSnitch
+public class DatacenterEndPointSnitch extends AbstractEndpointSnitch
 {
     /**
      * This Map will contain the information of the EndPoints and its Location
@@ -202,39 +202,5 @@ public class DatacenterEndPointSnitch implements IEndPointSnitch
     {
         byte[] ipQuads = getIPAddress(endpoint.getHostAddress());
         return ipDC.get(ipQuads[1]).get(ipQuads[2]);
-    }
-
-    // TODO add Datacenter proximity in the XML file or a trace rt to find the number of hops.
-    public List<InetAddress> sortByProximity(final InetAddress address, Collection<InetAddress> unsortedAddress)
-    {
-        List<InetAddress> preferred = new ArrayList<InetAddress>(unsortedAddress);
-        Collections.sort(preferred, new Comparator<InetAddress>()
-        {
-            public int compare(InetAddress a1, InetAddress a2)
-            {
-                try
-                {
-                    if (address.equals(a1) && !address.equals(a2))
-                        return -1;
-                    if (address.equals(a2) && !address.equals(a1))
-                        return 1;
-                    if (isOnSameRack(address, a1) && !isOnSameRack(address, a2))
-                        return -1;
-                    if (isOnSameRack(address, a2) && !isOnSameRack(address, a1))
-                        return 1;
-                    if (isInSameDataCenter(address, a1) && !isInSameDataCenter(address, a2))
-                        return -1;
-                    if (isInSameDataCenter(address, a2) && !isInSameDataCenter(address, a1))
-                        return 1;
-                    return 0;
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-
-        return preferred;
     }
 }

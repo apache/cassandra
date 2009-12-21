@@ -22,7 +22,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-public class EndPointSnitch implements IEndPointSnitch
+public class EndPointSnitch extends AbstractEndpointSnitch
 {
     public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException
     {
@@ -55,36 +55,4 @@ public class EndPointSnitch implements IEndPointSnitch
         throw new UnknownHostException("Not Supported");
     }
 
-    public List<InetAddress> sortByProximity(final InetAddress address, Collection<InetAddress> unsortedAddress)
-    {
-        List<InetAddress> preferred = new ArrayList<InetAddress>(unsortedAddress);
-        Collections.sort(preferred, new Comparator<InetAddress>()
-        {
-            public int compare(InetAddress a1, InetAddress a2)
-            {
-                try
-                {
-                    if (address.equals(a1) && !address.equals(a2))
-                        return -1;
-                    if (address.equals(a2) && !address.equals(a1))
-                        return 1;
-                    if (isOnSameRack(address, a1) && !isOnSameRack(address, a2))
-                        return -1;
-                    if (isOnSameRack(address, a2) && !isOnSameRack(address, a1))
-                        return 1;
-                    if (isInSameDataCenter(address, a1) && !isInSameDataCenter(address, a2))
-                        return -1;
-                    if (isInSameDataCenter(address, a2) && !isInSameDataCenter(address, a1))
-                        return 1;
-                    return 0;
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-
-        return preferred;
-    }
 }
