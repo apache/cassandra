@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 
 import org.apache.cassandra.locator.EndPointSnitch;
 import java.net.InetAddress;
-import org.apache.cassandra.utils.LogUtil;
 import org.apache.log4j.Logger;
 
 /**
@@ -73,7 +72,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         }
         catch (Exception e)
         {
-            logger_.error(LogUtil.throwableToString(e));
+            throw new RuntimeException(e);
         }
     }
 
