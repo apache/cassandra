@@ -966,7 +966,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 System.gc();
             }
-        });
+        }).start();
     }
 
     /**
