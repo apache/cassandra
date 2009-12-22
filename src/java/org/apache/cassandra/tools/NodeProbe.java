@@ -260,10 +260,11 @@ public class NodeProbe
         }
     }
     
-    public void printColumnFamilyStats(PrintStream outs) {
-
+    public void printColumnFamilyStats(PrintStream outs)
+    {
         ObjectName query;
-        try {
+        try
+        {
             Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
             
             // get a list of column family stores
@@ -271,22 +272,24 @@ public class NodeProbe
             Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
             for (ObjectName objectName: result) {
                 String tableName = objectName.getKeyProperty("name");
-                ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(
-                        mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
-                
-                if (!cfstoreMap.containsKey(tableName)) {
-                    List <ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
+                ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
+
+                if (!cfstoreMap.containsKey(tableName))
+                {
+                    List<ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
                     columnFamilies.add(cfsProxy);
                     cfstoreMap.put(tableName, columnFamilies);
-                } 
-                else {
+                }
+                else
+                {
                     cfstoreMap.get(tableName).add(cfsProxy);
                 }
             }
 
             // print out the table statistics
-            for (String tableName: cfstoreMap.keySet()) {
-                List <ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
+            for (String tableName : cfstoreMap.keySet())
+            {
+                List<ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
                 int tableReadCount = 0;
                 int tableWriteCount = 0;
                 int tablePendingTasks = 0;
@@ -294,7 +297,8 @@ public class NodeProbe
                 double tableTotalWriteTime = 0.0f;
                 
                 outs.println("Keyspace: " + tableName);
-                for (ColumnFamilyStoreMBean cfstore: columnFamilies) {
+                for (ColumnFamilyStoreMBean cfstore : columnFamilies)
+                {
                     int writeCount = cfstore.getWriteCount();
                     int readCount = cfstore.getReadCount();
                     
@@ -307,21 +311,20 @@ public class NodeProbe
                 
                 double tableReadLatency = Double.NaN;
                 double tableWriteLatency = Double.NaN;
-                
-                if (tableReadCount > 0.0f) {
+
+                if (tableReadCount > 0.0f)
                     tableReadLatency = tableTotalReadTime / tableReadCount;
-                }
-                if (tableWriteCount > 0.0f) {
+                if (tableWriteCount > 0.0f)
                     tableWriteLatency = tableTotalWriteTime / tableWriteCount;
-                }
-                
+
                 outs.println("\tRead Count: " + tableReadCount);
                 outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
                 outs.println("\tWrite Count: " + tableWriteCount);
                 outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
                 outs.println("\tPending Tasks: " + tablePendingTasks);
                 // print out column family statistic for this table
-                for (ColumnFamilyStoreMBean cfstore: columnFamilies) {
+                for (ColumnFamilyStoreMBean cfstore : columnFamilies)
+                {
                     outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
                     outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
                     outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
@@ -335,12 +338,15 @@ public class NodeProbe
                 }
                 outs.println("----------------");
             }
-        } catch (MalformedObjectNameException e) {
+        }
+        catch (MalformedObjectNameException e)
+        {
             throw new RuntimeException("Invalid ObjectName? Please report this as a bug.", e);
-        } catch (IOException e) {
+        }
+        catch (IOException e)
+        {
             throw new RuntimeException("Could not retrieve list of stat mbeans.", e);
         }
-        
     }
 
     /**
