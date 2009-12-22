@@ -19,6 +19,7 @@
  -->
 <project basedir="." default="build" name="apache-cassandra-incubating">
     <property environment="env"/>
+    <property file="build.properties" />
     <property name="debuglevel" value="source,lines,vars"/>
 
     <property name="basedir" value="."/>
