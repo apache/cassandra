@@ -379,7 +379,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
          *  all ongoing updates to memtables have completed. We can get the tail
          *  of the log and use it as the starting position for log replay on recovery.
          */
-        Table.flusherLock_.writeLock().lock();
+        Table.flusherLock.writeLock().lock();
         try
         {
             final CommitLog.CommitLogContext ctx = CommitLog.open().getContext(); // this is harmless if !writeCommitLog
@@ -417,7 +417,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            Table.flusherLock_.writeLock().unlock();
+            Table.flusherLock.writeLock().unlock();
             if (memtableSwitchCount == Integer.MAX_VALUE)
             {
                 memtableSwitchCount = 0;
@@ -1105,27 +1105,27 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private Memtable getMemtableThreadSafe()
     {
-        Table.flusherLock_.readLock().lock();
+        Table.flusherLock.readLock().lock();
         try
         {
             return memtable_;
         }
         finally
         {
-            Table.flusherLock_.readLock().unlock();
+            Table.flusherLock.readLock().unlock();
         }
     }
 
     public Iterator<DecoratedKey> memtableKeyIterator() throws ExecutionException, InterruptedException
     {
-        Table.flusherLock_.readLock().lock();
+        Table.flusherLock.readLock().lock();
         try
         {
              return memtable_.getKeyIterator();
         }
         finally
         {
-            Table.flusherLock_.readLock().unlock();
+            Table.flusherLock.readLock().unlock();
         }
     }
 
@@ -1147,7 +1147,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // TODO this actually isn't a good meature of pending tasks
     public int getPendingTasks()
     {
-        return Table.flusherLock_.getQueueLength();
+        return Table.flusherLock.getQueueLength();
     }
 
     /**
@@ -1220,7 +1220,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ColumnIterator iter;
 
             /* add the current memtable */
-            Table.flusherLock_.readLock().lock();
+            Table.flusherLock.readLock().lock();
             try
             {
                 iter = filter.getMemColumnIterator(memtable_, getComparator());
@@ -1228,7 +1228,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             finally
             {
-                Table.flusherLock_.readLock().unlock();
+                Table.flusherLock.readLock().unlock();
             }
             iterators.add(iter);
 

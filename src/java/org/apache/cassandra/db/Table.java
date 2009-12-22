@@ -40,12 +40,12 @@ public class Table
 {
     public static final String SYSTEM_TABLE = "system";
 
-    private static final Logger logger_ = Logger.getLogger(Table.class);
+    private static final Logger logger = Logger.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
     /* we use this lock to drain updaters before calling a flush. */
-    static final ReentrantReadWriteLock flusherLock_ = new ReentrantReadWriteLock(true);
+    static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 
-    private static Timer flushTimer_ = new Timer("FLUSH-TIMER");
+    private static Timer flushTimer = new Timer("FLUSH-TIMER");
 
     // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
     // CassandraDaemon, but it is possible to call Table.open without a running daemon, so it made sense to ensure
@@ -70,8 +70,9 @@ public class Table
     */
     public static class TableMetadata
     {
-        private static HashMap<String,TableMetadata> tableMetadataMap_ = new HashMap<String,TableMetadata>();
+        private static HashMap<String,TableMetadata> tableMetadataMap = new HashMap<String,TableMetadata>();
         private static Map<Integer, String> idCfMap_ = new HashMap<Integer, String>();
+
         static
         {
             try
@@ -86,11 +87,11 @@ public class Table
 
         public static synchronized Table.TableMetadata instance(String tableName) throws IOException
         {
-            if ( tableMetadataMap_.get(tableName) == null )
+            if ( tableMetadataMap.get(tableName) == null )
             {
-                tableMetadataMap_.put(tableName, new Table.TableMetadata());
+                tableMetadataMap.put(tableName, new Table.TableMetadata());
             }
-            return tableMetadataMap_.get(tableName);
+            return tableMetadataMap.get(tableName);
         }
 
         /* The mapping between column family and the column type. */
@@ -104,8 +105,8 @@ public class Table
         
         public void add(String cf, int id, String type)
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug("adding " + cf + " as " + id);
+            if (logger.isDebugEnabled())
+              logger.debug("adding " + cf + " as " + id);
             assert !idCfMap_.containsKey(id);
             cfIdMap_.put(cf, id);
             idCfMap_.put(id, cf);
@@ -159,25 +160,25 @@ public class Table
 
         public static String getColumnFamilyIDString()
         {
-            return FBUtilities.mapToString(tableMetadataMap_);
+            return FBUtilities.mapToString(tableMetadataMap);
         }
     }
     
     /* Used to lock the factory for creation of Table instance */
-    private static final Lock createLock_ = new ReentrantLock();
-    private static final Map<String, Table> instances_ = new HashMap<String, Table>();
+    private static final Lock createLock = new ReentrantLock();
+    private static final Map<String, Table> instances = new HashMap<String, Table>();
     /* Table name. */
-    private final String table_;
+    public final String name;
     /* Handle to the Table Metadata */
-    private final Table.TableMetadata tableMetadata_;
+    private final Table.TableMetadata tableMetadata;
     /* ColumnFamilyStore per column family */
-    private final Map<String, ColumnFamilyStore> columnFamilyStores_ = new HashMap<String, ColumnFamilyStore>();
+    private final Map<String, ColumnFamilyStore> columnFamilyStores = new HashMap<String, ColumnFamilyStore>();
     // cache application CFs since Range queries ask for them a _lot_
-    private SortedSet<String> applicationColumnFamilies_;
+    private SortedSet<String> applicationColumnFamilies;
 
     public static Table open(String table) throws IOException
     {
-        Table tableInstance = instances_.get(table);
+        Table tableInstance = instances.get(table);
         /*
          * Read the config and figure the column families for this table.
          * Set the isConfigured flag so that we do not read config all the
@@ -185,18 +186,18 @@ public class Table
         */
         if (tableInstance == null)
         {
-            Table.createLock_.lock();
+            Table.createLock.lock();
             try
             {
                 if (tableInstance == null)
                 {
                     tableInstance = new Table(table);
-                    instances_.put(table, tableInstance);
+                    instances.put(table, tableInstance);
                 }
             }
             finally
             {
-                createLock_.unlock();
+                createLock.unlock();
             }
         }
         return tableInstance;
@@ -204,51 +205,24 @@ public class Table
         
     public Set<String> getColumnFamilies()
     {
-        return tableMetadata_.getColumnFamilies();
+        return tableMetadata.getColumnFamilies();
     }
 
     Map<String, ColumnFamilyStore> getColumnFamilyStores()
     {
-        return columnFamilyStores_;
+        return columnFamilyStores;
     }
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)
     {
-        return columnFamilyStores_.get(cfName);
-    }
-
-    /*
-     * This method is called to obtain statistics about
-     * the table. It will return statistics about all
-     * the column families that make up this table. 
-    */
-    public String tableStats(String newLineSeparator, java.text.DecimalFormat df)
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.append(table_ + " statistics :");
-        sb.append(newLineSeparator);
-        int oldLength = sb.toString().length();
-        
-        Set<String> cfNames = columnFamilyStores_.keySet();
-        for ( String cfName : cfNames )
-        {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
-            sb.append(cfStore.cfStats(newLineSeparator));
-        }
-        int newLength = sb.toString().length();
-        
-        /* Don't show anything if there is nothing to show. */
-        if ( newLength == oldLength )
-            return "";
-        
-        return sb.toString();
+        return columnFamilyStores.get(cfName);
     }
 
     public void onStart() throws IOException
     {
-        for (String columnFamily : tableMetadata_.getColumnFamilies())
+        for (String columnFamily : tableMetadata.getColumnFamilies())
         {
-            columnFamilyStores_.get(columnFamily).onStart();
+            columnFamilyStores.get(columnFamily).onStart();
         }
     }
     
@@ -257,13 +231,13 @@ public class Table
      */
     public void forceCleanup()
     {
-        if (table_.equals(SYSTEM_TABLE))
+        if (name.equals(SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
+        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
+            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             if ( cfStore != null )
                 cfStore.forceCleanup();
         }   
@@ -284,7 +258,7 @@ public class Table
             snapshotName = snapshotName + "-" + clientSuppliedName;
         }
 
-        for (ColumnFamilyStore cfStore : columnFamilyStores_.values())
+        for (ColumnFamilyStore cfStore : columnFamilyStores.values())
         {
             cfStore.snapshot(snapshotName);
         }
@@ -298,12 +272,12 @@ public class Table
     {
         for (String dataDirPath : DatabaseDescriptor.getAllDataFileLocations())
         {
-            String snapshotPath = dataDirPath + File.separator + table_ + File.separator + SNAPSHOT_SUBDIR_NAME;
+            String snapshotPath = dataDirPath + File.separator + name + File.separator + SNAPSHOT_SUBDIR_NAME;
             File snapshotDir = new File(snapshotPath);
             if (snapshotDir.exists())
             {
-                if (logger_.isDebugEnabled())
-                    logger_.debug("Removing snapshot directory " + snapshotPath);
+                if (logger.isDebugEnabled())
+                    logger.debug("Removing snapshot directory " + snapshotPath);
                 FileUtils.deleteDir(snapshotDir);
             }
         }
@@ -317,13 +291,13 @@ public class Table
     public List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
     {
         List<SSTableReader> allResults = new ArrayList<SSTableReader>();
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
+        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
             if ( !isApplicationColumnFamily(columnFamily) )
                 continue;
             
-            ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
+            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             allResults.addAll(cfStore.forceAntiCompaction(ranges, target));
         }
         return allResults;
@@ -335,10 +309,10 @@ public class Table
     */
     public void forceCompaction()
     {
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
+        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
+            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             if ( cfStore != null )
                 CompactionManager.instance.submitMajor(cfStore, 0);
         }
@@ -350,10 +324,10 @@ public class Table
     public List<SSTableReader> getAllSSTablesOnDisk()
     {
         List<SSTableReader> list = new ArrayList<SSTableReader>();
-        Set<String> columnFamilies = tableMetadata_.getColumnFamilies();
+        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
-            ColumnFamilyStore cfStore = columnFamilyStores_.get( columnFamily );
+            ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             if ( cfStore != null )
                 list.addAll(cfStore.getSSTables());
         }
@@ -362,20 +336,20 @@ public class Table
 
     private Table(String table) throws IOException
     {
-        table_ = table;
-        tableMetadata_ = Table.TableMetadata.instance(table);
-        for (String columnFamily : tableMetadata_.getColumnFamilies())
+        name = table;
+        tableMetadata = Table.TableMetadata.instance(table);
+        for (String columnFamily : tableMetadata.getColumnFamilies())
         {
-            columnFamilyStores_.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
+            columnFamilyStores.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
         }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
         int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
-        flushTimer_.schedule(new TimerTask()
+        flushTimer.schedule(new TimerTask()
         {
             public void run()
             {
-                for (ColumnFamilyStore cfs : columnFamilyStores_.values())
+                for (ColumnFamilyStore cfs : columnFamilyStores.values())
                 {
                     try
                     {
@@ -397,12 +371,12 @@ public class Table
 
     int getColumnFamilyId(String columnFamily)
     {
-        return tableMetadata_.getColumnFamilyId(columnFamily);
+        return tableMetadata.getColumnFamilyId(columnFamily);
     }
 
     boolean isValidColumnFamily(String columnFamily)
     {
-        return tableMetadata_.isValidColumnFamily(columnFamily);
+        return tableMetadata.isValidColumnFamily(columnFamily);
     }
 
     /**
@@ -411,14 +385,14 @@ public class Table
     @Deprecated // single CFs could be larger than memory
     public ColumnFamily get(String key, String cfName) throws IOException
     {
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(cfName);
+        ColumnFamilyStore cfStore = columnFamilyStores.get(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
         return cfStore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
     }
 
     public Row getRow(QueryFilter filter) throws IOException
     {
-        ColumnFamilyStore cfStore = columnFamilyStores_.get(filter.getColumnFamilyName());
+        ColumnFamilyStore cfStore = columnFamilyStores.get(filter.getColumnFamilyName());
         ColumnFamily columnFamily = cfStore.getColumnFamily(filter);
         return new Row(filter.key, columnFamily);
     }
@@ -432,7 +406,7 @@ public class Table
     {
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
-        flusherLock_.readLock().lock();
+        flusherLock.readLock().lock();
         try
         {
             if (writeCommitLog)
@@ -441,14 +415,14 @@ public class Table
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
                 Memtable memtableToFlush;
-                ColumnFamilyStore cfStore = columnFamilyStores_.get(columnFamily.name());
+                ColumnFamilyStore cfStore = columnFamilyStores.get(columnFamily.name());
                 if ((memtableToFlush=cfStore.apply(mutation.key(), columnFamily)) != null)
                     memtablesToFlush.put(cfStore, memtableToFlush);
             }
         }
         finally
         {
-            flusherLock_.readLock().unlock();
+            flusherLock.readLock().unlock();
         }
 
         // usually mTF will be empty and this will be a no-op
@@ -459,9 +433,9 @@ public class Table
     public List<Future<?>> flush() throws IOException
     {
         List<Future<?>> futures = new ArrayList<Future<?>>();
-        for (String cfName : columnFamilyStores_.keySet())
+        for (String cfName : columnFamilyStores.keySet())
         {
-            Future<?> future = columnFamilyStores_.get(cfName).forceFlush();
+            Future<?> future = columnFamilyStores.get(cfName).forceFlush();
             if (future != null)
                 futures.add(future);
         }
@@ -478,7 +452,7 @@ public class Table
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             for (IColumn column : columns)
             {
-                ColumnFamilyStore cfStore = columnFamilyStores_.get(new String(column.name(), "UTF-8"));
+                ColumnFamilyStore cfStore = columnFamilyStores.get(new String(column.name(), "UTF-8"));
                 cfStore.applyBinary(key, column.value());
             }
         }
@@ -486,18 +460,18 @@ public class Table
 
     public SortedSet<String> getApplicationColumnFamilies()
     {
-        if (applicationColumnFamilies_ == null)
+        if (applicationColumnFamilies == null)
         {
-            applicationColumnFamilies_ = new TreeSet<String>();
+            applicationColumnFamilies = new TreeSet<String>();
             for (String cfName : getColumnFamilies())
             {
                 if (DatabaseDescriptor.isApplicationColumnFamily(cfName))
                 {
-                    applicationColumnFamilies_.add(cfName);
+                    applicationColumnFamilies.add(cfName);
                 }
             }
         }
-        return applicationColumnFamilies_;
+        return applicationColumnFamilies;
     }
 
     public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)
