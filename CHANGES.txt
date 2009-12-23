@@ -14,12 +14,14 @@ dev
  * Handle obsolete gossip related to node movement in the case where
    one or more nodes is down when the movement occurs (CASSANDRA-572)
  * Include dead nodes in gossip to avoid a variety of problems
-   (CASSANDRA-634)
+   and fix HH to removed nodes (CASSANDRA-634)
  * return an InvalidRequestException for mal-formed SlicePredicates
    (CASSANDRA-643)
  * fix bug determining closest neighbor for use in multiple datacenters
    (CASSANDRA-648)
  * Vast improvements in anticompaction speed (CASSANDRA-607)
+ * Speed up log replay and writes by avoiding redundant serializations
+   (CASSANDRA-652)
 
 
 0.5.0 beta 2

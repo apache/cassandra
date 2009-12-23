@@ -195,12 +195,7 @@ public class RowMutation implements Serializable
     */
     public void apply() throws IOException
     {
-        apply(true);
-    }
-
-    public void apply(boolean writeCommitLog) throws IOException
-    {
-        Table.open(table_).apply(this, this.getSerializedBuffer(), writeCommitLog);
+        Table.open(table_).apply(this, getSerializedBuffer(), true);
     }
 
     /*

@@ -410,7 +410,7 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    void apply(RowMutation mutation, DataOutputBuffer serializedMutation, boolean writeCommitLog) throws IOException
+    void apply(RowMutation mutation, Object serializedMutation, boolean writeCommitLog) throws IOException
     {
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
