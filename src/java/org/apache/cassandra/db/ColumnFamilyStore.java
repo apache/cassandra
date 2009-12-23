@@ -170,6 +170,22 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cfs;
     }
 
+    private Set<File> files()
+    {
+        Set<File> fileSet = new HashSet<File>(3 * ssTables_.size() + 6); // 6 is fudge factor so we don't have to double if there's a couple uncompacted ones around
+        for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(table_))
+        {
+            File[] files = new File(directory).listFiles();
+            for (File file : files)
+            {
+                String cfName = getColumnFamilyFromFileName(file.getName());
+                if (cfName.equals(columnFamily_))
+                    fileSet.add(file);
+            }
+        }
+        return fileSet;
+    }
+
     void onStart() throws IOException
     {
         if (logger_.isDebugEnabled())
@@ -177,43 +193,32 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
         Pattern auxFilePattern = Pattern.compile("(.*)(-Filter\\.db$|-Index\\.db$)");
-        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table_);
-        for (String directory : dataFileDirectories)
+        for (File file : files())
         {
-            File fileDir = new File(directory);
-            File[] files = fileDir.listFiles();
-            for (File file : files)
+            String filename = file.getName();
+
+            /* look for and remove orphans. An orphan is a -Filter.db or -Index.db with no corresponding -Data.db. */
+            Matcher matcher = auxFilePattern.matcher(file.getAbsolutePath());
+            if (matcher.matches())
             {
-                String filename = file.getName();
-                String cfName = getColumnFamilyFromFileName(filename);
-
-                // skip files that are not from this column family
-                if (!cfName.equals(columnFamily_))
-                    continue;
-
-                /* look for and remove orphans. An orphan is a -Filter.db or -Index.db with no corresponding -Data.db. */
-                Matcher matcher = auxFilePattern.matcher(file.getAbsolutePath());
-                if (matcher.matches())
+                String basePath = matcher.group(1);
+                if (!new File(basePath + "-Data.db").exists())
                 {
-                    String basePath = matcher.group(1);
-                    if (!new File(basePath + "-Data.db").exists())
-                    {
-                        logger_.info(String.format("Removing orphan %s", file.getAbsolutePath()));
-                        FileUtils.deleteWithConfirm(file);
-                        continue;
-                    }
-                }
-
-                if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))))
-                {
+                    logger_.info(String.format("Removing orphan %s", file.getAbsolutePath()));
                     FileUtils.deleteWithConfirm(file);
                     continue;
                 }
+            }
 
-                if (filename.contains("-Data.db"))
-                {
-                    sstableFiles.add(file.getAbsoluteFile());
-                }
+            if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))))
+            {
+                FileUtils.deleteWithConfirm(file);
+                continue;
+            }
+
+            if (filename.contains("-Data.db"))
+            {
+                sstableFiles.add(file.getAbsoluteFile());
             }
         }
         Collections.sort(sstableFiles, new FileUtils.FileComparator());
@@ -1209,6 +1214,31 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +
                     " created as " + targetLink.getAbsolutePath());
         }
+    }
+
+    public long getTotalDiskSpaceUsed()
+    {
+        long n = 0;
+        for (File file : files())
+        {
+            n += file.length();
+        }
+        return n;
+    }
+
+    public long getLiveDiskSpaceUsed()
+    {
+        long n = 0;
+        for (SSTableReader sstable : ssTables_)
+        {
+            n += sstable.bytesOnDisk();
+        }
+        return n;
+    }
+
+    public int getLiveSSTableCount()
+    {
+        return ssTables_.size();
     }
 
     /**

@@ -198,6 +198,11 @@ public abstract class SSTable
         }
     }
 
+    public long dataBytesOnDisk()
+    {
+        return new File(path).length();
+    }
+
     public long bytesOnDisk()
     {
         long bytes = 0;

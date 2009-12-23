@@ -322,10 +322,14 @@ public class NodeProbe
                 outs.println("\tWrite Count: " + tableWriteCount);
                 outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
                 outs.println("\tPending Tasks: " + tablePendingTasks);
-                // print out column family statistic for this table
+
+                // print out column family statistics for this table
                 for (ColumnFamilyStoreMBean cfstore : columnFamilies)
                 {
                     outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
+                    outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
+                    outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
+                    outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
                     outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
                     outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
                     outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());

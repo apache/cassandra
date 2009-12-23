@@ -80,9 +80,22 @@ public interface ColumnFamilyStoreMBean
     public double getWriteLatency();
     
     /**
-     * 
      * @return the estimated number of tasks pending for this column family
      */
     public int getPendingTasks();
-    
+
+    /**
+     * @return the number of SSTables on disk for this CF
+     */
+    public int getLiveSSTableCount();
+
+    /**
+     * @return disk space used by SSTables belonging to this CF
+     */
+    public long getLiveDiskSpaceUsed();
+
+    /**
+     * @return total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd
+     */
+    public long getTotalDiskSpaceUsed();
 }

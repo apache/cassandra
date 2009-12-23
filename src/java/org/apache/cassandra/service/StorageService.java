@@ -781,10 +781,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             for (String cfName : table.getColumnFamilies())
             {
                 ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
-                for (SSTableReader sstable : cfs.getSSTables())
-                {
-                    bytes += sstable.bytesOnDisk();
-                }
+                bytes += cfs.getLiveDiskSpaceUsed();
             }
         }
         return bytes;
