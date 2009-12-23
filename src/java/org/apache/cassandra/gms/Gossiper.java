@@ -269,6 +269,11 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             logger_.trace("Gossip Digests are : " + sb.toString());
     }
 
+    public boolean isKnownEndpoint(InetAddress endpoint)
+    {
+        return endPointStateMap_.containsKey(endpoint);
+    }
+
     public int getCurrentGenerationNumber(InetAddress endpoint)
     {
     	return endPointStateMap_.get(endpoint).getHeartBeatState().getGeneration();
