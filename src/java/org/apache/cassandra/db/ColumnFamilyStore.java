@@ -245,9 +245,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         ssTables_.onStart(sstables);
 
-        // submit initial check-for-compaction request
-        CompactionManager.instance.submitMinor(ColumnFamilyStore.this);
-
         // schedule hinted handoff
         if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
         {

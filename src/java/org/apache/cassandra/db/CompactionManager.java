@@ -527,4 +527,22 @@ public class CompactionManager implements CompactionManagerMBean
             }
         }
     }
+
+    public void checkAllColumnFamilies()
+    {
+        for (String tableName : DatabaseDescriptor.getTables())
+        {
+            try
+            {
+                for (ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores().values())
+                {
+                    submitMinor(cfs);
+                }
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 }
