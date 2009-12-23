@@ -16,6 +16,8 @@
  * fix bug determining closest neighbor for use in multiple datacenters
    (CASSANDRA-648)
  * Vast improvements in anticompaction speed (CASSANDRA-607)
+ * Speed up log replay and writes by avoiding redundant serializations
+   (CASSANDRA-652)
 
 
 0.5.0 beta 2

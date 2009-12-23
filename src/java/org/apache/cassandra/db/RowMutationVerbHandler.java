@@ -58,6 +58,7 @@ public class RowMutationVerbHandler implements IVerbHandler
                 hintedMutation.apply();
             }
 
+            Table.open(rm.getTable()).apply(rm, bytes, true);
             rm.apply();
 
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
