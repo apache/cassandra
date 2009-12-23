@@ -19,6 +19,7 @@ dev
    (CASSANDRA-643)
  * fix bug determining closest neighbor for use in multiple datacenters
    (CASSANDRA-648)
+ * Vast improvements in anticompaction speed (CASSANDRA-607)
 
 
 0.5.0 beta 2

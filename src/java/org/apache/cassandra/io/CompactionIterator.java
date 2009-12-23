@@ -26,12 +26,13 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Iterator;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.utils.ReducingIterator;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,31 +41,29 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 {
     private static Logger logger = Logger.getLogger(CompactionIterator.class);
 
-    private static final int FILE_BUFFER_SIZE = 1024 * 1024;
+    protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
 
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
     private final int gcBefore;
     private boolean major;
 
-    @SuppressWarnings("unchecked")
     public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
-        super(getCollatingIterator(sstables));
+        this(getCollatingIterator(sstables), gcBefore, major);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected CompactionIterator(Iterator iter, int gcBefore, boolean major)
+    {
+        super(iter);
         this.gcBefore = gcBefore;
         this.major = major;
     }
 
     @SuppressWarnings("unchecked")
-    private static CollatingIterator getCollatingIterator(Iterable<SSTableReader> sstables) throws IOException
+    protected static CollatingIterator getCollatingIterator(Iterable<SSTableReader> sstables) throws IOException
     {
-        // CollatingIterator has a bug that causes NPE when you try to use default comparator. :(
-        CollatingIterator iter = new CollatingIterator(new Comparator()
-        {
-            public int compare(Object o1, Object o2)
-            {
-                return ((Comparable)o1).compareTo(o2);
-            }
-        });
+        CollatingIterator iter = FBUtilities.<IteratingRow>getCollatingIterator();
         for (SSTableReader sstable : sstables)
         {
             iter.addIterator(sstable.getScanner(FILE_BUFFER_SIZE));

@@ -53,12 +53,12 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.PredicateUtils;
+import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
+import com.google.common.base.Predicate;
 
 public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -655,7 +655,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 // if we have too many to compact all at once, compact older ones first -- this avoids
                 // re-compacting files we just created.
                 Collections.sort(sstables);
-                boolean major = sstables.size() == ssTables_.size();
                 filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
             }
             logger_.debug(filesCompacted + " files compacted");
@@ -812,7 +811,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
           logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
         SSTableWriter writer = null;
-        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), sstables.size() == ssTables_.size());
+	CompactionIterator ci = new AntiCompactionIterator(sstables, ranges, getDefaultGCBefore(), sstables.size() == ssTables_.size());
         Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
         try
@@ -825,17 +824,14 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             while (nni.hasNext())
             {
                 CompactionIterator.CompactedRow row = nni.next();
-                if (Range.isTokenInRanges(row.key.token, ranges))
-                {
-                    if (writer == null)
-                    {
-                        FileUtils.createDirectory(compactionFileLocation);
-                        String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
-                        writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
-                    }
-                    writer.append(row.key, row.buffer);
-                    totalkeysWritten++;
-                }
+		if (writer == null)
+		{
+		    FileUtils.createDirectory(compactionFileLocation);
+		    String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
+		    writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
+		}
+		writer.append(row.key, row.buffer);
+		totalkeysWritten++;
             }
         }
         finally
@@ -1599,4 +1595,39 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.clearUnsafe();
     }
 
+    private static class AntiCompactionIterator extends CompactionIterator
+    {
+        public AntiCompactionIterator(Collection<SSTableReader> sstables, Collection<Range> ranges, int gcBefore, boolean isMajor)
+                throws IOException
+        {
+            super(getCollatedRangeIterator(sstables, ranges), gcBefore, isMajor);
+        }
+
+        private static Iterator getCollatedRangeIterator(Collection<SSTableReader> sstables, final Collection<Range> ranges)
+                throws IOException
+        {
+            org.apache.commons.collections.Predicate rangesPredicate = new org.apache.commons.collections.Predicate()
+            {
+                public boolean evaluate(Object row)
+                {
+                    return Range.isTokenInRanges(((IteratingRow)row).getKey().token, ranges);
+                }
+            };
+            CollatingIterator iter = FBUtilities.<IteratingRow>getCollatingIterator();
+            for (SSTableReader sstable : sstables)
+            {
+                SSTableScanner scanner = sstable.getScanner(FILE_BUFFER_SIZE);
+                iter.addIterator(new FilterIterator(scanner, rangesPredicate));
+            }
+            return iter;
+        }
+
+        public void close() throws IOException
+        {
+            for (Object o : ((CollatingIterator)source).getIterators())
+            {
+                ((SSTableScanner)((FilterIterator)o).getIterator()).close();
+            }
+        }
+    }
 }
