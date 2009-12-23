@@ -30,12 +30,12 @@ import java.util.concurrent.*;
 public class MultiThreadedStage implements IStage 
 {    
     private String name_;
-    private DebuggableThreadPoolExecutor executorService_;
+    private JMXEnabledThreadPoolExecutor executorService_;
             
     public MultiThreadedStage(String name, int numThreads)
     {        
         name_ = name;        
-        executorService_ = new DebuggableThreadPoolExecutor( numThreads,
+        executorService_ = new JMXEnabledThreadPoolExecutor( numThreads,
                 numThreads,
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,

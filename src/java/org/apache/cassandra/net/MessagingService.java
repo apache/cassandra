@@ -38,7 +38,6 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class MessagingService
@@ -144,7 +143,7 @@ public class MessagingService
         callbackMap_ = new Cachetable<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
         taskCompletionMap_ = new Cachetable<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );        
         
-        messageDeserializationExecutor_ = new DebuggableThreadPoolExecutor( maxSize,
+        messageDeserializationExecutor_ = new JMXEnabledThreadPoolExecutor( maxSize,
                 maxSize,
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
@@ -152,7 +151,7 @@ public class MessagingService
                 new NamedThreadFactory("MESSAGING-SERVICE-POOL")
                 );
 
-        messageDeserializerExecutor_ = new DebuggableThreadPoolExecutor( maxSize,
+        messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor( maxSize,
                 maxSize,
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
@@ -160,7 +159,7 @@ public class MessagingService
                 new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL")
                 ); 
         
-        streamExecutor_ = new DebuggableThreadPoolExecutor("MESSAGE-STREAMING-POOL");
+        streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
                 
         protocol_ = hash(HashingSchemes.MD5, "FB-MESSAGING".getBytes());        
         /* register the response verb handler */

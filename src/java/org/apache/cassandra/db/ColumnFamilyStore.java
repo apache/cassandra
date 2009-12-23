@@ -36,23 +36,19 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.*;
-import java.net.InetAddress;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
-import org.apache.commons.collections.PredicateUtils;
-import org.apache.commons.collections.iterators.CollatingIterator;
-import org.apache.commons.collections.iterators.FilterIterator;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.collect.Iterators;
@@ -79,20 +75,20 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
     private static ExecutorService flushSorter_
-            = new DebuggableThreadPoolExecutor(1,
+            = new JMXEnabledThreadPoolExecutor(1,
                                                Runtime.getRuntime().availableProcessors(),
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(2 * Runtime.getRuntime().availableProcessors()),
                                                new NamedThreadFactory("FLUSH-SORTER-POOL"));
     private static ExecutorService flushWriter_
-            = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getAllDataFileLocations().length,
+            = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getAllDataFileLocations().length,
                                                DatabaseDescriptor.getAllDataFileLocations().length,
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
                                                new LinkedBlockingQueue<Runnable>(),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
-    private static ExecutorService commitLogUpdater_ = new DebuggableThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
+    private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
     private static final int KEY_RANGE_FILE_BUFFER_SIZE = 256 * 1024;
 

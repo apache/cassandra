@@ -23,8 +23,8 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+
 import org.apache.log4j.Logger;
 
 
@@ -37,7 +37,7 @@ public class FileUtils
     private static final double gb_ = 1024*1024*1024d;
     private static final double tb_ = 1024*1024*1024*1024d;
 
-    private static ExecutorService deleter_ = new DebuggableThreadPoolExecutor("FILEUTILS-DELETE-POOL");
+    private static ExecutorService deleter_ = new JMXEnabledThreadPoolExecutor("FILEUTILS-DELETE-POOL");
 
     public static void shutdown()
     {

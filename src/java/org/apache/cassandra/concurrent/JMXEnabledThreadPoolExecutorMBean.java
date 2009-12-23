@@ -18,6 +18,6 @@
 */
 package org.apache.cassandra.concurrent;
 
-public interface DebuggableThreadPoolExecutorMBean extends IExecutorMBean
+public interface JMXEnabledThreadPoolExecutorMBean extends IExecutorMBean
 {
 }

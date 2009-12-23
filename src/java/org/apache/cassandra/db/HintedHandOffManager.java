@@ -24,14 +24,13 @@ import java.util.TimerTask;
 import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.io.IOException;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import java.net.InetAddress;
@@ -79,7 +78,7 @@ public class HintedHandOffManager
     private static final Lock lock_ = new ReentrantLock();
     private static final Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     final static long INTERVAL_IN_MS = 3600 * 1000;
-    private final ExecutorService executor_ = new DebuggableThreadPoolExecutor("HINTED-HANDOFF-POOL");
+    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
     final Timer timer = new Timer("HINTED-HANDOFF-TIMER");
     public static final String HINTS_CF = "HintsColumnFamily";
 

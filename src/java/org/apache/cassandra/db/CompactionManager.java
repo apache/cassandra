@@ -29,7 +29,7 @@ import javax.management.*;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,8 +44,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.collections.iterators.FilterIterator;
 import org.apache.commons.collections.iterators.CollatingIterator;
 import org.apache.commons.collections.PredicateUtils;
-
-import com.sun.corba.se.impl.logging.POASystemException;
 
 public class CompactionManager implements CompactionManagerMBean
 {
@@ -70,7 +68,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private ExecutorService compactor_ = new DebuggableThreadPoolExecutor("COMPACTION-POOL");
+    private ExecutorService compactor_ = new JMXEnabledThreadPoolExecutor("COMPACTION-POOL");
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.

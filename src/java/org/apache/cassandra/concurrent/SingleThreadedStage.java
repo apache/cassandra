@@ -21,10 +21,8 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import org.apache.cassandra.net.*;
 
 /**
  * This class is an implementation of the <i>IStage</i> interface. In particular
@@ -34,12 +32,12 @@ import org.apache.cassandra.net.*;
 
 public class SingleThreadedStage implements IStage 
 {
-    protected DebuggableThreadPoolExecutor executorService_;
+    protected JMXEnabledThreadPoolExecutor executorService_;
     private String name_;
 
 	public SingleThreadedStage(String name)
     {
-        executorService_ = new DebuggableThreadPoolExecutor(name);
+        executorService_ = new JMXEnabledThreadPoolExecutor(name);
         name_ = name;
 	}
 	

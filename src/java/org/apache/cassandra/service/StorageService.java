@@ -137,7 +137,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
     private SystemTable.StorageMetadata storageMetadata_;
 
     /* This thread pool does consistency checks when the client doesn't care about consistency */
-    private ExecutorService consistencyManager_ = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
+    private ExecutorService consistencyManager_ = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getConsistencyThreads(),
                                                                                    DatabaseDescriptor.getConsistencyThreads(),
                                                                                    Integer.MAX_VALUE,
                                                                                    TimeUnit.SECONDS,

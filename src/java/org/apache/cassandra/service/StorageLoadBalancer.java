@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.dht.Token;
@@ -191,9 +191,9 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     /* This map is a clone of the one above and is used for various calculations during LB operation */
     private Map<InetAddress, Double> loadInfo2_ = new HashMap<InetAddress, Double>();
     /* This thread pool is used for initiating load balancing operations */
-    private ExecutorService lb_ = new DebuggableThreadPoolExecutor("LB-OPERATIONS");
+    private ExecutorService lb_ = new JMXEnabledThreadPoolExecutor("LB-OPERATIONS");
     /* This thread pool is used by target node to leave the ring. */
-    private ExecutorService lbOperations_ = new DebuggableThreadPoolExecutor("LB-TARGET");
+    private ExecutorService lbOperations_ = new JMXEnabledThreadPoolExecutor("LB-TARGET");
 
     /* Timer is used to disseminate load information */
     private Timer loadTimer_ = new Timer(false);
