@@ -40,6 +40,8 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 {
     private static Logger logger = Logger.getLogger(CompactionIterator.class);
 
+    private static final int FILE_BUFFER_SIZE = 1024 * 1024;
+
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
     private final int gcBefore;
     private boolean major;
@@ -65,7 +67,7 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         });
         for (SSTableReader sstable : sstables)
         {
-            iter.addIterator(sstable.getScanner());
+            iter.addIterator(sstable.getScanner(FILE_BUFFER_SIZE));
         }
         return iter;
     }

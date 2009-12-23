@@ -38,13 +38,13 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
     private SSTableReader sstable;
     private Iterator<IteratingRow> iterator;
 
-    SSTableScanner(SSTableReader sstable) throws IOException
+    /**
+     * @param sstable SSTable to scan.
+     * @param bufferSize Number of bytes to buffer the file while scanning.
+     */
+    SSTableScanner(SSTableReader sstable, int bufferSize) throws IOException
     {
-        // TODO this is used for both compactions and key ranges.  the buffer sizes we want
-        // to use for these ops are very different.  here we are leaning towards the key-range
-        // use case since that is more common.  What we really want is to split those
-        // two uses of this class up.
-        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", 256 * 1024);
+        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", bufferSize);
         this.sstable = sstable;
     }
 

@@ -40,6 +40,8 @@ import org.apache.commons.cli.*;
  */
 public class SSTableExport
 {
+    private static int INPUT_FILE_BUFFER_SIZE = 8 * 1024 * 1024;
+
     private static final String OUTFILE_OPTION = "f";
     private static final String KEY_OPTION = "k";
     private static Options options;
@@ -143,7 +145,7 @@ public class SSTableExport
     throws IOException
     {
         SSTableReader reader = SSTableReader.open(ssTableFile);
-        SSTableScanner scanner = reader.getScanner();
+        SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
         int i = 0;
         
@@ -201,7 +203,7 @@ public class SSTableExport
     // than once from within the same process.
     static void export(SSTableReader reader, PrintStream outs) throws IOException
     {
-        SSTableScanner scanner = reader.getScanner();
+        SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         
         outs.println("{");
         
