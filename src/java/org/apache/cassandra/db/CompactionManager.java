@@ -509,6 +509,8 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static class AntiCompactionIterator extends CompactionIterator
     {
+        private Set<SSTableScanner> scanners;
+
         public AntiCompactionIterator(Collection<SSTableReader> sstables, Collection<Range> ranges, int gcBefore, boolean isMajor)
                 throws IOException
         {
@@ -534,12 +536,17 @@ public class CompactionManager implements CompactionManagerMBean
             return iter;
         }
 
-        public void close() throws IOException
+        public Iterable<SSTableScanner> getScanners()
         {
-            for (Object o : ((CollatingIterator)source).getIterators())
+            if (scanners == null)
             {
-                ((SSTableScanner)((FilterIterator)o).getIterator()).close();
+                scanners = new HashSet<SSTableScanner>();
+                for (Object o : ((CollatingIterator)source).getIterators())
+                {
+                    scanners.add((SSTableScanner)((FilterIterator)o).getIterator());
+                }
             }
+            return scanners;
         }
     }
 

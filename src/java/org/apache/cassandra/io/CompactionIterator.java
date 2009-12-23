@@ -53,7 +53,6 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 
     public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
-<<<<<<< HEAD
         this(getCollatingIterator(sstables), gcBefore, major);
     }
 
@@ -61,15 +60,12 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     protected CompactionIterator(Iterator iter, int gcBefore, boolean major)
     {
         super(iter);
-=======
-        super(getCollatingIterator(sstables));
         row = 0;
         totalBytes = bytesRead = 0;
-        for (SSTableScanner iter : (List<SSTableScanner>)((CollatingIterator)source).getIterators())
+        for (SSTableScanner scanner : getScanners())
         {
-            totalBytes += iter.getFileLength();
+            totalBytes += scanner.getFileLength();
         }
->>>>>>> make estimation of pendingtasks for CompactionManager sane
         this.gcBefore = gcBefore;
         this.major = major;
     }
@@ -152,9 +148,9 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
             if ((row++ % 1000) == 0)
             {
                 bytesRead = 0;
-                for (SSTableScanner iter : (List<SSTableScanner>)((CollatingIterator)source).getIterators())
+                for (SSTableScanner scanner : getScanners())
                 {
-                    bytesRead += iter.getFilePointer();
+                    bytesRead += scanner.getFilePointer();
                 }
             }
         }
@@ -163,10 +159,15 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 
     public void close() throws IOException
     {
-        for (Object o : ((CollatingIterator)source).getIterators())
+        for (SSTableScanner scanner : getScanners())
         {
-            ((SSTableScanner)o).close();
+            scanner.close();
         }
+    }
+
+    protected Iterable<SSTableScanner> getScanners()
+    {
+        return ((CollatingIterator)source).getIterators();
     }
 
     public long getTotalBytes()
