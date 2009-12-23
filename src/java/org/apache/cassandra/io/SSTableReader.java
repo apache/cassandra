@@ -403,9 +403,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return partitioner;
     }
 
-    public SSTableScanner getScanner() throws IOException
+    public SSTableScanner getScanner(int bufferSize) throws IOException
     {
-        return new SSTableScanner(this);
+        return new SSTableScanner(this, bufferSize);
     }
 
     public AbstractType getColumnComparator()

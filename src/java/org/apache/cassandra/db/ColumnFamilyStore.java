@@ -96,6 +96,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new DebuggableThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
+    private static final int KEY_RANGE_FILE_BUFFER_SIZE = 256 * 1024;
+
     private final String table_;
     public final String columnFamily_;
     private final boolean isSuper_;
@@ -785,7 +787,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return
      * @throws IOException
      */
-    List<SSTableReader> doFileAntiCompaction(Collection<SSTableReader> sstables, Collection<Range> ranges, InetAddress target) throws IOException
+    List<SSTableReader> doFileAntiCompaction(Collection<SSTableReader> sstables, final Collection<Range> ranges, InetAddress target) throws IOException
     {
         logger_.info("AntiCompacting [" + StringUtils.join(sstables, ",") + "]");
         // Calculate the expected compacted filesize
@@ -1315,7 +1317,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // sstables
         for (SSTableReader sstable : ssTables_)
         {
-            final SSTableScanner scanner = sstable.getScanner();
+            final SSTableScanner scanner = sstable.getScanner(KEY_RANGE_FILE_BUFFER_SIZE);
             scanner.seekTo(startWithDK);
             Iterator<DecoratedKey> iter = new CloseableIterator<DecoratedKey>()
             {
@@ -1434,7 +1436,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // sstables
         for (SSTableReader sstable : ssTables_)
         {
-            final SSTableScanner scanner = sstable.getScanner();
+            final SSTableScanner scanner = sstable.getScanner(KEY_RANGE_FILE_BUFFER_SIZE);
             scanner.seekTo(startWith);
             Iterator<DecoratedKey> iter = new CloseableIterator<DecoratedKey>()
             {
