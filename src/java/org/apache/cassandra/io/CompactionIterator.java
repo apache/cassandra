@@ -45,10 +45,15 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
 
     private final List<IteratingRow> rows = new ArrayList<IteratingRow>();
     private final int gcBefore;
-    private boolean major;
+    private final boolean major;
+
+    private long totalBytes;
+    private long bytesRead;
+    private long row;
 
     public CompactionIterator(Iterable<SSTableReader> sstables, int gcBefore, boolean major) throws IOException
     {
+<<<<<<< HEAD
         this(getCollatingIterator(sstables), gcBefore, major);
     }
 
@@ -56,6 +61,15 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
     protected CompactionIterator(Iterator iter, int gcBefore, boolean major)
     {
         super(iter);
+=======
+        super(getCollatingIterator(sstables));
+        row = 0;
+        totalBytes = bytesRead = 0;
+        for (SSTableScanner iter : (List<SSTableScanner>)((CollatingIterator)source).getIterators())
+        {
+            totalBytes += iter.getFileLength();
+        }
+>>>>>>> make estimation of pendingtasks for CompactionManager sane
         this.gcBefore = gcBefore;
         this.major = major;
     }
@@ -135,6 +149,14 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         finally
         {
             rows.clear();
+            if ((row++ % 1000) == 0)
+            {
+                bytesRead = 0;
+                for (SSTableScanner iter : (List<SSTableScanner>)((CollatingIterator)source).getIterators())
+                {
+                    bytesRead += iter.getFilePointer();
+                }
+            }
         }
         return new CompactedRow(key, buffer);
     }
@@ -145,6 +167,16 @@ public class CompactionIterator extends ReducingIterator<IteratingRow, Compactio
         {
             ((SSTableScanner)o).close();
         }
+    }
+
+    public long getTotalBytes()
+    {
+        return totalBytes;
+    }
+
+    public long getBytesRead()
+    {
+        return bytesRead;
     }
 
     public static class CompactedRow

@@ -559,7 +559,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void addSSTable(SSTableReader sstable)
     {
         ssTables_.add(sstable);
-        CompactionManager.instance.submitMinor(this);
+        CompactionManager.instance.submitMinorIfNeeded(this);
     }
 
     /*

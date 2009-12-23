@@ -23,13 +23,12 @@ import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import javax.management.*;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -37,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.net.InetAddress;
 
@@ -68,44 +68,56 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private ExecutorService compactor_ = new JMXEnabledThreadPoolExecutor("COMPACTION-POOL");
+    private CompactionExecutor executor = new CompactionExecutor();
+    private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
      * It's okay to over-call (within reason) since the compactions are single-threaded,
      * and if a call is unnecessary, it will just be no-oped in the bucketing phase.
      */
-    public Future<Integer> submitMinor(final ColumnFamilyStore cfs)
+    public Future<Integer> submitMinorIfNeeded(final ColumnFamilyStore cfs)
     {
         Callable<Integer> callable = new Callable<Integer>()
         {
             public Integer call() throws IOException
             {
-                int filesCompacted = 0;
-                if (minimumCompactionThreshold > 0 && maximumCompactionThreshold > 0)
+                if (minimumCompactionThreshold <= 0 || maximumCompactionThreshold <= 0)
                 {
-                    logger.debug("Checking to see if compaction of " + cfs.columnFamily_ + " would be useful");
-                    for (List<SSTableReader> sstables : getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L))
+                    logger.debug("Compaction is currently disabled.");
+                    return 0;
+                }
+                logger.debug("Checking to see if compaction of " + cfs.columnFamily_ + " would be useful");
+                Set<List<SSTableReader>> buckets = getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+                updateEstimateFor(cfs, buckets);
+                
+                for (List<SSTableReader> sstables : buckets)
+                {
+                    if (sstables.size() >= minimumCompactionThreshold)
                     {
-                        if (sstables.size() < minimumCompactionThreshold)
-                        {
-                            continue;
-                        }
                         // if we have too many to compact all at once, compact older ones first -- this avoids
                         // re-compacting files we just created.
                         Collections.sort(sstables);
-                        filesCompacted += doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maximumCompactionThreshold)), getDefaultGCBefore());
+                        return doCompaction(cfs, sstables.subList(0, Math.min(sstables.size(), maximumCompactionThreshold)), getDefaultGCBefore());
                     }
-                    logger.debug(filesCompacted + " files compacted");
                 }
-                else
-                {
-                    logger.debug("Compaction is currently disabled.");
-                }
-                return filesCompacted;
+                return 0;
             }
         };
-        return compactor_.submit(callable);
+        return executor.submit(callable);
+    }
+
+    private void updateEstimateFor(ColumnFamilyStore cfs, Set<List<SSTableReader>> buckets)
+    {
+        int n = 0;
+        for (List<SSTableReader> sstables : buckets)
+        {
+            if (sstables.size() >= minimumCompactionThreshold)
+            {
+                n += 1 + sstables.size() / (maximumCompactionThreshold - minimumCompactionThreshold);
+            }
+        }
+        estimatedCompactions.put(cfs, n);
     }
 
     public Future<Object> submitCleanup(final ColumnFamilyStore cfStore)
@@ -118,7 +130,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return this;
             }
         };
-        return compactor_.submit(runnable);
+        return executor.submit(runnable);
     }
 
     public Future<List<SSTableReader>> submitAnticompaction(final ColumnFamilyStore cfStore, final Collection<Range> ranges, final InetAddress target)
@@ -130,7 +142,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return doAntiCompaction(cfStore, cfStore.getSSTables(), ranges, target);
             }
         };
-        return compactor_.submit(callable);
+        return executor.submit(callable);
     }
 
     public Future submitMajor(final ColumnFamilyStore cfStore)
@@ -165,7 +177,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return this;
             }
         };
-        return compactor_.submit(callable);
+        return executor.submit(callable);
     }
 
     public Future submitReadonly(final ColumnFamilyStore cfStore, final InetAddress initiator)
@@ -178,7 +190,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return this;
             }
         };
-        return compactor_.submit(callable);
+        return executor.submit(callable);
     }
 
     /**
@@ -258,6 +270,7 @@ public class CompactionManager implements CompactionManagerMBean
         SSTableWriter writer;
         CompactionIterator ci = new CompactionIterator(sstables, gcBefore, major); // retain a handle so we can call close()
         Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+        executor.beginCompaction(cfs, ci);
 
         try
         {
@@ -293,7 +306,7 @@ public class CompactionManager implements CompactionManagerMBean
         SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name));
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
         gcAfterRpcTimeout();
-        instance.submitMinor(cfs);
+        submitMinorIfNeeded(cfs);
 
         String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
         long dTime = System.currentTimeMillis() - startTime;
@@ -341,6 +354,7 @@ public class CompactionManager implements CompactionManagerMBean
         SSTableWriter writer = null;
         CompactionIterator ci = new AntiCompactionIterator(sstables, ranges, getDefaultGCBefore(), cfs.isCompleteSSTables(sstables));
         Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
+        executor.beginCompaction(cfs, ci);
 
         try
         {
@@ -403,6 +417,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         Collection<SSTableReader> sstables = cfs.getSSTables();
         CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), true);
+        executor.beginCompaction(cfs, ci);
         try
         {
             Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
@@ -528,21 +543,99 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public void checkAllColumnFamilies()
+    public void checkAllColumnFamilies() throws IOException
     {
+        // perform estimates
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            try
+            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores().values())
             {
-                for (ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores().values())
+                Runnable runnable = new Runnable()
                 {
-                    submitMinor(cfs);
-                }
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
+                    public void run ()
+                    {
+                        logger.debug("Estimating compactions for " + cfs.columnFamily_);
+                        final Set<List<SSTableReader>> buckets = getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+                        updateEstimateFor(cfs, buckets);
+                    }
+                };
+                executor.submit(runnable);
             }
         }
+        
+        // actually schedule compactions.  done in a second pass so all the estimates occur before we
+        // bog down the executor in actual compactions.
+        for (String tableName : DatabaseDescriptor.getTables())
+        {
+            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores().values())
+            {
+                submitMinorIfNeeded(cfs);
+            }
+        }
+    }
+
+    private class CompactionExecutor extends DebuggableThreadPoolExecutor
+    {
+        private volatile ColumnFamilyStore cfs;
+        private volatile CompactionIterator ci;
+
+        public CompactionExecutor()
+        {
+            super("COMPACTION-POOL");
+        }
+
+        @Override
+        public void afterExecute(Runnable r, Throwable t)
+        {
+            super.afterExecute(r, t);
+            cfs = null;
+            ci = null;
+        }
+
+        void beginCompaction(ColumnFamilyStore cfs, CompactionIterator ci)
+        {
+            this.cfs = cfs;
+            this.ci = ci;
+        }
+
+        public String getColumnFamilyName()
+        {
+            return cfs == null ? null : cfs.getColumnFamilyName();
+        }
+
+        public Long getBytesTotal()
+        {
+            return ci == null ? null : ci.getTotalBytes();
+        }
+
+        public Long getBytesCompleted()
+        {
+            return ci == null ? null : ci.getBytesRead();
+        }
+    }
+
+    public String getColumnFamilyInProgress()
+    {
+        return executor.getColumnFamilyName();
+    }
+
+    public Long getBytesTotalInProgress()
+    {
+        return executor.getBytesTotal();
+    }
+
+    public Long getBytesCompacted()
+    {
+        return executor.getBytesCompleted();
+    }
+
+    public int getPendingTasks()
+    {
+        int n = 0;
+        for (Integer i : estimatedCompactions.values())
+        {
+            n += i;
+        }
+        return n;
     }
 }

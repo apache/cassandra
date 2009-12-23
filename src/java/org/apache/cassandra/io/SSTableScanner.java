@@ -20,6 +20,7 @@ package org.apache.cassandra.io;
 
 import java.io.IOException;
 import java.io.Closeable;
+import java.io.IOError;
 import java.util.Iterator;
 import java.util.Arrays;
 
@@ -70,6 +71,23 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
         {
             throw new RuntimeException("corrupt sstable", e);
         }
+    }
+
+    public long getFileLength()
+    {
+        try
+        {
+            return file.length();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    public long getFilePointer()
+    {
+        return file.getFilePointer();
     }
 
     public boolean hasNext()

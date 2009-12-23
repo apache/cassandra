@@ -39,4 +39,24 @@ public interface CompactionManagerMBean
      * Sets the maximum number of sstables in queue before compaction kicks off
      */
     public void setMaximumCompactionThreshold(int threshold);
+
+    /**
+     * @return the columnfamily currently being compacted; null if none
+     */
+    public String getColumnFamilyInProgress();
+
+    /**
+     * @return the total (data, not including index and filter) bytes being compacted; null if none
+     */
+    public Long getBytesTotalInProgress();
+
+    /**
+     * @return the progress on the current compaction; null if none
+     */
+    public Long getBytesCompacted();
+
+    /**
+     * @return estimated number of compactions remaining to perform
+     */
+    public int getPendingTasks();
 }
