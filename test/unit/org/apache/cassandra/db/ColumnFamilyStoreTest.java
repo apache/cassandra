@@ -18,13 +18,10 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import static org.junit.Assert.assertNull;
 import org.junit.Test;
@@ -119,7 +116,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         Range r = new Range(partitioner.getToken("0"), partitioner.getToken("zzzzzzz"));
         ranges.add(r);
 
-        List<SSTableReader> fileList = store.forceAntiCompaction(ranges, InetAddress.getByName("127.0.0.1"));
+        List<SSTableReader> fileList = CompactionManager.instance.submitAnticompaction(store, ranges, InetAddress.getByName("127.0.0.1")).get();
         assert fileList.size() >= 1;
     }
 

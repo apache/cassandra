@@ -33,6 +33,8 @@ public class OneCompactionTest
 {
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {
+        CompactionManager.instance.disableAutoCompaction();
+
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
 
@@ -46,8 +48,7 @@ public class OneCompactionTest
             store.forceBlockingFlush();
             assertEquals(inserted.size(), table.getColumnFamilyStore(columnFamilyName).getKeyRange("", "", 10000).keys.size());
         }
-        Future<Integer> ft = CompactionManager.instance.submitMinor(store, 2, 32);
-        ft.get();
+        CompactionManager.instance.submitMajor(store).get();
         assertEquals(1, store.getSSTables().size());
         assertEquals(table.getColumnFamilyStore(columnFamilyName).getKeyRange("", "", 10000).keys.size(), inserted.size());
     }

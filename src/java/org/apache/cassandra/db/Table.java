@@ -25,6 +25,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
@@ -298,7 +299,14 @@ public class Table
                 continue;
             
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
-            allResults.addAll(cfStore.forceAntiCompaction(ranges, target));
+            try
+            {
+                allResults.addAll(CompactionManager.instance.submitAnticompaction(cfStore, ranges, target).get());
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         return allResults;
     }
@@ -314,7 +322,7 @@ public class Table
         {
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             if ( cfStore != null )
-                CompactionManager.instance.submitMajor(cfStore, 0);
+                CompactionManager.instance.submitMajor(cfStore);
         }
     }
 
@@ -472,6 +480,11 @@ public class Table
             }
         }
         return applicationColumnFamilies;
+    }
+
+    public String getDataFileLocation(long expectedCompactedFileSize)
+    {
+        return DatabaseDescriptor.getDataFileLocationForTable(name, expectedCompactedFileSize);
     }
 
     public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)

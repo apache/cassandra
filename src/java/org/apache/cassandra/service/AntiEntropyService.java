@@ -652,7 +652,7 @@ public class AntiEntropyService
             try
             {
                 List<Range> ranges = new ArrayList<Range>(differences);
-                List<SSTableReader> sstables = CompactionManager.instance.submitAnti(cfstore, ranges, remote).get();
+                List<SSTableReader> sstables = CompactionManager.instance.submitAnticompaction(cfstore, ranges, remote).get();
                 Streaming.transferSSTables(remote, sstables, cf.left);
             }
             catch(Exception e)

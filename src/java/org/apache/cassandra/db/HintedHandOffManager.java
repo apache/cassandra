@@ -24,6 +24,7 @@ import java.util.TimerTask;
 import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.io.IOException;
@@ -187,7 +188,14 @@ public class HintedHandOffManager
             }
         }
         hintStore.forceFlush();
-        hintStore.doMajorCompaction(0);
+        try
+        {
+            CompactionManager.instance.submitMajor(hintStore).get();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
 
         if (logger_.isDebugEnabled())
           logger_.debug("Finished deliverAllHints");

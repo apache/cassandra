@@ -161,6 +161,16 @@ public abstract class SSTable
         logger.info("Deleted " + path);
     }
 
+    public static long getTotalBytes(Iterable<SSTableReader> sstables)
+    {
+        long sum = 0;
+        for (SSTableReader sstable : sstables)
+        {
+            sum += sstable.length();
+        }
+        return sum;
+    }
+
     /**
      * This is a simple container for the index Key and its corresponding position
      * in the data file. Binary search is performed on a list of these objects

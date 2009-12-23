@@ -37,7 +37,7 @@ public class RecoveryManager2Test extends CleanupHelper
     @Test
     public void testWithFlush() throws IOException, ExecutionException, InterruptedException
     {
-        CompactionManager.instance.disableCompactions();
+        CompactionManager.instance.disableAutoCompaction();
 
         for (int i = 0; i < 100; i++)
         {

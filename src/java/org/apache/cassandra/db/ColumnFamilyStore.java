@@ -35,7 +35,6 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import java.net.InetAddress;
 import java.util.regex.Matcher;
@@ -49,7 +48,6 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.PredicateUtils;
@@ -292,31 +290,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         sb.append(newLineSeparator);
         return sb.toString();
     }
-    
-    /*
-     * This method forces a compaction of the SSTables on disk. We wait
-     * for the process to complete by waiting on a future pointer.
-    */
-    List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
-    {
-        assert ranges != null;
-        Future<List<SSTableReader>> futurePtr = CompactionManager.instance.submitAnti(ColumnFamilyStore.this,
-                                                                                        ranges, target);
-
-        List<SSTableReader> result;
-        try
-        {
-            /* Waiting for the compaction to complete. */
-            result = futurePtr.get();
-            if (logger_.isDebugEnabled())
-              logger_.debug("Done forcing compaction ...");
-        }
-        catch (Exception ex)
-        {
-            throw new RuntimeException(ex);
-        }
-        return result;
-    }
 
     /**
      * @return the name of the column family
@@ -501,12 +474,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     static ColumnFamily removeDeleted(ColumnFamily cf)
     {
-        return removeDeleted(cf, getDefaultGCBefore());
-    }
-
-    public static int getDefaultGCBefore()
-    {
-        return (int)(System.currentTimeMillis() / 1000) - DatabaseDescriptor.getGcGraceInSeconds();
+        return removeDeleted(cf, CompactionManager.getDefaultGCBefore());
     }
 
     public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
@@ -597,109 +565,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /*
-     * Group files of similar size into buckets.
-     */
-    static Set<List<SSTableReader>> getCompactionBuckets(Iterable<SSTableReader> files, long min)
-    {
-        Map<List<SSTableReader>, Long> buckets = new HashMap<List<SSTableReader>, Long>();
-        for (SSTableReader sstable : files)
-        {
-            long size = sstable.length();
-
-            boolean bFound = false;
-            // look for a bucket containing similar-sized files:
-            // group in the same bucket if it's w/in 50% of the average for this bucket,
-            // or this file and the bucket are all considered "small" (less than `min`)
-            for (List<SSTableReader> bucket : buckets.keySet())
-            {
-                long averageSize = buckets.get(bucket);
-                if ((size > averageSize / 2 && size < 3 * averageSize / 2)
-                    || (size < min && averageSize < min))
-                {
-                    // remove and re-add because adding changes the hash
-                    buckets.remove(bucket);
-                    averageSize = (averageSize + size) / 2;
-                    bucket.add(sstable);
-                    buckets.put(bucket, averageSize);
-                    bFound = true;
-                    break;
-                }
-            }
-            // no similar bucket found; put it in a new one
-            if (!bFound)
-            {
-                ArrayList<SSTableReader> bucket = new ArrayList<SSTableReader>();
-                bucket.add(sstable);
-                buckets.put(bucket, size);
-            }
-        }
-
-        return buckets.keySet();
-    }
-
-    /*
-     * Break the files into buckets and then compact.
-     */
-    int doCompaction(int minThreshold, int maxThreshold) throws IOException
-    {
-        int filesCompacted = 0;
-        if (minThreshold > 0 && maxThreshold > 0)
-        {
-            logger_.debug("Checking to see if compaction of " + columnFamily_ + " would be useful");
-            for (List<SSTableReader> sstables : getCompactionBuckets(ssTables_, 50L * 1024L * 1024L))
-            {
-                if (sstables.size() < minThreshold)
-                {
-                    continue;
-                }
-                // if we have too many to compact all at once, compact older ones first -- this avoids
-                // re-compacting files we just created.
-                Collections.sort(sstables);
-                filesCompacted += doFileCompaction(sstables.subList(0, Math.min(sstables.size(), maxThreshold)));
-            }
-            logger_.debug(filesCompacted + " files compacted");
-        }
-        else
-        {
-            logger_.debug("Compaction is currently disabled.");
-        }
-        return filesCompacted;
-    }
-
-    void doMajorCompaction(long skip) throws IOException
-    {
-        doMajorCompactionInternal(skip);
-    }
-
-    /*
-     * Compact all the files irrespective of the size.
-     * skip : is the amount in GB of the files to be skipped
-     * all files greater than skip GB are skipped for this compaction.
-     * Except if skip is 0 , in that case this is ignored and all files are taken.
-     */
-    void doMajorCompactionInternal(long skip) throws IOException
-    {
-        Collection<SSTableReader> sstables;
-        if (skip > 0)
-        {
-            sstables = new ArrayList<SSTableReader>();
-            for (SSTableReader sstable : ssTables_)
-            {
-                if (sstable.length() < skip * 1024L * 1024L * 1024L)
-                {
-                    sstables.add(sstable);
-                }
-            }
-        }
-        else
-        {
-            sstables = ssTables_.getSSTables();
-        }
-
-        doFileCompaction(sstables);
-    }
-
-    /*
      * Add up all the files sizes this is the worst case file
      * size for compaction of all the list of files given.
      */
@@ -732,277 +597,41 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    List<SSTableReader> doAntiCompaction(Collection<Range> ranges, InetAddress target) throws IOException
-    {
-        return doFileAntiCompaction(ssTables_.getSSTables(), ranges, target);
-    }
-
     void forceCleanup()
     {
         CompactionManager.instance.submitCleanup(ColumnFamilyStore.this);
     }
 
-    /**
-     * This function goes over each file and removes the keys that the node is not responsible for
-     * and only keeps keys that this node is responsible for.
-     *
-     * @throws IOException
-     */
-    void doCleanupCompaction() throws IOException
+    public Table getTable()
     {
-        for (SSTableReader sstable : ssTables_)
-        {
-            doCleanup(sstable);
-        }
-        gcAfterRpcTimeout();
-    }
-
-    /**
-     * cleans up one particular file by removing keys that this node is not responsible for.
-     * @throws IOException
-     */
-    /* TODO: Take care of the comments later. */
-    void doCleanup(SSTableReader sstable) throws IOException
-    {
-        assert sstable != null;
-        List<SSTableReader> sstables = doFileAntiCompaction(Arrays.asList(sstable), StorageService.instance().getLocalRanges(), null);
-        if (!sstables.isEmpty())
-        {
-            assert sstables.size() == 1;
-            addSSTable(sstables.get(0));
-        }
-        if (logger_.isDebugEnabled())
-          logger_.debug("Original file : " + sstable + " of size " + sstable.length());
-        ssTables_.markCompacted(Arrays.asList(sstable));
-    }
-
-    /**
-     * This function is used to do the anti compaction process , it spits out the file which has keys that belong to a given range
-     * If the target is not specified it spits out the file as a compacted file with the unecessary ranges wiped out.
-     *
-     * @param sstables
-     * @param ranges
-     * @param target
-     * @return
-     * @throws IOException
-     */
-    List<SSTableReader> doFileAntiCompaction(Collection<SSTableReader> sstables, final Collection<Range> ranges, InetAddress target) throws IOException
-    {
-        logger_.info("AntiCompacting [" + StringUtils.join(sstables, ",") + "]");
-        // Calculate the expected compacted filesize
-        long expectedRangeFileSize = getExpectedCompactedFileSize(sstables) / 2;
-        String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, expectedRangeFileSize);
-        if (compactionFileLocation == null)
-        {
-            throw new UnsupportedOperationException("disk full");
-        }
-        if (target != null)
-        {
-            // compacting for streaming: send to subdirectory
-            compactionFileLocation = compactionFileLocation + File.separator + DatabaseDescriptor.STREAMING_SUBDIR;
-        }
-        List<SSTableReader> results = new ArrayList<SSTableReader>();
-
-        long startTime = System.currentTimeMillis();
-        long totalkeysWritten = 0;
-
-        int expectedBloomFilterSize = Math.max(SSTableReader.indexInterval(), (int)(SSTableReader.getApproximateKeyCount(sstables) / 2));
-        if (logger_.isDebugEnabled())
-          logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
-
-        SSTableWriter writer = null;
-	CompactionIterator ci = new AntiCompactionIterator(sstables, ranges, getDefaultGCBefore(), sstables.size() == ssTables_.size());
-        Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
-
         try
         {
-            if (!nni.hasNext())
-            {
-                return results;
-            }
-
-            while (nni.hasNext())
-            {
-                CompactionIterator.CompactedRow row = nni.next();
-		if (writer == null)
-		{
-		    FileUtils.createDirectory(compactionFileLocation);
-		    String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
-		    writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
-		}
-		writer.append(row.key, row.buffer);
-		totalkeysWritten++;
-            }
+            return Table.open(table_);
         }
-        finally
+        catch (IOException e)
         {
-            ci.close();
+            throw new RuntimeException(e);
         }
-
-        if (writer != null)
-        {
-            results.add(writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_)));
-            String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
-            long dTime = System.currentTimeMillis() - startTime;
-            logger_.info(String.format(format, writer.getFilename(), getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));
-        }
-
-        return results;
     }
 
-    private int doFileCompaction(Collection<SSTableReader> sstables) throws IOException
+    void markCompacted(Collection<SSTableReader> sstables) throws IOException
     {
-        return doFileCompaction(sstables, getDefaultGCBefore());
-    }
-
-    /*
-    * This function does the actual compaction for files.
-    * It maintains a priority queue of with the first key from each file
-    * and then removes the top of the queue and adds it to the SStable and
-    * repeats this process while reading the next from each file until its
-    * done with all the files . The SStable to which the keys are written
-    * represents the new compacted file. Before writing if there are keys
-    * that occur in multiple files and are the same then a resolution is done
-    * to get the latest data.
-    *
-    * The collection of sstables passed may be empty (but not null); even if
-    * it is not empty, it may compact down to nothing if all rows are deleted.
-    */
-    int doFileCompaction(Collection<SSTableReader> sstables, int gcBefore) throws IOException
-    {
-        if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            Table.open(table_).snapshot("compact-" + columnFamily_);
-        logger_.info("Compacting [" + StringUtils.join(sstables, ",") + "]");
-        String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table_, getExpectedCompactedFileSize(sstables));
-        // If the compaction file path is null that means we have no space left for this compaction.
-        // try again w/o the largest one.
-        if (compactionFileLocation == null)
-        {
-            SSTableReader maxFile = getMaxSizeFile(sstables);
-            List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
-            smallerSSTables.remove(maxFile);
-            return doFileCompaction(smallerSSTables, gcBefore);
-        }
-
-        // new sstables from flush can be added during a compaction, but only the compaction can remove them,
-        // so in our single-threaded compaction world this is a valid way of determining if we're compacting
-        // all the sstables (that existed when we started)
-        boolean major = sstables.size() == ssTables_.size();
-
-        long startTime = System.currentTimeMillis();
-        long totalkeysWritten = 0;
-
-        // TODO the int cast here is potentially buggy
-        int expectedBloomFilterSize = Math.max(SSTableReader.indexInterval(), (int)SSTableReader.getApproximateKeyCount(sstables));
-        if (logger_.isDebugEnabled())
-          logger_.debug("Expected bloom filter size : " + expectedBloomFilterSize);
-
-        SSTableWriter writer;
-        CompactionIterator ci = new CompactionIterator(sstables, gcBefore, major); // retain a handle so we can call close()
-        Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
-
-        try
-        {
-            if (!nni.hasNext())
-            {
-                // don't mark compacted in the finally block, since if there _is_ nondeleted data,
-                // we need to sync it (via closeAndOpen) first, so there is no period during which
-                // a crash could cause data loss.
-                ssTables_.markCompacted(sstables);
-                return 0;
-            }
-
-            String newFilename = new File(compactionFileLocation, getTempSSTableFileName()).getAbsolutePath();
-            writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
-
-            // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, null, major);
-            validator.prepare();
-            while (nni.hasNext())
-            {
-                CompactionIterator.CompactedRow row = nni.next();
-                writer.append(row.key, row.buffer);
-                validator.add(row);
-                totalkeysWritten++;
-            }
-            validator.complete();
-        }
-        finally
-        {
-            ci.close();
-        }
-
-        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
-        ssTables_.add(ssTable);
         ssTables_.markCompacted(sstables);
-        gcAfterRpcTimeout();
-        CompactionManager.instance.submitMinor(ColumnFamilyStore.this);
-
-        String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
-        long dTime = System.currentTimeMillis() - startTime;
-        logger_.info(String.format(format, writer.getFilename(), getTotalBytes(sstables), ssTable.length(), totalkeysWritten, dTime));
-        return sstables.size();
     }
 
-    /**
-     * perform a GC to clean out obsolete sstables, sleeping rpc timeout first so that most in-progress ops can complete
-     * (thus, no longer reference the sstables in question)
-     */
-    private void gcAfterRpcTimeout()
+    boolean isCompleteSSTables(Collection<SSTableReader> sstables)
     {
-        new Thread(new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    Thread.sleep(DatabaseDescriptor.getRpcTimeout());
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
-                System.gc();
-            }
-        }).start();
+        return ssTables_.getSSTables().equals(new HashSet<SSTableReader>(sstables));
     }
 
-    /**
-     * Performs a readonly "compaction" of all sstables in order to validate complete rows,
-     * but without writing the merge result
-     */
-    void doReadonlyCompaction(InetAddress initiator) throws IOException
+    void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
+            throws IOException
     {
-        Collection<SSTableReader> sstables = ssTables_.getSSTables();
-        CompactionIterator ci = new CompactionIterator(sstables, getDefaultGCBefore(), true);
-        try
+        for (SSTableReader sstable : replacements)
         {
-            Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
-
-            // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table_, columnFamily_, initiator, true);
-            validator.prepare();
-            while (nni.hasNext())
-            {
-                CompactionIterator.CompactedRow row = nni.next();
-                validator.add(row);
-            }
-            validator.complete();
+            ssTables_.add(sstable);
         }
-        finally
-        {
-            ci.close();
-        }
-    }
-
-    private long getTotalBytes(Iterable<SSTableReader> sstables)
-    {
-        long sum = 0;
-        for (SSTableReader sstable : sstables)
-        {
-            sum += sstable.length();
-        }
-        return sum;
+        ssTables_.markCompacted(sstables);
     }
 
     public static List<Memtable> getUnflushedMemtables(String cfName)
@@ -1169,7 +798,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
     {
-        return getColumnFamily(filter, getDefaultGCBefore());
+        return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
     }
 
     /**
@@ -1593,41 +1222,5 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         memtable_.clearUnsafe();
         ssTables_.clearUnsafe();
-    }
-
-    private static class AntiCompactionIterator extends CompactionIterator
-    {
-        public AntiCompactionIterator(Collection<SSTableReader> sstables, Collection<Range> ranges, int gcBefore, boolean isMajor)
-                throws IOException
-        {
-            super(getCollatedRangeIterator(sstables, ranges), gcBefore, isMajor);
-        }
-
-        private static Iterator getCollatedRangeIterator(Collection<SSTableReader> sstables, final Collection<Range> ranges)
-                throws IOException
-        {
-            org.apache.commons.collections.Predicate rangesPredicate = new org.apache.commons.collections.Predicate()
-            {
-                public boolean evaluate(Object row)
-                {
-                    return Range.isTokenInRanges(((IteratingRow)row).getKey().token, ranges);
-                }
-            };
-            CollatingIterator iter = FBUtilities.<IteratingRow>getCollatingIterator();
-            for (SSTableReader sstable : sstables)
-            {
-                SSTableScanner scanner = sstable.getScanner(FILE_BUFFER_SIZE);
-                iter.addIterator(new FilterIterator(scanner, rangesPredicate));
-            }
-            return iter;
-        }
-
-        public void close() throws IOException
-        {
-            for (Object o : ((CollatingIterator)source).getIterators())
-            {
-                ((SSTableScanner)((FilterIterator)o).getIterator()).close();
-            }
-        }
     }
 }

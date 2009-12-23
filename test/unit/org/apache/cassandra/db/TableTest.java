@@ -359,7 +359,7 @@ public class TableTest extends CleanupHelper
         // compact so we have a big row with more than the minimum index count
         if (cfStore.getSSTables().size() > 1)
         {
-            cfStore.doCompaction(2, cfStore.getSSTables().size());
+            CompactionManager.instance.submitMajor(cfStore).get();
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         DecoratedKey decKey = sstable.getPartitioner().decorateKey(key);
