@@ -30,6 +30,8 @@ import java.util.zip.Inflater;
 
 import org.apache.log4j.Logger;
 
+import org.apache.commons.collections.iterators.CollatingIterator;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class FBUtilities
@@ -303,5 +305,17 @@ public class FBUtilities
         {
             throw new IOException("rename failed of " + filename);
         }
+    }
+
+    public static <T extends Comparable<T>> CollatingIterator getCollatingIterator()
+    {
+        // CollatingIterator will happily NPE if you do not specify a comparator explicitly
+        return new CollatingIterator(new Comparator<T>()
+        {
+            public int compare(T o1, T o2)
+            {
+                return o1.compareTo(o2);
+            }
+        });
     }
 }
