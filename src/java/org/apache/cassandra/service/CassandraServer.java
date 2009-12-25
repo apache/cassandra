@@ -125,6 +125,7 @@ public class CassandraServer implements Cassandra.Iface
 
         // we have to do the reversing here, since internally we pass results around in ColumnFamily
         // objects, which always sort their columns in the "natural" order
+        // TODO this is inconvenient for direct users of StorageProxy
         if (reverseOrder)
             Collections.reverse(thriftColumns);
         return thriftColumns;
@@ -589,24 +590,16 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
+        boolean reversed = predicate.slice_range != null && predicate.slice_range.reversed;
         for (Pair<String, Collection<IColumn>> row : rows)
         {
             Collection<IColumn> columns = row.right;
-            List<ColumnOrSuperColumn> svcList = new ArrayList<ColumnOrSuperColumn>(columns.size());
-            for (org.apache.cassandra.db.IColumn col : columns)
-            {
-                if (col instanceof org.apache.cassandra.db.Column)
-                    svcList.add(new ColumnOrSuperColumn(new org.apache.cassandra.service.Column(col.name(), col.value(), col.timestamp()), null));
-                else if (col instanceof org.apache.cassandra.db.SuperColumn)
-                {
-                    Collection<IColumn> subICols = col.getSubColumns();
-                    List<org.apache.cassandra.service.Column> subCols = new ArrayList<org.apache.cassandra.service.Column>(subICols.size());
-                    for (IColumn subCol : subICols)
-                        subCols.add(new org.apache.cassandra.service.Column(subCol.name(), subCol.value(), subCol.timestamp()));
-                    svcList.add(new ColumnOrSuperColumn(null, new org.apache.cassandra.service.SuperColumn(col.name(), subCols)));
-                }
-            }
-            keySlices.add(new KeySlice(row.left, svcList));
+            List<ColumnOrSuperColumn> thriftifiedColumns;
+            if (DatabaseDescriptor.getColumnFamilyType(keyspace, column_parent.column_family).equals("Standard"))
+                thriftifiedColumns = thriftifyColumns(columns, reversed);
+            else
+                thriftifiedColumns = thriftifySuperColumns(columns, reversed);
+            keySlices.add(new KeySlice(row.left, thriftifiedColumns));
         }
 
         return keySlices;
