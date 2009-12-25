@@ -582,12 +582,20 @@ class TestMutations(CassandraTester):
 
         # and reversed 
         result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange(start='col4', finish='col2', reversed=True, count=5)), 'key1', 'key2', 5, ConsistencyLevel.ONE)
-        assert result[0].columns[0].column.name == 'col2'
-        assert result[0].columns[2].column.name == 'col4'
+        assert result[0].columns[0].column.name == 'col4'
+        assert result[0].columns[2].column.name == 'col2'
 
         # row limiting via count
         result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange(start='col2', finish='col4', reversed=False, count=5)), 'key1', 'key2', 1, ConsistencyLevel.ONE)
         assert len(result) == 1
+
+        # removed data
+        client.remove('Keyspace1', 'key1', ColumnPath('Standard1', column='col1'), 1, ConsistencyLevel.ONE)
+        result = client.get_range_slice('Keyspace1', cp, SlicePredicate(slice_range=SliceRange('', '')), 'key1', 'key2', 5, ConsistencyLevel.ONE)
+        assert len(result) == 2, result
+        assert result[0].columns[0].column.name == 'col2', result[0].columns[0].column.name
+        assert result[1].columns[0].column.name == 'col1'
+        
     
     def test_get_slice_by_names(self):
         _insert_range()
@@ -647,5 +655,3 @@ class TestMutations(CassandraTester):
         ks1 = client.describe_keyspace("Keyspace1")
         assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
         sysks = client.describe_keyspace("system")
-
-
