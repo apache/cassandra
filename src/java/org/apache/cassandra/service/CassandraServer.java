@@ -154,37 +154,36 @@ public class CassandraServer implements Cassandra.Iface
     private Map<String, List<ColumnOrSuperColumn>> getSlice(List<ReadCommand> commands, int consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
+        Map<String, ColumnFamily> columnFamilies = readColumnFamily(commands, consistency_level);
         Map<String, List<ColumnOrSuperColumn>> columnFamiliesMap = new HashMap<String, List<ColumnOrSuperColumn>>();
         for (ReadCommand command: commands)
         {
-            ColumnFamily cfamily = cfamilies.get(command.key);
+            ColumnFamily cf = columnFamilies.get(command.key);
             boolean reverseOrder = command instanceof SliceFromReadCommand && ((SliceFromReadCommand)command).reversed;
-
-            if (cfamily == null || cfamily.getColumnsMap().size() == 0)
-            {
-                columnFamiliesMap.put(command.key, EMPTY_COLUMNS);
-                continue;
-            }
-            if (command.queryPath.superColumnName != null)
-            {
-                IColumn column = cfamily.getColumnsMap().values().iterator().next();
-                Collection<IColumn> subcolumns = column.getSubColumns();
-                if (subcolumns == null || subcolumns.isEmpty())
-                {
-                    columnFamiliesMap.put(command.key, EMPTY_COLUMNS);
-                    continue;
-                }
-                columnFamiliesMap.put(command.key, thriftifyColumns(subcolumns, reverseOrder));
-                continue;
-            }
-            if (cfamily.isSuper())
-                columnFamiliesMap.put(command.key, thriftifySuperColumns(cfamily.getSortedColumns(), reverseOrder));
-            else
-                columnFamiliesMap.put(command.key, thriftifyColumns(cfamily.getSortedColumns(), reverseOrder));
+            List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, reverseOrder);
+            columnFamiliesMap.put(command.key, thriftifiedColumns);
         }
 
         return columnFamiliesMap;
+    }
+
+    private List<ColumnOrSuperColumn> thriftifyColumnFamily(ColumnFamily cf, boolean subcolumnsOnly, boolean reverseOrder)
+    {
+        if (cf == null || cf.getColumnsMap().size() == 0)
+            return EMPTY_COLUMNS;
+        if (subcolumnsOnly)
+        {
+            IColumn column = cf.getColumnsMap().values().iterator().next();
+            Collection<IColumn> subcolumns = column.getSubColumns();
+            if (subcolumns == null || subcolumns.isEmpty())
+                return EMPTY_COLUMNS;
+            else
+                return thriftifyColumns(subcolumns, reverseOrder);
+        }
+        if (cf.isSuper())
+            return thriftifySuperColumns(cf.getSortedColumns(), reverseOrder);
+        else
+            return thriftifyColumns(cf.getSortedColumns(), reverseOrder);
     }
 
     public List<ColumnOrSuperColumn> get_slice(String keyspace, String key, ColumnParent column_parent, SlicePredicate predicate, int consistency_level)
@@ -576,7 +575,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new InvalidRequestException("maxRows must be positive");
         }
 
-        List<Pair<String,Collection<IColumn>>> rows;
+        List<Pair<String, ColumnFamily>> rows;
         try
         {
             DecoratedKey startKey = StorageService.getPartitioner().decorateKey(start_key);
@@ -591,14 +590,9 @@ public class CassandraServer implements Cassandra.Iface
 
         List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
         boolean reversed = predicate.slice_range != null && predicate.slice_range.reversed;
-        for (Pair<String, Collection<IColumn>> row : rows)
+        for (Pair<String, ColumnFamily> row : rows)
         {
-            Collection<IColumn> columns = row.right;
-            List<ColumnOrSuperColumn> thriftifiedColumns;
-            if (DatabaseDescriptor.getColumnFamilyType(keyspace, column_parent.column_family).equals("Standard"))
-                thriftifiedColumns = thriftifyColumns(columns, reversed);
-            else
-                thriftifiedColumns = thriftifySuperColumns(columns, reversed);
+            List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(row.right, column_parent.super_column != null, reversed);
             keySlices.add(new KeySlice(row.left, thriftifiedColumns));
         }
 

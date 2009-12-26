@@ -547,7 +547,7 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static List<Pair<String, Collection<IColumn>>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimedOutException
+    static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimedOutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
@@ -612,18 +612,17 @@ public class StorageProxy implements StorageProxyMBean
         }
         while (!endPoint.equals(startEndpoint));
 
-        List<Pair<String, Collection<IColumn>>> results = new ArrayList<Pair<String, Collection<IColumn>>>(rows.size());
+        List<Pair<String, ColumnFamily>> results = new ArrayList<Pair<String, ColumnFamily>>(rows.size());
         for (Map.Entry<String, ColumnFamily> entry : rows.entrySet())
         {
             ColumnFamily cf = entry.getValue();
-            Collection<IColumn> columns = (cf == null) ? Collections.<IColumn>emptyList() : cf.getSortedColumns();
-            results.add(new Pair<String, Collection<IColumn>>(entry.getKey(), columns));
+            results.add(new Pair<String, ColumnFamily>(entry.getKey(), cf));
         }
-        Collections.sort(results, new Comparator<Pair<String, Collection<IColumn>>>()
+        Collections.sort(results, new Comparator<Pair<String, ColumnFamily>>()
         {
-            public int compare(Pair<String, Collection<IColumn>> o1, Pair<String, Collection<IColumn>> o2)
+            public int compare(Pair<String, ColumnFamily> o1, Pair<String, ColumnFamily> o2)
             {
-                return keyComparator.compare(o1.left, o2.left);
+                return keyComparator.compare(o1.left, o2.left);                
             }
         });
         rangeStats.add(System.currentTimeMillis() - startTime);

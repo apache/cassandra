@@ -729,9 +729,8 @@ class TestMutations(CassandraTester):
         cp = ColumnParent('Super3', 'sc1')
         result = client.get_range_slice("Keyspace2", cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
         assert len(result) == 3
-        sc = result[0].columns[0].super_column
-        assert sc.columns[0].name == 'col1'
-        assert sc.columns[1].name == 'col3'
+        assert result[0].columns[0].column.name == 'col1'
+        assert result[0].columns[1].column.name == 'col3'
 
         cp = ColumnParent('Super3')
         result = client.get_range_slice("Keyspace2", cp, SlicePredicate(column_names=['sc1']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
