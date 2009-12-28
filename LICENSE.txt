@@ -209,8 +209,8 @@ dependencies that have separate copyright notices and license terms. Your
 use of these libraries is subject to the terms and conditions of the 
 following licenses.
 
-For lib/flexjson-1.7.jar, lib/google-collect-1.0-rc1.jar, 
-lib/clhm-production.jar, and lib/json_simple-1.1.jar:
+For lib/google-collect-1.0-rc1.jar, lib/clhm-production.jar, and
+lib/json_simple-1.1.jar:
 
 While developed outside the ASF, these projects are also licensed under
 the Apache License 2.0. The full text of the Apache License 2.0 can be

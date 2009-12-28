@@ -18,10 +18,7 @@ Written by Cliff Click and released as Public Domain.
 This product makes use of JLine for console input (http://jline.sf.net).
 Copyright (c) 2002-2006, Marc Prud'hommeaux <mwp1@cornell.edu>
 
-JSON serialization provided by Flexjson (http://flexjson.sf.net).
-Copyright 2007 Charlie Hubbard.
-
-JSON parsing provided by json-simple (http://code.google.com/p/json-simple/).
+JSON support provided by json-simple (http://code.google.com/p/json-simple/).
 Copyright 2006-2009 Yidong Fang.
 
 This product makes use of the JUnit test framework (http://junit.org).

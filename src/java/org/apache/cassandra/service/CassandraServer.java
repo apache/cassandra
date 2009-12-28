@@ -36,8 +36,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
-
-import flexjson.JSONSerializer;
+import org.json.simple.JSONValue;
 
 public class CassandraServer implements Cassandra.Iface
 {
@@ -529,7 +528,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else if (propertyName.equals(TOKEN_MAP))
         {
-            return new JSONSerializer().serialize(storageService.getStringEndpointMap());
+            return JSONValue.toJSONString(storageService.getStringEndpointMap());
         }
         else if (propertyName.equals("version"))
         {

@@ -34,8 +34,8 @@ import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
+import org.json.simple.JSONValue;
 
-import flexjson.JSONTokener;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
@@ -72,7 +72,7 @@ public class RingCache
                 Cassandra.Client client = new Cassandra.Client(binaryProtocol);
                 socket.open();
 
-                Map<String,String> tokenToHostMap = (Map<String,String>) new JSONTokener(client.get_string_property(CassandraServer.TOKEN_MAP)).nextValue();
+                Map<String,String> tokenToHostMap = (Map<String,String>) JSONValue.parse(client.get_string_property(CassandraServer.TOKEN_MAP));
                 
                 BiMap<Token, InetAddress> tokenEndpointMap = HashBiMap.create();
                 for (Map.Entry<String,String> entry : tokenToHostMap.entrySet())
