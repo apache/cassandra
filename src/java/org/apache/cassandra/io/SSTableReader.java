@@ -252,7 +252,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
-    private long getIndexScanPosition(DecoratedKey decoratedKey, IPartitioner partitioner)
+    private long getIndexScanPosition(DecoratedKey decoratedKey)
     {
         assert indexPositions != null && indexPositions.size() > 0;
         int index = Collections.binarySearch(indexPositions, new KeyPosition(decoratedKey, -1));
@@ -286,7 +286,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 return cachedPosition;
             }
         }
-        long start = getIndexScanPosition(decoratedKey, partitioner);
+        long start = getIndexScanPosition(decoratedKey);
         if (start < 0)
         {
             return -1;
@@ -331,7 +331,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /** like getPosition, but if key is not found will return the location of the first key _greater_ than the desired one, or -1 if no such key exists. */
     public long getNearestPosition(DecoratedKey decoratedKey) throws IOException
     {
-        long start = getIndexScanPosition(decoratedKey, partitioner);
+        long start = getIndexScanPosition(decoratedKey);
         if (start < 0)
         {
             return 0;
