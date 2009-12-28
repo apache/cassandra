@@ -160,7 +160,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    public static void insertBlocking(final RowMutation rm, int consistency_level) throws UnavailableException, TimedOutException
+    public static void insertBlocking(final RowMutation rm, int consistency_level) throws UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
         try
@@ -240,10 +240,6 @@ public class StorageProxy implements StorageProxyMBean
             // wait for writes.  throws timeoutexception if necessary
             responseHandler.get();
         }
-        catch (TimeoutException e)
-        {
-            throw new TimedOutException();
-        }
         catch (IOException e)
         {
             throw new RuntimeException("error writing key " + rm.key(), e);
@@ -292,7 +288,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the row associated with command.key
      * @throws Exception
      */
-    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException, UnavailableException, TimedOutException
+    private static List<Row> weakReadRemote(List<ReadCommand> commands) throws IOException, UnavailableException, TimeoutException
     {
         if (logger.isDebugEnabled())
             logger.debug("weakreadremote reading " + StringUtils.join(commands, ", "));
@@ -314,14 +310,7 @@ public class StorageProxy implements StorageProxyMBean
         for (IAsyncResult iar: iars)
         {
             byte[] body;
-            try
-            {
-                body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            }
-            catch (TimeoutException e)
-            {
-                throw new TimedOutException();
-            }
+            body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
             DataInputBuffer bufIn = new DataInputBuffer();
             bufIn.reset(body, body.length);
             ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
@@ -336,7 +325,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> readProtocol(List<ReadCommand> commands, int consistency_level)
-            throws IOException, UnavailableException, TimedOutException
+            throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
 
@@ -390,7 +379,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, UnavailableException, TimedOutException
+    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
@@ -445,10 +434,6 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("quorumResponseHandler: " + (System.currentTimeMillis() - startTime2) + " ms.");
             }
-            catch (TimeoutException e)
-            {
-                throw new TimedOutException();
-            }
             catch (DigestMismatchException ex)
             {
                 if (DatabaseDescriptor.getConsistencyCheck())
@@ -465,10 +450,6 @@ public class StorageProxy implements StorageProxyMBean
                         row = quorumResponseHandlerRepair.get();
                         if (row != null)
                             rows.add(row);
-                    }
-                    catch (TimeoutException e)
-                    {
-                        throw new TimedOutException();
                     }
                     catch (DigestMismatchException e)
                     {
@@ -512,7 +493,7 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimedOutException
+    static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
@@ -562,10 +543,6 @@ public class StorageProxy implements StorageProxyMBean
             {
                 rows.putAll(handler.get());
             }
-            catch (TimeoutException e)
-            {
-                throw new TimedOutException();
-            }
             catch (DigestMismatchException e)
             {
                 throw new AssertionError(e); // no digests in range slices yet
@@ -594,7 +571,7 @@ public class StorageProxy implements StorageProxyMBean
         return results;
     }
 
-    static List<String> getKeyRange(RangeCommand command) throws IOException, UnavailableException, TimedOutException
+    static List<String> getKeyRange(RangeCommand command) throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
@@ -612,14 +589,8 @@ public class StorageProxy implements StorageProxyMBean
 
             // read response
             byte[] responseBody;
-            try
-            {
-                responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            }
-            catch (TimeoutException e)
-            {
-                throw new TimedOutException();
-            }
+            responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
+           
             RangeReply rangeReply = RangeReply.read(responseBody);
             uniqueKeys.addAll(rangeReply.keys);
 
