@@ -22,6 +22,7 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
 
@@ -76,6 +77,10 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             rows = StorageProxy.readProtocol(commands, consistency_level);
+        }
+        catch (TimeoutException e) 
+        {
+        	throw new TimedOutException();
         }
         catch (IOException e)
         {
@@ -450,7 +455,14 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            StorageProxy.mutateBlocking(rowMutations, consistency_level);
+            try 
+            {
+            	StorageProxy.mutateBlocking(rowMutations, consistency_level);
+            } 
+            catch (TimeoutException e) 
+            {
+            	throw new TimedOutException();
+            }
         }
     }
 
@@ -472,7 +484,14 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (consistency_level != ConsistencyLevel.ZERO)
         {
-            StorageProxy.mutateBlocking(Arrays.asList(rm), consistency_level);
+            try 
+            {
+            	StorageProxy.mutateBlocking(Arrays.asList(rm), consistency_level);
+            }
+            catch (TimeoutException e)
+            {
+            	throw new TimedOutException();
+            }
         }
         else
         {
@@ -583,6 +602,10 @@ public class CassandraServer implements Cassandra.Iface
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, startKey, finishKey, maxRows), consistency_level);
             assert rows != null;
         }
+        catch (TimeoutException e)
+        {
+        	throw new TimedOutException();
+        }
         catch (IOException e)
         {
             throw new RuntimeException(e);
@@ -617,6 +640,10 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamily, startWith, stopAt, maxResults));
+        }
+        catch (TimeoutException e)
+        {
+        	throw new TimedOutException();
         }
         catch (IOException e)
         {

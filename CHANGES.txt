@@ -5,6 +5,8 @@ dev
 0.5.0 RC2
  * fix bugs in converting get_slice_range results to Thrift 
    (CASSANDRA-647, CASSANDRA-649)
+ * expose java.util.concurrent.TimeoutException in StorageProxy methods
+   (CASSANDRA-600)
 
 
 0.5.0 RC1
