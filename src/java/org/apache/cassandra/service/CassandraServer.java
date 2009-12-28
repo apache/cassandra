@@ -624,13 +624,5 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate) throws InvalidRequestException
-    {
-        if (predicate.getSlice_range() != null)
-            ThriftValidation.validateRange(keyspace, column_parent, predicate.getSlice_range());
-        else
-            ThriftValidation.validateColumns(keyspace, column_parent, predicate.getColumn_names());
-
-    }
     // main method moved to CassandraDaemon
 }
