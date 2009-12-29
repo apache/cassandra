@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,7 +29,6 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.io.DataInputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.Message;
@@ -53,17 +54,16 @@ class ConsistencyManager implements Runnable
             if (responses_.size() == ConsistencyManager.this.replicas_.size())
                 handleDigestResponses();
         }
-		
-		private void handleDigestResponses()
-		{
-            DataInputBuffer bufIn = new DataInputBuffer();
+
+        private void handleDigestResponses()
+        {
             for (Message response : responses_)
             {
                 try
                 {
                     byte[] body = response.getMessageBody();
-                    bufIn.reset(body, body.length);
-                    ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
+                    ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+                    ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
                     byte[] digest = result.digest();
                     if (!Arrays.equals(ColumnFamily.digest(row_.cf), digest))
                     {
@@ -77,8 +77,8 @@ class ConsistencyManager implements Runnable
                 }
             }
         }
-		
-		private void doReadRepair() throws IOException
+
+        private void doReadRepair() throws IOException
 		{
             replicas_.add(FBUtilities.getLocalAddress());
             IResponseResolver<Row> readResponseResolver = new ReadResponseResolver(table_, replicas_.size());

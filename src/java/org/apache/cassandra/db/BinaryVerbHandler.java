@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.io.DataInputBuffer;
 
 import org.apache.log4j.Logger;
 
@@ -31,12 +33,11 @@ public class BinaryVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     { 
         byte[] bytes = message.getMessageBody();
-        DataInputBuffer buffer = new DataInputBuffer();
-        buffer.reset(bytes, bytes.length);
+        ByteArrayInputStream buffer = new ByteArrayInputStream(bytes);
 
         try
         {
-            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(buffer);
+            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(new DataInputStream(buffer));
             RowMutation rm = rmMsg.getRowMutation();
             rm.applyBinary();
         }

@@ -18,13 +18,14 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.TreeMap;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.column;
@@ -43,9 +44,8 @@ public class ColumnFamilyTest
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer().serialize(cf, bufOut);
 
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(bufOut.getData(), bufOut.getLength());
-        cf = ColumnFamily.serializer().deserialize(bufIn);
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
+        cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
         assert cf != null;
         assert cf.name().equals("Standard1");
         assert cf.getSortedColumns().size() == 1;
@@ -72,9 +72,8 @@ public class ColumnFamilyTest
         ColumnFamily.serializer().serialize(cf, bufOut);
 
         // verify
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(bufOut.getData(), bufOut.getLength());
-        cf = ColumnFamily.serializer().deserialize(bufIn);
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(bufOut.getData(), 0, bufOut.getLength());
+        cf = ColumnFamily.serializer().deserialize(new DataInputStream(bufIn));
         for (String cName : map.navigableKeySet())
         {
             assert new String(cf.getColumn(cName.getBytes()).value()).equals(map.get(cName));

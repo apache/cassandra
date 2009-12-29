@@ -37,7 +37,6 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -50,6 +49,7 @@ import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -105,9 +105,8 @@ public class RangeSliceCommand
     public static RangeSliceCommand read(Message message) throws IOException
     {
         byte[] bytes = message.getMessageBody();
-        DataInputBuffer dib = new DataInputBuffer();
-        dib.reset(bytes, bytes.length);
-        return serializer.deserialize(new DataInputStream(dib));
+        ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+        return serializer.deserialize(new DataInputStream(bis));
     }
 }
 

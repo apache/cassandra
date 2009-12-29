@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
@@ -31,7 +33,6 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.DataInputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
@@ -346,9 +347,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             byte[] body;
             body = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length);
-            ReadResponse response = ReadResponse.serializer().deserialize(bufIn);
+            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+            ReadResponse response = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
             if (response.row() != null)
                 rows.add(response.row());
         }

@@ -23,6 +23,8 @@ package org.apache.cassandra.io;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.File;
 import java.io.IOError;
@@ -147,12 +149,11 @@ public class Streaming
         public void doVerb(Message message)
         {
             byte[] body = message.getMessageBody();
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length);
+            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
 
             try
             {
-                StreamInitiateMessage biMsg = StreamInitiateMessage.serializer().deserialize(bufIn);
+                StreamInitiateMessage biMsg = StreamInitiateMessage.serializer().deserialize(new DataInputStream(bufIn));
                 StreamContextManager.StreamContext[] streamContexts = biMsg.getStreamContext();
 
                 if (streamContexts.length == 0 && StorageService.instance().isBootstrapMode())
@@ -311,12 +312,11 @@ public class Streaming
         public void doVerb(Message message)
         {
             byte[] body = message.getMessageBody();
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length);
+            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
 
             try
             {
-                StreamContextManager.StreamStatusMessage streamStatusMessage = StreamContextManager.StreamStatusMessage.serializer().deserialize(bufIn);
+                StreamContextManager.StreamStatusMessage streamStatusMessage = StreamContextManager.StreamStatusMessage.serializer().deserialize(new DataInputStream(bufIn));
                 StreamContextManager.StreamStatus streamStatus = streamStatusMessage.getStreamStatus();
 
                 switch (streamStatus.getAction())

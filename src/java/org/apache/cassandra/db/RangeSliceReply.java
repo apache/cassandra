@@ -20,13 +20,14 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.StringUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -67,14 +68,14 @@ public class RangeSliceReply
 
     public static RangeSliceReply read(byte[] body) throws IOException
     {
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(body, body.length);
-        boolean completed = bufIn.readBoolean();
-        int rowCount = bufIn.readInt();
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        DataInputStream dis = new DataInputStream(bufIn);
+        boolean completed = dis.readBoolean();
+        int rowCount = dis.readInt();
         List<Row> rows = new ArrayList<Row>(rowCount);
         for (int i = 0; i < rowCount; i++)
         {
-            rows.add(Row.serializer().deserialize(bufIn));
+            rows.add(Row.serializer().deserialize(dis));
         }
         return new RangeSliceReply(rows, completed);
     }

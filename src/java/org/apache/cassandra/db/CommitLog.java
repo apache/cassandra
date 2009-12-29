@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.BufferedRandomAccessFile;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FileUtils;
@@ -285,8 +284,6 @@ public class CommitLog
         Set<Table> tablesRecovered = new HashSet<Table>();
         assert StageManager.getStage(StageManager.mutationStage_).getCompletedTasks() == 0;
         int rows = 0;
-
-        DataInputBuffer bufIn = new DataInputBuffer();
         for (File file : clogs)
         {
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
@@ -320,7 +317,8 @@ public class CommitLog
                     // last CL entry didn't get completely written.  that's ok.
                     break;
                 }
-                bufIn.reset(bytes, bytes.length);
+
+                ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
                 Checksum checksum = new CRC32();
                 checksum.update(bytes, 0, bytes.length);
                 if (claimedCRC32 != checksum.getValue())
@@ -331,7 +329,7 @@ public class CommitLog
                 }
 
                 /* deserialize the commit log entry */
-                final RowMutation rm = RowMutation.serializer().deserialize(bufIn);
+                final RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(bufIn));
                 if (logger_.isDebugEnabled())
                     logger_.debug(String.format("replaying mutation for %s.%s: %s",
                                                 rm.getTable(),

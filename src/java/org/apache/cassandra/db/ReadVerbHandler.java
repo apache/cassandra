@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
@@ -37,7 +38,7 @@ public class ReadVerbHandler implements IVerbHandler
 {
     protected static class ReadContext
     {
-        protected DataInputBuffer bufIn_ = new DataInputBuffer();
+        protected ByteArrayInputStream bufIn_;
         protected DataOutputBuffer bufOut_ = new DataOutputBuffer();
     }
 
@@ -65,7 +66,7 @@ public class ReadVerbHandler implements IVerbHandler
             readCtx = new ReadContext();
             tls_.set(readCtx);
         }
-        readCtx.bufIn_.reset(body, body.length);
+        readCtx.bufIn_ = new ByteArrayInputStream(body);
 
         try
         {
@@ -74,7 +75,7 @@ public class ReadVerbHandler implements IVerbHandler
                 /* Don't service reads! */
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
             }
-            ReadCommand command = ReadCommand.serializer().deserialize(readCtx.bufIn_);
+            ReadCommand command = ReadCommand.serializer().deserialize(new DataInputStream(readCtx.bufIn_));
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
             ReadResponse readResponse;

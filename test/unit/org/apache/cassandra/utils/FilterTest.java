@@ -18,6 +18,8 @@
 */
 package org.apache.cassandra.utils;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -25,7 +27,6 @@ import java.util.Set;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 
 public class FilterTest
@@ -102,9 +103,8 @@ public class FilterTest
         DataOutputBuffer out = new DataOutputBuffer();
         f.getSerializer().serialize(f, out);
 
-        DataInputBuffer in = new DataInputBuffer();
-        in.reset(out.getData(), out.getLength());
-        Filter f2 = f.getSerializer().deserialize(in);
+        ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
+        Filter f2 = f.getSerializer().deserialize(new DataInputStream(in));
 
         assert f2.isPresent("a");
         assert !f2.isPresent("b");

@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.DataInputStream;
@@ -25,7 +26,6 @@ import java.util.Arrays;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.DataOutputBuffer;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,9 +63,8 @@ public class RangeCommand
     public static RangeCommand read(Message message) throws IOException
     {
         byte[] bytes = message.getMessageBody();
-        DataInputBuffer dib = new DataInputBuffer();
-        dib.reset(bytes, bytes.length);
-        return serializer.deserialize(new DataInputStream(dib));
+        ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+        return serializer.deserialize(new DataInputStream(bis));
     }
 
     public String toString()

@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.net.io;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 
@@ -35,8 +36,7 @@ public class FastSerializer implements ISerializer
     
     public Message deserialize(byte[] bytes) throws IOException
     {
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(bytes, bytes.length);
-        return Message.serializer().deserialize(bufIn);
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
+        return Message.serializer().deserialize(new DataInputStream(bufIn));
     }
 }

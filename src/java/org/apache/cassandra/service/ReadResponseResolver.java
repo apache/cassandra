@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +30,6 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.RowMutationMessage;
-import org.apache.cassandra.io.DataInputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
@@ -77,12 +78,11 @@ public class ReadResponseResolver implements IResponseResolver<Row>
          * query exists then we need to compare the digest with 
          * the digest of the data that is received.
         */
-        DataInputBuffer bufIn = new DataInputBuffer();
 		for (Message response : responses)
 		{					            
             byte[] body = response.getMessageBody();
-            bufIn.reset(body, body.length);
-            ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
+            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+            ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
             if (result.isDigestQuery())
             {
                 digest = result.digest();
@@ -168,11 +168,10 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         for (Message response : responses)
         {
             byte[] body = response.getMessageBody();
-            DataInputBuffer bufIn = new DataInputBuffer();
-            bufIn.reset(body, body.length);
+            ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
             try
             {
-                ReadResponse result = ReadResponse.serializer().deserialize(bufIn);
+                ReadResponse result = ReadResponse.serializer().deserialize(new DataInputStream(bufIn));
                 if (!result.isDigestQuery())
                 {
                     isDataPresent = true;

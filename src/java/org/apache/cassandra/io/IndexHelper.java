@@ -92,9 +92,9 @@ public class IndexHelper
         int size = file.readInt();
         byte[] bytes = new byte[size];
         file.readFully(bytes);
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(bytes, bytes.length);
-        return BloomFilter.serializer().deserialize(bufIn);
+        
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(bytes);
+        return BloomFilter.serializer().deserialize(new DataInputStream(bufIn));
     }
 
     /**

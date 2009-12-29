@@ -19,11 +19,12 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 
 import org.apache.commons.lang.StringUtils;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,17 +64,17 @@ public class RangeReply
 
     public static RangeReply read(byte[] body) throws IOException
     {
-        DataInputBuffer bufIn = new DataInputBuffer();
-        boolean rangeCompletedLocally;        
-        bufIn.reset(body, body.length);
-        rangeCompletedLocally = bufIn.readBoolean();
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        boolean rangeCompletedLocally;
+        DataInputStream dis = new DataInputStream(bufIn);
+        rangeCompletedLocally = dis.readBoolean();
 
         List<String> keys = new ArrayList<String>();
-        while (bufIn.getPosition() < body.length)
+        while (dis.available() > 0)
         {
-            keys.add(bufIn.readUTF());
+            keys.add(dis.readUTF());
         }
-        
+
         return new RangeReply(keys, rangeCompletedLocally);
     }
 }

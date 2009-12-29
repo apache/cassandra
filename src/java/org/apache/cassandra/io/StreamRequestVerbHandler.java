@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.io;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.IOError;
@@ -53,11 +55,10 @@ public class StreamRequestVerbHandler implements IVerbHandler
             logger_.debug("Received a StreamRequestMessage from " + message.getFrom());
         
         byte[] body = message.getMessageBody();
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(body, body.length);
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         try
         {
-            StreamRequestMessage streamRequestMessage = StreamRequestMessage.serializer().deserialize(bufIn);
+            StreamRequestMessage streamRequestMessage = StreamRequestMessage.serializer().deserialize(new DataInputStream(bufIn));
             StreamRequestMetadata[] streamRequestMetadata = streamRequestMessage.streamRequestMetadata_;
 
             for (StreamRequestMetadata srm : streamRequestMetadata)

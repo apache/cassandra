@@ -23,9 +23,7 @@ import java.util.BitSet;
 import java.util.Arrays;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.utils.BitSetSerializer;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 class CommitLogHeader
 {

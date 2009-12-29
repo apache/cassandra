@@ -23,9 +23,10 @@ package org.apache.cassandra.gms;
 
 import static org.junit.Assert.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import java.net.InetAddress;
 import org.junit.Test;
@@ -49,9 +50,8 @@ public class GossipDigestTest
         DataOutputBuffer output = new DataOutputBuffer();
         GossipDigest.serializer().serialize(expected, output);
         
-        DataInputBuffer input = new DataInputBuffer();
-        input.reset(output.getData(), output.getLength());
-        GossipDigest actual = GossipDigest.serializer().deserialize(input);
+        ByteArrayInputStream input = new ByteArrayInputStream(output.getData(), 0, output.getLength());
+        GossipDigest actual = GossipDigest.serializer().deserialize(new DataInputStream(input));
         assertEquals(0, expected.compareTo(actual));
     }
 

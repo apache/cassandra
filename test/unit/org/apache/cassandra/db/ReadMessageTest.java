@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import static org.junit.Assert.*;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +30,6 @@ import org.apache.commons.lang.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -61,11 +62,11 @@ public class ReadMessageTest
     {
         ReadCommandSerializer rms = ReadCommand.serializer();
         DataOutputBuffer dos = new DataOutputBuffer();
-        DataInputBuffer dis = new DataInputBuffer();
+        ByteArrayInputStream bis;
 
         rms.serialize(rm, dos);
-        dis.reset(dos.getData(), dos.getLength());
-        return rms.deserialize(dis);
+        bis = new ByteArrayInputStream(dos.getData(), 0, dos.getLength());
+        return rms.deserialize(new DataInputStream(bis));
     }
     
     @Test

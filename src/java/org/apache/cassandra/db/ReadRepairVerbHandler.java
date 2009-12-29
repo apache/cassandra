@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
@@ -33,12 +32,11 @@ public class ReadRepairVerbHandler implements IVerbHandler
     public void doVerb(Message message)
     {          
         byte[] body = message.getMessageBody();
-        DataInputBuffer buffer = new DataInputBuffer();
-        buffer.reset(body, body.length);        
+        ByteArrayInputStream buffer = new ByteArrayInputStream(body);
         
         try
         {
-            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(buffer);
+            RowMutationMessage rmMsg = RowMutationMessage.serializer().deserialize(new DataInputStream(buffer));
             RowMutation rm = rmMsg.getRowMutation();
             rm.apply();                                   
         }
