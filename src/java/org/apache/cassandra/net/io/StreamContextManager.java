@@ -22,7 +22,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.*;
 import java.net.InetAddress;
 
@@ -43,7 +42,7 @@ public class StreamContextManager
         STREAM
     }
     
-    public static class StreamContext implements Serializable
+    public static class StreamContext
     {
         private static ICompactSerializer<StreamContext> serializer_;
         
@@ -126,7 +125,7 @@ public class StreamContextManager
         }
     }
     
-    public static class StreamStatus implements Serializable
+    public static class StreamStatus
     {
         private static ICompactSerializer<StreamStatus> serializer_;
         
@@ -201,7 +200,7 @@ public class StreamContextManager
         }
     }
     
-    public static class StreamStatusMessage implements Serializable
+    public static class StreamStatusMessage
     {
         private static ICompactSerializer<StreamStatusMessage> serializer_;
         

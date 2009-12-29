@@ -22,7 +22,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 
 import javax.xml.bind.annotation.XmlElement;
 
@@ -32,7 +31,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.concurrent.StageManager;
 
-public class RowMutationMessage implements Serializable
+public class RowMutationMessage
 {   
     public static final String hint_ = "HINT";
     private static RowMutationMessageSerializer serializer_ = new RowMutationMessageSerializer();

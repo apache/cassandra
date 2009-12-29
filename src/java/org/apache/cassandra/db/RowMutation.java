@@ -22,7 +22,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +42,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.concurrent.StageManager;
 
-public class RowMutation implements Serializable
+public class RowMutation
 {
     private static ICompactSerializer<RowMutation> serializer_;
     public static final String HINT = "HINT";

@@ -28,9 +28,8 @@ import java.net.InetAddress;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.GuidGenerator;
 
-public class Header implements java.io.Serializable
+public class Header
 {
-    static final long serialVersionUID = -3194851946523170022L;
     private static ICompactSerializer<Header> serializer_;
     private static AtomicInteger idGen_ = new AtomicInteger(0);
     

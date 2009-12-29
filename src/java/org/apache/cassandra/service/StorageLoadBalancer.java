@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -387,7 +386,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     }
 }
 
-class MoveMessage implements Serializable
+class MoveMessage
 {
     private final Token targetToken_;
 

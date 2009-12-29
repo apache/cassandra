@@ -26,9 +26,8 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
-public class Message implements java.io.Serializable
-{    
-    static final long serialVersionUID = 6329198792470413221L;
+public class Message
+{
     private static ICompactSerializer<Message> serializer_;
     
     static
