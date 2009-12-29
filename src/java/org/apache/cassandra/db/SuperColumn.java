@@ -27,7 +27,7 @@ import java.security.MessageDigest;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.io.ICompactSerializer2;
-import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 

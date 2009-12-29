@@ -30,8 +30,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 /**
  * TODO: These methods imitate Memtable.writeSortedKeys to some degree, but

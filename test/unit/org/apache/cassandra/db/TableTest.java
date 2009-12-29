@@ -37,7 +37,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.IndexHelper;
 
 public class TableTest extends CleanupHelper

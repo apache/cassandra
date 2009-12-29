@@ -25,8 +25,9 @@ import java.util.Iterator;
 import java.util.Arrays;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+
 import org.apache.log4j.Logger;
-import com.google.common.collect.AbstractIterator;
 
 
 public class SSTableScanner implements Iterator<IteratingRow>, Closeable

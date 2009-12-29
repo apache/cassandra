@@ -35,6 +35,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.base.Predicate;

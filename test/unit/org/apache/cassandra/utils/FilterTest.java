@@ -27,7 +27,7 @@ import java.util.Set;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class FilterTest
 {

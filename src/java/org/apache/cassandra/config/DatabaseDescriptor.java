@@ -25,7 +25,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.utils.FileUtils;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
 import org.w3c.dom.Node;

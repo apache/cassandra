@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.utils;
+package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.text.DecimalFormat;

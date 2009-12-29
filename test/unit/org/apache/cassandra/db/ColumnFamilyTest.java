@@ -26,7 +26,7 @@ import java.util.TreeMap;
 
 import org.junit.Test;
 
-import org.apache.cassandra.io.DataOutputBuffer;
+import DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.column;
 

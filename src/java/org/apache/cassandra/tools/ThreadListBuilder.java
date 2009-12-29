@@ -26,7 +26,7 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.BloomFilter;
 
 
@@ -45,7 +45,7 @@ public class ThreadListBuilder
         
         File directory = new File(args[0]);
         File[] files = directory.listFiles();
-        List<DataOutputBuffer> buffers = new ArrayList<DataOutputBuffer>();    
+        List<DataOutputBuffer> buffers = new ArrayList<DataOutputBuffer>();
         BloomFilter bf = new BloomFilter(count_, 8);        
         int keyCount = 0;
         

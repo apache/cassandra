@@ -19,10 +19,10 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.BufferedRandomAccessFile;
-import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.concurrent.StageManager;
 
 import org.apache.commons.lang.StringUtils;

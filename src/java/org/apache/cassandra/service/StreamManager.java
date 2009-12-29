@@ -29,8 +29,8 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.io.StreamContextManager;
-import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.util.FileUtils;
 
 import org.apache.log4j.Logger;
 

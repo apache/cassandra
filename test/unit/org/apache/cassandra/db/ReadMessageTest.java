@@ -27,12 +27,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import org.apache.commons.lang.ArrayUtils;
-import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.AsciiType;
 
 public class ReadMessageTest
 {

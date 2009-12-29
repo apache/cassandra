@@ -34,7 +34,7 @@ import org.apache.cassandra.io.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.AntiEntropyService;
-import org.apache.cassandra.utils.FileUtils;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 

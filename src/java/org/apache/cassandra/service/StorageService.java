@@ -37,11 +37,11 @@ import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
-import org.apache.cassandra.utils.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.Streaming;
 import org.apache.cassandra.io.StreamRequestVerbHandler;
+import org.apache.cassandra.io.util.FileUtils;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;

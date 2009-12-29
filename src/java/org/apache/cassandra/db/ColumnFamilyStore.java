@@ -36,6 +36,7 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.util.FileUtils;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

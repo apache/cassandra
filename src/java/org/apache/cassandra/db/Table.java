@@ -25,12 +25,12 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
+
 import java.net.InetAddress;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
