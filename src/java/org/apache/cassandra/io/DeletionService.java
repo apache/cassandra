@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class DeletionService
 {
@@ -13,18 +14,12 @@ public class DeletionService
 
     public static void deleteAsync(final String file) throws IOException
     {
-        Runnable deleter = new Runnable()
+        Runnable deleter = new WrappedRunnable()
         {
-            public void run()
+            @Override
+            protected void runMayThrow() throws IOException
             {
-                try
-                {
-                    FileUtils.deleteWithConfirm(new File(file));
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                FileUtils.deleteWithConfirm(new File(file));
             }
         };
         executor.submit(deleter);

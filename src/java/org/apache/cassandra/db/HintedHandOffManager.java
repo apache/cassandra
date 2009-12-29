@@ -41,6 +41,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 
 /**
@@ -254,18 +255,11 @@ public class HintedHandOffManager
 
     public void scheduleHandoffsFor(final ColumnFamilyStore columnFamilyStore)
     {
-        final Runnable r = new Runnable()
+        final Runnable r = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws Exception
             {
-                try
-                {
-                    deliverAllHints(columnFamilyStore);
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
+                deliverAllHints(columnFamilyStore);
             }
         };
         TimerTask task = new TimerTask()
@@ -285,18 +279,11 @@ public class HintedHandOffManager
     */
     public void deliverHints(final InetAddress to)
     {
-        Runnable r = new Runnable()
+        Runnable r = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws Exception
             {
-                try
-                {
-                    deliverHintsToEndpoint(to);
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
+                deliverHintsToEndpoint(to);
             }
         };
     	executor_.submit(r);

@@ -368,23 +368,16 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memtable_ = new Memtable(table_, columnFamily_);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
-            return commitLogUpdater_.submit(new Runnable()
+            return commitLogUpdater_.submit(new WrappedRunnable()
             {
-                public void run()
+                public void runMayThrow() throws InterruptedException, IOException
                 {
-                    try
+                    condition.await();
+                    if (writeCommitLog)
                     {
-                        condition.await();
-                        if (writeCommitLog)
-                        {
-                            // if we're not writing to the commit log, we are replaying the log, so marking
-                            // the log header with "you can discard anything written before the context" is not valid
-                            onMemtableFlush(ctx);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        throw new RuntimeException(e);
+                        // if we're not writing to the commit log, we are replaying the log, so marking
+                        // the log header with "you can discard anything written before the context" is not valid
+                        onMemtableFlush(ctx);
                     }
                 }
             });
@@ -675,18 +668,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             public void run()
             {
                 final List sortedKeys = flushable.getSortedKeys();
-                flushWriter_.submit(new Runnable()
+                flushWriter_.submit(new WrappedRunnable()
                 {
-                    public void run()
+                    public void runMayThrow() throws IOException
                     {
-                        try
-                        {
-                            addSSTable(flushable.writeSortedContents(sortedKeys));
-                        }
-                        catch (IOException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
+                        addSSTable(flushable.writeSortedContents(sortedKeys));
                         if (flushable instanceof Memtable)
                         {
                             getMemtablesPendingFlushNotNull(columnFamily_).remove(flushable);

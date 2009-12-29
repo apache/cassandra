@@ -28,6 +28,8 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.utils.WrappedRunnable;
+
 import java.net.InetAddress;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.IPartitioner;
@@ -81,9 +83,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.delete(new QueryPath("Standard2", null, null), System.currentTimeMillis());
         rm.apply();
 
-        TableTest.Runner r = new TableTest.Runner()
+        Runnable r = new WrappedRunnable()
         {
-            public void run() throws IOException
+            public void runMayThrow() throws IOException
             {
                 SliceQueryFilter sliceFilter = new SliceQueryFilter("key1", new QueryPath("Standard2", null, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
                 assertNull(store.getColumnFamily(sliceFilter));

@@ -32,6 +32,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.WrappedRunnable;
 
 public class CommitLogExecutorService extends AbstractExecutorService implements CommitLogExecutorServiceMBean
 {
@@ -42,32 +43,25 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
     public CommitLogExecutorService()
     {
         queue = new ArrayBlockingQueue<CheaterFutureTask>(10000);
-        Runnable runnable = new Runnable()
+        Runnable runnable = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws Exception
             {
-                try
+                if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch)
                 {
-                    if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch)
+                    while (true)
                     {
-                        while (true)
-                        {
-                            processWithSyncBatch();
-                            completedTaskCount++;
-                        }
-                    }
-                    else
-                    {
-                        while (true)
-                        {
-                            process();
-                            completedTaskCount++;
-                        }
+                        processWithSyncBatch();
+                        completedTaskCount++;
                     }
                 }
-                catch (Exception e)
+                else
                 {
-                    throw new RuntimeException(e);
+                    while (true)
+                    {
+                        process();
+                        completedTaskCount++;
+                    }
                 }
             }
         };

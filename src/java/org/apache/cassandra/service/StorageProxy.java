@@ -40,6 +40,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.TimedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -122,18 +123,11 @@ public class StorageProxy implements StorageProxyMBean
                             {
                                 if (logger.isDebugEnabled())
                                     logger.debug("insert writing local key " + rm.key());
-                                Runnable runnable = new Runnable()
+                                Runnable runnable = new WrappedRunnable()
                                 {
-                                    public void run()
+                                    public void runMayThrow() throws IOException
                                     {
-                                        try
-                                        {
-                                            rm.apply();
-                                        }
-                                        catch (IOException e)
-                                        {
-                                            throw new IOError(e);
-                                        }
+                                        rm.apply();
                                     }
                                 };
                                 StageManager.getStage(StageManager.mutationStage_).execute(runnable);
@@ -268,19 +262,12 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (logger.isDebugEnabled())
             logger.debug("insert writing local key " + rm.key());
-        Runnable runnable = new Runnable()
+        Runnable runnable = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws IOException
             {
-                try
-                {
-                    rm.apply();
-                    responseHandler.localResponse();
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                rm.apply();
+                responseHandler.localResponse();
             }
         };
         StageManager.getStage(StageManager.mutationStage_).execute(runnable);

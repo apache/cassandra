@@ -36,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.net.InetAddress;
@@ -444,18 +445,11 @@ public class CompactionManager implements CompactionManagerMBean
      */
     static void gcAfterRpcTimeout()
     {
-        new Thread(new Runnable()
+        new Thread(new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws InterruptedException
             {
-                try
-                {
-                    Thread.sleep(DatabaseDescriptor.getRpcTimeout());
-                }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
+                Thread.sleep(DatabaseDescriptor.getRpcTimeout());
                 System.gc();
             }
         }).start();

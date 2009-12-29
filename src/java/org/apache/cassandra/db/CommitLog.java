@@ -23,6 +23,7 @@ import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.concurrent.StageManager;
 
 import org.apache.commons.lang.StringUtils;
@@ -187,18 +188,11 @@ public class CommitLog
 
         if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
         {
-            final Runnable syncer = new Runnable()
+            final Runnable syncer = new WrappedRunnable()
             {
-                public void run()
+                public void runMayThrow() throws IOException
                 {
-                    try
-                    {
-                        sync();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
+                    sync();
                 }
             };
 
@@ -215,7 +209,7 @@ public class CommitLog
                         }
                         catch (InterruptedException e)
                         {
-                            throw new RuntimeException(e);
+                            throw new AssertionError(e);
                         }
                     }
                 }
@@ -339,9 +333,9 @@ public class CommitLog
                 tablesRecovered.add(table);
                 final Collection<ColumnFamily> columnFamilies = new ArrayList<ColumnFamily>(rm.getColumnFamilies());
                 final long entryLocation = reader.getFilePointer();
-                Runnable runnable = new Runnable()
+                Runnable runnable = new WrappedRunnable()
                 {
-                    public void run()
+                    public void runMayThrow() throws IOException
                     {
                         /* remove column families that have already been flushed before applying the rest */
                         for (ColumnFamily columnFamily : columnFamilies)
@@ -354,14 +348,7 @@ public class CommitLog
                         }
                         if (!rm.isEmpty())
                         {
-                            try
-                            {
-                                Table.open(rm.getTable()).apply(rm, null, false);
-                            }
-                            catch (IOException e)
-                            {
-                                throw new IOError(e);
-                            }
+                            Table.open(rm.getTable()).apply(rm, null, false);
                         }
                     }
                 };

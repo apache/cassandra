@@ -38,6 +38,7 @@ import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.Streaming;
 import org.apache.cassandra.io.StreamRequestVerbHandler;
@@ -1359,22 +1360,15 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         logger_.info("move sleeping " + Streaming.RING_DELAY);
         Thread.sleep(Streaming.RING_DELAY);
 
-        Runnable finishMoving = new Runnable()
+        Runnable finishMoving = new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws IOException
             {
-                try
-                {
-                    Token bootstrapToken = token;
-                    if (bootstrapToken == null)
-                        bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
-                    logger_.info("re-bootstrapping to new token " + bootstrapToken);
-                    startBootstrap(bootstrapToken);
-                }
-                catch (IOException e)
-                {
-                    throw new IOError(e);
-                }
+                Token bootstrapToken = token;
+                if (bootstrapToken == null)
+                    bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
+                logger_.info("re-bootstrapping to new token " + bootstrapToken);
+                startBootstrap(bootstrapToken);
             }
         };
         unbootstrap(finishMoving);

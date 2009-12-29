@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
@@ -45,12 +46,7 @@ public class TableTest extends CleanupHelper
     private static final String KEY2 = "key2";
     private static final String TEST_KEY = "key1";
 
-    public interface Runner
-    {
-        public void run() throws Exception;
-    }
-
-    public static void reTest(ColumnFamilyStore cfs, Runner verify) throws Exception
+    public static void reTest(ColumnFamilyStore cfs, Runnable verify) throws Exception
     {
         verify.run();
         cfs.forceBlockingFlush();
@@ -69,9 +65,9 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
 
-        Runner verify = new Runner()
+        Runnable verify = new WrappedRunnable()
         {
-            public void run() throws Exception
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf;
 
@@ -102,9 +98,9 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
 
-        Runner verify = new Runner()
+        Runnable verify = new WrappedRunnable()
         {
-            public void run() throws Exception
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf;
 
@@ -184,9 +180,9 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
 
-        Runner verify = new Runner()
+        Runnable verify = new WrappedRunnable()
         {
-            public void run() throws Exception
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf;
 
@@ -262,9 +258,9 @@ public class TableTest extends CleanupHelper
         rm.delete(new QueryPath("Standard1", null, "col4".getBytes()), 2L);
         rm.apply();
 
-        Runner verify = new Runner()
+        Runnable verify = new WrappedRunnable()
         {
-            public void run() throws Exception
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf;
 
@@ -323,9 +319,9 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
 
-        Runner verify = new Runner()
+        Runnable verify = new WrappedRunnable()
         {
-            public void run() throws Exception
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf;
 
@@ -435,9 +431,9 @@ public class TableTest extends CleanupHelper
         rm.add(cf);
         rm.apply();
 
-        Runner verify = new Runner()
+        Runnable verify = new WrappedRunnable()
         {
-            public void run() throws Exception
+            public void runMayThrow() throws Exception
             {
                 ColumnFamily cf = cfStore.getColumnFamily(ROW, new QueryPath("Super1"), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10);
                 assertColumns(cf, "sc1");
