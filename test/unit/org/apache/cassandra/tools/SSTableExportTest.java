@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.SSTableAccessor;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import static org.apache.cassandra.Util.createTemporarySSTable;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import static org.junit.Assert.assertTrue;

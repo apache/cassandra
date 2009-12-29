@@ -21,7 +21,7 @@ package org.apache.cassandra.db;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -570,7 +570,7 @@ public class CommitLog
             if (header.isSafeToDelete())
             {
                 logger_.info("Deleting obsolete commit log:" + oldFile);
-                FileUtils.deleteAsync(oldFile);
+                DeletionService.deleteAsync(oldFile);
                 clHeaders_.remove(oldFile);
             }
             else

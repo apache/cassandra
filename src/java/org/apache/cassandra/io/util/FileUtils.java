@@ -37,40 +37,14 @@ public class FileUtils
     private static final double gb_ = 1024*1024*1024d;
     private static final double tb_ = 1024*1024*1024*1024d;
 
-    private static ExecutorService deleter_ = new JMXEnabledThreadPoolExecutor("FILEUTILS-DELETE-POOL");
-
-    public static void shutdown()
-    {
-    	deleter_.shutdownNow();
-    }
-
     public static void deleteWithConfirm(File file) throws IOException
     {
         assert file.exists() : "attempted to delete non-existing file " + file.getName();
+        if (logger_.isDebugEnabled())
+            logger_.debug("Deleting " + file.getName());
         if (!file.delete())
         {
             throw new IOException("Failed to delete " + file.getAbsolutePath());
-        }
-    }
-
-    public static class Deleter implements Runnable
-    {
-    	File file_ = null;
-
-    	public Deleter(File f)
-        {
-    		file_ = f;
-        }
-
-        public void run()
-        {
-        	if(file_ == null)
-        		return;
-        	logger_.debug("Deleting " + file_.getName());
-        	if (!file_.delete())
-        	{
-            	logger_.error("Unable to delete file " + file_.getAbsolutePath());
-        	}
         }
     }
 
@@ -111,13 +85,6 @@ public class FileUtils
     {
         File f = new File(file);
         return f.delete();
-    }
-
-    public static void deleteAsync(String file) throws IOException
-    {
-        File f = new File(file);
-    	Runnable deleter = new Deleter(f);
-        deleter_.submit(deleter);
     }
 
     public static boolean delete(List<String> files) throws IOException

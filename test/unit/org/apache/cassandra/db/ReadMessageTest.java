@@ -30,6 +30,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class ReadMessageTest
 {
