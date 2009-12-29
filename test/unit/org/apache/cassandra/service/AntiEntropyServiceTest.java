@@ -45,19 +45,21 @@ import static org.junit.Assert.*;
 
 public class AntiEntropyServiceTest extends CleanupHelper
 {
-    public static InetAddress LOCAL = FBUtilities.getLocalAddress();
-
     // table and column family to test against
     public AntiEntropyService aes;
 
     public static String tablename;
     public static String cfname;
-    public static InetAddress REMOTE;
+    public static InetAddress LOCAL, REMOTE;
 
-    static
+    private static boolean initialized;
+
+    @Before
+    public void prepare() throws Exception
     {
-        try
+        if (!initialized)
         {
+            LOCAL = FBUtilities.getLocalAddress();
             // bump the replication factor so that local overlaps with REMOTE below
             DatabaseDescriptorTest.setReplicationFactor(2);
 
@@ -71,16 +73,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
             tablename = DatabaseDescriptor.getTables().get(0);
             cfname = Table.open(tablename).getColumnFamilies().iterator().next();
+            initialized = true;
         }
-        catch(Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Before
-    public void prepare() throws Exception
-    {
         aes = AntiEntropyService.instance();
     }
 

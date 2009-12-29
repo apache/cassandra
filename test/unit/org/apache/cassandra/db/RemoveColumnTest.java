@@ -27,8 +27,9 @@ import static junit.framework.Assert.assertNull;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.CleanupHelper;
 
-public class RemoveColumnTest
+public class RemoveColumnTest extends CleanupHelper
 {
     @Test
     public void testRemoveColumn() throws IOException, ExecutionException, InterruptedException

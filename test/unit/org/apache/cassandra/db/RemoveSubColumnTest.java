@@ -28,8 +28,9 @@ import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.addMutation;
 import static org.apache.cassandra.Util.getBytes;
+import org.apache.cassandra.CleanupHelper;
 
-public class RemoveSubColumnTest
+public class RemoveSubColumnTest extends CleanupHelper
 {
     @Test
     public void testRemoveSubColumn() throws IOException, ExecutionException, InterruptedException

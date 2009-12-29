@@ -28,8 +28,9 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.CleanupHelper;
 
-public class OneCompactionTest
+public class OneCompactionTest extends CleanupHelper
 {
     private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
     {

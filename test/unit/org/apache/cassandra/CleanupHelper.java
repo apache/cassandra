@@ -24,6 +24,8 @@ import java.io.IOException;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.FileUtils;
+
 import org.apache.log4j.Logger;
 
 public class CleanupHelper
@@ -31,25 +33,19 @@ public class CleanupHelper
     private static Logger logger = Logger.getLogger(CleanupHelper.class);
 
     @BeforeClass
-    public static void cleanupAndLeaveDirs()
+    public static void cleanupAndLeaveDirs() throws IOException
     {
         mkdirs();
         cleanup();
         mkdirs();
     }
 
-    public static void cleanup()
+    public static void cleanup() throws IOException
     {
-        // we clean the fs twice, once to start with (so old data files don't get stored by anything static if this is the first run)
-        // and once after flushing stuff (to try to clean things out if it is not.)  part #2 seems to be less than perfect.
+        // clean up commitlog
         String[] directoryNames = {
                 DatabaseDescriptor.getLogFileLocation(),
         };
-
-        // try to delete the directories themselves too. don't panic if this fails. it probably means that the process
-        // doesn't have permissions to do so, or it contains non-cassandra generated files that were intentionally
-        // put there.
-
         for (String dirName : directoryNames)
         {
             File dir = new File(dirName);
@@ -59,17 +55,12 @@ public class CleanupHelper
             }
             for (File f : dir.listFiles())
             {
-                if (!f.delete())
-                {
-                    logger.error("could not delete " + f);
-                }
+                FileUtils.deleteWithConfirm(f);
             }
-
-            if (!dir.delete())
-                logger.warn("could not delete " + dir.getPath());
+            FileUtils.deleteWithConfirm(dir);
         }
 
-        // cleanup data directory which are stored as data directory/table/data files
+        // clean up data directory which are stored as data directory/table/data files
         for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
         {
             File dir = new File(dirName);
@@ -80,19 +71,16 @@ public class CleanupHelper
             for (File tableFile : dir.listFiles())
             {
                 // table directory
-                if (tableFile.isDirectory()) {
-                    for (File dataFile : tableFile.listFiles()) {
-                        if (!dataFile.delete()) {
-                            logger.error("could not delete " + dataFile);
-                        }
+                if (tableFile.isDirectory())
+                {
+                    for (File dataFile : tableFile.listFiles())
+                    {
+                        FileUtils.deleteWithConfirm(dataFile);
                     }
                 }
-                if (!tableFile.delete())
-                    logger.warn("could not delete " + dir.getPath());
+                FileUtils.deleteWithConfirm(tableFile);
             }
-
-            if (!dir.delete())
-                logger.warn("could not delete " + dir.getPath());
+            FileUtils.deleteWithConfirm(dir);
         }
     }
 
