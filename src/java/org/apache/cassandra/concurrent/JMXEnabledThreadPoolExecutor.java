@@ -23,8 +23,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
+import javax.management.*;
 
 /**
  * This is a wrapper class for the <i>ScheduledThreadPoolExecutor</i>. It provides an implementation
@@ -69,24 +68,33 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         {
             ManagementFactory.getPlatformMBeanServer().unregisterMBean(new ObjectName(mbeanName));
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            // don't let it get in the way, but notify.
-            logger.error(ex.getMessage(), ex);
+            throw new RuntimeException(e);
         }
     }
 
     @Override
-    public void shutdown()
+    public synchronized void shutdown()
     {
-        unregisterMBean();
+        // synchronized, because there is no way to access super.mainLock, which would be
+        // the preferred way to make this threadsafe
+        if (!isShutdown())
+        {
+            unregisterMBean();
+        }
         super.shutdown();
     }
 
     @Override
-    public List<Runnable> shutdownNow()
+    public synchronized List<Runnable> shutdownNow()
     {
-        unregisterMBean();
+        // synchronized, because there is no way to access super.mainLock, which would be
+        // the preferred way to make this threadsafe
+        if (!isShutdown())
+        {
+            unregisterMBean();
+        }
         return super.shutdownNow();
     }
 
