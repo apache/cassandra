@@ -98,4 +98,3 @@ compaction deserializes each row before merging.
 
 See https://issues.apache.org/jira/browse/CASSANDRA-16
    
-testing svn access. 
