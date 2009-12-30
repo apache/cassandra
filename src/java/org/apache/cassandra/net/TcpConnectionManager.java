@@ -64,24 +64,12 @@ class TcpConnectionManager
         }
     }
 
-    synchronized void shutdown()
+    synchronized void reset()
     {
         for (TcpConnection con : new TcpConnection[] { cmdCon, ackCon })
             if (con != null)
                 con.closeSocket();
-    }
-
-    synchronized void destroy(TcpConnection con)
-    {
-        assert con != null;
-        if (cmdCon == con)
-        {
-            cmdCon = null;
-        }
-        else
-        {
-            assert ackCon == con;
-            ackCon = null;
-        }
+        cmdCon = null;
+        ackCon = null;
     }
 }

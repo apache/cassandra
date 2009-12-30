@@ -3,6 +3,8 @@
    (CASSANDRA-647, CASSANDRA-649)
  * expose java.util.concurrent.TimeoutException in StorageProxy methods
    (CASSANDRA-600)
+ * TcpConnectionManager was holding on to disconnected connections, 
+   giving the false indication they were being used. (CASSANDRA-651)
 
 
 0.5.0 RC1

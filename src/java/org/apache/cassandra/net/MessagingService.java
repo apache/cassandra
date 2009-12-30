@@ -20,6 +20,8 @@ package org.apache.cassandra.net;
 
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.*;
@@ -27,7 +29,6 @@ import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.net.SocketException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -41,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class MessagingService
+public class MessagingService implements IFailureDetectionEventListener
 {
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
@@ -184,7 +185,14 @@ public class MessagingService
         }
         return result;
     }
-    
+
+    /** called by failure detection code to notify that housekeeping should be performed on downed sockets. */
+    public void convict(InetAddress ep)
+    {
+        logger_.debug("Canceling pool for " + ep);
+        getConnectionPool(FBUtilities.getLocalAddress(), ep).reset();
+    }
+
     /**
      * Listen on the specified port.
      * @param localEp InetAddress whose port to listen on.
@@ -200,7 +208,8 @@ public class MessagingService
 
         SelectionKey key = SelectorManager.getSelectorManager().register(serverChannel, handler, SelectionKey.OP_ACCEPT);          
         endPoints_.add(localEp);            
-        listenSockets_.put(localEp, key);             
+        listenSockets_.put(localEp, key);
+        FailureDetector.instance().registerFailureDetectionEventListener(this);
     }
     
     /**
@@ -411,12 +420,6 @@ public class MessagingService
             connection = MessagingService.getConnection(processedMessage.getFrom(), to, message);
             connection.write(message);
         }
-        catch (SocketException se)
-        {
-            // Shutting down the entire pool. May be too conservative an approach.
-            MessagingService.getConnectionPool(message.getFrom(), to).shutdown();
-            logger_.error("socket error writing to " + to, se);
-        }
         catch (IOException e)
         {
             if (connection != null)
@@ -493,6 +496,7 @@ public class MessagingService
         logger_.info("Shutting down ...");
         synchronized (MessagingService.class)
         {
+            FailureDetector.instance().unregisterFailureDetectionEventListener(MessagingService.instance());
             /* Stop listening on any TCP socket */
             for (SelectionKey skey : listenSockets_.values())
             {
