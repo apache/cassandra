@@ -166,7 +166,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         assert openedFiles.get(dataFileName) == null;
 
         long start = System.currentTimeMillis();
-        SSTableReader sstable = new SSTableReader(dataFileName, partitioner)
+        SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
         sstable.loadIndexFile();
         sstable.loadBloomFilter();
         if (cacheFraction > 0)
