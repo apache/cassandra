@@ -316,7 +316,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         cancel(key_);
         pendingWrites_.clear();
         if (pool_ != null)
-            pool_.destroy(this);
+            pool_.reset();
     }
     
     private void cancel(SelectionKey key)
