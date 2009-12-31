@@ -28,6 +28,8 @@ import org.apache.cassandra.service.StorageService;
 
 public abstract class Token<T> implements Comparable<Token<T>>, Serializable
 {
+    private static final long serialVersionUID = 1L;
+
     private static final TokenSerializer serializer = new TokenSerializer();
     public static TokenSerializer serializer()
     {
