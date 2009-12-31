@@ -5,6 +5,7 @@
    (CASSANDRA-600)
  * TcpConnectionManager was holding on to disconnected connections, 
    giving the false indication they were being used. (CASSANDRA-651)
+ * Remove duplicated write. (CASSANDRA-662)
 
 
 0.5.0 RC1
