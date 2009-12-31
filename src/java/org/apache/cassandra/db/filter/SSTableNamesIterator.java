@@ -30,6 +30,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.BloomFilter;
 
@@ -49,7 +50,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         if (position < 0)
             return;
 
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(ssTable.getFilename(), "r", DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+        FileDataInput file = ssTable.getFileDataInput(DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
         try
         {
             file.seek(position);

@@ -30,6 +30,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.collect.AbstractIterator;
 
@@ -114,14 +115,14 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         private final List<IndexHelper.IndexInfo> indexes;
         private final long columnStartPosition;
-        private final BufferedRandomAccessFile file;
+        private final FileDataInput file;
 
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
         public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, long position) throws IOException
         {
-            this.file = new BufferedRandomAccessFile(ssTable.getFilename(), "r", DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
+            this.file = ssTable.getFileDataInput(DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
 
             file.seek(position);
             DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());

@@ -193,6 +193,7 @@ public class Table
                 if (tableInstance == null)
                 {
                     tableInstance = new Table(table);
+                    tableInstance.onStart();
                     instances.put(table, tableInstance);
                 }
             }

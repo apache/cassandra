@@ -87,8 +87,7 @@ public class CassandraDaemon
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);
-            Table tbl = Table.open(table);
-            tbl.onStart();
+            Table.open(table);
         }
 
         // replay the log if necessary and check for compaction candidates

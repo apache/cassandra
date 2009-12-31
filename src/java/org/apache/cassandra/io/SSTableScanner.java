@@ -45,9 +45,9 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
      * @param sstable SSTable to scan.
      * @param bufferSize Number of bytes to buffer the file while scanning.
      */
-    SSTableScanner(SSTableReader sstable, int bufferSize) throws IOException
+    SSTableScanner(SSTableReader sstable, FileDataInput file) throws IOException
     {
-        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", bufferSize);
+        this.file = file;
         this.sstable = sstable;
     }
 

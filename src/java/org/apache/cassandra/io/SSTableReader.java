@@ -23,6 +23,8 @@ import java.util.*;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.Reference;
+import java.nio.channels.FileChannel;
+import java.nio.MappedByteBuffer;
 
 import org.apache.log4j.Logger;
 
@@ -36,6 +38,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.MappedFileDataInput;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.base.Predicate;
@@ -180,6 +184,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     FileDeletingReference phantomReference;
+    private final MappedByteBuffer indexBuffer;
+    private final MappedByteBuffer buffer;
+
 
     public static ConcurrentLinkedHashMap<DecoratedKey, Long> createKeyCache(int size)
     {
@@ -191,12 +198,36 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter, ConcurrentLinkedHashMap<DecoratedKey, Long> keyCache)
     {
         super(filename, partitioner);
+        indexBuffer = mmap(indexFilename());
+        buffer = mmap(path); // TODO System.getProperty("os.arch").contains("64") ? mmap(path) : null;
+
         this.indexPositions = indexPositions;
         this.bf = bloomFilter;
         phantomReference = new FileDeletingReference(this, finalizerQueue);
         finalizers.add(phantomReference);
         openedFiles.put(filename, this);
         this.keyCache = keyCache;
+    }
+
+    private static MappedByteBuffer mmap(String filename)
+    {
+        RandomAccessFile raf;
+        try
+        {
+            raf = new RandomAccessFile(filename, "r");
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new IOError(e);
+        }
+        try
+        {
+            return raf.getChannel().map(FileChannel.MapMode.READ_ONLY, 0, raf.length());
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
     }
 
     private SSTableReader(String filename, IPartitioner partitioner)
@@ -224,31 +255,24 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     void loadIndexFile() throws IOException
     {
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
-        try
-        {
-            indexPositions = new ArrayList<KeyPosition>();
+        indexPositions = new ArrayList<KeyPosition>();
 
-            int i = 0;
-            long indexSize = input.length();
-            while (true)
-            {
-                long indexPosition = input.getFilePointer();
-                if (indexPosition == indexSize)
-                {
-                    break;
-                }
-                DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
-                input.readLong();
-                if (i++ % INDEX_INTERVAL == 0)
-                {
-                    indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
-                }
-            }
-        }
-        finally
+        FileDataInput input = new MappedFileDataInput(indexBuffer, indexFilename());
+        int i = 0;
+        long indexSize = input.length();
+        while (true)
         {
-            input.close();
+            long indexPosition = input.getFilePointer();
+            if (indexPosition == indexSize)
+            {
+                break;
+            }
+            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+            input.readLong();
+            if (i++ % INDEX_INTERVAL == 0)
+            {
+                indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
+            }
         }
     }
 
@@ -293,39 +317,31 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             return -1;
         }
 
-        // TODO mmap the index file?
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(path), "r");
+        FileDataInput input = new MappedFileDataInput(indexBuffer, indexFilename());
         input.seek(start);
         int i = 0;
-        try
+        do
         {
-            do
+            DecoratedKey indexDecoratedKey;
+            try
             {
-                DecoratedKey indexDecoratedKey;
-                try
-                {
-                    indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
-                }
-                catch (EOFException e)
-                {
-                    return -1;
-                }
-                long position = input.readLong();
-                int v = indexDecoratedKey.compareTo(decoratedKey);
-                if (v == 0)
-                {
-                    if (keyCache != null)
-                        keyCache.put(decoratedKey, position);
-                    return position;
-                }
-                if (v > 0)
-                    return -1;
-            } while  (++i < INDEX_INTERVAL);
-        }
-        finally
-        {
-            input.close();
-        }
+                indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+            }
+            catch (EOFException e)
+            {
+                return -1;
+            }
+            long position = input.readLong();
+            int v = indexDecoratedKey.compareTo(decoratedKey);
+            if (v == 0)
+            {
+                if (keyCache != null)
+                    keyCache.put(decoratedKey, position);
+                return position;
+            }
+            if (v > 0)
+                return -1;
+        } while  (++i < INDEX_INTERVAL);
         return -1;
     }
 
@@ -406,7 +422,20 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public SSTableScanner getScanner(int bufferSize) throws IOException
     {
-        return new SSTableScanner(this, bufferSize);
+        FileDataInput fdi = getFileDataInput(bufferSize);
+        return new SSTableScanner(this, fdi);
+    }
+
+    public FileDataInput getFileDataInput(int bufferSize)
+    {
+        try
+        {
+            return buffer == null ? new BufferedRandomAccessFile(path, "r", bufferSize) : new MappedFileDataInput(buffer, path);
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     public AbstractType getColumnComparator()

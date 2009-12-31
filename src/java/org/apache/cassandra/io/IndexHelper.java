@@ -21,10 +21,10 @@ package org.apache.cassandra.io;
 import java.io.*;
 import java.util.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.io.util.FileDataInput;
 
 
 /**
@@ -44,8 +44,9 @@ public class IndexHelper
         /* size of the bloom filter */
         int size = in.readInt();
         /* skip the serialized bloom filter */
-        if (in.skipBytes(size) != size)
-            throw new EOFException();
+        int skipped = in.skipBytes(size);
+        if (skipped != size)
+            throw new EOFException("attempted to skip " + size + " bytes but only skipped " + skipped);
     }
 
 	/**
@@ -66,7 +67,7 @@ public class IndexHelper
      * Deserialize the index into a structure and return it
      * @throws IOException
      */
-	public static ArrayList<IndexInfo> deserializeIndex(RandomAccessFile in) throws IOException
+	public static ArrayList<IndexInfo> deserializeIndex(FileDataInput in) throws IOException
 	{
         ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
 
@@ -87,7 +88,7 @@ public class IndexHelper
      * @return bloom filter summarizing the column information
      * @throws java.io.IOException
      */
-    public static BloomFilter defreezeBloomFilter(RandomAccessFile file) throws IOException
+    public static BloomFilter defreezeBloomFilter(FileDataInput file) throws IOException
     {
         int size = file.readInt();
         byte[] bytes = new byte[size];
@@ -149,7 +150,7 @@ public class IndexHelper
             return 2 + firstName.length + 2 + lastName.length + 8 + 8;
         }
 
-        public static IndexInfo deserialize(RandomAccessFile dis) throws IOException
+        public static IndexInfo deserialize(FileDataInput dis) throws IOException
         {
             return new IndexInfo(ColumnSerializer.readName(dis), ColumnSerializer.readName(dis), dis.readLong(), dis.readLong());
         }
