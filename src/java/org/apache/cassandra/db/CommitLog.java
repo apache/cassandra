@@ -293,7 +293,7 @@ public class CommitLog
                 logger_.debug("Replaying " + file + " starting at " + lowPos);
 
             /* read the logs populate RowMutation and apply */
-            while (!reader.isEOF())
+            while (reader.getFilePointer() < reader.length())
             {
                 if (logger_.isDebugEnabled())
                     logger_.debug("Reading mutation at " + reader.getFilePointer());

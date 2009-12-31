@@ -26,6 +26,7 @@ import java.util.Arrays;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.FileDataInput;
 
 import org.apache.log4j.Logger;
 
@@ -36,7 +37,7 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
 
     private IteratingRow row;
     private boolean exhausted = false;
-    private BufferedRandomAccessFile file;
+    private FileDataInput file;
     private SSTableReader sstable;
     private Iterator<IteratingRow> iterator;
 
@@ -116,7 +117,7 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
         {
             try
             {
-                return (row == null && !file.isEOF()) || row.getEndPosition() < file.length();
+                return (row == null && file.getFilePointer() < file.length()) || row.getEndPosition() < file.length();
             }
             catch (IOException e)
             {
@@ -130,7 +131,7 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
             {
                 if (row != null)
                     row.skipRemaining();
-                assert !file.isEOF();
+                assert file.getFilePointer() < file.length();
                 return row = new IteratingRow(file, sstable);
             }
             catch (IOException e)
