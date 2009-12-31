@@ -57,7 +57,6 @@ public class RowMutationVerbHandler implements IVerbHandler
             }
 
             Table.open(rm.getTable()).apply(rm, bytes, true);
-            rm.apply();
 
             WriteResponse response = new WriteResponse(rm.getTable(), rm.key(), true);
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
