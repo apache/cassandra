@@ -7,26 +7,34 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
 {
     private final MappedByteBuffer buffer;
     private final String filename;
-    private final long length;
     private int position;
+    private long fileLength;
 
     public MappedFileDataInput(MappedByteBuffer buffer, String filename)
+    {
+        this(buffer, filename, 0);
+    }
+
+    public MappedFileDataInput(MappedByteBuffer buffer, String filename, int position)
     {
         assert buffer != null;
         this.buffer = buffer;
         this.filename = filename;
-        length = new File(filename).length();
+        this.position = position;
+        assert (fileLength = new File(filename).length()) >= 0; // hack to only initialize fL when assertions are enabled
     }
 
     public void seek(long pos) throws IOException
     {
-        assert pos <= Integer.MAX_VALUE; // TODO chunk file into 2GB buffers
+        assert pos <= Integer.MAX_VALUE;
+        assert buffer.capacity() == fileLength; // calling this does not make sense on a mapped chunk of a larger file
         position = (int) pos;
     }
 
     public long length() throws IOException
     {
-        return length;
+        assert buffer.capacity() == fileLength; // calling this does not make sense on a mapped chunk of a larger file
+        return buffer.capacity();
     }
 
     public long getFilePointer()
@@ -41,7 +49,7 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
 
     public int read() throws IOException
     {
-        if (position == length)
+        if (position == length())
             return -1;
         return buffer.get(position++) & 0xFF;
     }
@@ -50,9 +58,10 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     {
         if (n <= 0)
             return 0;
-        long oldPosition = position;
-        position = (int) Math.min(length(), position + n); // TODO fix > 2GB bug
-        return (int) (position - oldPosition);
+        int oldPosition = position;
+        assert ((long)oldPosition) + n <= Integer.MAX_VALUE;
+        position = Math.min(buffer.capacity(), position + n);
+        return position - oldPosition;
     }
 
     /*

@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.IndexHelper;
+import org.apache.cassandra.io.SSTable;
 
 public class TableTest extends CleanupHelper
 {
@@ -359,9 +360,9 @@ public class TableTest extends CleanupHelper
         }
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
         DecoratedKey decKey = sstable.getPartitioner().decorateKey(key);
-        long position = sstable.getPosition(decKey);
+        SSTable.PositionSize info = sstable.getPosition(decKey);
         BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
-        file.seek(position);
+        file.seek(info.position);
         assert file.readUTF().equals(key);
         file.readInt();
         IndexHelper.skipBloomFilter(file);

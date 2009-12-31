@@ -38,6 +38,7 @@
      <DataFileDirectory>build/test/cassandra/data</DataFileDirectory>
    </DataFileDirectories>
    <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
+   <DiskAccessMode>mmap</DiskAccessMode>
    <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
    <MemtableSizeInMB>1</MemtableSizeInMB>
    <MemtableObjectCountInMillions>0.00002</MemtableObjectCountInMillions> <!-- 20 -->

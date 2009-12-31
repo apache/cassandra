@@ -46,15 +46,12 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         this.columns = columnNames;
 
         DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
-        long position = ssTable.getPosition(decoratedKey);
-        if (position < 0)
-            return;
 
-        FileDataInput file = ssTable.getFileDataInput(DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+        FileDataInput file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+        if (file == null)
+            return;
         try
         {
-            file.seek(position);
-
             DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
             assert keyInDisk.equals(decoratedKey) : keyInDisk;
             file.readInt(); // data size

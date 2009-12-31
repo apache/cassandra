@@ -48,7 +48,13 @@ public class DatabaseDescriptor
     public static enum CommitLogSync {
         periodic,
         batch
-    };
+    }
+
+    public static enum DiskAccessMode {
+        auto,
+        mmap,
+        standard,
+    }
 
     public static final String random_ = "RANDOM";
     public static final String ophf_ = "OPHF";
@@ -121,6 +127,8 @@ public class DatabaseDescriptor
     private static double commitLogSyncBatchMS_;
     private static int commitLogSyncPeriodMS_;
 
+    private static DiskAccessMode diskAccessMode_;
+
     private static boolean snapshotBeforeCompaction_;
     private static boolean autoBootstrap_ = false;
 
@@ -181,6 +189,21 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("Periodic sync specified, but CommitLogSyncBatchWindowInMS found.  Only specify CommitLogSyncPeriodInMS when using periodic sync.");
                 }
                 logger_.debug("Syncing log with a period of " + commitLogSyncPeriodMS_);
+            }
+
+            String modeRaw = xmlUtils.getNodeValue("/Storage/DiskAccessMode");
+            try
+            {
+                diskAccessMode_ = DiskAccessMode.valueOf(modeRaw);
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new ConfigurationException("DiskAccessMode must be either 'auto', or 'mmap', or 'standard'");
+            }
+            if (diskAccessMode_ == DiskAccessMode.auto)
+            {
+                diskAccessMode_ = System.getProperty("os.arch").contains("64") ? DiskAccessMode.mmap : DiskAccessMode.standard;
+                logger_.info("Auto DiskAccessMode determined to be " + diskAccessMode_);
             }
 
             /* Hashing strategy */
@@ -953,6 +976,11 @@ public class DatabaseDescriptor
     public static CommitLogSync getCommitLogSync()
     {
         return commitLogSync_;
+    }
+
+    public static DiskAccessMode getDiskAccessMode()
+    {
+        return diskAccessMode_;
     }
 
     public static double getFlushDataBufferSizeInMB()

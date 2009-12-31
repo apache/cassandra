@@ -48,7 +48,7 @@ import org.apache.cassandra.db.DecoratedKey;
  */
 public abstract class SSTable
 {
-    private static final Logger logger = Logger.getLogger(SSTable.class);
+    static final Logger logger = Logger.getLogger(SSTable.class);
 
     public static final int FILES_ON_DISK = 3; // data, index, and bloom filter
 
@@ -102,7 +102,11 @@ public abstract class SSTable
     {
         if (new File(compactedFilename(dataFilename)).exists())
         {
-            delete(dataFilename);
+            FileUtils.deleteWithConfirm(new File(dataFilename));
+            FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
+            FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
+            FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
+            logger.info("Deleted " + dataFilename);
             return true;
         }
         return false;
@@ -150,15 +154,6 @@ public abstract class SSTable
     public static String parseTableName(String filename)
     {
         return new File(filename).getParentFile().getName();        
-    }
-
-    static void delete(String path) throws IOException
-    {
-        FileUtils.deleteWithConfirm(new File(path));
-        FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(path)));
-        FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(path)));
-        FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(path)));
-        logger.info("Deleted " + path);
     }
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
@@ -214,5 +209,17 @@ public abstract class SSTable
         return getClass().getName() + "(" +
                "path='" + path + '\'' +
                ')';
+    }
+
+    public static class PositionSize
+    {
+        public final long position;
+        public final long size;
+
+        public PositionSize(long position, long size)
+        {
+            this.position = position;
+            this.size = size;
+        }
     }
 }

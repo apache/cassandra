@@ -557,7 +557,7 @@ public class CommitLog
             if (header.isSafeToDelete())
             {
                 logger_.info("Deleting obsolete commit log:" + oldFile);
-                DeletionService.deleteAsync(oldFile);
+                DeletionService.submitDelete(oldFile);
                 clHeaders_.remove(oldFile);
             }
             else

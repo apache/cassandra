@@ -29,7 +29,6 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.collect.AbstractIterator;
@@ -52,12 +51,12 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
         /* Morph key into actual key based on the partition type. */
         DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
-        long position = ssTable.getPosition(decoratedKey);
+        FileDataInput fdi = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
         this.comparator = ssTable.getColumnComparator();
         this.startColumn = startColumn;
         this.finishColumn = finishColumn;
-        if (position >= 0)
-            reader = new ColumnGroupReader(ssTable, decoratedKey, position);
+        if (fdi != null)
+            reader = new ColumnGroupReader(ssTable, decoratedKey, fdi);
     }
 
     private boolean isColumnNeeded(IColumn column)
@@ -120,11 +119,10 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, long position) throws IOException
+        public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, FileDataInput input) throws IOException
         {
-            this.file = ssTable.getFileDataInput(DatabaseDescriptor.getSlicedReadBufferSizeInKB() * 1024);
+            this.file = input;
 
-            file.seek(position);
             DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
             assert keyInDisk.equals(key);
 
