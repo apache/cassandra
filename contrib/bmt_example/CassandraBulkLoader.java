@@ -57,7 +57,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.BigIntegerToken;
-import org.apache.cassandra.io.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -218,7 +218,7 @@ public class CassandraBulkLoader {
     public static Message createMessage(String Keyspace, String Key, String CFName, List<ColumnFamily> ColumnFamiles)
     {
         ColumnFamily baseColumnFamily;
-        DataOutputBuffer bufOut = new org.apache.cassandra.io.DataOutputBuffer();
+        DataOutputBuffer bufOut = new DataOutputBuffer();
         RowMutation rm;
         Message message;
         Column column;
