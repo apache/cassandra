@@ -25,7 +25,7 @@
 
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra</artifactId>
-  <version>0.4.1</version>
+  <version>0.5</version>
   <packaging>jar</packaging>
   <name>Cassandra</name>
   <inceptionYear>2009</inceptionYear>
@@ -165,8 +165,6 @@
     </dependency>
 
 
-
-
     <!-- Dependencies which I could not find in the maven repos -->
     <dependency>
       <groupId>high-scale-lib</groupId>
@@ -202,6 +200,13 @@
       <version>UNKNOWN</version>
       <scope>system</scope>
       <systemPath>${basedir}/lib/json_simple-1.1.jar</systemPath>
+    </dependency>
+  <dependency>
+      <groupId>com.reardencommerce</groupId>
+      <artifactId>clhm</artifactId>
+      <version>UNKNOWN</version>
+      <scope>system</scope>
+      <systemPath>${basedir}/lib/clhm-production.jar</systemPath>
     </dependency>
 
     <!-- Testing Dependencies -->
