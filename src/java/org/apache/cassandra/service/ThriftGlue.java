@@ -2,8 +2,6 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 
-import org.apache.cassandra.service.*;
-
 public class ThriftGlue
 {
     private static ColumnOrSuperColumn createColumnOrSuperColumn(Column col, SuperColumn scol)
@@ -44,7 +42,7 @@ public class ThriftGlue
         SlicePredicate ret = new SlicePredicate();
         ret.setColumn_names(columns);
         ret.setSlice_range(range);
-        return null;
+        return ret;
     }
 
 }
