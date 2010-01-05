@@ -4,34 +4,15 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
 import java.util.Arrays;
@@ -47,22 +28,77 @@ import org.apache.thrift.protocol.*;
  * @param column_or_supercolumn. An insert to a column or supercolumn
  * @param deletion. A deletion of a column or supercolumn
  */
-public class Mutation implements TBase, java.io.Serializable, Cloneable, Comparable<Mutation> {
+public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, Cloneable, Comparable<Mutation> {
   private static final TStruct STRUCT_DESC = new TStruct("Mutation");
+
   private static final TField COLUMN_OR_SUPERCOLUMN_FIELD_DESC = new TField("column_or_supercolumn", TType.STRUCT, (short)1);
   private static final TField DELETION_FIELD_DESC = new TField("deletion", TType.STRUCT, (short)2);
 
   public ColumnOrSuperColumn column_or_supercolumn;
   public Deletion deletion;
-  public static final int COLUMN_OR_SUPERCOLUMN = 1;
-  public static final int DELETION = 2;
+
+  /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+  public enum _Fields implements TFieldIdEnum {
+    COLUMN_OR_SUPERCOLUMN((short)1, "column_or_supercolumn"),
+    DELETION((short)2, "deletion");
+
+    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+    private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+    static {
+      for (_Fields field : EnumSet.allOf(_Fields.class)) {
+        byId.put((int)field._thriftId, field);
+        byName.put(field.getFieldName(), field);
+      }
+    }
+
+    /**
+     * Find the _Fields constant that matches fieldId, or null if its not found.
+     */
+    public static _Fields findByThriftId(int fieldId) {
+      return byId.get(fieldId);
+    }
+
+    /**
+     * Find the _Fields constant that matches fieldId, throwing an exception
+     * if it is not found.
+     */
+    public static _Fields findByThriftIdOrThrow(int fieldId) {
+      _Fields fields = findByThriftId(fieldId);
+      if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+      return fields;
+    }
+
+    /**
+     * Find the _Fields constant that matches name, or null if its not found.
+     */
+    public static _Fields findByName(String name) {
+      return byName.get(name);
+    }
+
+    private final short _thriftId;
+    private final String _fieldName;
+
+    _Fields(short thriftId, String fieldName) {
+      _thriftId = thriftId;
+      _fieldName = fieldName;
+    }
+
+    public short getThriftFieldId() {
+      return _thriftId;
+    }
+
+    public String getFieldName() {
+      return _fieldName;
+    }
+  }
 
   // isset id assignments
 
-  public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(COLUMN_OR_SUPERCOLUMN, new FieldMetaData("column_or_supercolumn", TFieldRequirementType.OPTIONAL, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+    put(_Fields.COLUMN_OR_SUPERCOLUMN, new FieldMetaData("column_or_supercolumn", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class)));
-    put(DELETION, new FieldMetaData("deletion", TFieldRequirementType.OPTIONAL, 
+    put(_Fields.DELETION, new FieldMetaData("deletion", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, Deletion.class)));
   }});
 
@@ -71,15 +107,6 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
   }
 
   public Mutation() {
-  }
-
-  public Mutation(
-    ColumnOrSuperColumn column_or_supercolumn,
-    Deletion deletion)
-  {
-    this();
-    this.column_or_supercolumn = column_or_supercolumn;
-    this.deletion = deletion;
   }
 
   /**
@@ -116,7 +143,7 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
     this.column_or_supercolumn = null;
   }
 
-  // Returns true if field column_or_supercolumn is set (has been asigned a value) and false otherwise
+  /** Returns true if field column_or_supercolumn is set (has been asigned a value) and false otherwise */
   public boolean isSetColumn_or_supercolumn() {
     return this.column_or_supercolumn != null;
   }
@@ -140,7 +167,7 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
     this.deletion = null;
   }
 
-  // Returns true if field deletion is set (has been asigned a value) and false otherwise
+  /** Returns true if field deletion is set (has been asigned a value) and false otherwise */
   public boolean isSetDeletion() {
     return this.deletion != null;
   }
@@ -151,8 +178,8 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    switch (fieldID) {
+  public void setFieldValue(_Fields field, Object value) {
+    switch (field) {
     case COLUMN_OR_SUPERCOLUMN:
       if (value == null) {
         unsetColumn_or_supercolumn();
@@ -169,34 +196,42 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
       }
       break;
 
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
   }
 
-  public Object getFieldValue(int fieldID) {
-    switch (fieldID) {
+  public void setFieldValue(int fieldID, Object value) {
+    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+  }
+
+  public Object getFieldValue(_Fields field) {
+    switch (field) {
     case COLUMN_OR_SUPERCOLUMN:
       return getColumn_or_supercolumn();
 
     case DELETION:
       return getDeletion();
 
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
+    throw new IllegalStateException();
   }
 
-  // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-  public boolean isSet(int fieldID) {
-    switch (fieldID) {
+  public Object getFieldValue(int fieldId) {
+    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+  }
+
+  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  public boolean isSet(_Fields field) {
+    switch (field) {
     case COLUMN_OR_SUPERCOLUMN:
       return isSetColumn_or_supercolumn();
     case DELETION:
       return isSetDeletion();
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
+    throw new IllegalStateException();
+  }
+
+  public boolean isSet(int fieldID) {
+    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -274,32 +309,32 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
       if (field.type == TType.STOP) { 
         break;
       }
-      switch (field.id)
-      {
-        case COLUMN_OR_SUPERCOLUMN:
-          if (field.type == TType.STRUCT) {
-            this.column_or_supercolumn = new ColumnOrSuperColumn();
-            this.column_or_supercolumn.read(iprot);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case DELETION:
-          if (field.type == TType.STRUCT) {
-            this.deletion = new Deletion();
-            this.deletion.read(iprot);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        default:
-          TProtocolUtil.skip(iprot, field.type);
-          break;
+      _Fields fieldId = _Fields.findByThriftId(field.id);
+      if (fieldId == null) {
+        TProtocolUtil.skip(iprot, field.type);
+      } else {
+        switch (fieldId) {
+          case COLUMN_OR_SUPERCOLUMN:
+            if (field.type == TType.STRUCT) {
+              this.column_or_supercolumn = new ColumnOrSuperColumn();
+              this.column_or_supercolumn.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case DELETION:
+            if (field.type == TType.STRUCT) {
+              this.deletion = new Deletion();
+              this.deletion.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+        }
+        iprot.readFieldEnd();
       }
-      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
-
 
     // check for required fields of primitive type, which can't be checked in the validate method
     validate();
@@ -357,7 +392,6 @@ public class Mutation implements TBase, java.io.Serializable, Cloneable, Compara
 
   public void validate() throws TException {
     // check for required fields
-    // check that fields of type enum have valid values
   }
 
 }

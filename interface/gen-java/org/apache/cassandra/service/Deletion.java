@@ -4,34 +4,15 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
 import java.util.Arrays;
@@ -42,8 +23,9 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class Deletion implements TBase, java.io.Serializable, Cloneable, Comparable<Deletion> {
+public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, Cloneable, Comparable<Deletion> {
   private static final TStruct STRUCT_DESC = new TStruct("Deletion");
+
   private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)1);
   private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)2);
   private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)3);
@@ -51,20 +33,74 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
   public long timestamp;
   public byte[] super_column;
   public SlicePredicate predicate;
-  public static final int TIMESTAMP = 1;
-  public static final int SUPER_COLUMN = 2;
-  public static final int PREDICATE = 3;
+
+  /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+  public enum _Fields implements TFieldIdEnum {
+    TIMESTAMP((short)1, "timestamp"),
+    SUPER_COLUMN((short)2, "super_column"),
+    PREDICATE((short)3, "predicate");
+
+    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+    private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+    static {
+      for (_Fields field : EnumSet.allOf(_Fields.class)) {
+        byId.put((int)field._thriftId, field);
+        byName.put(field.getFieldName(), field);
+      }
+    }
+
+    /**
+     * Find the _Fields constant that matches fieldId, or null if its not found.
+     */
+    public static _Fields findByThriftId(int fieldId) {
+      return byId.get(fieldId);
+    }
+
+    /**
+     * Find the _Fields constant that matches fieldId, throwing an exception
+     * if it is not found.
+     */
+    public static _Fields findByThriftIdOrThrow(int fieldId) {
+      _Fields fields = findByThriftId(fieldId);
+      if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+      return fields;
+    }
+
+    /**
+     * Find the _Fields constant that matches name, or null if its not found.
+     */
+    public static _Fields findByName(String name) {
+      return byName.get(name);
+    }
+
+    private final short _thriftId;
+    private final String _fieldName;
+
+    _Fields(short thriftId, String fieldName) {
+      _thriftId = thriftId;
+      _fieldName = fieldName;
+    }
+
+    public short getThriftFieldId() {
+      return _thriftId;
+    }
+
+    public String getFieldName() {
+      return _fieldName;
+    }
+  }
 
   // isset id assignments
   private static final int __TIMESTAMP_ISSET_ID = 0;
   private BitSet __isset_bit_vector = new BitSet(1);
 
-  public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+    put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I64)));
-    put(SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
+    put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.OPTIONAL, 
+    put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, SlicePredicate.class)));
   }});
 
@@ -76,15 +112,11 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
   }
 
   public Deletion(
-    long timestamp,
-    byte[] super_column,
-    SlicePredicate predicate)
+    long timestamp)
   {
     this();
     this.timestamp = timestamp;
     setTimestampIsSet(true);
-    this.super_column = super_column;
-    this.predicate = predicate;
   }
 
   /**
@@ -126,7 +158,7 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
     __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
   }
 
-  // Returns true if field timestamp is set (has been asigned a value) and false otherwise
+  /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
   public boolean isSetTimestamp() {
     return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
   }
@@ -148,7 +180,7 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
     this.super_column = null;
   }
 
-  // Returns true if field super_column is set (has been asigned a value) and false otherwise
+  /** Returns true if field super_column is set (has been asigned a value) and false otherwise */
   public boolean isSetSuper_column() {
     return this.super_column != null;
   }
@@ -172,7 +204,7 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
     this.predicate = null;
   }
 
-  // Returns true if field predicate is set (has been asigned a value) and false otherwise
+  /** Returns true if field predicate is set (has been asigned a value) and false otherwise */
   public boolean isSetPredicate() {
     return this.predicate != null;
   }
@@ -183,8 +215,8 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    switch (fieldID) {
+  public void setFieldValue(_Fields field, Object value) {
+    switch (field) {
     case TIMESTAMP:
       if (value == null) {
         unsetTimestamp();
@@ -209,13 +241,15 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
       }
       break;
 
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
   }
 
-  public Object getFieldValue(int fieldID) {
-    switch (fieldID) {
+  public void setFieldValue(int fieldID, Object value) {
+    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+  }
+
+  public Object getFieldValue(_Fields field) {
+    switch (field) {
     case TIMESTAMP:
       return new Long(getTimestamp());
 
@@ -225,23 +259,29 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
     case PREDICATE:
       return getPredicate();
 
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
+    throw new IllegalStateException();
   }
 
-  // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-  public boolean isSet(int fieldID) {
-    switch (fieldID) {
+  public Object getFieldValue(int fieldId) {
+    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+  }
+
+  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  public boolean isSet(_Fields field) {
+    switch (field) {
     case TIMESTAMP:
       return isSetTimestamp();
     case SUPER_COLUMN:
       return isSetSuper_column();
     case PREDICATE:
       return isSetPredicate();
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
+    throw new IllegalStateException();
+  }
+
+  public boolean isSet(int fieldID) {
+    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -336,39 +376,39 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
       if (field.type == TType.STOP) { 
         break;
       }
-      switch (field.id)
-      {
-        case TIMESTAMP:
-          if (field.type == TType.I64) {
-            this.timestamp = iprot.readI64();
-            setTimestampIsSet(true);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case SUPER_COLUMN:
-          if (field.type == TType.STRING) {
-            this.super_column = iprot.readBinary();
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case PREDICATE:
-          if (field.type == TType.STRUCT) {
-            this.predicate = new SlicePredicate();
-            this.predicate.read(iprot);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        default:
-          TProtocolUtil.skip(iprot, field.type);
-          break;
+      _Fields fieldId = _Fields.findByThriftId(field.id);
+      if (fieldId == null) {
+        TProtocolUtil.skip(iprot, field.type);
+      } else {
+        switch (fieldId) {
+          case TIMESTAMP:
+            if (field.type == TType.I64) {
+              this.timestamp = iprot.readI64();
+              setTimestampIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case SUPER_COLUMN:
+            if (field.type == TType.STRING) {
+              this.super_column = iprot.readBinary();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case PREDICATE:
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+        }
+        iprot.readFieldEnd();
       }
-      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
-
 
     // check for required fields of primitive type, which can't be checked in the validate method
     if (!isSetTimestamp()) {
@@ -442,7 +482,6 @@ public class Deletion implements TBase, java.io.Serializable, Cloneable, Compara
   public void validate() throws TException {
     // check for required fields
     // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
-    // check that fields of type enum have valid values
   }
 
 }

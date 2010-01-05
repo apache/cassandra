@@ -4,34 +4,15 @@
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
 package org.apache.cassandra.service;
-/*
- * 
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
- */
-
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
 import java.util.Arrays;
@@ -54,23 +35,78 @@ import org.apache.thrift.protocol.*;
  *                     and 'Jim' you can pass those column names as a list to fetch all three at once.
  * @param slice_range. A SliceRange describing how to range, order, and/or limit the slice.
  */
-public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, Comparable<SlicePredicate> {
+public class SlicePredicate implements TBase<SlicePredicate._Fields>, java.io.Serializable, Cloneable, Comparable<SlicePredicate> {
   private static final TStruct STRUCT_DESC = new TStruct("SlicePredicate");
+
   private static final TField COLUMN_NAMES_FIELD_DESC = new TField("column_names", TType.LIST, (short)1);
   private static final TField SLICE_RANGE_FIELD_DESC = new TField("slice_range", TType.STRUCT, (short)2);
 
   public List<byte[]> column_names;
   public SliceRange slice_range;
-  public static final int COLUMN_NAMES = 1;
-  public static final int SLICE_RANGE = 2;
+
+  /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+  public enum _Fields implements TFieldIdEnum {
+    COLUMN_NAMES((short)1, "column_names"),
+    SLICE_RANGE((short)2, "slice_range");
+
+    private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+    private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+    static {
+      for (_Fields field : EnumSet.allOf(_Fields.class)) {
+        byId.put((int)field._thriftId, field);
+        byName.put(field.getFieldName(), field);
+      }
+    }
+
+    /**
+     * Find the _Fields constant that matches fieldId, or null if its not found.
+     */
+    public static _Fields findByThriftId(int fieldId) {
+      return byId.get(fieldId);
+    }
+
+    /**
+     * Find the _Fields constant that matches fieldId, throwing an exception
+     * if it is not found.
+     */
+    public static _Fields findByThriftIdOrThrow(int fieldId) {
+      _Fields fields = findByThriftId(fieldId);
+      if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+      return fields;
+    }
+
+    /**
+     * Find the _Fields constant that matches name, or null if its not found.
+     */
+    public static _Fields findByName(String name) {
+      return byName.get(name);
+    }
+
+    private final short _thriftId;
+    private final String _fieldName;
+
+    _Fields(short thriftId, String fieldName) {
+      _thriftId = thriftId;
+      _fieldName = fieldName;
+    }
+
+    public short getThriftFieldId() {
+      return _thriftId;
+    }
+
+    public String getFieldName() {
+      return _fieldName;
+    }
+  }
 
   // isset id assignments
 
-  public static final Map<Integer, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new HashMap<Integer, FieldMetaData>() {{
-    put(COLUMN_NAMES, new FieldMetaData("column_names", TFieldRequirementType.OPTIONAL, 
+  public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+    put(_Fields.COLUMN_NAMES, new FieldMetaData("column_names", TFieldRequirementType.OPTIONAL, 
         new ListMetaData(TType.LIST, 
             new FieldValueMetaData(TType.STRING))));
-    put(SLICE_RANGE, new FieldMetaData("slice_range", TFieldRequirementType.OPTIONAL, 
+    put(_Fields.SLICE_RANGE, new FieldMetaData("slice_range", TFieldRequirementType.OPTIONAL, 
         new StructMetaData(TType.STRUCT, SliceRange.class)));
   }});
 
@@ -79,15 +115,6 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
   }
 
   public SlicePredicate() {
-  }
-
-  public SlicePredicate(
-    List<byte[]> column_names,
-    SliceRange slice_range)
-  {
-    this();
-    this.column_names = column_names;
-    this.slice_range = slice_range;
   }
 
   /**
@@ -145,7 +172,7 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
     this.column_names = null;
   }
 
-  // Returns true if field column_names is set (has been asigned a value) and false otherwise
+  /** Returns true if field column_names is set (has been asigned a value) and false otherwise */
   public boolean isSetColumn_names() {
     return this.column_names != null;
   }
@@ -169,7 +196,7 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
     this.slice_range = null;
   }
 
-  // Returns true if field slice_range is set (has been asigned a value) and false otherwise
+  /** Returns true if field slice_range is set (has been asigned a value) and false otherwise */
   public boolean isSetSlice_range() {
     return this.slice_range != null;
   }
@@ -180,8 +207,8 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
     }
   }
 
-  public void setFieldValue(int fieldID, Object value) {
-    switch (fieldID) {
+  public void setFieldValue(_Fields field, Object value) {
+    switch (field) {
     case COLUMN_NAMES:
       if (value == null) {
         unsetColumn_names();
@@ -198,34 +225,42 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
       }
       break;
 
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
   }
 
-  public Object getFieldValue(int fieldID) {
-    switch (fieldID) {
+  public void setFieldValue(int fieldID, Object value) {
+    setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+  }
+
+  public Object getFieldValue(_Fields field) {
+    switch (field) {
     case COLUMN_NAMES:
       return getColumn_names();
 
     case SLICE_RANGE:
       return getSlice_range();
 
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
+    throw new IllegalStateException();
   }
 
-  // Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise
-  public boolean isSet(int fieldID) {
-    switch (fieldID) {
+  public Object getFieldValue(int fieldId) {
+    return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+  }
+
+  /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+  public boolean isSet(_Fields field) {
+    switch (field) {
     case COLUMN_NAMES:
       return isSetColumn_names();
     case SLICE_RANGE:
       return isSetSlice_range();
-    default:
-      throw new IllegalArgumentException("Field " + fieldID + " doesn't exist!");
     }
+    throw new IllegalStateException();
+  }
+
+  public boolean isSet(int fieldID) {
+    return isSet(_Fields.findByThriftIdOrThrow(fieldID));
   }
 
   @Override
@@ -303,41 +338,41 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
       if (field.type == TType.STOP) { 
         break;
       }
-      switch (field.id)
-      {
-        case COLUMN_NAMES:
-          if (field.type == TType.LIST) {
-            {
-              TList _list4 = iprot.readListBegin();
-              this.column_names = new ArrayList<byte[]>(_list4.size);
-              for (int _i5 = 0; _i5 < _list4.size; ++_i5)
+      _Fields fieldId = _Fields.findByThriftId(field.id);
+      if (fieldId == null) {
+        TProtocolUtil.skip(iprot, field.type);
+      } else {
+        switch (fieldId) {
+          case COLUMN_NAMES:
+            if (field.type == TType.LIST) {
               {
-                byte[] _elem6;
-                _elem6 = iprot.readBinary();
-                this.column_names.add(_elem6);
+                TList _list4 = iprot.readListBegin();
+                this.column_names = new ArrayList<byte[]>(_list4.size);
+                for (int _i5 = 0; _i5 < _list4.size; ++_i5)
+                {
+                  byte[] _elem6;
+                  _elem6 = iprot.readBinary();
+                  this.column_names.add(_elem6);
+                }
+                iprot.readListEnd();
               }
-              iprot.readListEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
             }
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        case SLICE_RANGE:
-          if (field.type == TType.STRUCT) {
-            this.slice_range = new SliceRange();
-            this.slice_range.read(iprot);
-          } else { 
-            TProtocolUtil.skip(iprot, field.type);
-          }
-          break;
-        default:
-          TProtocolUtil.skip(iprot, field.type);
-          break;
+            break;
+          case SLICE_RANGE:
+            if (field.type == TType.STRUCT) {
+              this.slice_range = new SliceRange();
+              this.slice_range.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+        }
+        iprot.readFieldEnd();
       }
-      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
-
 
     // check for required fields of primitive type, which can't be checked in the validate method
     validate();
@@ -402,7 +437,6 @@ public class SlicePredicate implements TBase, java.io.Serializable, Cloneable, C
 
   public void validate() throws TException {
     // check for required fields
-    // check that fields of type enum have valid values
   }
 
 }
