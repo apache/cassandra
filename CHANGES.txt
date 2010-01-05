@@ -4,6 +4,7 @@
  * TcpConnectionManager was holding on to disconnected connections, 
    giving the false indication they were being used. (CASSANDRA-651)
  * Avoid redundant write of the same mutation. (CASSANDRA-662)
+ * Abort bootstrap if IP is already in the token ring (CASSANDRA-663)
 
 
 0.5.0 RC1
