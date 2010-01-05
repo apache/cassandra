@@ -1,0 +1,34 @@
+Apache Cassandra
+Copyright 2009 The Apache Software Foundation
+
+This product includes software developed by The Apache Software
+Foundation (http://www.apache.org/).
+
+Parser generation is provided by ANTLR, (http://www.antlr.org/).
+Copyright (c) 2003-2006 Terence Parr
+
+This product makes use of the google-collections library from
+http://code.google.com/p/google-collections/.
+Copyright (C) 2008 Google Inc.
+
+Some alternate data structures provided by high-scale-lib from
+http://sourceforge.net/projects/high-scale-lib/.
+Written by Cliff Click and released as Public Domain.
+
+This product makes use of JLine for console input (http://jline.sf.net).
+Copyright (c) 2002-2006, Marc Prud'hommeaux <mwp1@cornell.edu>
+
+JSON serialization provided by Flexjson (http://flexjson.sf.net).
+Copyright 2007 Charlie Hubbard.
+
+JSON parsing provided by json-simple (http://code.google.com/p/json-simple/).
+Copyright 2006-2009 Yidong Fang.
+
+This product makes use of the JUnit test framework (http://junit.org).
+
+Logging abstraction provided by SLF4J (http://www.slf4j.org).
+Copyright (c) 2004-2008 QOS.ch
+
+Some alternate data structures provided by concurrentlinkedhashmap
+from http://code.google.com/p/concurrentlinkedhashmap/.
+Copyright 2009 Benjamin Manes
