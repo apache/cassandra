@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 public class ClientOnlyExample
 {
@@ -112,7 +113,7 @@ public class ClientOnlyExample
             {
                 throw new RuntimeException(e);
             }
-            catch (TimedOutException e)
+            catch (TimeoutException e)
             {
                 throw new RuntimeException(e);
             }
