@@ -33,7 +33,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.glue.ThriftGlue;
+
+import static org.apache.cassandra.service.ThriftGlue.*;
+
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
@@ -125,7 +127,7 @@ public class CassandraServer implements Cassandra.Iface
                 continue;
             }
             Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
-            thriftColumns.add(ThriftGlue.createColumnOrSuperColumn_Column(thrift_column));
+            thriftColumns.add(createColumnOrSuperColumn_Column(thrift_column));
         }
 
         // we have to do the reversing here, since internally we pass results around in ColumnFamily
@@ -147,7 +149,7 @@ public class CassandraServer implements Cassandra.Iface
                 continue;
             }
             SuperColumn superColumn = new SuperColumn(column.name(), subcolumns);
-            thriftSuperColumns.add(ThriftGlue.createColumnOrSuperColumn_SuperColumn(superColumn));
+            thriftSuperColumns.add(createColumnOrSuperColumn_SuperColumn(superColumn));
         }
 
         if (reverseOrder)
@@ -331,8 +333,8 @@ public class CassandraServer implements Cassandra.Iface
                 else
                 {
                     columnorsupercolumn = column instanceof org.apache.cassandra.db.Column
-                                          ? ThriftGlue.createColumnOrSuperColumn_Column(new Column(column.name(), column.value(), column.timestamp()))
-                                          : ThriftGlue.createColumnOrSuperColumn_SuperColumn(new SuperColumn(column.name(), thriftifySubColumns(column.getSubColumns())));
+                                          ? createColumnOrSuperColumn_Column(new Column(column.name(), column.value(), column.timestamp()))
+                                          : createColumnOrSuperColumn_SuperColumn(new SuperColumn(column.name(), thriftifySubColumns(column.getSubColumns())));
                 }
 
             }

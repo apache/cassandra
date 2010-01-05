@@ -1,4 +1,4 @@
-package org.apache.cassandra.glue;
+package org.apache.cassandra.service;
 
 import java.util.List;
 
