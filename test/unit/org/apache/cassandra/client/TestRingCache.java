@@ -23,6 +23,8 @@ import java.util.List;
 import org.apache.cassandra.service.Cassandra;
 import org.apache.cassandra.service.Column;
 import org.apache.cassandra.service.ColumnPath;
+import org.apache.cassandra.service.ConsistencyLevel;
+import static org.apache.cassandra.service.ThriftGlue.createColumnPath;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
@@ -65,7 +67,7 @@ public class TestRingCache
         for (int nRows=1; nRows<10; nRows++)
         {
             String row = "row" + nRows;
-            ColumnPath col = new ColumnPath("Standard1", null, "col1".getBytes());
+            ColumnPath col = createColumnPath("Standard1", null, "col1".getBytes());
 
             List<InetAddress> endPoints = ringCache.getEndPoint(row);
             String hosts="";
@@ -75,8 +77,8 @@ public class TestRingCache
         
             // now, read the row back directly from the host owning the row locally
             setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getThriftPort());
-            thriftClient.insert(table, row, col, "val1".getBytes(), 1, 1);
-            Column column=thriftClient.get(table, row, col, 1).column;
+            thriftClient.insert(table, row, col, "val1".getBytes(), 1, ConsistencyLevel.ONE);
+            Column column=thriftClient.get(table, row, col, ConsistencyLevel.ONE).column;
             System.out.println("read row " + row + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);
         }
         System.exit(1);
