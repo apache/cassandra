@@ -25,6 +25,8 @@ import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.*;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -39,7 +41,6 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class MessagingService implements IFailureDetectionEventListener
 {
@@ -75,8 +76,7 @@ public class MessagingService implements IFailureDetectionEventListener
     /* Thread pool to handle messaging write activities */
     private static ExecutorService streamExecutor_;
     
-    private final static ReentrantLock lock_ = new ReentrantLock();
-    private static Map<String, TcpConnectionManager> poolTable_ = new Hashtable<String, TcpConnectionManager>();
+    private static NonBlockingHashMap<String, TcpConnectionManager> connectionManagers_ = new NonBlockingHashMap<String, TcpConnectionManager>();
     
     private static volatile boolean bShutdown_ = false;
     
@@ -95,18 +95,13 @@ public class MessagingService implements IFailureDetectionEventListener
     {   
     	if ( bShutdown_ )
     	{
-            lock_.lock();
-            try
+            synchronized (MessagingService.class)
             {
                 if ( bShutdown_ )
                 {
             		messagingService_ = new MessagingService();
             		bShutdown_ = false;
                 }
-            }
-            finally
-            {
-                lock_.unlock();
             }
     	}
         return messagingService_;
@@ -220,23 +215,11 @@ public class MessagingService implements IFailureDetectionEventListener
     public static TcpConnectionManager getConnectionPool(InetAddress from, InetAddress to)
     {
         String key = from + ":" + to;
-        TcpConnectionManager cp = poolTable_.get(key);
-        if( cp == null )
+        TcpConnectionManager cp = connectionManagers_.get(key);
+        if (cp == null)
         {
-            lock_.lock();
-            try
-            {
-                cp = poolTable_.get(key);
-                if (cp == null )
-                {
-                    cp = new TcpConnectionManager(from, to);
-                    poolTable_.put(key, cp);
-                }
-            }
-            finally
-            {
-                lock_.unlock();
-            }
+            connectionManagers_.putIfAbsent(key, new TcpConnectionManager(from, to));
+            cp = connectionManagers_.get(key);
         }
         return cp;
     }
@@ -499,7 +482,7 @@ public class MessagingService implements IFailureDetectionEventListener
             /* Interrupt the selector manager thread */
             SelectorManager.getSelectorManager().interrupt();
 
-            poolTable_.clear();
+            connectionManagers_.clear();
             verbHandlers_.clear();
             bShutdown_ = true;
         }
