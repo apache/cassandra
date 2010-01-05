@@ -53,11 +53,6 @@ public class MessagingService implements IFailureDetectionEventListener
     /* Stage for responses. */
     public static final String responseStage_ = "RESPONSE-STAGE";
 
-    private enum ReservedVerbs_ {
-    };
-    
-    private static Map<String, String> reservedVerbs_ = new Hashtable<String, String>();
-    
     /* This records all the results mapped by message Id */
     private static ICachetable<String, IAsyncCallback> callbackMap_;
     private static ICachetable<String, IAsyncResult> taskCompletionMap_;
@@ -128,11 +123,7 @@ public class MessagingService implements IFailureDetectionEventListener
 
     protected MessagingService()
     {        
-        for ( ReservedVerbs_ verbs : ReservedVerbs_.values() )
-        {
-            reservedVerbs_.put(verbs.toString(), verbs.toString());
-        }
-        verbHandlers_ = new HashMap<String, IVerbHandler>();        
+        verbHandlers_ = new HashMap<String, IVerbHandler>();
         endPoints_ = new HashSet<InetAddress>();
         /*
          * Leave callbacks in the cachetable long enough that any related messages will arrive
@@ -260,15 +251,7 @@ public class MessagingService implements IFailureDetectionEventListener
     {
         return getConnectionPool(from, to).getConnection(msg);
     }
-    
-    private void checkForReservedVerb(String type)
-    {
-    	if ( reservedVerbs_.get(type) != null && verbHandlers_.get(type) != null )
-    	{
-    		throw new IllegalArgumentException( type + " is a reserved verb handler. Scram!");
-    	}
-    }     
-    
+        
     /**
      * Register a verb and the corresponding verb handler with the
      * Messaging Service.
@@ -277,7 +260,7 @@ public class MessagingService implements IFailureDetectionEventListener
      */
     public void registerVerbHandlers(String type, IVerbHandler verbHandler)
     {
-    	checkForReservedVerb(type);
+    	assert !verbHandlers_.containsKey(type);
     	verbHandlers_.put(type, verbHandler);
     }
     
