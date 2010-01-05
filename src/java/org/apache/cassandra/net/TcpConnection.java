@@ -55,8 +55,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private Queue<ByteBuffer> pendingWrites_ = new ConcurrentLinkedQueue<ByteBuffer>();
     private InetAddress localEp_;
     private InetAddress remoteEp_;
-    boolean inUse_ = false;
-         
+
     /* 
      * Added for streaming support. We need the boolean
      * to indicate that this connection is used for 
@@ -272,11 +271,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         }
     }
     
-    public void close()
-    {
-        inUse_ = false;
-    }
-
     public boolean isConnected()
     {
         return socketChannel_.isConnected();
@@ -304,7 +298,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     void closeSocket()
     {
         if (pendingWrites_.size() > 0)
-            logger_.error("Closing down connection " + socketChannel_ + " with " + pendingWrites_.size() + " writes remaining.");
+            logger_.warn("Closing down connection " + socketChannel_ + " with " + pendingWrites_.size() + " writes remaining.");
         cancel(key_);
         pendingWrites_.clear();
     }

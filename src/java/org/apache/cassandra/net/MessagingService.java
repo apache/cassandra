@@ -427,13 +427,6 @@ public class MessagingService implements IFailureDetectionEventListener
             }
             logger_.error("unexpected error writing " + message, e);
         }
-        finally
-        {
-            if (connection != null)
-            {
-                connection.close();
-            }
-        }
     }
     
     public IAsyncResult sendRR(Message message, InetAddress to)

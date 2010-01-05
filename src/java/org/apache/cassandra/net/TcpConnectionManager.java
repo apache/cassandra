@@ -41,7 +41,6 @@ class TcpConnectionManager
     private TcpConnection newCon() throws IOException
     {
         TcpConnection con = new TcpConnection(this, localEp_, remoteEp_);
-        con.inUse_ = true;
         return con;
     }
 
