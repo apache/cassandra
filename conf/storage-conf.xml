@@ -314,11 +314,10 @@
   <CommitLogSync>periodic</CommitLogSync>
   <!--
    ~ Interval at which to perform syncs of the CommitLog in periodic mode.
-   ~ Usually the default of 1000ms is fine; increase it only if the
-   ~ CommitLog PendingTasks backlog in jmx shows that you are frequently
-   ~ scheduling a second sync while the first has not yet been processed.
+   ~ Usually the default of 10000ms is fine; increase it if your i/o
+   ~ load is such that syncs are taking excessively long times.
   -->
-  <CommitLogSyncPeriodInMS>1000</CommitLogSyncPeriodInMS>
+  <CommitLogSyncPeriodInMS>10000</CommitLogSyncPeriodInMS>
   <!--
    ~ Delay (in milliseconds) during which additional commit log entries
    ~ may be written before fsync in batch mode.  This will increase

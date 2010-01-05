@@ -202,14 +202,18 @@ public class CommitLog
                 {
                     while (true)
                     {
-                        executor.submit(syncer);
                         try
                         {
+                            executor.submit(syncer).get();
                             Thread.sleep(DatabaseDescriptor.getCommitLogSyncPeriod());
                         }
                         catch (InterruptedException e)
                         {
                             throw new AssertionError(e);
+                        }
+                        catch (ExecutionException e)
+                        {
+                            throw new RuntimeException(e);
                         }
                     }
                 }

@@ -331,6 +331,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         {
             throw new AssertionError(e);
         }
+        if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
+        {
+            String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
+            throw new UnsupportedOperationException(s);
+        }
         new BootStrapper(replicationStrategy_, FBUtilities.getLocalAddress(), token, tokenMetadata_).startBootstrap(); // handles token update
     }
 

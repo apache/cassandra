@@ -10,6 +10,9 @@ dev
  * TcpConnectionManager was holding on to disconnected connections, 
    giving the false indication they were being used. (CASSANDRA-651)
  * Remove duplicated write. (CASSANDRA-662)
+ * Abort bootstrap if IP is already in the token ring (CASSANDRA-663)
+ * increase default commitlog sync period, and wait for last sync to 
+   finish before submitting another (CASSANDRA-668)
 
 
 0.5.0 RC1
