@@ -22,6 +22,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.thrift.*;
 
 import org.antlr.runtime.tree.*;
+import org.apache.cassandra.glue.ThriftGlue;
 import org.apache.cassandra.service.*;
 
 import java.util.*;
@@ -162,12 +163,12 @@ public class CliClient
        
        if (columnSpecCnt == 0)
        {
-           colParent = new ColumnParent(columnFamily, null);
+           colParent = ThriftGlue.createColumnParent(columnFamily, null);
        }
        else
        {
            assert (columnSpecCnt == 1);
-           colParent = new ColumnParent(columnFamily, CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
+           colParent = ThriftGlue.createColumnParent(columnFamily, CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8"));
        }
        
        int count = thriftClient_.get_count(tableName, key, colParent, ConsistencyLevel.ONE);
@@ -231,7 +232,7 @@ public class CliClient
             columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
         }
         
-        thriftClient_.remove(tableName, key, new ColumnPath(columnFamily, superColumnName, columnName),
+        thriftClient_.remove(tableName, key, ThriftGlue.createColumnPath(columnFamily, superColumnName, columnName),
                              System.currentTimeMillis(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
     }  
@@ -240,8 +241,9 @@ public class CliClient
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, ClassNotFoundException
     {
         SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, 1000000);
-        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key, new ColumnParent(columnFamily, superColumnName),
-                                                                    new SlicePredicate(null, range), ConsistencyLevel.ONE);
+        List<ColumnOrSuperColumn> columns = thriftClient_.get_slice(keyspace, key, 
+            ThriftGlue.createColumnParent(columnFamily, superColumnName),
+            ThriftGlue.createSlicePredicate(null, range), ConsistencyLevel.ONE);
         int size = columns.size();
         
         // Print out super columns or columns.
@@ -358,7 +360,7 @@ public class CliClient
         }
         
         // Perform a get(), print out the results.
-        ColumnPath path = new ColumnPath(columnFamily, superColumnName, columnName);
+        ColumnPath path = ThriftGlue.createColumnPath(columnFamily, superColumnName, columnName);
         Column column = thriftClient_.get(tableName, key, path, ConsistencyLevel.ONE).column;
         css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(tableName, columnFamily, column),
                         new String(column.value, "UTF-8"), column.timestamp);
@@ -401,7 +403,7 @@ public class CliClient
         }
         
         // do the insert
-        thriftClient_.insert(tableName, key, new ColumnPath(columnFamily, superColumnName, columnName),
+        thriftClient_.insert(tableName, key, ThriftGlue.createColumnPath(columnFamily, superColumnName, columnName),
                              value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");

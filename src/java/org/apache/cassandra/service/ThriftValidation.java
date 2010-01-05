@@ -20,8 +20,6 @@ package org.apache.cassandra.service;
  * 
  */
 
-
-import java.util.List;
 import java.util.Comparator;
 import java.util.Arrays;
 
@@ -31,6 +29,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.glue.ThriftGlue;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class ThriftValidation
@@ -211,14 +210,14 @@ public class ThriftValidation
     {
         if (cosc.column != null)
         {
-            ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, null, cosc.column.name));
+            ThriftValidation.validateColumnPath(keyspace, ThriftGlue.createColumnPath(cfName, null, cosc.column.name));
         }
 
         if (cosc.super_column != null)
         {
             for (Column c : cosc.super_column.columns)
             {
-                ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName, cosc.super_column.name, c.name));
+                ThriftValidation.validateColumnPath(keyspace, ThriftGlue.createColumnPath(cfName, cosc.super_column.name, c.name));
             }
         }
 
@@ -273,7 +272,7 @@ public class ThriftValidation
         }
 
         if (predicate.slice_range != null) {
-            validateRange(keyspace, new ColumnParent(cfName, scName), predicate.slice_range);
+            validateRange(keyspace, ThriftGlue.createColumnParent(cfName, scName), predicate.slice_range);
         }
 
         if (predicate.column_names != null) {

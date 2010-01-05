@@ -1410,7 +1410,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Gossiper.instance().addApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + token.toString()));
     }
 
-    public WriteResponseHandler getWriteResponseHandler(int blockFor, int consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level)
     {
         return replicationStrategy_.getWriteResponseHandler(blockFor, consistency_level);
     }

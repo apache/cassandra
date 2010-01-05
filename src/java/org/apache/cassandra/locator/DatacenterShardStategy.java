@@ -183,6 +183,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 {
                     doneDataCenterItr = true;
                 }
+                
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
@@ -227,7 +228,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      * return a DCQRH with a map of all the DC rep facor.
      */
     @Override
-    public WriteResponseHandler getWriteResponseHandler(int blockFor, int consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level)
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {

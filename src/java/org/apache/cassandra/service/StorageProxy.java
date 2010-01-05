@@ -163,7 +163,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
     
-    public static void mutateBlocking(List<RowMutation> mutations, int consistency_level) throws UnavailableException, TimeoutException
+    public static void mutateBlocking(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
         ArrayList<WriteResponseHandler> responseHandlers = new ArrayList<WriteResponseHandler>();
@@ -273,7 +273,7 @@ public class StorageProxy implements StorageProxyMBean
         StageManager.getStage(StageManager.mutationStage_).execute(runnable);
     }
 
-    private static int determineBlockFor(int naturalTargets, int hintedTargets, int consistency_level)
+    private static int determineBlockFor(int naturalTargets, int hintedTargets, ConsistencyLevel consistency_level)
     {
         assert naturalTargets >= 1;
         assert hintedTargets >= naturalTargets;
@@ -346,7 +346,7 @@ public class StorageProxy implements StorageProxyMBean
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
-    public static List<Row> readProtocol(List<ReadCommand> commands, int consistency_level)
+    public static List<Row> readProtocol(List<ReadCommand> commands, ConsistencyLevel consistency_level)
             throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
@@ -380,7 +380,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            assert consistency_level >= ConsistencyLevel.QUORUM;
+            assert consistency_level.getValue() >= ConsistencyLevel.QUORUM.getValue();
             rows = strongRead(commands, consistency_level);
         }
 
@@ -401,7 +401,7 @@ public class StorageProxy implements StorageProxyMBean
          * 7. else carry out read repair by getting data from all the nodes.
         // 5. return success
      */
-    private static List<Row> strongRead(List<ReadCommand> commands, int consistency_level) throws IOException, UnavailableException, TimeoutException
+    private static List<Row> strongRead(List<ReadCommand> commands, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         List<QuorumResponseHandler<Row>> quorumResponseHandlers = new ArrayList<QuorumResponseHandler<Row>>();
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
@@ -515,7 +515,7 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimeoutException
+    static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
         TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
