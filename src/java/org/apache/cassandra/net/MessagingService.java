@@ -57,9 +57,6 @@ public class MessagingService implements IFailureDetectionEventListener
     private static ICachetable<String, IAsyncCallback> callbackMap_;
     private static ICachetable<String, IAsyncResult> taskCompletionMap_;
     
-    /* Manages the table of endpoints it is listening on */
-    private static Set<InetAddress> endPoints_;
-    
     /* List of sockets we are listening on */
     private static Map<InetAddress, SelectionKey> listenSockets_ = new HashMap<InetAddress, SelectionKey>();
 
@@ -124,7 +121,6 @@ public class MessagingService implements IFailureDetectionEventListener
     protected MessagingService()
     {        
         verbHandlers_ = new HashMap<String, IVerbHandler>();
-        endPoints_ = new HashSet<InetAddress>();
         /*
          * Leave callbacks in the cachetable long enough that any related messages will arrive
          * before the callback is evicted from the table. The concurrency level is set at 128
@@ -197,7 +193,6 @@ public class MessagingService implements IFailureDetectionEventListener
         SelectionKeyHandler handler = new TcpConnectionHandler(localEp);
 
         SelectionKey key = SelectorManager.getSelectorManager().register(serverChannel, handler, SelectionKey.OP_ACCEPT);          
-        endPoints_.add(localEp);            
         listenSockets_.put(localEp, key);
         FailureDetector.instance().registerFailureDetectionEventListener(this);
     }
@@ -214,7 +209,6 @@ public class MessagingService implements IFailureDetectionEventListener
         try
         {
             connection.init(localEp);
-            endPoints_.add(localEp);
             udpConnections_.put(localEp, connection);
         }
         catch (IOException e)
