@@ -52,7 +52,7 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, partitioner, 3);
+        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, 3);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         AbstractReplicationStrategy oldStrategy = ss.setReplicationStrategyUnsafe(testStrategy);
@@ -108,7 +108,7 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, partitioner, 3);
+        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, 3);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         AbstractReplicationStrategy oldStrategy = ss.setReplicationStrategyUnsafe(testStrategy);
@@ -290,7 +290,7 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, partitioner, 3);
+        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, 3);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         AbstractReplicationStrategy oldStrategy = ss.setReplicationStrategyUnsafe(testStrategy);
@@ -359,7 +359,7 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, partitioner, 3);
+        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, 3);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         AbstractReplicationStrategy oldStrategy = ss.setReplicationStrategyUnsafe(testStrategy);
@@ -403,7 +403,7 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, partitioner, 3);
+        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, 3);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         AbstractReplicationStrategy oldStrategy = ss.setReplicationStrategyUnsafe(testStrategy);
@@ -453,7 +453,7 @@ public class MoveTest
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
-        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, partitioner, 3);
+        AbstractReplicationStrategy testStrategy = new RackUnawareStrategy(tmd, 3);
 
         IPartitioner oldPartitioner = ss.setPartitionerUnsafe(partitioner);
         AbstractReplicationStrategy oldStrategy = ss.setReplicationStrategyUnsafe(testStrategy);

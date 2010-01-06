@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.IPartitioner;
 import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
 
@@ -37,9 +36,9 @@ import org.apache.cassandra.service.StorageService;
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {
-    public RackAwareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas)
+    public RackAwareStrategy(TokenMetadata tokenMetadata, int replicas)
     {
-        super(tokenMetadata, partitioner, replicas);
+        super(tokenMetadata, replicas);
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)

@@ -29,7 +29,6 @@ import java.util.*;
 import java.util.Map.Entry;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
 
@@ -108,10 +107,10 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         }
     }
 
-    public DatacenterShardStategy(TokenMetadata tokenMetadata, IPartitioner<Token> partitioner, int replicas)
+    public DatacenterShardStategy(TokenMetadata tokenMetadata, int replicas)
     throws UnknownHostException
     {
-        super(tokenMetadata, partitioner, replicas);
+        super(tokenMetadata, replicas);
         if ((!(DatabaseDescriptor.getEndPointSnitch() instanceof DatacenterEndPointSnitch)))
         {
             throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndpointSnitch");

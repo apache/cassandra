@@ -90,7 +90,7 @@ public class RingCache
                 }
 
                 TokenMetadata tokenMetadata = new TokenMetadata(tokenEndpointMap);
-                nodePicker_ = StorageService.getReplicationStrategy(tokenMetadata, partitioner_);
+                nodePicker_ = StorageService.getReplicationStrategy(tokenMetadata);
 
                 break;
             }

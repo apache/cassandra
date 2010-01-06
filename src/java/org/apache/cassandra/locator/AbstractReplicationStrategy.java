@@ -25,13 +25,10 @@ import org.apache.log4j.Logger;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.ConsistencyLevel;
-import org.apache.cassandra.service.IResponseResolver;
-import org.apache.cassandra.service.QuorumResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -45,13 +42,11 @@ public abstract class AbstractReplicationStrategy
     protected static final Logger logger_ = Logger.getLogger(AbstractReplicationStrategy.class);
 
     protected TokenMetadata tokenMetadata_;
-    protected IPartitioner partitioner_;
     protected int replicas_;
 
-    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas)
+    AbstractReplicationStrategy(TokenMetadata tokenMetadata, int replicas)
     {
         tokenMetadata_ = tokenMetadata;
-        partitioner_ = partitioner;
         replicas_ = replicas;
     }
 

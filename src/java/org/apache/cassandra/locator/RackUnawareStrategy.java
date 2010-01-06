@@ -21,10 +21,8 @@ package org.apache.cassandra.locator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.IPartitioner;
 import java.net.InetAddress;
 
 /**
@@ -35,9 +33,9 @@ import java.net.InetAddress;
  */
 public class RackUnawareStrategy extends AbstractReplicationStrategy
 {
-    public RackUnawareStrategy(TokenMetadata tokenMetadata, IPartitioner partitioner, int replicas)
+    public RackUnawareStrategy(TokenMetadata tokenMetadata, int replicas)
     {
-        super(tokenMetadata, partitioner, replicas);
+        super(tokenMetadata, replicas);
     }
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)
