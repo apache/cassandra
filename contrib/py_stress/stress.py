@@ -81,6 +81,8 @@ parser.add_option('-u', '--supercolumns', type="int", dest="supers", default=1,
 parser.add_option('-y', '--family-type', type="choice", dest="cftype",
                   choices=('regular','super'), default='regular',
                   help="column family type")
+parser.add_option('-k', '--keep-going', action="store_true", dest="ignore",
+                  help="ignore errors inserting or reading")
 
 (options, args) = parser.parse_args()
  
@@ -148,7 +150,15 @@ class Inserter(Operation):
                 cfmap= {'Super1': [ColumnOrSuperColumn(super_column=s) for s in supers]}
             else:
                 cfmap = {'Standard1': [ColumnOrSuperColumn(column=c) for c in columns]}
-            self.cclient.batch_insert('Keyspace1', key, cfmap, ConsistencyLevel.ONE)
+            try:
+                self.cclient.batch_insert('Keyspace1', key, cfmap, ConsistencyLevel.ONE)
+            except KeyboardInterrupt:
+                raise
+            except Exception, e:
+                if options.ignore:
+                    print e
+                else:
+                    raise
             self.counts[self.idx]=self.counts[self.idx]+1
 
 class Reader(Operation):
@@ -159,13 +169,31 @@ class Reader(Operation):
                 key = str(key_generator())
                 for j in xrange(supers_per_key):
                     parent = ColumnParent('Super1', chr(ord('A') + j))
-                    self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                    try:
+                        r = self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                        if not r: raise RuntimeError("Key %s not found" % key)
+                    except KeyboardInterrupt:
+                        raise
+                    except Exception, e:
+                        if options.ignore:
+                            print e
+                        else:
+                            raise
                     self.counts[self.idx]=self.counts[self.idx]+1
         else:
             parent = ColumnParent('Standard1')
             for i in xrange(keys_per_thread):
                 key = str(key_generator())
-                self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                try:
+                    r = self.cclient.get_slice('Keyspace1', key, parent, p, ConsistencyLevel.ONE)
+                    if not r: raise RuntimeError("Key %s not found" % key)
+                except KeyboardInterrupt:
+                    raise
+                except Exception, e:
+                    if options.ignore:
+                        print e
+                    else:
+                        raise
                 self.counts[self.idx]=self.counts[self.idx]+1
 
 class OperationFactory:
