@@ -291,6 +291,11 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
             StorageLoadBalancer.instance().waitForLoadInfo();
             logger_.info("... got load info");
+            if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
+            {
+                String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
+                throw new UnsupportedOperationException(s);
+            }
             Token token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance().getLoadInfo());
             startBootstrap(token);
             // don't finish startup (enabling thrift) until after bootstrap is done
@@ -330,11 +335,6 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         catch (InterruptedException e)
         {
             throw new AssertionError(e);
-        }
-        if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
-        {
-            String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
-            throw new UnsupportedOperationException(s);
         }
         new BootStrapper(replicationStrategy_, FBUtilities.getLocalAddress(), token, tokenMetadata_).startBootstrap(); // handles token update
     }
