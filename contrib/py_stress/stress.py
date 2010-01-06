@@ -83,6 +83,8 @@ parser.add_option('-y', '--family-type', type="choice", dest="cftype",
                   help="column family type")
 parser.add_option('-k', '--keep-going', action="store_true", dest="ignore",
                   help="ignore errors inserting or reading")
+parser.add_option('-i', '--progress-interval', type="int", default=10,
+                  dest="interval", help="progress report interval (seconds)")
 
 (options, args) = parser.parse_args()
  
@@ -226,13 +228,12 @@ class Stress(object):
         outf.write('total,interval_op_rate,elapsed_time\n')
         total = old_total = 0
         while True:
-            interval = 10
-            time.sleep(interval)
+            time.sleep(options.interval)
             old_total = total
             total = sum(self.counts[th.idx] for th in threads)
             delta = total - old_total
             elapsed_t = int(time.time()-start_t)
-            outf.write('%d,%d,%d\n' % (total, delta / interval,elapsed_t))
+            outf.write('%d,%d,%d\n' % (total, delta / options.interval,elapsed_t))
             if not [th for th in threads if th.isAlive()]:
                 break
 
