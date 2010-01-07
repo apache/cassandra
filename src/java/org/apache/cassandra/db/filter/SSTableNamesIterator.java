@@ -90,14 +90,13 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
                 ranges.add(indexInfo);
             }
 
-            /* seek to the correct offset to the data */
-            long columnBegin = file.getFilePointer();
-            /* now read all the columns from the ranges */
+            file.mark();
             for (IndexHelper.IndexInfo indexInfo : ranges)
             {
-                file.seek(columnBegin + indexInfo.offset);
+                file.reset();
+                assert file.skipBytes((int)indexInfo.offset) == indexInfo.offset;
                 // TODO only completely deserialize columns we are interested in
-                while (file.getFilePointer() < columnBegin + indexInfo.offset + indexInfo.width)
+                while (file.bytesPastMark() < indexInfo.offset + indexInfo.width)
                 {
                     final IColumn column = cf.getColumnSerializer().deserialize(file);
                     // we check vs the original Set, not the filtered List, for efficiency

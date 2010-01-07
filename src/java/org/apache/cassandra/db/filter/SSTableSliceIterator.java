@@ -113,7 +113,6 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private final ColumnFamily emptyColumnFamily;
 
         private final List<IndexHelper.IndexInfo> indexes;
-        private final long columnStartPosition;
         private final FileDataInput file;
 
         private int curRangeIndex;
@@ -133,7 +132,7 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
             file.readInt(); // column count
 
-            columnStartPosition = file.getFilePointer();
+            file.mark();
             curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
             if (reversed && curRangeIndex == indexes.size())
                 curRangeIndex--;
@@ -186,8 +185,9 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
 
             boolean outOfBounds = false;
 
-            file.seek(columnStartPosition + curColPosition.offset);
-            while (file.getFilePointer() < columnStartPosition + curColPosition.offset + curColPosition.width && !outOfBounds)
+            file.reset();
+            assert file.skipBytes((int)curColPosition.offset) == curColPosition.offset;
+            while (file.bytesPastMark() < curColPosition.offset + curColPosition.width && !outOfBounds)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);
                 if (reversed)

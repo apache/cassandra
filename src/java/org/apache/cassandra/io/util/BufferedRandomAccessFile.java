@@ -56,6 +56,7 @@ public final class BufferedRandomAccessFile extends RandomAccessFile implements 
     private long maxHi_; // this.lo + this.buff.length
     private boolean hitEOF_; // buffer contains last file block?
     private long diskPos_; // disk position
+    private long markedPointer;
 
     /*
     * To describe the above fields, we introduce the following abstractions for
@@ -390,5 +391,29 @@ public final class BufferedRandomAccessFile extends RandomAccessFile implements 
         System.arraycopy(b, off, this.buff_, buffOff, len);
         this.curr_ += len;
         return len;
+    }
+
+    public boolean isEOF() throws IOException
+    {
+        return getFilePointer() == length();
+    }
+
+    public void mark()
+    {
+        markedPointer = getFilePointer();
+    }
+
+    public void reset() throws IOException
+    {
+        seek(markedPointer);
+    }
+
+    public int bytesPastMark()
+    {
+        long bytes = getFilePointer() - markedPointer;
+        assert bytes >= 0;
+        if (bytes > Integer.MAX_VALUE)
+            throw new UnsupportedOperationException("Overflow: " + bytes);
+        return (int) bytes;
     }
 }

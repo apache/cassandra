@@ -72,12 +72,12 @@ public class IndexHelper
         ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
 
 		int columnIndexSize = in.readInt();
-        long start = in.getFilePointer();
-        while (in.getFilePointer() < start + columnIndexSize)
+        in.mark();
+        while (in.bytesPastMark() < columnIndexSize)
         {
             indexList.add(IndexInfo.deserialize(in));
         }
-        assert in.getFilePointer() == start + columnIndexSize;
+        assert in.bytesPastMark() == columnIndexSize;
 
         return indexList;
 	}

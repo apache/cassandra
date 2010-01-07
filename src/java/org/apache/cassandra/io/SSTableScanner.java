@@ -35,10 +35,10 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
 {
     private static Logger logger = Logger.getLogger(SSTableScanner.class);
 
+    private final BufferedRandomAccessFile file;
+    private final SSTableReader sstable;
     private IteratingRow row;
     private boolean exhausted = false;
-    private FileDataInput file;
-    private SSTableReader sstable;
     private Iterator<IteratingRow> iterator;
 
     /**
@@ -116,7 +116,9 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
         {
             try
             {
-                return (row == null && file.getFilePointer() < file.length()) || row.getEndPosition() < file.length();
+                if (row == null)
+                    return !file.isEOF();
+                return row.getEndPosition() < file.length();
             }
             catch (IOException e)
             {
@@ -130,7 +132,7 @@ public class SSTableScanner implements Iterator<IteratingRow>, Closeable
             {
                 if (row != null)
                     row.skipRemaining();
-                assert file.getFilePointer() < file.length();
+                assert !file.isEOF();
                 return row = new IteratingRow(file, sstable);
             }
             catch (IOException e)

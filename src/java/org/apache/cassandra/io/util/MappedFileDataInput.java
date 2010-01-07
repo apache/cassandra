@@ -8,7 +8,7 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     private final MappedByteBuffer buffer;
     private final String filename;
     private int position;
-    private long fileLength;
+    private int markedPosition;
 
     public MappedFileDataInput(MappedByteBuffer buffer, String filename)
     {
@@ -21,25 +21,46 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
         this.buffer = buffer;
         this.filename = filename;
         this.position = position;
-        assert (fileLength = new File(filename).length()) >= 0; // hack to only initialize fL when assertions are enabled
     }
 
-    public void seek(long pos) throws IOException
+    // don't make this public, this is only for seeking WITHIN the current mapped segment
+    private void seekInternal(int pos) throws IOException
     {
-        assert pos <= Integer.MAX_VALUE;
-        assert buffer.capacity() == fileLength; // calling this does not make sense on a mapped chunk of a larger file
-        position = (int) pos;
+        position = pos;
     }
 
-    public long length() throws IOException
+    @Override
+    public boolean markSupported()
     {
-        assert buffer.capacity() == fileLength; // calling this does not make sense on a mapped chunk of a larger file
-        return buffer.capacity();
+        return true;
     }
 
-    public long getFilePointer()
+    @Override
+    public void mark(int ignored)
     {
-        return position;
+        markedPosition = position;
+    }
+
+    @Override
+    public void reset() throws IOException
+    {
+        seekInternal(markedPosition);
+    }
+
+    public void mark()
+    {
+        mark(-1);
+    }
+
+    public int bytesPastMark()
+    {
+        assert position >= markedPosition;
+        return position - markedPosition;
+    }
+
+    public boolean isEOF() throws IOException
+    {
+        return position == buffer.capacity();
     }
 
     public String getPath()
@@ -49,7 +70,7 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
 
     public int read() throws IOException
     {
-        if (position == length())
+        if (isEOF())
             return -1;
         return buffer.get(position++) & 0xFF;
     }
@@ -252,7 +273,7 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
     public final String readLine() throws IOException {
         StringBuilder line = new StringBuilder(80); // Typical line length
         boolean foundTerminator = false;
-        long unreadPosition = 0;
+        int unreadPosition = 0;
         while (true) {
             int nextByte = read();
             switch (nextByte) {
@@ -260,18 +281,18 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
                     return line.length() != 0 ? line.toString() : null;
                 case (byte) '\r':
                     if (foundTerminator) {
-                        seek(unreadPosition);
+                        seekInternal(unreadPosition);
                         return line.toString();
                     }
                     foundTerminator = true;
                     /* Have to be able to peek ahead one byte */
-                    unreadPosition = getFilePointer();
+                    unreadPosition = position;
                     break;
                 case (byte) '\n':
                     return line.toString();
                 default:
                     if (foundTerminator) {
-                        seek(unreadPosition);
+                        seekInternal(unreadPosition);
                         return line.toString();
                     }
                     line.append((char) nextByte);

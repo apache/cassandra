@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.io.util.FileDataInput;
 import com.google.common.collect.AbstractIterator;
@@ -35,18 +36,16 @@ public class IteratingRow extends AbstractIterator<IColumn> implements Comparabl
 {
     private final DecoratedKey key;
     private final long finishedAt;
-    private final FileDataInput file;
+    private final BufferedRandomAccessFile file;
     private SSTableReader sstable;
     private long dataStart;
-    private final IPartitioner partitioner;
 
-    public IteratingRow(FileDataInput file, SSTableReader sstable) throws IOException
+    public IteratingRow(BufferedRandomAccessFile file, SSTableReader sstable) throws IOException
     {
         this.file = file;
         this.sstable = sstable;
-        this.partitioner = StorageService.getPartitioner();
 
-        key = partitioner.convertFromDiskFormat(file.readUTF());
+        key = StorageService.getPartitioner().convertFromDiskFormat(file.readUTF());
         int dataSize = file.readInt();
         dataStart = file.getFilePointer();
         finishedAt = dataStart + dataSize;

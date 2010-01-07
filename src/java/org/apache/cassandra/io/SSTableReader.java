@@ -395,8 +395,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         FileDataInput input;
         if (indexBuffers == null)
         {
-            input = new BufferedRandomAccessFile(indexFilename(), "r");
-            input.seek(p);
+            input = new BufferedRandomAccessFile(path, "r");
+            ((BufferedRandomAccessFile)input).seek(p);
         }
         else
         {
@@ -421,7 +421,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 if (v == 0)
                 {
                     PositionSize info;
-                    if (input.getFilePointer() < input.length())
+                    if (!input.isEOF())
                     {
                         int utflen = input.readUnsignedShort();
                         if (utflen != input.skipBytes(utflen))

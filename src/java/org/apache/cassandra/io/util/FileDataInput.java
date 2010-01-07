@@ -6,11 +6,13 @@ import java.io.Closeable;
 
 public interface FileDataInput extends DataInput, Closeable
 {
-    public void seek(long pos) throws IOException;
-
-    public long length() throws IOException;
-
-    public long getFilePointer();
-
     public String getPath();
+
+    public boolean isEOF() throws IOException;
+
+    public void mark();
+
+    public void reset() throws IOException;
+
+    public int bytesPastMark();
 }
