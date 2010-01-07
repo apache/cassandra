@@ -44,11 +44,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     private boolean isFrozen_;
     private volatile boolean isFlushed_; // for tests, in particular forceBlockingFlush asserts this
 
-    private final int threshold_ = DatabaseDescriptor.getMemtableSize()*1024*1024; // not static since we might want to change at runtime
-    private final int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableObjectCount()*1024*1024);
+    private final int threshold_ = DatabaseDescriptor.getMemtableThroughput()*1024*1024; // not static since we might want to change at runtime
+    private final int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableOperations()*1024*1024);
 
-    private final AtomicInteger currentSize_ = new AtomicInteger(0);
-    private final AtomicInteger currentObjectCount_ = new AtomicInteger(0);
+    private final AtomicInteger currentThroughput_ = new AtomicInteger(0);
+    private final AtomicInteger currentOperations = new AtomicInteger(0);
 
     private final String table_;
     private final String cfName_;
@@ -92,29 +92,19 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     		return 0;
     }
 
-    public int getCurrentSize()
+    public int getCurrentThroughput()
     {
-        return currentSize_.get();
+        return currentThroughput_.get();
     }
     
-    public int getCurrentObjectCount()
+    public int getCurrentOperations()
     {
-        return currentObjectCount_.get();
-    }
-
-    void resolveSize(int oldSize, int newSize)
-    {
-        currentSize_.addAndGet(newSize - oldSize);
-    }
-
-    void resolveCount(int oldCount, int newCount)
-    {
-        currentObjectCount_.addAndGet(newCount - oldCount);
+        return currentOperations.get();
     }
 
     boolean isThresholdViolated()
     {
-        return currentSize_.get() >= threshold_ || currentObjectCount_.get() >= thresholdCount_;
+        return currentThroughput_.get() >= threshold_ || currentOperations.get() >= thresholdCount_;
     }
 
     String getColumnFamily()
@@ -143,29 +133,19 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         resolve(key, columnFamily);
     }
 
-    private void resolve(String key, ColumnFamily columnFamily)
+    private void resolve(String key, ColumnFamily cf)
     {
         DecoratedKey decoratedKey = partitioner_.decorateKey(key);
-        ColumnFamily oldCf = columnFamilies_.putIfAbsent(decoratedKey, columnFamily);
+        currentThroughput_.addAndGet(cf.size());
+        currentOperations.addAndGet(cf.getColumnCount());
+        ColumnFamily oldCf = columnFamilies_.putIfAbsent(decoratedKey, cf);
         if (oldCf == null)
-        {
-            currentSize_.addAndGet(columnFamily.size() + key.length());
-            currentObjectCount_.addAndGet(columnFamily.getColumnCount());
             return;
-        }
 
-        int oldSize, newSize;
-        int oldObjectCount, newObjectCount;
         synchronized (keyLocks[Math.abs(key.hashCode() % keyLocks.length)])
         {
-            oldSize = oldCf.size();
-            oldObjectCount = oldCf.getColumnCount();
-            oldCf.resolve(columnFamily);
-            newSize = oldCf.size();
-            newObjectCount = oldCf.getColumnCount();
+            oldCf.resolve(cf);
         }
-        resolveSize(oldSize, newSize);
-        resolveCount(oldObjectCount, newObjectCount);
     }
 
     // for debugging

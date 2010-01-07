@@ -692,12 +692,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int getMemtableColumnsCount()
     {
-        return getMemtableThreadSafe().getCurrentObjectCount();
+        return getMemtableThreadSafe().getCurrentOperations();
     }
 
     public int getMemtableDataSize()
     {
-        return getMemtableThreadSafe().getCurrentSize();
+        return getMemtableThreadSafe().getCurrentThroughput();
     }
 
     public int getMemtableSwitchCount()

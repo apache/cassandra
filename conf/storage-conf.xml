@@ -267,19 +267,24 @@
   <ColumnIndexSizeInKB>64</ColumnIndexSizeInKB>
 
   <!--
-   ~ The maximum amount of data to store in memory per ColumnFamily before
-   ~ flushing to disk.  Note: There is one memtable per column family, and 
+   ~ Flush memtable after this much data has been inserted, including
+   ~ overwritten data.  There is one memtable per column family, and 
    ~ this threshold is based solely on the amount of data stored, not
    ~ actual heap memory usage (there is some overhead in indexing the
    ~ columns).
   -->
-  <MemtableSizeInMB>64</MemtableSizeInMB>
+  <MemtableThroughputInMB>64</MemtableThroughputInMB>
+  <!--
+   ~ Throughput setting for Binary Memtables.  Typically these are
+   ~ used for bulk load so you want them to be larger.
+  -->
+  <BinaryMemtableThroughputInMB>256</BinaryMemtableThroughputInMB>
   <!--
    ~ The maximum number of columns in millions to store in memory per
    ~ ColumnFamily before flushing to disk.  This is also a per-memtable
-   ~ setting.  Use with MemtableSizeInMB to tune memory usage.
+   ~ setting.  Use with MemtableThroughputInMB to tune memory usage.
   -->
-  <MemtableObjectCountInMillions>0.1</MemtableObjectCountInMillions>
+  <MemtableOperationsInMillions>0.1</MemtableOperationsInMillions>
   <!--
    ~ The maximum time to leave a dirty memtable unflushed.
    ~ (While any affected columnfamilies have unflushed data from a
@@ -338,11 +343,4 @@
    ~ ten days.
   -->
   <GCGraceSeconds>864000</GCGraceSeconds>
-
-  <!--
-   ~ The threshold size in megabytes the binary memtable must grow to,
-   ~ before it's submitted for flushing to disk.
-  -->
-  <BinaryMemtableSizeInMB>256</BinaryMemtableSizeInMB>
-
 </Storage>

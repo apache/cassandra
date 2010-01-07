@@ -80,7 +80,6 @@ public final class ColumnFamily implements IColumnContainer
     private transient ICompactSerializer2<IColumn> columnSerializer_;
     long markedForDeleteAt = Long.MIN_VALUE;
     int localDeletionTime = Integer.MIN_VALUE;
-    private AtomicInteger size_ = new AtomicInteger(0);
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
 
     public ColumnFamily(String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator)
@@ -182,7 +181,6 @@ public final class ColumnFamily implements IColumnContainer
     public void clear()
     {
     	columns_.clear();
-    	size_.set(0);
     }
 
     /*
@@ -199,20 +197,17 @@ public final class ColumnFamily implements IColumnContainer
             {
                 int oldSize = oldColumn.size();
                 ((SuperColumn) oldColumn).putColumn(column);
-                size_.addAndGet(oldColumn.size() - oldSize);
             }
             else
             {
                 if (((Column)oldColumn).comparePriority((Column)column) <= 0)
                 {
                     columns_.put(name, column);
-                    size_.addAndGet(column.size());
                 }
             }
         }
         else
         {
-            size_.addAndGet(column.size());
             columns_.put(name, column);
         }
     }
@@ -307,14 +302,12 @@ public final class ColumnFamily implements IColumnContainer
 
     int size()
     {
-        if (size_.get() == 0)
+        int size = 0;
+        for (IColumn column : columns_.values())
         {
-            for (IColumn column : columns_.values())
-            {
-                size_.addAndGet(column.size());
-            }
+            size += column.size();
         }
-        return size_.get();
+        return size;
     }
 
     public int hashCode()

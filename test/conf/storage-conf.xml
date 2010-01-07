@@ -40,8 +40,8 @@
    <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
    <DiskAccessMode>mmap</DiskAccessMode>
    <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
-   <MemtableSizeInMB>1</MemtableSizeInMB>
-   <MemtableObjectCountInMillions>0.00002</MemtableObjectCountInMillions> <!-- 20 -->
+   <MemtableThroughputInMB>1</MemtableThroughputInMB>
+   <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
    <Keyspaces>
      <Keyspace Name = "Keyspace1">
        <ColumnFamily Name="Standard1"/>

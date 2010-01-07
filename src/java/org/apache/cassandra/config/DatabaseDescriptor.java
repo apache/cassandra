@@ -103,9 +103,9 @@ public class DatabaseDescriptor
     /* Number of minutes to keep a memtable in memory */
     private static int memtableLifetimeMs_ = 60 * 60 * 1000;
     /* Size of the memtable in memory before it is dumped */
-    private static int memtableSize_ = 128;
+    private static int memtableThroughput_ = 128;
     /* Number of objects in millions in the memtable before it is dumped */
-    private static double memtableObjectCount_ = 1;
+    private static double memtableOperations_ = 1;
     /* 
      * This parameter enables or disables consistency checks. 
      * If set to false the read repairs are disable for very
@@ -301,7 +301,7 @@ public class DatabaseDescriptor
                 slicedReadBufferSizeInKB_ = Integer.parseInt(rawSlicedBuffer);
             }
 
-            String bmtThreshold = xmlUtils.getNodeValue("/Storage/BinaryMemtableSizeInMB");
+            String bmtThreshold = xmlUtils.getNodeValue("/Storage/BinaryMemtableThroughputInMB");
             if (bmtThreshold != null)
             {
                 bmtThreshold_ = Integer.parseInt(bmtThreshold);
@@ -395,14 +395,14 @@ public class DatabaseDescriptor
                 memtableLifetimeMs_ = Integer.parseInt(lifetime) * 60 * 1000;
 
             /* Size of the memtable in memory in MB before it is dumped */
-            String memtableSize = xmlUtils.getNodeValue("/Storage/MemtableSizeInMB");
+            String memtableSize = xmlUtils.getNodeValue("/Storage/MemtableThroughputInMB");
             if ( memtableSize != null )
-                memtableSize_ = Integer.parseInt(memtableSize);
+                memtableThroughput_ = Integer.parseInt(memtableSize);
             /* Number of objects in millions in the memtable before it is dumped */
-            String memtableObjectCount = xmlUtils.getNodeValue("/Storage/MemtableObjectCountInMillions");
+            String memtableObjectCount = xmlUtils.getNodeValue("/Storage/MemtableOperationsInMillions");
             if ( memtableObjectCount != null )
-                memtableObjectCount_ = Double.parseDouble(memtableObjectCount);
-            if (memtableObjectCount_ <= 0)
+                memtableOperations_ = Double.parseDouble(memtableObjectCount);
+            if (memtableOperations_ <= 0)
             {
                 throw new ConfigurationException("Memtable object count must be a positive double");
             }
@@ -728,14 +728,14 @@ public class DatabaseDescriptor
       return initialToken_;
     }
 
-    public static int getMemtableSize()
+    public static int getMemtableThroughput()
     {
-      return memtableSize_;
+      return memtableThroughput_;
     }
 
-    public static double getMemtableObjectCount()
+    public static double getMemtableOperations()
     {
-      return memtableObjectCount_;
+      return memtableOperations_;
     }
 
     public static boolean getConsistencyCheck()
