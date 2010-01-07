@@ -137,15 +137,6 @@ public final class SuperColumn implements IColumn, IColumnContainer
     	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
-    public long timestamp(byte[] columnName)
-    {
-    	IColumn column = columns_.get(columnName);
-    	assert column instanceof Column;
-        if ( column != null )
-            return column.timestamp();
-        throw new IllegalArgumentException("Timestamp was requested for a column that does not exist.");
-    }
-
     public long mostRecentLiveChangeAt()
     {
         long max = Long.MIN_VALUE;
@@ -164,18 +155,9 @@ public final class SuperColumn implements IColumn, IColumnContainer
     	throw new UnsupportedOperationException("This operation is not supported for Super Columns.");
     }
 
-    public byte[] value(byte[] columnName)
-    {
-    	IColumn column = columns_.get(columnName);
-    	if ( column != null )
-    		return column.value();
-    	throw new IllegalArgumentException("Value was requested for a column that does not exist.");
-    }
-
     public void addColumn(IColumn column)
     {
-    	if (!(column instanceof Column))
-    		throw new UnsupportedOperationException("A super column can only contain simple columns.");
+    	assert column instanceof Column : "A super column can only contain simple columns";
         byte[] name = column.name();
         IColumn oldColumn = columns_.putIfAbsent(name, column);
     	if (oldColumn != null)

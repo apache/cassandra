@@ -42,12 +42,10 @@ public final class ColumnFamily implements IColumnContainer
 {
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();
-    public static final short utfPrefix_ = 2;   
 
     private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
     private static Map<String, String> columnTypes_ = new HashMap<String, String>();
     String type_;
-    private String table_;
 
     static
     {

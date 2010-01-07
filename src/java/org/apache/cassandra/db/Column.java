@@ -93,11 +93,6 @@ public final class Column implements IColumn
         return value;
     }
 
-    public byte[] value(byte[] key)
-    {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
-    }
-
     public Collection<IColumn> getSubColumns()
     {
         throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
@@ -111,11 +106,6 @@ public final class Column implements IColumn
     public long timestamp()
     {
         return timestamp;
-    }
-
-    public long timestamp(byte[] key)
-    {
-        throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
     }
 
     public boolean isMarkedForDelete()

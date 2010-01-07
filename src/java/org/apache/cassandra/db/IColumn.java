@@ -35,9 +35,7 @@ public interface IColumn
     public int size();
     public int serializedSize();
     public long timestamp();
-    public long timestamp(byte[] columnName);
     public byte[] value();
-    public byte[] value(byte[] columnName);
     public Collection<IColumn> getSubColumns();
     public IColumn getSubColumn(byte[] columnName);
     public void addColumn(IColumn column);
