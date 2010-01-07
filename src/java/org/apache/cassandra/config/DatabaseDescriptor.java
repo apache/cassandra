@@ -53,6 +53,7 @@ public class DatabaseDescriptor
     public static enum DiskAccessMode {
         auto,
         mmap,
+        mmap_index_only,
         standard,
     }
 
@@ -128,6 +129,7 @@ public class DatabaseDescriptor
     private static int commitLogSyncPeriodMS_;
 
     private static DiskAccessMode diskAccessMode_;
+    private static DiskAccessMode indexAccessMode_;
 
     private static boolean snapshotBeforeCompaction_;
     private static boolean autoBootstrap_ = false;
@@ -198,12 +200,22 @@ public class DatabaseDescriptor
             }
             catch (IllegalArgumentException e)
             {
-                throw new ConfigurationException("DiskAccessMode must be either 'auto', or 'mmap', or 'standard'");
+                throw new ConfigurationException("DiskAccessMode must be either 'auto', 'mmap', 'mmap_index_only', or 'standard'");
             }
             if (diskAccessMode_ == DiskAccessMode.auto)
             {
                 diskAccessMode_ = System.getProperty("os.arch").contains("64") ? DiskAccessMode.mmap : DiskAccessMode.standard;
+                indexAccessMode_ = diskAccessMode_;
                 logger_.info("Auto DiskAccessMode determined to be " + diskAccessMode_);
+            }
+            else if (diskAccessMode_ == DiskAccessMode.mmap_index_only)
+            {
+                diskAccessMode_ = DiskAccessMode.standard;
+                indexAccessMode_ = DiskAccessMode.mmap;
+            }
+            else
+            {
+                indexAccessMode_ = diskAccessMode_;
             }
 
             /* Hashing strategy */
@@ -981,6 +993,11 @@ public class DatabaseDescriptor
     public static DiskAccessMode getDiskAccessMode()
     {
         return diskAccessMode_;
+    }
+
+    public static DiskAccessMode getIndexAccessMode()
+    {
+        return indexAccessMode_;
     }
 
     public static double getFlushDataBufferSizeInMB()

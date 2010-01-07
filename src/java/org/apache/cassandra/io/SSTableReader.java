@@ -90,7 +90,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         };
         new Thread(runnable, "SSTABLE-DELETER").start();
     }};
-    private static final int BUFFER_SIZE = Integer.MAX_VALUE;
+    private static final long BUFFER_SIZE = Integer.MAX_VALUE;
 
     public static int indexInterval()
     {
@@ -185,8 +185,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     }
 
     FileDeletingReference phantomReference;
-    private final MappedByteBuffer indexBuffer;
-    private final MappedByteBuffer[] buffers; // jvm can only map up to 2GB at a time
+    // jvm can only map up to 2GB at a time, so we split index/data into segments of that size when using mmap i/o
+    private final MappedByteBuffer[] indexBuffers;
+    private final MappedByteBuffer[] buffers;
 
 
     public static ConcurrentLinkedHashMap<DecoratedKey, PositionSize> createKeyCache(int size)
@@ -204,7 +205,25 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             throws IOException
     {
         super(filename, partitioner);
-        indexBuffer = mmap(indexFilename());
+
+        if (DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
+        {
+            long indexLength = new File(indexFilename()).length();
+            int bufferCount = 1 + (int) (indexLength / BUFFER_SIZE);
+            indexBuffers = new MappedByteBuffer[bufferCount];
+            long remaining = indexLength;
+            for (int i = 0; i < bufferCount; i++)
+            {
+                indexBuffers[i] = mmap(indexFilename(), i * BUFFER_SIZE, (int) Math.min(remaining, BUFFER_SIZE));
+                remaining -= BUFFER_SIZE;
+            }
+        }
+        else
+        {
+            assert DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.standard;
+            indexBuffers = null;
+        }
+
         if (DatabaseDescriptor.getDiskAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
         {
             int bufferCount = 1 + (int) (new File(path).length() / BUFFER_SIZE);
@@ -231,7 +250,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.keyCache = keyCache;
     }
 
-    private static MappedByteBuffer mmap(String filename, int start, int size) throws IOException
+    private static MappedByteBuffer mmap(String filename, long start, int size) throws IOException
     {
         RandomAccessFile raf;
         try
@@ -243,12 +262,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             throw new IOError(e);
         }
 
-        if (size < 0)
-        {
-            if (raf.length() > Integer.MAX_VALUE)
-                throw new UnsupportedOperationException("File " + filename + " is too large to map in its entirety");
-            size = (int) raf.length();
-        }
         try
         {
             return raf.getChannel().map(FileChannel.MapMode.READ_ONLY, start, size);
@@ -257,11 +270,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         {
             raf.close();
         }
-    }
-
-    private static MappedByteBuffer mmap(String filename) throws IOException
-    {
-        return mmap(filename, 0, -1);
     }
 
     private SSTableReader(String filename, IPartitioner partitioner) throws IOException
@@ -383,42 +391,59 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 return info;
         }
 
-        FileDataInput input = new MappedFileDataInput(indexBuffer, indexFilename());
-        input.seek(sampledPosition.position);
-        int i = 0;
-        do
+        long p = sampledPosition.position;
+        FileDataInput input;
+        if (indexBuffers == null)
         {
-            DecoratedKey indexDecoratedKey;
-            try
+            input = new BufferedRandomAccessFile(indexFilename(), "r");
+            input.seek(p);
+        }
+        else
+        {
+            input = new MappedFileDataInput(indexBuffers[bufferIndex(p)], indexFilename(), (int)(p % BUFFER_SIZE));
+        }
+        try
+        {
+            int i = 0;
+            do
             {
-                indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
-            }
-            catch (EOFException e)
-            {
-                return null;
-            }
-            long position = input.readLong();
-            int v = indexDecoratedKey.compareTo(decoratedKey);
-            if (v == 0)
-            {
-                PositionSize info;
-                if (input.getFilePointer() < input.length())
+                DecoratedKey indexDecoratedKey;
+                try
                 {
-                    int utflen = input.readUnsignedShort();
-                    input.skipBytes(utflen);
-                    info = new PositionSize(position, input.readLong() - position);
+                    indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
                 }
-                else
+                catch (EOFException e)
                 {
-                    info = new PositionSize(position, length() - position);
+                    return null;
                 }
-                if (keyCache != null)
-                    keyCache.put(decoratedKey, info);
-                return info;
-            }
-            if (v > 0)
-                return null;
-        } while  (++i < INDEX_INTERVAL);
+                long position = input.readLong();
+                int v = indexDecoratedKey.compareTo(decoratedKey);
+                if (v == 0)
+                {
+                    PositionSize info;
+                    if (input.getFilePointer() < input.length())
+                    {
+                        int utflen = input.readUnsignedShort();
+                        if (utflen != input.skipBytes(utflen))
+                            throw new EOFException();
+                        info = new PositionSize(position, input.readLong() - position);
+                    }
+                    else
+                    {
+                        info = new PositionSize(position, length() - position);
+                    }
+                    if (keyCache != null)
+                        keyCache.put(decoratedKey, info);
+                    return info;
+                }
+                if (v > 0)
+                    return null;
+            } while  (++i < INDEX_INTERVAL);
+        }
+        finally
+        {
+            input.close();
+        }
         return null;
     }
 
@@ -431,25 +456,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             return 0;
         }
 
-        // by default, we plan to start scanning at the nearest bsearched index entry
-        long start = sampledPosition.position;
-        if (spannedIndexDataPositions != null)
-        {
-            // check if the index entry spans a mmap segment boundary
-            PositionSize info = spannedIndexDataPositions.get(sampledPosition);
-            if (info != null)
-            {
-                // if the key matches the index entry we don't have to scan the index after all
-                if (sampledPosition.key.compareTo(decoratedKey) == 0)
-                    return info.position;
-                // otherwise, start scanning at the next entry (which won't span a boundary;
-                // if it did it would have been in the index sample and we would have started with that instead)
-                start = info.position + sampledPosition.key.serializedSize() + (Long.SIZE / 8);
-            }
-        }
-
+        // can't use a MappedFileDataInput here, since we might cross a segment boundary while scanning
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(path), "r");
-        input.seek(start);
+        input.seek(sampledPosition.position);
         try
         {
             while (true)

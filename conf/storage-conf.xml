@@ -229,9 +229,11 @@
    ~ Access mode.  mmapped i/o is substantially faster, but only practical on
    ~ a 64bit machine (which notably does not include EC2 "small" instances)
    ~ or relatively small datasets.  "auto", the safe choice, will enable
-   ~ mmapping on a 64bit JVM.  Other values are "mmap" and "standard" if you
-   ~ need to force those modes.  (The buffer size settings that follow only
-   ~ apply to standard, non-mmapped i/o.)
+   ~ mmapping on a 64bit JVM.  Other values are "mmap", "mmap_index_only"
+   ~ (which may allow you to get part of the benefits of mmap on a 32bit
+   ~ machine by mmapping only index files) and "standard".
+   ~ (The buffer size settings that follow only apply to standard,
+   ~ non-mmapped i/o.)
    -->
   <DiskAccessMode>auto</DiskAccessMode>
 
