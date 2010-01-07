@@ -23,6 +23,7 @@ package org.apache.cassandra.io;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import org.apache.log4j.Logger;
 
@@ -70,26 +71,38 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long position) throws IOException
+    private void afterAppend(DecoratedKey decoratedKey, long dataPosition, int dataSize) throws IOException
     {
         String diskKey = partitioner.convertToDiskFormat(decoratedKey);
         bf.add(diskKey);
         lastWrittenKey = decoratedKey;
         long indexPosition = indexFile.getFilePointer();
         indexFile.writeUTF(diskKey);
-        indexFile.writeLong(position);
+        indexFile.writeLong(dataPosition);
         if (logger.isTraceEnabled())
-            logger.trace("wrote " + decoratedKey + " at " + position);
-
-        if (keysWritten++ % INDEX_INTERVAL != 0)
-            return;
-        if (indexPositions == null)
-        {
-            indexPositions = new ArrayList<KeyPosition>();
-        }
-        indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
+            logger.trace("wrote " + decoratedKey + " at " + dataPosition);
         if (logger.isTraceEnabled())
             logger.trace("wrote index of " + decoratedKey + " at " + indexPosition);
+
+        boolean spannedEntry = SSTableReader.bufferIndex(indexPosition) != SSTableReader.bufferIndex(indexFile.getFilePointer());
+        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedEntry)
+        {
+            if (indexPositions == null)
+            {
+                indexPositions = new ArrayList<KeyPosition>();
+            }
+            KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
+            indexPositions.add(info);
+
+            if (spannedEntry)
+            {
+                if (spannedIndexDataPositions == null)
+                {
+                    spannedIndexDataPositions = new HashMap<KeyPosition, PositionSize>();
+                }
+                spannedIndexDataPositions.put(info, new PositionSize(dataPosition, dataSize));
+            }
+        }
     }
 
     // TODO make this take a DataOutputStream and wrap the byte[] version to combine them
@@ -101,7 +114,7 @@ public class SSTableWriter extends SSTable
         assert length > 0;
         dataFile.writeInt(length);
         dataFile.write(buffer.getData(), 0, length);
-        afterAppend(decoratedKey, currentPosition);
+        afterAppend(decoratedKey, currentPosition, length);
     }
 
     public void append(DecoratedKey decoratedKey, byte[] value) throws IOException
@@ -111,7 +124,7 @@ public class SSTableWriter extends SSTable
         assert value.length > 0;
         dataFile.writeInt(value.length);
         dataFile.write(value);
-        afterAppend(decoratedKey, currentPosition);
+        afterAppend(decoratedKey, currentPosition, value.length);
     }
 
     /**
@@ -141,7 +154,7 @@ public class SSTableWriter extends SSTable
         ConcurrentLinkedHashMap<DecoratedKey, SSTableReader.PositionSize> keyCache = cacheFraction > 0
                                                         ? SSTableReader.createKeyCache((int) (cacheFraction * keysWritten))
                                                         : null;
-        return new SSTableReader(path, partitioner, indexPositions, bf, keyCache);
+        return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);
     }
 
     static String rename(String tmpFilename)

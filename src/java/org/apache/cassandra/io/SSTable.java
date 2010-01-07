@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Arrays;
+import java.util.Map;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
@@ -56,6 +57,7 @@ public abstract class SSTable
     protected IPartitioner partitioner;
     protected BloomFilter bf;
     protected List<KeyPosition> indexPositions;
+    protected Map<KeyPosition, PositionSize> spannedIndexDataPositions; // map of index position, to data position, for index entries spanning mmap segments
     protected String columnFamilyName;
 
     /* Every 128th index entry is loaded into memory so we know where to start looking for the actual key w/o seeking */

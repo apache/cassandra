@@ -90,7 +90,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         };
         new Thread(runnable, "SSTABLE-DELETER").start();
     }};
-    private final int BUFFER_SIZE = Integer.MAX_VALUE;
+    private static final int BUFFER_SIZE = Integer.MAX_VALUE;
 
     public static int indexInterval()
     {
@@ -196,7 +196,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private ConcurrentLinkedHashMap<DecoratedKey, PositionSize> keyCache;
 
-    SSTableReader(String filename, IPartitioner partitioner, List<KeyPosition> indexPositions, BloomFilter bloomFilter, ConcurrentLinkedHashMap<DecoratedKey, PositionSize> keyCache)
+    SSTableReader(String filename,
+                  IPartitioner partitioner,
+                  List<KeyPosition> indexPositions, Map<KeyPosition, PositionSize> spannedIndexDataPositions,
+                  BloomFilter bloomFilter,
+                  ConcurrentLinkedHashMap<DecoratedKey, PositionSize> keyCache)
             throws IOException
     {
         super(filename, partitioner);
@@ -219,6 +223,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         this.indexPositions = indexPositions;
+        this.spannedIndexDataPositions = spannedIndexDataPositions;
         this.bf = bloomFilter;
         phantomReference = new FileDeletingReference(this, finalizerQueue);
         finalizers.add(phantomReference);
@@ -261,7 +266,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private SSTableReader(String filename, IPartitioner partitioner) throws IOException
     {
-        this(filename, partitioner, null, null, null);
+        this(filename, partitioner, null, null, null, null);
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -285,28 +290,54 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     void loadIndexFile() throws IOException
     {
         indexPositions = new ArrayList<KeyPosition>();
-
-        FileDataInput input = new MappedFileDataInput(indexBuffer, indexFilename());
-        int i = 0;
-        long indexSize = input.length();
-        while (true)
+        // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
+        // any entries that do, we force into the in-memory sample so key lookup can always bsearch within
+        // a single mmapped segment.
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
+        try
         {
-            long indexPosition = input.getFilePointer();
-            if (indexPosition == indexSize)
+            int i = 0;
+            long indexSize = input.length();
+            while (true)
             {
-                break;
+                long indexPosition = input.getFilePointer();
+                if (indexPosition == indexSize)
+                {
+                    break;
+                }
+                DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+                long dataPosition = input.readLong();
+                long nextIndexPosition = input.getFilePointer();
+                boolean spannedEntry = bufferIndex(indexPosition) != bufferIndex(nextIndexPosition);
+                if (i++ % INDEX_INTERVAL == 0 || spannedEntry)
+                {
+                    KeyPosition info;
+                    info = new KeyPosition(decoratedKey, indexPosition);
+                    indexPositions.add(info);
+
+                    if (spannedEntry)
+                    {
+                        if (spannedIndexDataPositions == null)
+                        {
+                            spannedIndexDataPositions = new HashMap<KeyPosition, PositionSize>();
+                        }
+                        // read the next index entry to see how big the row is corresponding to the current, mmap-segment-spanning one
+                        input.readUTF();
+                        long nextDataPosition = input.readLong();
+                        input.seek(nextIndexPosition);
+                        spannedIndexDataPositions.put(info, new PositionSize(dataPosition, nextDataPosition - dataPosition));
+                    }
+                }
             }
-            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
-            input.readLong();
-            if (i++ % INDEX_INTERVAL == 0)
-            {
-                indexPositions.add(new KeyPosition(decoratedKey, indexPosition));
-            }
+        }
+        finally
+        {
+            input.close();
         }
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
-    private long getIndexScanPosition(DecoratedKey decoratedKey)
+    private KeyPosition getIndexScanPosition(DecoratedKey decoratedKey)
     {
         assert indexPositions != null && indexPositions.size() > 0;
         int index = Collections.binarySearch(indexPositions, new KeyPosition(decoratedKey, -1));
@@ -316,12 +347,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             // i.e., its insertion position
             int greaterThan = (index + 1) * -1;
             if (greaterThan == 0)
-                return -1;
-            return indexPositions.get(greaterThan - 1).position;
+                return null;
+            return indexPositions.get(greaterThan - 1);
         }
         else
         {
-            return indexPositions.get(index).position;
+            return indexPositions.get(index);
         }
     }
 
@@ -340,14 +371,20 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 return cachedPosition;
             }
         }
-        long start = getIndexScanPosition(decoratedKey);
-        if (start < 0)
+        KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
+        if (sampledPosition == null)
         {
             return null;
         }
+        if (spannedIndexDataPositions != null)
+        {
+            PositionSize info = spannedIndexDataPositions.get(sampledPosition);
+            if (info != null)
+                return info;
+        }
 
         FileDataInput input = new MappedFileDataInput(indexBuffer, indexFilename());
-        input.seek(start);
+        input.seek(sampledPosition.position);
         int i = 0;
         do
         {
@@ -388,11 +425,29 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     /** like getPosition, but if key is not found will return the location of the first key _greater_ than the desired one, or -1 if no such key exists. */
     public long getNearestPosition(DecoratedKey decoratedKey) throws IOException
     {
-        long start = getIndexScanPosition(decoratedKey);
-        if (start < 0)
+        KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
+        if (sampledPosition == null)
         {
             return 0;
         }
+
+        // by default, we plan to start scanning at the nearest bsearched index entry
+        long start = sampledPosition.position;
+        if (spannedIndexDataPositions != null)
+        {
+            // check if the index entry spans a mmap segment boundary
+            PositionSize info = spannedIndexDataPositions.get(sampledPosition);
+            if (info != null)
+            {
+                // if the key matches the index entry we don't have to scan the index after all
+                if (sampledPosition.key.compareTo(decoratedKey) == 0)
+                    return info.position;
+                // otherwise, start scanning at the next entry (which won't span a boundary;
+                // if it did it would have been in the index sample and we would have started with that instead)
+                start = info.position + sampledPosition.key.serializedSize() + (Long.SIZE / 8);
+            }
+        }
+
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(path), "r");
         input.seek(start);
         try
@@ -483,7 +538,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return new MappedFileDataInput(buffers[bufferIndex(info.position)], path, (int) (info.position % BUFFER_SIZE));
     }
 
-    private int bufferIndex(long position)
+    static int bufferIndex(long position)
     {
         return (int) (position / BUFFER_SIZE);
     }

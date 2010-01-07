@@ -25,6 +25,7 @@ import java.util.Comparator;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -96,6 +97,21 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     public boolean isEmpty()
     {
         return key != null && key.isEmpty();
+    }
+
+    /** not efficient.  call rarely. */
+    public int serializedSize()
+    {
+        DataOutputBuffer dos = new DataOutputBuffer();
+        try
+        {
+            serializer.serialize(this, dos);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return dos.getLength();
     }
 
     @Override
