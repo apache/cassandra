@@ -395,7 +395,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         FileDataInput input;
         if (indexBuffers == null)
         {
-            input = new BufferedRandomAccessFile(path, "r");
+            input = new BufferedRandomAccessFile(indexFilename(), "r");
             ((BufferedRandomAccessFile)input).seek(p);
         }
         else
