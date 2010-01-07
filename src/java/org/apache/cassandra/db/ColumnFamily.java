@@ -20,14 +20,14 @@ package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.log4j.Logger;
 
@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public final class ColumnFamily implements IColumnContainer
@@ -78,8 +79,8 @@ public final class ColumnFamily implements IColumnContainer
     private String name_;
 
     private transient ICompactSerializer2<IColumn> columnSerializer_;
-    long markedForDeleteAt = Long.MIN_VALUE;
-    int localDeletionTime = Integer.MIN_VALUE;
+    AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
+    AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
     private ConcurrentSkipListMap<byte[], IColumn> columns_;
 
     public ColumnFamily(String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator)
@@ -190,25 +191,22 @@ public final class ColumnFamily implements IColumnContainer
     public void addColumn(IColumn column)
     {
         byte[] name = column.name();
-        IColumn oldColumn = columns_.get(name);
+        IColumn oldColumn = columns_.putIfAbsent(name, column);
         if (oldColumn != null)
         {
             if (oldColumn instanceof SuperColumn)
             {
-                int oldSize = oldColumn.size();
                 ((SuperColumn) oldColumn).putColumn(column);
             }
             else
             {
-                if (((Column)oldColumn).comparePriority((Column)column) <= 0)
+                while (((Column) oldColumn).comparePriority((Column)column) <= 0)
                 {
-                    columns_.put(name, column);
+                    if (columns_.replace(name, oldColumn, column))
+                        break;
+                    oldColumn = columns_.get(name);
                 }
             }
-        }
-        else
-        {
-            columns_.put(name, column);
         }
     }
 
@@ -237,21 +235,22 @@ public final class ColumnFamily implements IColumnContainer
     	columns_.remove(columnName);
     }
 
+    @Deprecated // TODO this is a hack to set initial value outside constructor
     public void delete(int localtime, long timestamp)
     {
-        localDeletionTime = localtime;
-        markedForDeleteAt = timestamp;
+        localDeletionTime.set(localtime);
+        markedForDeleteAt.set(timestamp);
     }
 
     public void delete(ColumnFamily cf2)
     {
-        delete(Math.max(getLocalDeletionTime(), cf2.getLocalDeletionTime()),
-               Math.max(getMarkedForDeleteAt(), cf2.getMarkedForDeleteAt()));
+        FBUtilities.atomicSetMax(localDeletionTime, cf2.getLocalDeletionTime());
+        FBUtilities.atomicSetMax(markedForDeleteAt, cf2.getMarkedForDeleteAt());
     }
 
     public boolean isMarkedForDelete()
     {
-        return markedForDeleteAt > Long.MIN_VALUE;
+        return markedForDeleteAt.get() > Long.MIN_VALUE;
     }
 
     /*
@@ -367,12 +366,12 @@ public final class ColumnFamily implements IColumnContainer
 
     public long getMarkedForDeleteAt()
     {
-        return markedForDeleteAt;
+        return markedForDeleteAt.get();
     }
 
     public int getLocalDeletionTime()
     {
-        return localDeletionTime;
+        return localDeletionTime.get();
     }
 
     public String type()

@@ -77,8 +77,8 @@ public class ColumnFamilySerializer implements ICompactSerializer2<ColumnFamily>
     {
         try
         {
-            dos.writeInt(columnFamily.localDeletionTime);
-            dos.writeLong(columnFamily.markedForDeleteAt);
+            dos.writeInt(columnFamily.localDeletionTime.get());
+            dos.writeLong(columnFamily.markedForDeleteAt.get());
 
             Collection<IColumn> columns = columnFamily.getSortedColumns();
             dos.writeInt(columns.size());

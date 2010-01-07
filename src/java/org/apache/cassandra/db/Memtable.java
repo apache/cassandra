@@ -53,9 +53,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     private final String table_;
     private final String cfName_;
     private final long creationTime_;
-    // we use NBHM with manual locking, so reads are automatically threadsafe but write merging is serialized per key
     private final NonBlockingHashMap<DecoratedKey, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<DecoratedKey, ColumnFamily>();
-    private final Object[] keyLocks;
     private final IPartitioner partitioner_ = StorageService.getPartitioner();
 
     Memtable(String table, String cfName)
@@ -63,11 +61,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         table_ = table;
         cfName_ = cfName;
         creationTime_ = System.currentTimeMillis();
-        keyLocks = new Object[Runtime.getRuntime().availableProcessors() * 8];
-        for (int i = 0; i < keyLocks.length; i++)
-        {
-            keyLocks[i] = new Object();
-        }
     }
 
     public boolean isFlushed()
@@ -135,17 +128,15 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 
     private void resolve(String key, ColumnFamily cf)
     {
-        DecoratedKey decoratedKey = partitioner_.decorateKey(key);
         currentThroughput_.addAndGet(cf.size());
         currentOperations.addAndGet(cf.getColumnCount());
+
+        DecoratedKey decoratedKey = partitioner_.decorateKey(key);
         ColumnFamily oldCf = columnFamilies_.putIfAbsent(decoratedKey, cf);
         if (oldCf == null)
             return;
 
-        synchronized (keyLocks[Math.abs(key.hashCode() % keyLocks.length)])
-        {
-            oldCf.resolve(cf);
-        }
+        oldCf.resolve(cf);
     }
 
     // for debugging

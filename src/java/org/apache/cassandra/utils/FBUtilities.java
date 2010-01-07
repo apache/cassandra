@@ -24,6 +24,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -317,5 +319,27 @@ public class FBUtilities
                 return o1.compareTo(o2);
             }
         });
+    }
+
+    public static void atomicSetMax(AtomicInteger atomic, int i)
+    {
+        int j;
+        while (true)
+        {
+            if ((j = atomic.getAndSet(i)) <= i)
+                break;
+            i = j;
+        }
+    }
+
+    public static void atomicSetMax(AtomicLong atomic, long i)
+    {
+        long j;
+        while (true)
+        {
+            if ((j = atomic.getAndSet(i)) <= i)
+                break;
+            i = j;
+        }
     }
 }
