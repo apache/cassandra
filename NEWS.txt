@@ -1,3 +1,15 @@
+0.6.0
+=====
+0. Configuraton:
+     - MemtableSizeInMB has been replaced by MemtableThroughputInMB which
+       triggers a memtable flush when the specified amount of data has 
+       been written, including overwrites.
+     - MemtableObjectCountInMillions has been replaced by the
+       MemtableOperationsInMillions directive which causes a memtable flush
+       to occur after the specified number of operations.
+     - Like MemtableSizeInMB, BinaryMemtableSizeInMB has been replaced by
+       BinaryMemtableThroughputInMB.
+
 0.5.0
 =====
 0. The commitlog format has changed (but sstable format has not). 
