@@ -799,22 +799,22 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
-            if (filter.path.superColumnName != null)
+            if (filter.path.superColumnName == null)
             {
-                QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
-                ColumnFamily cf = getColumnFamilyInternal(nameFilter, gcBefore);
-                if (cf == null || cf.getColumnCount() == 0)
-                    return cf;
-
-                assert cf.getSortedColumns().size() == 1;
-                SuperColumn sc = (SuperColumn)cf.getSortedColumns().iterator().next();
-                SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
-                ColumnFamily cfFiltered = cf.cloneMeShallow();
-                cfFiltered.addColumn(scFiltered);
-                return removeDeleted(cfFiltered, gcBefore);
+                return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
             }
 
-            return removeDeleted(getColumnFamilyInternal(filter, gcBefore), gcBefore);
+            QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
+            ColumnFamily cf = getTopLevelColumns(nameFilter, gcBefore);
+            if (cf == null || cf.getColumnCount() == 0)
+                return cf;
+
+            assert cf.getSortedColumns().size() == 1;
+            SuperColumn sc = (SuperColumn)cf.getSortedColumns().iterator().next();
+            SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
+            ColumnFamily cfFiltered = cf.cloneMeShallow();
+            cfFiltered.addColumn(scFiltered);
+            return removeDeleted(cfFiltered, gcBefore);
         }
         finally
         {
@@ -822,7 +822,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private ColumnFamily getColumnFamilyInternal(QueryFilter filter, int gcBefore) throws IOException
+    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore) throws IOException
     {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
@@ -836,6 +836,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 iter = filter.getMemColumnIterator(memtable_, getComparator());
+                // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
+                // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
+                // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
                 returnCF = iter.getColumnFamily();
             }
             finally

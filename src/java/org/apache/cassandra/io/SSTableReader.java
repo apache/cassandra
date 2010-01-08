@@ -151,8 +151,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         final Range range = StorageService.instance().getLocalPrimaryRange();
 
         Predicate<SSTable> cfpred = Predicates.alwaysTrue();
-        return getIndexedDecoratedKeysFor(cfpred,
-                                          new Predicate<DecoratedKey>(){
+        return getIndexedDecoratedKeysFor(cfpred, new Predicate<DecoratedKey>()
+        {
             public boolean apply(DecoratedKey dk)
             {
                return range.contains(dk.token);

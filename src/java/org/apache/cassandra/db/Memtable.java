@@ -94,11 +94,6 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
     }
 
-    String getColumnFamily()
-    {
-    	return columnfamilyName;
-    }
-
     boolean isFrozen()
     {
         return isFrozen;
