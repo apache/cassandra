@@ -65,17 +65,11 @@ public class SelectionKeyHandler
     
     protected static void turnOnInterestOps(SelectionKey key, int ops)
     {
-        synchronized(key)
-        {
-            key.interestOps(key.interestOps() | ops);
-        }
+        SelectorManager.getSelectorManager().turnOnInterestOps(key, ops);
     }
     
     protected static void turnOffInterestOps(SelectionKey key, int ops)
     {
-        synchronized(key)
-        {
-            key.interestOps(key.interestOps() & (~ops) );
-        }
+        SelectorManager.getSelectorManager().turnOffInterestOps(key, ops);
     }
 }

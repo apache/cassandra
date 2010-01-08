@@ -103,7 +103,7 @@ public class SelectorManager extends Thread
         {
             try
             {
-                selector.select(1);
+                selector.select();
                 doProcess();
                 synchronized(gate) {}
             }
@@ -201,5 +201,23 @@ public class SelectorManager extends Thread
             }            
         }
         return udpManager;
+    }
+
+    protected void turnOnInterestOps(SelectionKey key, int ops)
+    {
+        synchronized(gate)
+        {
+            selector.wakeup();
+            key.interestOps(key.interestOps() | ops);
+        }
+    }
+    
+    protected void turnOffInterestOps(SelectionKey key, int ops)
+    {
+        synchronized(gate)
+        {
+            selector.wakeup();
+            key.interestOps(key.interestOps() & (~ops) );
+        }
     }
 }

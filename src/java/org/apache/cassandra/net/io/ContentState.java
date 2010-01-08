@@ -34,7 +34,7 @@ class ContentState extends StartState
         buffer_ = ByteBuffer.allocate(length_);
     }
 
-    public byte[] read() throws IOException, ReadNotCompleteException
+    public byte[] read() throws IOException
     {          
         return doRead(buffer_);
     }

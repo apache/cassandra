@@ -31,11 +31,11 @@ public abstract class StartState
         stream_ = stream;
     }
 
-    public abstract byte[] read() throws IOException, ReadNotCompleteException;
+    public abstract byte[] read() throws IOException;
     public abstract void morphState() throws IOException;
     public abstract void setContextData(Object data);
 
-    protected byte[] doRead(ByteBuffer buffer) throws IOException, ReadNotCompleteException
+    protected byte[] doRead(ByteBuffer buffer) throws IOException
     {        
         SocketChannel socketChannel = stream_.getStream();
         int bytesRead = socketChannel.read(buffer);     
@@ -48,8 +48,8 @@ public abstract class StartState
             morphState();
         }
         else
-        {            
-            throw new ReadNotCompleteException("Specified number of bytes have not been read from the Socket Channel");
+        {        
+            return null;
         }
         return new byte[0];
     }

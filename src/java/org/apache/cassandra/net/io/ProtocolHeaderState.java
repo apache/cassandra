@@ -34,7 +34,7 @@ public class ProtocolHeaderState extends StartState
         buffer_ = ByteBuffer.allocate(4);
     }
 
-    public byte[] read() throws IOException, ReadNotCompleteException
+    public byte[] read() throws IOException
     {        
         return doRead(buffer_);
     }

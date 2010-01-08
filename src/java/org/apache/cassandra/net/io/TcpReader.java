@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.net.ProtocolHeader;
 import org.apache.cassandra.net.TcpConnection;
+import org.apache.commons.lang.ArrayUtils;
 
 public class TcpReader
 {
@@ -88,15 +89,13 @@ public class TcpReader
     
     public byte[] read() throws IOException
     {
-        byte[] bytes = new byte[0];      
+        byte[] bytes = ArrayUtils.EMPTY_BYTE_ARRAY;      
         while ( socketState_ != null )
-        {
-            try
-            {                                                                      
-                bytes = socketState_.read();
-            }
-            catch ( ReadNotCompleteException e )
-            {                
+        {                          
+            bytes = socketState_.read();
+            if (bytes == null)
+            {
+                bytes = ArrayUtils.EMPTY_BYTE_ARRAY;
                 break;
             }
         }
