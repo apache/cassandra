@@ -39,33 +39,27 @@ import org.apache.log4j.Logger;
 
 public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 {
-	private static final Logger logger_ = Logger.getLogger( Memtable.class );
+    private static final Logger logger = Logger.getLogger(Memtable.class);
 
-    private boolean isFrozen_;
-    private volatile boolean isFlushed_; // for tests, in particular forceBlockingFlush asserts this
+    private boolean isFrozen;
 
-    private final int threshold_ = DatabaseDescriptor.getMemtableThroughput()*1024*1024; // not static since we might want to change at runtime
-    private final int thresholdCount_ = (int)(DatabaseDescriptor.getMemtableOperations()*1024*1024);
+    private final int THRESHOLD = DatabaseDescriptor.getMemtableThroughput() * 1024*1024; // not static since we might want to change at runtime
+    private final int THRESHOLD_COUNT = (int)(DatabaseDescriptor.getMemtableOperations() * 1024*1024);
 
-    private final AtomicInteger currentThroughput_ = new AtomicInteger(0);
+    private final AtomicInteger currentThroughput = new AtomicInteger(0);
     private final AtomicInteger currentOperations = new AtomicInteger(0);
 
-    private final String table_;
-    private final String cfName_;
-    private final long creationTime_;
-    private final NonBlockingHashMap<DecoratedKey, ColumnFamily> columnFamilies_ = new NonBlockingHashMap<DecoratedKey, ColumnFamily>();
-    private final IPartitioner partitioner_ = StorageService.getPartitioner();
+    private final String table;
+    private final String columnfamilyName;
+    private final long creationTime;
+    private final NonBlockingHashMap<DecoratedKey, ColumnFamily> columnFamilies = new NonBlockingHashMap<DecoratedKey, ColumnFamily>();
+    private final IPartitioner partitioner = StorageService.getPartitioner();
 
     Memtable(String table, String cfName)
     {
-        table_ = table;
-        cfName_ = cfName;
-        creationTime_ = System.currentTimeMillis();
-    }
-
-    public boolean isFlushed()
-    {
-        return isFlushed_;
+        this.table = table;
+        columnfamilyName = cfName;
+        creationTime = System.currentTimeMillis();
     }
 
     /**
@@ -76,7 +70,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
      */
     public int compareTo(Memtable rhs)
     {
-    	long diff = creationTime_ - rhs.creationTime_;
+    	long diff = creationTime - rhs.creationTime;
     	if ( diff > 0 )
     		return 1;
     	else if ( diff < 0 )
@@ -87,7 +81,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 
     public int getCurrentThroughput()
     {
-        return currentThroughput_.get();
+        return currentThroughput.get();
     }
     
     public int getCurrentOperations()
@@ -97,22 +91,22 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 
     boolean isThresholdViolated()
     {
-        return currentThroughput_.get() >= threshold_ || currentOperations.get() >= thresholdCount_;
+        return currentThroughput.get() >= this.THRESHOLD || currentOperations.get() >= this.THRESHOLD_COUNT;
     }
 
     String getColumnFamily()
     {
-    	return cfName_;
+    	return columnfamilyName;
     }
 
     boolean isFrozen()
     {
-        return isFrozen_;
+        return isFrozen;
     }
 
     void freeze()
     {
-        isFrozen_ = true;
+        isFrozen = true;
     }
 
     /**
@@ -122,17 +116,17 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     */
     void put(String key, ColumnFamily columnFamily)
     {
-        assert !isFrozen_; // not 100% foolproof but hell, it's an assert
+        assert !isFrozen; // not 100% foolproof but hell, it's an assert
         resolve(key, columnFamily);
     }
 
     private void resolve(String key, ColumnFamily cf)
     {
-        currentThroughput_.addAndGet(cf.size());
+        currentThroughput.addAndGet(cf.size());
         currentOperations.addAndGet(cf.getColumnCount());
 
-        DecoratedKey decoratedKey = partitioner_.decorateKey(key);
-        ColumnFamily oldCf = columnFamilies_.putIfAbsent(decoratedKey, cf);
+        DecoratedKey decoratedKey = partitioner.decorateKey(key);
+        ColumnFamily oldCf = columnFamilies.putIfAbsent(decoratedKey, cf);
         if (oldCf == null)
             return;
 
@@ -144,7 +138,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     {
         StringBuilder builder = new StringBuilder();
         builder.append("{");
-        for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies_.entrySet())
+        for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
         {
             builder.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
         }
@@ -154,58 +148,57 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 
     public List<DecoratedKey> getSortedKeys()
     {
-        logger_.info("Sorting " + this);
+        logger.info("Sorting " + this);
         // sort keys in the order they would be in when decorated
-        ArrayList<DecoratedKey> orderedKeys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
+        ArrayList<DecoratedKey> orderedKeys = new ArrayList<DecoratedKey>(columnFamilies.keySet());
         Collections.sort(orderedKeys);
         return orderedKeys;
     }
 
     public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
-        logger_.info("Writing " + this);
-        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies_.size(), StorageService.getPartitioner());
+        logger.info("Writing " + this);
+        ColumnFamilyStore cfStore = Table.open(table).getColumnFamilyStore(columnfamilyName);
+        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies.size(), StorageService.getPartitioner());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
         for (DecoratedKey key : sortedKeys)
         {
             buffer.reset();
-            ColumnFamily columnFamily = columnFamilies_.get(key);
+            ColumnFamily columnFamily = columnFamilies.get(key);
             /* serialize the cf with column indexes */
             ColumnFamily.serializer().serializeWithIndexes(columnFamily, buffer);
             /* Now write the key and value to disk */
             writer.append(key, buffer);
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_));
-        isFlushed_ = true;
-        logger_.info("Completed flushing " + ssTable.getFilename());
+        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table));
+        logger.info("Completed flushing " + ssTable.getFilename());
         return ssTable;
     }
 
     public String toString()
     {
-        return "Memtable(" + cfName_ + ")@" + hashCode();
+        return "Memtable(" + columnfamilyName + ")@" + hashCode();
     }
 
     public Iterator<DecoratedKey> getKeyIterator()
     {
         // even though we are using NBHM, it is okay to use size() twice here, since size() will never decrease
         // w/in a single memtable's lifetime
-        if (columnFamilies_.size() == 0)
+        if (columnFamilies.size() == 0)
         {
             // cannot create a PQ of size zero (wtf?)
             return Arrays.asList(new DecoratedKey[0]).iterator();
         }
-        PriorityQueue<DecoratedKey> pq = new PriorityQueue<DecoratedKey>(columnFamilies_.size());
-        pq.addAll(columnFamilies_.keySet());
+        PriorityQueue<DecoratedKey> pq = new PriorityQueue<DecoratedKey>(columnFamilies.size());
+        pq.addAll(columnFamilies.keySet());
         return new DestructivePQIterator<DecoratedKey>(pq);
     }
 
     public boolean isClean()
     {
-        return columnFamilies_.isEmpty();
+        return columnFamilies.isEmpty();
     }
 
     /**
@@ -213,15 +206,15 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
      */
     public ColumnIterator getSliceIterator(SliceQueryFilter filter, AbstractType typeComparator)
     {
-        ColumnFamily cf = columnFamilies_.get(partitioner_.decorateKey(filter.key));
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
+        ColumnFamily cf = columnFamilies.get(partitioner.decorateKey(filter.key));
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table, filter.getColumnFamilyName()) : cf.cloneMeShallow();
 
         final IColumn columns[] = (cf == null ? columnFamily : cf).getSortedColumns().toArray(new IColumn[columnFamily.getSortedColumns().size()]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
         if (filter.reversed)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
-        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard");
+        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table, filter.getColumnFamilyName()).equals("Standard");
         if (isStandard)
             startIColumn = new Column(filter.start);
         else
@@ -266,9 +259,9 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
 
     public ColumnIterator getNamesIterator(final NamesQueryFilter filter)
     {
-        final ColumnFamily cf = columnFamilies_.get(partitioner_.decorateKey(filter.key));
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table_, filter.getColumnFamilyName()) : cf.cloneMeShallow();
-        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table_, filter.getColumnFamilyName()).equals("Standard");
+        final ColumnFamily cf = columnFamilies.get(partitioner.decorateKey(filter.key));
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table, filter.getColumnFamilyName()) : cf.cloneMeShallow();
+        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table, filter.getColumnFamilyName()).equals("Standard");
 
         return new SimpleAbstractColumnIterator()
         {
@@ -298,14 +291,14 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
             }
         };
     }
-    
+
     void clearUnsafe()
     {
-        columnFamilies_.clear();
+        columnFamilies.clear();
     }
 
     public boolean isExpired()
     {
-        return System.currentTimeMillis() > creationTime_ + DatabaseDescriptor.getMemtableLifetimeMS();
+        return System.currentTimeMillis() > creationTime + DatabaseDescriptor.getMemtableLifetimeMS();
     }
 }
