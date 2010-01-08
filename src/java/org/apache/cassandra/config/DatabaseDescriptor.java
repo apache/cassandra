@@ -103,9 +103,9 @@ public class DatabaseDescriptor
     /* Number of minutes to keep a memtable in memory */
     private static int memtableLifetimeMs_ = 60 * 60 * 1000;
     /* Size of the memtable in memory before it is dumped */
-    private static int memtableThroughput_ = 128;
+    private static int memtableThroughput_ = 64;
     /* Number of objects in millions in the memtable before it is dumped */
-    private static double memtableOperations_ = 1;
+    private static double memtableOperations_ = 0.1;
     /* 
      * This parameter enables or disables consistency checks. 
      * If set to false the read repairs are disable for very
