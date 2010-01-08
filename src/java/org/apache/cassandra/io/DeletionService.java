@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -57,7 +58,7 @@ public class DeletionService
                             }
                             submitDeleteWithRetry(file, retryCount + 1);
                         }
-                    }).start();
+                    }, "Delete submission: " + file).start();
                 }
             }
         };

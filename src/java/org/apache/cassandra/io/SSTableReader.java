@@ -669,7 +669,7 @@ class FileDeletingReference extends PhantomReference<SSTableReader>
                     DeletionService.submitDeleteWithRetry(SSTable.filterFilename(path));
                     DeletionService.submitDeleteWithRetry(SSTable.compactedFilename(path));
                 }
-            }).start();
+            }, "Cleanup " + path).start();
         }
     }
 }

@@ -93,7 +93,7 @@ public class BootStrapper
                     Streaming.requestRanges(source, entry.getValue());
                 }
             }
-        }).start();
+        }, "Boostrap requester").start();
     }
 
     /**

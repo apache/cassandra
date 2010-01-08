@@ -122,7 +122,7 @@ public class HintedHandOffManager
                     deliverAllHints();
                 }
             }
-        }).start();
+        }, "Hint delivery").start();
     }
 
     private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws IOException
