@@ -63,7 +63,7 @@ parser.add_option('-c', '--columns', type="int", dest="columns",
                   help="Number of columns per key", default=5)
 parser.add_option('-d', '--nodes', type="string", dest="nodes",
                   help="Host nodes (comma separated)", default="localhost")
-parser.add_option('-s', '--stdev', type="int", dest="stdev", default=0.3,
+parser.add_option('-s', '--stdev', type="int", dest="stdev", default=0.1,
                   help="standard deviation factor")
 parser.add_option('-r', '--random', action="store_true", dest="random",
                   help="use random key generator (stdev will have no effect)")
@@ -104,17 +104,6 @@ nodes = options.nodes.split(',')
 stdev = total_keys * options.stdev
 mean = total_keys / 2
 
-def get_client(host='127.0.0.1', port=9160, framed=False):
-    socket = TSocket.TSocket(host, port)
-    if framed:
-        transport = TTransport.TFramedTransport(socket)
-    else:
-        transport = TTransport.TBufferedTransport(socket)
-    protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
-    client = Cassandra.Client(protocol)
-    client.transport = transport
-    return client
-
 def key_generator_gauss():
     while True:
         guess = gauss(mean, stdev)
@@ -128,6 +117,19 @@ key_generator_random = lambda: randint(0, total_keys - 1)
 key_generator = key_generator_gauss
 if options.random:
     key_generator = key_generator_random
+
+
+def get_client(host='127.0.0.1', port=9160, framed=False):
+    socket = TSocket.TSocket(host, port)
+    if framed:
+        transport = TTransport.TFramedTransport(socket)
+    else:
+        transport = TTransport.TBufferedTransport(socket)
+    protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
+    client = Cassandra.Client(protocol)
+    client.transport = transport
+    return client
+
 
 class Operation(Thread):
     def __init__(self, i, counts):
