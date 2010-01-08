@@ -425,7 +425,6 @@ public final class ColumnFamily implements IColumnContainer
         // Row _does_ allow null CF objects :(  seems a necessary evil for efficiency
         if (cf == null)
             return;
-        delete(cf);
         addAll(cf);
     }
 }
