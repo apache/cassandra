@@ -86,10 +86,10 @@ public class HintedHandOffManager
     private static final Lock lock_ = new ReentrantLock();
     private static final Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     final static long INTERVAL_IN_MS = 3600 * 1000; // check for ability to deliver hints this often
-    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
-    final Timer timer = new Timer("HINTED-HANDOFF-TIMER");
     public static final String HINTS_CF = "HintsColumnFamily";
     private static final int PAGE_SIZE = 10000;
+
+    private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
 
 
     public static HintedHandOffManager instance()
@@ -108,6 +108,21 @@ public class HintedHandOffManager
             }
         }
         return instance_;
+    }
+
+    public HintedHandOffManager()
+    {
+        new Thread(new WrappedRunnable()
+        {
+            public void runMayThrow() throws Exception
+            {
+                while (true)
+                {
+                    Thread.sleep(INTERVAL_IN_MS);
+                    deliverAllHints();
+                }
+            }
+        }).start();
     }
 
     private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws IOException
@@ -160,7 +175,7 @@ public class HintedHandOffManager
     }
 
     /** hintStore must be the hints columnfamily from the system table */
-    private static void deliverAllHints(ColumnFamilyStore hintStore) throws DigestMismatchException, IOException, InvalidRequestException, TimeoutException
+    private static void deliverAllHints() throws DigestMismatchException, IOException, InvalidRequestException, TimeoutException
     {
         if (logger_.isDebugEnabled())
           logger_.debug("Started deliverAllHints");
@@ -172,6 +187,7 @@ public class HintedHandOffManager
         // 5. Now force a flush
         // 6. Do major compaction to clean up all deletes etc.
         // 7. I guess we are done
+        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         for (String tableName : DatabaseDescriptor.getTables())
         {
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
@@ -180,9 +196,7 @@ public class HintedHandOffManager
                 QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (hintColumnFamily == null)
-                {
                     break;
-                }
                 Collection<IColumn> keys = hintColumnFamily.getSortedColumns();
 
                 for (IColumn keyColumn : keys)
@@ -230,20 +244,17 @@ public class HintedHandOffManager
         // 1. Scan through all the keys that we need to handoff
         // 2. For each key read the list of recipients if the endpoint matches send
         // 3. Delete that recipient from the key if write was successful
-        Table systemTable = Table.open(Table.SYSTEM_TABLE);
-        ColumnFamilyStore hintStore = systemTable.getColumnFamilyStore(HINTS_CF);
+        ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(HINTS_CF);
         for (String tableName : DatabaseDescriptor.getTables())
         {
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
             while (true)
             {
                 QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
-                ColumnFamily hintedColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-                if (hintedColumnFamily == null)
-                {
+                ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
+                if (hintColumnFamily == null)
                     break;
-                }
-                Collection<IColumn> keys = hintedColumnFamily.getSortedColumns();
+                Collection<IColumn> keys = hintColumnFamily.getSortedColumns();
 
                 for (IColumn keyColumn : keys)
                 {
@@ -254,13 +265,9 @@ public class HintedHandOffManager
                         if (Arrays.equals(hintEndPoint.name(), targetEPBytes) && sendMessage(endPoint, tableName, keyStr))
                         {
                             if (endpoints.size() == 1)
-                            {
                                 deleteHintKey(tableName, keyColumn.name());
-                            }
                             else
-                            {
                                 deleteEndPoint(hintEndPoint.name(), tableName, keyColumn.name(), System.currentTimeMillis());
-                            }
                             break;
                         }
                     }
@@ -272,25 +279,6 @@ public class HintedHandOffManager
 
         if (logger_.isDebugEnabled())
           logger_.debug("Finished hinted handoff for endpoint " + endPoint);
-    }
-
-    public void scheduleHandoffsFor(final ColumnFamilyStore columnFamilyStore)
-    {
-        final Runnable r = new WrappedRunnable()
-        {
-            public void runMayThrow() throws Exception
-            {
-                deliverAllHints(columnFamilyStore);
-            }
-        };
-        TimerTask task = new TimerTask()
-        {
-            public void run()
-            {
-                executor_.execute(r);
-            }
-        };
-        timer.schedule(task, INTERVAL_IN_MS, INTERVAL_IN_MS);
     }
 
     /*

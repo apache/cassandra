@@ -245,12 +245,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             sstables.add(sstable);
         }
         ssTables_.onStart(sstables);
-
-        // schedule hinted handoff
-        if (table_.equals(Table.SYSTEM_TABLE) && columnFamily_.equals(HintedHandOffManager.HINTS_CF))
-        {
-            HintedHandOffManager.instance().scheduleHandoffsFor(this);
-        }
     }
 
     /*
