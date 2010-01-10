@@ -254,8 +254,9 @@ class Stress(object):
             latency = sum(self.latencies[th.idx] for th in threads)
             delta = total - old_total
             delta_latency = latency - old_latency
+            delta_formatted = delta if delta > 0 else 'NAN'
             elapsed_t = int(time.time() - start_t)
-            outf.write('%d,%d,%f,%d\n' 
+            outf.write('%d,%d,%s,%d\n' 
                        % (total, delta / options.interval, delta_latency / delta, elapsed_t))
             if not [th for th in threads if th.isAlive()]:
                 break
