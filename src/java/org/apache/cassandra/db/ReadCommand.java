@@ -54,7 +54,7 @@ public abstract class ReadCommand
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(bos);
         ReadCommand.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StageManager.readStage_, StorageService.readVerbHandler_, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StageManager.READ_STAGE, StorageService.readVerbHandler_, bos.toByteArray());
     }
 
     public final QueryPath queryPath;

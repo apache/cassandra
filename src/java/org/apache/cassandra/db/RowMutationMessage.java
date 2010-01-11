@@ -51,7 +51,7 @@ public class RowMutationMessage
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         RowMutationMessage.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StageManager.mutationStage_, verbHandlerName, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StageManager.MUTATION_STAGE, verbHandlerName, bos.toByteArray());
     }
     
     @XmlElement(name="RowMutation")

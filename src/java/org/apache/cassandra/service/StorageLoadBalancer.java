@@ -177,7 +177,6 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
 
     private static final Logger logger_ = Logger.getLogger(StorageLoadBalancer.class);
-    private static final String lbStage_ = "LOAD-BALANCER-STAGE";
     private static final String moveMessageVerbHandler_ = "MOVE-MESSAGE-VERB-HANDLER";
     /* time to delay in minutes the actual load balance procedure if heavily loaded */
     private static final int delay_ = 5;
@@ -199,7 +198,6 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private StorageLoadBalancer()
     {
-        StageManager.registerStage(StorageLoadBalancer.lbStage_, new SingleThreadedStage(StorageLoadBalancer.lbStage_));
         MessagingService.instance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
         Gossiper.instance().register(this);
     }

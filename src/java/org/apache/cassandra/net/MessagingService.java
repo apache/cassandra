@@ -51,8 +51,6 @@ public class MessagingService implements IFailureDetectionEventListener
     private static byte[] protocol_ = new byte[16];
     /* Verb Handler for the Response */
     public static final String responseVerbHandler_ = "RESPONSE";
-    /* Stage for responses. */
-    public static final String responseStage_ = "RESPONSE-STAGE";
 
     /* This records all the results mapped by message Id */
     private static ICachetable<String, IAsyncCallback> callbackMap_;
@@ -84,7 +82,7 @@ public class MessagingService implements IFailureDetectionEventListener
     
     private static volatile MessagingService messagingService_ = new MessagingService();
 
-    private static final int MESSAGE_DESERIALIZE_THREADS = 4;
+    public static final int MESSAGE_DESERIALIZE_THREADS = 4;
 
     public static int getVersion()
     {
@@ -121,34 +119,33 @@ public class MessagingService implements IFailureDetectionEventListener
          * before the callback is evicted from the table. The concurrency level is set at 128
          * which is the sum of the threads in the pool that adds shit into the table and the 
          * pool that retrives the callback from here.
-        */ 
-        int maxSize = MESSAGE_DESERIALIZE_THREADS;
+        */
         callbackMap_ = new Cachetable<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
         taskCompletionMap_ = new Cachetable<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );        
         
-        messageDeserializationExecutor_ = new JMXEnabledThreadPoolExecutor( maxSize,
-                maxSize,
+        messageDeserializationExecutor_ = new JMXEnabledThreadPoolExecutor(
+                MESSAGE_DESERIALIZE_THREADS,
+                MESSAGE_DESERIALIZE_THREADS,
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
                 new NamedThreadFactory("MESSAGING-SERVICE-POOL")
-                );
+        );
 
-        messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor( maxSize,
-                maxSize,
+        messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(
+                MESSAGE_DESERIALIZE_THREADS,
+                MESSAGE_DESERIALIZE_THREADS,
                 Integer.MAX_VALUE,
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(),
                 new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL")
-                ); 
+        );
         
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
                 
         protocol_ = hash(HashingSchemes.MD5, "FB-MESSAGING".getBytes());        
         /* register the response verb handler */
         registerVerbHandlers(MessagingService.responseVerbHandler_, new ResponseVerbHandler());
-        /* register stage for response */
-        StageManager.registerStage(MessagingService.responseStage_, new MultiThreadedStage("RESPONSE-STAGE", maxSize) );
     }
     
     public byte[] hash(String type, byte data[])

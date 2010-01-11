@@ -19,11 +19,9 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.locks.*;
 import java.net.InetAddress;
 
-import org.apache.log4j.Logger;
+import org.apache.cassandra.concurrent.StageManager;
 
 class TcpConnectionManager
 {
@@ -49,7 +47,7 @@ class TcpConnectionManager
      */
     synchronized TcpConnection getConnection(Message msg) throws IOException
     {
-        if (MessagingService.responseStage_.equals(msg.getMessageType()))
+        if (StageManager.RESPONSE_STAGE.equals(msg.getMessageType()))
         {
             if (ackCon == null)
                 ackCon = newCon();

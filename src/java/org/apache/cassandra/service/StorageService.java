@@ -1329,7 +1329,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
                     }
                 }
             };
-            StageManager.getStage(StageManager.streamStage_).execute(new Runnable()
+            StageManager.getStage(StageManager.STREAM_STAGE).execute(new Runnable()
             {
                 public void run()
                 {

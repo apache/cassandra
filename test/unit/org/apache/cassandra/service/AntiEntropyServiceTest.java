@@ -235,7 +235,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
 
     Future<Object> flushAES()
     {
-        return StageManager.getStage(AE_SERVICE_STAGE).execute(new Callable<Object>(){
+        return StageManager.getStage(StageManager.AE_SERVICE_STAGE).execute(new Callable<Object>(){
             public Boolean call()
             {
                 return true;

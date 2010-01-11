@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -130,7 +129,7 @@ public class StorageProxy implements StorageProxyMBean
                                         rm.apply();
                                     }
                                 };
-                                StageManager.getStage(StageManager.mutationStage_).execute(runnable);
+                                StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
                             }
                             else
                             {
@@ -270,7 +269,7 @@ public class StorageProxy implements StorageProxyMBean
                 responseHandler.localResponse();
             }
         };
-        StageManager.getStage(StageManager.mutationStage_).execute(runnable);
+        StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
     }
 
     private static int determineBlockFor(int naturalTargets, int hintedTargets, ConsistencyLevel consistency_level)
@@ -497,7 +496,7 @@ public class StorageProxy implements StorageProxyMBean
         for (ReadCommand command: commands)
         {
             Callable<Object> callable = new weakReadLocalCallable(command);
-            futures.add(StageManager.getStage(StageManager.readStage_).execute(callable));
+            futures.add(StageManager.getStage(StageManager.READ_STAGE).execute(callable));
         }
         for (Future<Object> future : futures)
         {

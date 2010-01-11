@@ -23,7 +23,6 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
 
-import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
@@ -90,7 +89,6 @@ public class AntiEntropyService
 {
     private static final Logger logger = Logger.getLogger(AntiEntropyService.class);
 
-    public final static String AE_SERVICE_STAGE = "AE-SERVICE-STAGE";
     public final static String TREE_REQUEST_VERB = "TREE-REQUEST-VERB";
     public final static String TREE_RESPONSE_VERB = "TREE-RESPONSE-VERB";
 
@@ -137,8 +135,6 @@ public class AntiEntropyService
      */
     private AntiEntropyService()
     {
-        StageManager.registerStage(AE_SERVICE_STAGE, new SingleThreadedStage(AE_SERVICE_STAGE));
-
         MessagingService.instance().registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
         MessagingService.instance().registerVerbHandlers(TREE_RESPONSE_VERB, new TreeResponseVerbHandler());
         naturalRepairs = new ConcurrentHashMap<CFPair, Long>();
@@ -230,7 +226,7 @@ public class AntiEntropyService
         for (Differencer differencer : differencers)
         {
             logger.info("Queueing comparison " + differencer);
-            StageManager.getStage(AE_SERVICE_STAGE).execute(differencer);
+            StageManager.getStage(StageManager.AE_SERVICE_STAGE).execute(differencer);
         }
     }
 
@@ -487,7 +483,7 @@ public class AntiEntropyService
                 for (MerkleTree.RowHash minrow : minrows)
                     range.addHash(minrow);
 
-            StageManager.getStage(AE_SERVICE_STAGE).execute(this);
+            StageManager.getStage(StageManager.AE_SERVICE_STAGE).execute(this);
             logger.debug("Validated " + validated + " rows into AEService tree for " + cf);
         }
         
@@ -681,7 +677,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(new CFPair(table, cf), dos);
-                return new Message(FBUtilities.getLocalAddress(), AE_SERVICE_STAGE, TREE_REQUEST_VERB, bos.toByteArray());
+                return new Message(FBUtilities.getLocalAddress(), StageManager.AE_SERVICE_STAGE, TREE_REQUEST_VERB, bos.toByteArray());
             }
             catch(IOException e)
             {
@@ -739,7 +735,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos);
-                return new Message(local, AE_SERVICE_STAGE, TREE_RESPONSE_VERB, bos.toByteArray());
+                return new Message(local, StageManager.AE_SERVICE_STAGE, TREE_RESPONSE_VERB, bos.toByteArray());
             }
             catch(IOException e)
             {

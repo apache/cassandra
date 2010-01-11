@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.net.InetAddress;
 
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.io.ICompactSerializer;
 
 public class Message
@@ -120,7 +121,7 @@ public class Message
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
     {
-        Header header = new Header(getMessageId(), from, MessagingService.responseStage_, MessagingService.responseVerbHandler_);
+        Header header = new Header(getMessageId(), from, StageManager.RESPONSE_STAGE, MessagingService.responseVerbHandler_);
         return new Message(header, args);
     }
     

@@ -22,7 +22,6 @@ import java.io.*;
 import java.util.*;
 import java.net.InetAddress;
 
-import org.apache.cassandra.concurrent.SingleThreadedStage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IVerbHandler;
@@ -99,8 +98,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     }
 
     final static int MAX_GOSSIP_PACKET_SIZE = 1428;
-    /* GS - abbreviation for GOSSIPER_STAGE */
-    final static String GOSSIP_STAGE = "GS";
     /* GSV - abbreviation for GOSSIP-DIGEST-SYN-VERB */
     final static String JOIN_VERB_HANDLER = "JVH";
     /* GSV - abbreviation for GOSSIP-DIGEST-SYN-VERB */
@@ -153,8 +150,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_SYN_VERB, new GossipDigestSynVerbHandler());
         MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_ACK_VERB, new GossipDigestAckVerbHandler());
         MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_ACK2_VERB, new GossipDigestAck2VerbHandler());
-        /* register the Gossip stage */
-        StageManager.registerStage( Gossiper.GOSSIP_STAGE, new SingleThreadedStage("GMFD") );
     }
 
     /** Register with the Gossiper for EndPointState notifications */
@@ -285,7 +280,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream( bos );
         GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos);
-        return new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_SYN_VERB, bos.toByteArray());
+        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, GOSSIP_DIGEST_SYN_VERB, bos.toByteArray());
     }
 
     Message makeGossipDigestAckMessage(GossipDigestAckMessage gDigestAckMessage) throws IOException
@@ -295,7 +290,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos);
         if (logger_.isTraceEnabled())
             logger_.trace("@@@@ Size of GossipDigestAckMessage is " + bos.toByteArray().length);
-        return new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK_VERB, bos.toByteArray());
+        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, GOSSIP_DIGEST_ACK_VERB, bos.toByteArray());
     }
 
     Message makeGossipDigestAck2Message(GossipDigestAck2Message gDigestAck2Message) throws IOException
@@ -303,7 +298,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos);
-        return new Message(localEndPoint_, Gossiper.GOSSIP_STAGE, GOSSIP_DIGEST_ACK2_VERB, bos.toByteArray());
+        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, GOSSIP_DIGEST_ACK2_VERB, bos.toByteArray());
     }
 
     /**

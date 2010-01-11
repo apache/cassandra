@@ -55,7 +55,7 @@ class StreamRequestMessage
         {
             throw new IOError(e);
         }
-        return new Message(FBUtilities.getLocalAddress(), StageManager.streamStage_, StorageService.streamRequestVerbHandler_, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), StageManager.STREAM_STAGE, StorageService.streamRequestVerbHandler_, bos.toByteArray() );
     }        
     
     protected StreamRequestMetadata[] streamRequestMetadata_ = new StreamRequestMetadata[0];

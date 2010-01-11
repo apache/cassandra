@@ -100,7 +100,7 @@ public class RangeSliceCommand
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob);
         return new Message(FBUtilities.getLocalAddress(),
-                           StageManager.readStage_,
+                           StageManager.READ_STAGE,
                            StorageService.rangeSliceVerbHandler_,
                            Arrays.copyOf(dob.getData(), dob.getLength()));
     }

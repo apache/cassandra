@@ -21,55 +21,39 @@ package org.apache.cassandra.concurrent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+
+import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
 
 
 /**
- * This class manages all stages that exist within a process. The application registers
- * and de-registers stages with this abstraction. Any component that has the <i>ID</i> 
- * associated with a stage can obtain a handle to actual stage.
+ * This class manages executor services for Messages recieved: each Message requests
+ * running on a specific "stage" for concurrency control; hence the Map approach,
+ * even though stages (executors) are not created dynamically.
  */
-
 public class StageManager
 {
-    private static Map<String, IStage > stageQueues_ = new HashMap<String, IStage>();
+    private static Map<String, IStage> stageQueues = new HashMap<String, IStage>();
 
-    public final static String readStage_ = "ROW-READ-STAGE";
-    public final static String mutationStage_ = "ROW-MUTATION-STAGE";
-    public final static String streamStage_ = "STREAM-STAGE";
+    public final static String READ_STAGE = "ROW-READ-STAGE";
+    public final static String MUTATION_STAGE = "ROW-MUTATION-STAGE";
+    public final static String STREAM_STAGE = "STREAM-STAGE";
+    public final static String GOSSIP_STAGE = "GS";
+    public static final String RESPONSE_STAGE = "RESPONSE-STAGE";
+    public final static String AE_SERVICE_STAGE = "AE-SERVICE-STAGE";
+    private static final String LOADBALANCE_STAGE = "LOAD-BALANCER-STAGE";
 
     static
     {
-        StageManager.registerStage(mutationStage_, new MultiThreadedStage(mutationStage_, getConcurrentWriters()));
-        StageManager.registerStage(readStage_, new MultiThreadedStage(readStage_, getConcurrentReaders()));
-        StageManager.registerStage(streamStage_, new SingleThreadedStage(streamStage_));
-    }
-    
-    /**
-     * Register a stage with the StageManager
-     * @param stageName stage name.
-     * @param stage stage for the respective message types.
-     */
-    public static void registerStage(String stageName, IStage stage)
-    {
-        stageQueues_.put(stageName, stage);
-    }
-    
-    /**
-     * Returns the stage that we are currently executing on.
-     * This relies on the fact that the thread names in the
-     * stage have the name of the stage as the prefix.
-     * @return Returns the stage that we are currently executing on.
-     */
-    public static IStage getCurrentStage()
-    {
-        String name = Thread.currentThread().getName();
-        String[] peices = name.split(":");
-        IStage stage = getStage(peices[0]);
-        return stage;
+        stageQueues.put(MUTATION_STAGE, new MultiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
+        stageQueues.put(READ_STAGE, new MultiThreadedStage(READ_STAGE, getConcurrentReaders()));
+        stageQueues.put(STREAM_STAGE, new SingleThreadedStage(STREAM_STAGE));
+        stageQueues.put(GOSSIP_STAGE, new SingleThreadedStage("GMFD"));
+        stageQueues.put(RESPONSE_STAGE, new MultiThreadedStage("RESPONSE-STAGE", MessagingService.MESSAGE_DESERIALIZE_THREADS));
+        stageQueues.put(AE_SERVICE_STAGE, new SingleThreadedStage(AE_SERVICE_STAGE));
+        stageQueues.put(LOADBALANCE_STAGE, new SingleThreadedStage(LOADBALANCE_STAGE));
     }
 
     /**
@@ -78,51 +62,18 @@ public class StageManager
     */
     public static IStage getStage(String stageName)
     {
-        return stageQueues_.get(stageName);
+        return stageQueues.get(stageName);
     }
     
-    /**
-     * Retrieve the internal thread pool associated with the
-     * specified stage name.
-     * @param stageName name of the stage.
-     */
-    public static ExecutorService getStageInternalThreadPool(String stageName)
-    {
-        IStage stage = getStage(stageName);
-        if ( stage == null )
-            throw new IllegalArgumentException("No stage registered with name " + stageName);
-        return stage.getInternalThreadPool();
-    }
-
-    /**
-     * Deregister a stage from StageManager
-     * @param stageName stage name.
-     */
-    public static void deregisterStage(String stageName)
-    {
-        stageQueues_.remove(stageName);
-    }
-
-    /**
-     * This method gets the number of tasks on the
-     * stage's internal queue.
-     * @param stage name of the stage
-     * @return stage task count.
-     */
-    public static long getStageTaskCount(String stage)
-    {
-        return stageQueues_.get(stage).getPendingTasks();
-    }
-
     /**
      * This method shuts down all registered stages.
      */
     public static void shutdown()
     {
-        Set<String> stages = stageQueues_.keySet();
+        Set<String> stages = stageQueues.keySet();
         for ( String stage : stages )
         {
-            IStage registeredStage = stageQueues_.get(stage);
+            IStage registeredStage = stageQueues.get(stage);
             registeredStage.shutdown();
         }
     }

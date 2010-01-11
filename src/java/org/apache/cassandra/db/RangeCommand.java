@@ -55,7 +55,7 @@ public class RangeCommand
         DataOutputBuffer dob = new DataOutputBuffer();
         serializer.serialize(this, dob);
         return new Message(FBUtilities.getLocalAddress(),
-                           StageManager.readStage_,
+                           StageManager.READ_STAGE,
                            StorageService.rangeVerbHandler_,
                            Arrays.copyOf(dob.getData(), dob.getLength()));
     }

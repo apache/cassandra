@@ -280,7 +280,7 @@ public class CommitLog
     void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
-        assert StageManager.getStage(StageManager.mutationStage_).getCompletedTasks() == 0;
+        assert StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTasks() == 0;
         int rows = 0;
         for (File file : clogs)
         {
@@ -356,14 +356,14 @@ public class CommitLog
                         }
                     }
                 };
-                StageManager.getStage(StageManager.mutationStage_).execute(runnable);
+                StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
                 rows++;
             }
             reader.close();
         }
 
         // wait for all the writes to finish on the mutation stage
-        while (StageManager.getStage(StageManager.mutationStage_).getCompletedTasks() < rows)
+        while (StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTasks() < rows)
         {
             try
             {
