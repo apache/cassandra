@@ -45,12 +45,11 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
 {
     // logging and profiling.
     private static Logger logger_ = Logger.getLogger(TcpConnection.class);  
-    private static ISerializer serializer_ = new FastSerializer();
     private SocketChannel socketChannel_;
     private SelectionKey key_;
     private TcpConnectionManager pool_;
-    private boolean isIncoming_ = false;       
-    private TcpReader tcpReader_;    
+    private boolean isIncoming_ = false;
+    private TcpReader tcpReader_;
     private ReadWorkItem readWork_ = new ReadWorkItem(); 
     private Queue<ByteBuffer> pendingWrites_ = new ConcurrentLinkedQueue<ByteBuffer>();
     private InetAddress localEp_;
@@ -147,28 +146,20 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         return socketChannel_;
     }    
     
-    public void write(Message message) throws IOException
+    public synchronized void write(ByteBuffer buffer) throws IOException
     {           
-        byte[] data = serializer_.serialize(message);        
-        if ( data.length > 0 )
-        {    
-            ByteBuffer buffer = MessagingService.packIt(data , false, false);
-            synchronized(this)
-            {
-                if (!pendingWrites_.isEmpty() || !socketChannel_.isConnected())
-                {                     
-                    pendingWrites_.add(buffer);                
-                    return;
-                }
-                
-                socketChannel_.write(buffer);                
-                
-                if (buffer.remaining() > 0) 
-                {                   
-                    pendingWrites_.add(buffer);
-                    turnOnInterestOps(key_, SelectionKey.OP_WRITE);
-                }
-            }
+        if (!pendingWrites_.isEmpty() || !socketChannel_.isConnected())
+        {
+            pendingWrites_.add(buffer);
+            return;
+        }
+
+        socketChannel_.write(buffer);
+
+        if (buffer.remaining() > 0)
+        {
+            pendingWrites_.add(buffer);
+            turnOnInterestOps(key_, SelectionKey.OP_WRITE);
         }
     }
     

@@ -22,6 +22,8 @@ import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
+import org.apache.cassandra.net.io.FastSerializer;
+import org.apache.cassandra.net.io.ISerializer;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
 import org.apache.cassandra.utils.*;
@@ -80,6 +82,8 @@ public class MessagingService implements IFailureDetectionEventListener
     
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
+    private static FastSerializer serializer_ = new FastSerializer();
+
     private static volatile MessagingService messagingService_ = new MessagingService();
 
     public static final int MESSAGE_DESERIALIZE_THREADS = 4;
@@ -365,16 +369,29 @@ public class MessagingService implements IFailureDetectionEventListener
             return;
         }
 
+        Message processedMessage = SinkManager.processClientMessageSink(message);
+        if (processedMessage == null)
+        {
+            return;
+        }
+
+        byte[] data;
+        try
+        {
+            data = serializer_.serialize(message);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        assert data.length > 0;
+        ByteBuffer buffer = MessagingService.packIt(data , false, false);
+
         TcpConnection connection = null;
         try
         {
-            Message processedMessage = SinkManager.processClientMessageSink(message);
-            if (processedMessage == null)
-            {
-                return;
-            }
             connection = MessagingService.getConnection(processedMessage.getFrom(), to, message);
-            connection.write(message);
+            connection.write(buffer);
         }
         catch (IOException e)
         {
