@@ -42,7 +42,12 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
 
     public CommitLogExecutorService()
     {
-        queue = new ArrayBlockingQueue<CheaterFutureTask>(10000);
+        this(DatabaseDescriptor.getConcurrentWriters());    
+    }
+
+    public CommitLogExecutorService(int queueSize)
+    {
+        queue = new ArrayBlockingQueue<CheaterFutureTask>(queueSize);
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception
