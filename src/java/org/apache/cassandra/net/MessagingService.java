@@ -493,7 +493,7 @@ public class MessagingService implements IFailureDetectionEventListener
 
     private static void enqueueRunnable(String stageName, Runnable runnable){
         
-        IStage stage = StageManager.getStage(stageName);   
+        ExecutorService stage = StageManager.getStage(stageName);
         
         if ( stage != null )
         {

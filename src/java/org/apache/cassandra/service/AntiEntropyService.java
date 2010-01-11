@@ -483,7 +483,7 @@ public class AntiEntropyService
                 for (MerkleTree.RowHash minrow : minrows)
                     range.addHash(minrow);
 
-            StageManager.getStage(StageManager.AE_SERVICE_STAGE).execute(this);
+            StageManager.getStage(StageManager.AE_SERVICE_STAGE).submit(this);
             logger.debug("Validated " + validated + " rows into AEService tree for " + cf);
         }
         

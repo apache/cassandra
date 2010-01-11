@@ -21,6 +21,10 @@ package org.apache.cassandra.concurrent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.net.MessagingService;
 
@@ -35,7 +39,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReader
  */
 public class StageManager
 {
-    private static Map<String, IStage> stageQueues = new HashMap<String, IStage>();
+    private static Map<String, ThreadPoolExecutor> stages = new HashMap<String, ThreadPoolExecutor>();
 
     public final static String READ_STAGE = "ROW-READ-STAGE";
     public final static String MUTATION_STAGE = "ROW-MUTATION-STAGE";
@@ -47,22 +51,33 @@ public class StageManager
 
     static
     {
-        stageQueues.put(MUTATION_STAGE, new MultiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
-        stageQueues.put(READ_STAGE, new MultiThreadedStage(READ_STAGE, getConcurrentReaders()));
-        stageQueues.put(STREAM_STAGE, new SingleThreadedStage(STREAM_STAGE));
-        stageQueues.put(GOSSIP_STAGE, new SingleThreadedStage("GMFD"));
-        stageQueues.put(RESPONSE_STAGE, new MultiThreadedStage("RESPONSE-STAGE", MessagingService.MESSAGE_DESERIALIZE_THREADS));
-        stageQueues.put(AE_SERVICE_STAGE, new SingleThreadedStage(AE_SERVICE_STAGE));
-        stageQueues.put(LOADBALANCE_STAGE, new SingleThreadedStage(LOADBALANCE_STAGE));
+        stages.put(MUTATION_STAGE, multiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
+        stages.put(READ_STAGE, multiThreadedStage(READ_STAGE, getConcurrentReaders()));
+        stages.put(RESPONSE_STAGE, multiThreadedStage("RESPONSE-STAGE", MessagingService.MESSAGE_DESERIALIZE_THREADS));
+        // the rest are all single-threaded
+        stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
+        stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
+        stages.put(AE_SERVICE_STAGE, new JMXEnabledThreadPoolExecutor(AE_SERVICE_STAGE));
+        stages.put(LOADBALANCE_STAGE, new JMXEnabledThreadPoolExecutor(LOADBALANCE_STAGE));
+    }
+
+    private static ThreadPoolExecutor multiThreadedStage(String name, int numThreads)
+    {
+        return new JMXEnabledThreadPoolExecutor(numThreads,
+                                                numThreads,
+                                                Integer.MAX_VALUE,
+                                                TimeUnit.SECONDS,
+                                                new LinkedBlockingQueue<Runnable>(),
+                                                new NamedThreadFactory(name));
     }
 
     /**
      * Retrieve a stage from the StageManager
      * @param stageName name of the stage to be retrieved.
     */
-    public static IStage getStage(String stageName)
+    public static ThreadPoolExecutor getStage(String stageName)
     {
-        return stageQueues.get(stageName);
+        return stages.get(stageName);
     }
     
     /**
@@ -70,11 +85,10 @@ public class StageManager
      */
     public static void shutdown()
     {
-        Set<String> stages = stageQueues.keySet();
-        for ( String stage : stages )
+        Set<String> stages = StageManager.stages.keySet();
+        for (String stage : stages)
         {
-            IStage registeredStage = stageQueues.get(stage);
-            registeredStage.shutdown();
+            StageManager.stages.get(stage).shutdown();
         }
     }
 }
