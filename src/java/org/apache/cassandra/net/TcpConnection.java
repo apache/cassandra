@@ -33,8 +33,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.io.FastSerializer;
-import org.apache.cassandra.net.io.ISerializer;
 import org.apache.cassandra.net.io.ProtocolState;
 import org.apache.cassandra.net.io.StartState;
 import org.apache.cassandra.net.io.TcpReader;
@@ -438,7 +436,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                         }
                         
                         /* Deserialize and handle the message */
-                        MessagingService.getDeserializationExecutor().submit( new MessageDeserializationTask(pH.serializerType_, bytes) );                                                  
+                        MessagingService.getDeserializationExecutor().submit(new MessageDeserializationTask(bytes));                                                  
                         tcpReader_.resetState();
                     }
                     else

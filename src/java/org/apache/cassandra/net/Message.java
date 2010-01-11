@@ -29,14 +29,14 @@ import org.apache.cassandra.io.ICompactSerializer;
 
 public class Message
 {
-    private static ICompactSerializer<Message> serializer_;
+    private static MessageSerializer serializer_;
     
     static
     {
         serializer_ = new MessageSerializer();        
     }
     
-    public static ICompactSerializer<Message> serializer()
+    public static MessageSerializer serializer()
     {
         return serializer_;
     }

@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.net;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.net.io.FastSerializer;
-import org.apache.cassandra.net.io.ISerializer;
 import org.apache.cassandra.net.sink.SinkManager;
 
 import org.apache.log4j.Logger;
@@ -29,13 +29,10 @@ import org.apache.log4j.Logger;
 class MessageDeserializationTask implements Runnable
 {
     private static Logger logger_ = Logger.getLogger(MessageDeserializationTask.class); 
-    private static ISerializer serializer_ = new FastSerializer();
-    private int serializerType_;
-    private byte[] bytes_ = new byte[0];    
+    private byte[] bytes_ = new byte[0];
     
-    MessageDeserializationTask(int serializerType, byte[] bytes)
+    MessageDeserializationTask(byte[] bytes)
     {
-        serializerType_ = serializerType;
         bytes_ = bytes;        
     }
     
@@ -44,7 +41,7 @@ class MessageDeserializationTask implements Runnable
         Message message = null;
         try
         {
-            message = serializer_.deserialize(bytes_);
+            message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(bytes_)));
         }
         catch (IOException e)
         {
