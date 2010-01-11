@@ -151,7 +151,7 @@ public class MessagingService implements IFailureDetectionEventListener
     
     public byte[] hash(String type, byte data[])
     {
-        byte result[] = null;
+        byte result[];
         try
         {
             MessageDigest messageDigest = MessageDigest.getInstance(type);
@@ -238,38 +238,7 @@ public class MessagingService implements IFailureDetectionEventListener
     	assert !verbHandlers_.containsKey(type);
     	verbHandlers_.put(type, verbHandler);
     }
-    
-    /**
-     * Deregister all verbhandlers corresponding to localEndPoint.
-     * @param localEndPoint
-     */
-    public void deregisterAllVerbHandlers(InetAddress localEndPoint)
-    {
-        Iterator keys = verbHandlers_.keySet().iterator();
-        String key = null;
         
-        /*
-         * endpoint specific verbhandlers can be distinguished because
-         * their key's contain the name of the endpoint. 
-         */
-        while(keys.hasNext())
-        {
-            key = (String)keys.next();
-            if (key.contains(localEndPoint.toString()))
-                keys.remove();
-        }
-    }
-    
-    /**
-     * Deregister a verbhandler corresponding to the verb from the
-     * Messaging Service.
-     * @param type name of the verb.
-     */
-    public void deregisterVerbHandlers(String type)
-    {
-        verbHandlers_.remove(type);
-    }
-
     /**
      * This method returns the verb handler associated with the registered
      * verb. If no handler has been registered then null is returned.
@@ -292,9 +261,9 @@ public class MessagingService implements IFailureDetectionEventListener
     {
         String messageId = message.getMessageId();
         addCallback(cb, messageId);
-        for ( int i = 0; i < to.length; ++i )
+        for (InetAddress endpoint : to)
         {
-            sendOneWay(message, to[i]);
+            sendOneWay(message, endpoint);
         }
         return messageId;
     }
@@ -384,7 +353,7 @@ public class MessagingService implements IFailureDetectionEventListener
             throw new RuntimeException(e);
         }
         assert data.length > 0;
-        ByteBuffer buffer = MessagingService.packIt(data , false, false);
+        ByteBuffer buffer = packIt(data , false, false);
 
         TcpConnection connection = null;
         try
@@ -557,70 +526,14 @@ public class MessagingService implements IFailureDetectionEventListener
         return MessageDigest.isEqual(digestA, digestB);
     }
 
-    public static byte[] toByteArray(int i)
-    {
-        byte bytes[] = new byte[4];
-        bytes[0] = (byte)(i >>> 24 & 0xff);
-        bytes[1] = (byte)(i >>> 16 & 0xff);
-        bytes[2] = (byte)(i >>> 8 & 0xff);
-        bytes[3] = (byte)(i & 0xff);
-        return bytes;
-    }
-    
-    public static byte[] toByteArray(short s)
-    {
-        byte bytes[] = new byte[2];
-        bytes[0] = (byte)(s >>> 8 & 0xff);
-        bytes[1] = (byte)(s & 0xff);
-        return bytes;
-    }
-    
-    public static short byteArrayToShort(byte bytes[])
-    {
-        return byteArrayToShort(bytes, 0);
-    }
-    
-    public static short byteArrayToShort(byte bytes[], int offset)
-    {
-        if(bytes.length - offset < 2)
-            throw new IllegalArgumentException("A short must be 2 bytes in size.");
-        short n = 0;
-        for(int i = 0; i < 2; i++)
-        {
-            n <<= 8;
-            n |= bytes[offset + i] & 0xff;
-        }
-
-        return n;
-    }
-
     public static int getBits(int x, int p, int n)
     {
         return x >>> (p + 1) - n & ~(-1 << n);
     }
-    
-    public static int byteArrayToInt(byte bytes[])
-    {
-        return byteArrayToInt(bytes, 0);
-    }
-
-    public static int byteArrayToInt(byte bytes[], int offset)
-    {
-        if(bytes.length - offset < 4)
-            throw new IllegalArgumentException("An integer must be 4 bytes in size.");
-        int n = 0;
-        for(int i = 0; i < 4; i++)
-        {
-            n <<= 8;
-            n |= bytes[offset + i] & 0xff;
-        }
-
-        return n;
-    }
-    
+        
     public static ByteBuffer packIt(byte[] bytes, boolean compress, boolean stream)
     {
-        byte[] size = toByteArray(bytes.length);
+        byte[] size = FBUtilities.toByteArray(bytes.length);
         /* 
              Setting up the protocol header. This is 4 bytes long
              represented as an integer. The first 2 bits indicate
@@ -645,8 +558,8 @@ public class MessagingService implements IFailureDetectionEventListener
         // Setting up the version bit
         n |= (version_ << 8);               
         /* Finished the protocol header setup */
-               
-        byte[] header = toByteArray(n);
+
+        byte[] header = FBUtilities.toByteArray(n);
         ByteBuffer buffer = ByteBuffer.allocate(16 + header.length + size.length + bytes.length);
         buffer.put(protocol_);
         buffer.put(header);
@@ -682,8 +595,8 @@ public class MessagingService implements IFailureDetectionEventListener
         // Setting up the version bit 
         n |= (version_ << 8);              
         /* Finished the protocol header setup */
-              
-        byte[] header = toByteArray(n);
+
+        byte[] header = FBUtilities.toByteArray(n);
         ByteBuffer buffer = ByteBuffer.allocate(16 + header.length);
         buffer.put(protocol_);
         buffer.put(header);

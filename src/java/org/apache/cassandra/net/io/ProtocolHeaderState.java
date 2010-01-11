@@ -42,7 +42,7 @@ public class ProtocolHeaderState extends StartState
     public void morphState() throws IOException
     {
         byte[] protocolHeader = buffer_.array();
-        int pH = MessagingService.byteArrayToInt(protocolHeader);
+        int pH = FBUtilities.byteArrayToInt(protocolHeader);
         
         int type = MessagingService.getBits(pH, 1, 2);
         stream_.getProtocolHeader().serializerType_ = type;
