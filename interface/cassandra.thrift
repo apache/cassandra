@@ -15,6 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# *** PLEASE REMEMBER TO EDIT THE VERSION CONSTANT WHEN MAKING CHANGES ***
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 #
 # Interface definition for Cassandra Service
 #
@@ -31,17 +35,18 @@ namespace perl Cassandra
 # Cassandra::Cassandra::Client.
 namespace rb CassandraThrift
 
-
+# The API version (NOT the product version), composed as a dot delimited
+# string with major, minor, and patch level components.
 #
-# constants
+#  - Major: Incremented for backward incompatible changes. An example would
+#           be changes to the number or disposition of method arguments.
+#  - Minor: Incremented for backward compatible changes. An example would
+#           be the addition of a new (optional) method.
+#  - Patch: Incremented for bug fixes. The patch level should be increased
+#           for every edit that doesn't result in a change to major/minor.
 #
-
-# for clients checking that server and it have same thrift definitions.
-# no promises are made other than "if both are equal, you're good."
-# in particular, don't try to parse numeric information out and assume
-# that a "greater" version is a superset of a "smaller" one.
-const string VERSION = "0.5.0-rc2"
-
+# See the Semantic Versioning Specification (SemVer) http://semver.org.
+const string VERSION = "1.0.0"
 
 #
 # data structures
