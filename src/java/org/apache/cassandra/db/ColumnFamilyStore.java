@@ -1260,15 +1260,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ssTables_.size();
     }
 
-    public void invalidate(String key)
+    public ColumnFamily getCachedRow(String key)
     {
-        if (rowCache != null)
-            rowCache.remove(key);
-    }
-
-    public boolean isRowCacheEnabled()
-    {
-        return rowCache != null;
+        return rowCache == null ? null : rowCache.get(key);
     }
 
     /**
