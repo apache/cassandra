@@ -254,43 +254,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return fileSet;
     }
 
-    /*
-     * This method is called to obtain statistics about
-     * the Column Family represented by this Column Family
-     * Store. It will report the total number of files on
-     * disk and the total space oocupied by the data files
-     * associated with this Column Family.
-    */
-    public String cfStats(String newLineSeparator)
-    {
-        StringBuilder sb = new StringBuilder();
-        /*
-         * We want to do this so that if there are
-         * no files on disk we do not want to display
-         * something ugly on the admin page.
-        */
-        if (ssTables_.size() == 0)
-        {
-            return sb.toString();
-        }
-        sb.append(columnFamily_ + " statistics :");
-        sb.append(newLineSeparator);
-        sb.append("Number of files on disk : " + ssTables_.size());
-        sb.append(newLineSeparator);
-        double totalSpace = 0d;
-        for (SSTableReader sstable: ssTables_)
-        {
-            File f = new File(sstable.getFilename());
-            totalSpace += f.length();
-        }
-        String diskSpace = FileUtils.stringifyFileSize(totalSpace);
-        sb.append("Total disk space : " + diskSpace);
-        sb.append(newLineSeparator);
-        sb.append("--------------------------------------");
-        sb.append(newLineSeparator);
-        return sb.toString();
-    }
-
     /**
      * @return the name of the column family
      */
