@@ -56,17 +56,9 @@
   <Keyspaces>
     <Keyspace Name="Keyspace1">
       <!--
-       ~ The fraction of keys per sstable whose locations we keep in
-       ~ memory in "mostly LRU" order.  (JUST the key locations, NOT any
-       ~ column values.)
-
-       ~ The amount of memory used by the default setting of 0.01 is
-       ~ comparable to the amount used by the internal per-sstable key
-       ~ index. Consider increasing this if you have fewer, wider rows.
-       ~ Set to 0 to disable entirely.
-      -->
-      <KeysCachedFraction>0.01</KeysCachedFraction>
-      <!-- 
+       ~ ColumnFamily definitions have one required attribute (Name)
+       ~ and several optional ones.
+       ~
        ~ The CompareWith attribute tells Cassandra how to sort the columns
        ~ for slicing operations.  The default is BytesType, which is a
        ~ straightforward lexical comparison of the bytes in each column.
@@ -90,8 +82,25 @@
        ~
        ~ An optional `Comment` attribute may be used to attach additional
        ~ human-readable information about the column family to its definition.
+       ~ 
+       ~ The optional KeysCachedFraction attribute specifies
+       ~ The fraction of keys per sstable whose locations we keep in
+       ~ memory in "mostly LRU" order.  (JUST the key locations, NOT any
+       ~ column values.) The amount of memory used by the default setting of 
+       ~ 0.01 is comparable to the amount used by the internal per-sstable key
+       ~ index. Consider increasing this if you have fewer, wider rows.
+       ~ Set to 0 to disable entirely.
+       ~
+       ~ The optional RowsCachedFraction attribute specifies
+       ~ The fraction of rows per sstable whose entire contents we cache in
+       ~ memory.  Do not use this on ColumnFamilies with large rows, or
+       ~ ColumnFamilies with high write:read ratios.  As with key caching,
+       ~ valid values are from 0 to 1.  The default 0 disables it entirely.
       -->
-      <ColumnFamily CompareWith="BytesType" Name="Standard1"/>
+      <ColumnFamily CompareWith="BytesType" 
+                    Name="Standard1" 
+                    RowsCachedFraction="0.1"
+                    KeysCachedFraction="0"/>
       <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
       <ColumnFamily CompareWith="TimeUUIDType" Name="StandardByUUID1"/>
       <ColumnFamily ColumnType="Super"

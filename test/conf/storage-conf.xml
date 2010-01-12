@@ -44,7 +44,7 @@
    <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
    <Keyspaces>
      <Keyspace Name = "Keyspace1">
-       <ColumnFamily Name="Standard1"/>
+       <ColumnFamily Name="Standard1" RowsCachedFraction="0.1" KeysCachedFraction="0"/>
        <ColumnFamily Name="Standard2"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong1"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong2"/>

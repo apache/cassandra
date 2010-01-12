@@ -173,10 +173,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static SSTableReader open(String dataFileName) throws IOException
     {
-        return open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
+        return open(dataFileName,
+                    StorageService.getPartitioner(),
+                    DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName), parseColumnFamilyName(dataFileName)));
     }
 
-    public static SSTableReader open(String dataFileName, IPartitioner partitioner, double cacheFraction) throws IOException
+    public static SSTableReader open(String dataFileName, IPartitioner partitioner, double keysCacheFraction) throws IOException
     {
         assert partitioner != null;
         assert openedFiles.get(dataFileName) == null;
@@ -185,9 +187,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
         sstable.loadIndexFile();
         sstable.loadBloomFilter();
-        if (cacheFraction > 0)
+        if (keysCacheFraction > 0)
         {
-            sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * cacheFraction));
+            sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * keysCacheFraction));
         }
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");

@@ -407,6 +407,7 @@ public class Table
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
         // write the mutation to the commitlog and memtables
+        boolean invalidateRequired = false;
         flusherLock.readLock().lock();
         try
         {
@@ -417,6 +418,7 @@ public class Table
             {
                 Memtable memtableToFlush;
                 ColumnFamilyStore cfStore = columnFamilyStores.get(columnFamily.name());
+                invalidateRequired |= cfStore.isRowCacheEnabled();
                 if ((memtableToFlush=cfStore.apply(mutation.key(), columnFamily)) != null)
                     memtablesToFlush.put(cfStore, memtableToFlush);
             }
@@ -427,10 +429,13 @@ public class Table
         }
 
         // invalidate cache.  2nd loop over CFs here to avoid prolonging the lock section unnecessarily.
-        for (ColumnFamily cf : mutation.getColumnFamilies())
+        if (invalidateRequired)
         {
-            ColumnFamilyStore cfs = columnFamilyStores.get(cf.name());
-            cfs.invalidate(mutation.key());
+            for (ColumnFamily cf : mutation.getColumnFamilies())
+            {
+                ColumnFamilyStore cfs = columnFamilyStores.get(cf.name());
+                cfs.invalidate(mutation.key());
+            }
         }
 
         // flush memtables that got filled up.  usually mTF will be empty and this will be a no-op

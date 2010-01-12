@@ -26,6 +26,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
 import org.w3c.dom.Node;
@@ -85,7 +86,9 @@ public class DatabaseDescriptor
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
     private static int bmtThreshold_ = 256;
 
-    private static Map<String, Double> tableKeysCachedFractions_;
+    private static Map<Pair<String, String>, Double> tableKeysCachedFractions_ = new HashMap<Pair<String, String>, Double>();
+    private static Map<Pair<String, String>, Double> tableRowsCachedFractions_ = new HashMap<Pair<String, String>, Double>();
+
     /*
      * A map from table names to the set of column families for the table and the
      * corresponding meta data for that column family.
@@ -435,7 +438,6 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
             tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
-            tableKeysCachedFractions_ = new HashMap<String, Double>();
 
             /* See which replica placement strategy to use */
             String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/ReplicaPlacementStrategy");
@@ -471,17 +473,6 @@ public class DatabaseDescriptor
                 }
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
-
-                String xqlCacheSize = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/KeysCachedFraction";
-                value = xmlUtils.getNodeValue(xqlCacheSize);
-                if (value == null)
-                {
-                    tableKeysCachedFractions_.put(tName, 0.01);
-                }
-                else
-                {
-                    tableKeysCachedFractions_.put(tName, Double.valueOf(value));
-                }
 
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
@@ -527,6 +518,16 @@ public class DatabaseDescriptor
                         throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
                     }
 
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCachedFraction")) != null)
+                    {
+                        tableKeysCachedFractions_.put(Pair.create(tName, cfName), Double.valueOf(value));
+                    }
+                    
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCachedFraction")) != null)
+                    {
+                        tableRowsCachedFractions_.put(Pair.create(tName, cfName), Double.valueOf(value));
+                    }
+
                     // Parse out user-specified logical names for the various dimensions
                     // of a the column family from the config.
                     String cfComment = xmlUtils.getNodeValue(xqlCF + "Comment");
@@ -567,7 +568,6 @@ public class DatabaseDescriptor
             systemMetadata.put(data.cfName, data);
 
             tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
-            tableKeysCachedFractions_.put(Table.SYSTEM_TABLE, 0.0);
 
             /* Load the seeds for node contact points */
             String[] seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
@@ -953,9 +953,16 @@ public class DatabaseDescriptor
         return tableToCFMetaDataMap_;
     }
 
-    public static double getKeysCachedFraction(String tableName)
+    public static double getKeysCachedFraction(String tableName, String columnFamilyName)
     {
-        return tableKeysCachedFractions_.get(tableName);
+        Double v = tableKeysCachedFractions_.get(Pair.create(tableName, columnFamilyName));
+        return v == null ? 0.01 : v;
+    }
+
+    public static double getRowsCachedFraction(String tableName, String columnFamilyName)
+    {
+        Double v = tableRowsCachedFractions_.get(Pair.create(tableName, columnFamilyName));
+        return v == null ? 0.01 : v;
     }
 
     private static class ConfigurationException extends Exception

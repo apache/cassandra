@@ -67,9 +67,14 @@ public abstract class SSTable
     public SSTable(String filename, IPartitioner partitioner)
     {
         assert filename.endsWith("-Data.db");
-        columnFamilyName = new File(filename).getName().split("-")[0];
+        columnFamilyName = parseColumnFamilyName(filename);
         this.path = filename;
         this.partitioner = partitioner;
+    }
+
+    protected static String parseColumnFamilyName(String filename)
+    {
+        return new File(filename).getName().split("-")[0];
     }
 
     protected static String indexFilename(String dataFile)

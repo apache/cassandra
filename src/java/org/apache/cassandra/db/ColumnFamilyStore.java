@@ -185,9 +185,12 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         ssTables_ = new SSTableTracker(sstables);
 
-        int cacheSize = (int)(0.2 * SSTableReader.estimatedKeys(columnFamilyName));
-        logger_.info("cache size for " + columnFamilyName + " is " + cacheSize);
-        rowCache = new InstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
+        double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
+        int cacheSize = (int)(v * SSTableReader.estimatedKeys(columnFamilyName));
+        if (logger_.isDebugEnabled())
+            logger_.debug("cache size for " + columnFamilyName + " is " + cacheSize);
+        if (cacheSize > 0)
+            rowCache = new InstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException
@@ -1259,7 +1262,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidate(String key)
     {
-        rowCache.remove(key);
+        if (rowCache != null)
+            rowCache.remove(key);
+    }
+
+    public boolean isRowCacheEnabled()
+    {
+        return rowCache != null;
     }
 
     /**

@@ -176,7 +176,9 @@ public class SSTableWriter extends SSTable
         SSTableWriter.rename(indexFilename(dataFileName));
         SSTableWriter.rename(filterFilename(dataFileName));
         dataFileName = SSTableWriter.rename(dataFileName);
-        return SSTableReader.open(dataFileName, StorageService.getPartitioner(), DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName)));
+        return SSTableReader.open(dataFileName,
+                                  StorageService.getPartitioner(),
+                                  DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName), parseColumnFamilyName(dataFileName)));
     }
 
 }
