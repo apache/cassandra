@@ -30,6 +30,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 import org.apache.cassandra.service.SliceRange;
 import org.apache.log4j.Logger;
 
@@ -105,6 +106,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable_;
 
+    private ConcurrentLinkedHashMap<String, ColumnFamily> rowCache;
+
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
@@ -124,6 +127,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator_.set(indexValue);
         memtable_ = new Memtable(table_, columnFamily_);
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(table_, columnFamily_));
+        int cacheSize = SSTableReader.estimatedKeys(columnFamilyName);
+        rowCache = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, cacheSize);
     }
 
     public static ColumnFamilyStore getColumnFamilyStore(String table, String columnFamily) throws IOException
@@ -780,6 +785,19 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
     }
 
+    private ColumnFamily getCachedRow(QueryFilter filter) throws IOException
+    {
+        ColumnFamily cached;
+        if ((cached = rowCache.get(filter.key)) == null)
+        {
+            cached = getTopLevelColumns(new IdentityQueryFilter(filter.key, new QueryPath(columnFamily_)), Integer.MIN_VALUE);
+            if (cached == null)
+                return null;
+            rowCache.put(filter.key, cached);
+        }
+        return cached;
+    }
+
     /**
      * get a list of columns starting from a given column, in a specified order.
      * only the latest version of a column is returned.
@@ -792,19 +810,37 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.currentTimeMillis();
         try
         {
-            // if we are querying subcolumns of a supercolumn, fetch the supercolumn with NQF, then filter in-memory.
             if (filter.path.superColumnName == null)
             {
-                return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
+                if (rowCache == null)
+                    return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
+
+                ColumnFamily cached = getCachedRow(filter);
+                ColumnIterator ci = filter.getMemColumnIterator(memtable_, cached, getComparator()); // TODO passing memtable here is confusing since it's almost entirely unused
+                ColumnFamily returnCF = ci.getColumnFamily();
+                filter.collectCollatedColumns(returnCF, ci, gcBefore);
+                return removeDeleted(returnCF);
             }
 
-            QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
-            ColumnFamily cf = getTopLevelColumns(nameFilter, gcBefore);
-            if (cf == null || cf.getColumnCount() == 0)
-                return cf;
+            // we are querying subcolumns of a supercolumn: fetch the supercolumn with NQF, then filter in-memory.
+            ColumnFamily cf;
+            SuperColumn sc;
+            if (rowCache == null)
+            {
+                QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
+                cf = getTopLevelColumns(nameFilter, gcBefore);
+                if (cf == null || cf.getColumnCount() == 0)
+                    return cf;
 
-            assert cf.getSortedColumns().size() == 1;
-            SuperColumn sc = (SuperColumn)cf.getSortedColumns().iterator().next();
+                assert cf.getSortedColumns().size() == 1;
+                sc = (SuperColumn)cf.getSortedColumns().iterator().next();
+            }
+            else
+            {
+                cf = getCachedRow(filter);
+                sc = (SuperColumn)cf.getColumn(filter.path.superColumnName);
+            }
+            
             SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
             ColumnFamily cfFiltered = cf.cloneMeShallow();
             cfFiltered.addColumn(scFiltered);
@@ -1220,6 +1256,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public int getLiveSSTableCount()
     {
         return ssTables_.size();
+    }
+
+    public void invalidate(String key)
+    {
+        rowCache.remove(key);
     }
 
     /**

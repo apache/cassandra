@@ -415,6 +415,7 @@ public class Table
     {
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 
+        // write the mutation to the commitlog and memtables
         flusherLock.readLock().lock();
         try
         {
@@ -434,7 +435,14 @@ public class Table
             flusherLock.readLock().unlock();
         }
 
-        // usually mTF will be empty and this will be a no-op
+        // invalidate cache.  2nd loop over CFs here to avoid prolonging the lock section unnecessarily.
+        for (ColumnFamily cf : mutation.getColumnFamilies())
+        {
+            ColumnFamilyStore cfs = columnFamilyStores.get(cf.name());
+            cfs.invalidate(mutation.key());
+        }
+
+        // flush memtables that got filled up.  usually mTF will be empty and this will be a no-op
         for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
             entry.getKey().switchMemtable(entry.getValue(), writeCommitLog);
     }

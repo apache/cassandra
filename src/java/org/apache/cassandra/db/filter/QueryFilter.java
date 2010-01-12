@@ -46,7 +46,12 @@ public abstract class QueryFilter
      * returns an iterator that returns columns from the given memtable
      * matching the Filter criteria in sorted order.
      */
-    public abstract ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator);
+    public abstract ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator);
+
+    public ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator)
+    {
+        return getMemColumnIterator(memtable, memtable.getColumnFamily(key), comparator);
+    }
 
     /**
      * returns an iterator that returns columns from the given SSTable

@@ -199,9 +199,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
-    public ColumnIterator getSliceIterator(SliceQueryFilter filter, AbstractType typeComparator)
+    public ColumnIterator getSliceIterator(ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
     {
-        ColumnFamily cf = columnFamilies.get(partitioner.decorateKey(filter.key));
         final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table, filter.getColumnFamilyName()) : cf.cloneMeShallow();
 
         final IColumn columns[] = (cf == null ? columnFamily : cf).getSortedColumns().toArray(new IColumn[columnFamily.getSortedColumns().size()]);
@@ -252,9 +251,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         };
     }
 
-    public ColumnIterator getNamesIterator(final NamesQueryFilter filter)
+    public ColumnIterator getNamesIterator(final ColumnFamily cf, final NamesQueryFilter filter)
     {
-        final ColumnFamily cf = columnFamilies.get(partitioner.decorateKey(filter.key));
         final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table, filter.getColumnFamilyName()) : cf.cloneMeShallow();
         final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table, filter.getColumnFamilyName()).equals("Standard");
 
@@ -285,6 +283,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
                 return endOfData();
             }
         };
+    }
+
+    public ColumnFamily getColumnFamily(String key)
+    {
+        return columnFamilies.get(partitioner.decorateKey(key));
     }
 
     void clearUnsafe()

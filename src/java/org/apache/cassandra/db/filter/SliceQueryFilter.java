@@ -53,9 +53,9 @@ public class SliceQueryFilter extends QueryFilter
         this.count = count;
     }
 
-    public ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator)
+    public ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator)
     {
-        return memtable.getSliceIterator(this, comparator);
+        return memtable.getSliceIterator(cf, this, comparator);
     }
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException

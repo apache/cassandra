@@ -59,9 +59,9 @@ public class NamesQueryFilter extends QueryFilter
         return set;
     }
 
-    public ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator)
+    public ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator)
     {
-        return memtable.getNamesIterator(this);
+        return memtable.getNamesIterator(cf, this);
     }
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException

@@ -117,6 +117,17 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return count;
     }
 
+    public static int estimatedKeys(String columnFamilyName)
+    {
+        int n = 0;
+        for (SSTableReader sstable : openedFiles.values())
+        {
+            if (sstable.getColumnFamilyName().equals(columnFamilyName))
+                n += sstable.getIndexPositions().size() * INDEX_INTERVAL;
+        }
+        return n;
+    }
+
     /**
      * Get all indexed keys defined by the two predicates.
      * @param cfpred A Predicate defining matching column families.
