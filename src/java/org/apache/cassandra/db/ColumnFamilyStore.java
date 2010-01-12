@@ -106,7 +106,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable_;
 
-    private ConcurrentLinkedHashMap<String, ColumnFamily> rowCache;
+    private InstrumentedCache<String, ColumnFamily> rowCache;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable_;
@@ -185,9 +185,9 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         ssTables_ = new SSTableTracker(sstables);
 
-        int cacheSize = (int)(0.1 * SSTableReader.estimatedKeys(columnFamilyName));
+        int cacheSize = (int)(0.2 * SSTableReader.estimatedKeys(columnFamilyName));
         logger_.info("cache size for " + columnFamilyName + " is " + cacheSize);
-        rowCache = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, cacheSize);
+        rowCache = new InstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException
@@ -224,7 +224,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            String mbeanName = "org.apache.cassandra.db:type=ColumnFamilyStores,name=" + table + ",columnfamily=" + columnFamily;
+            String mbeanName = "org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table + ",columnfamily=" + columnFamily;
             mbs.registerMBean(cfs, new ObjectName(mbeanName));
         }
         catch (Exception e)
