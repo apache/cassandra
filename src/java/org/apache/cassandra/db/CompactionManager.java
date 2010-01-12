@@ -29,7 +29,6 @@ import javax.management.*;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -37,7 +36,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.net.InetAddress;
@@ -52,6 +50,8 @@ public class CompactionManager implements CompactionManagerMBean
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = Logger.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
+
+    private static volatile boolean gcRequested;
 
     private int minimumCompactionThreshold = 4; // compact this many sstables min at a time
     private int maximumCompactionThreshold = 32; // compact this many sstables max at a time
@@ -68,11 +68,40 @@ public class CompactionManager implements CompactionManagerMBean
         {
             throw new RuntimeException(e);
         }
+
+        /**
+         * thread that requests GCs to clean out obsolete sstables, sleeping rpc timeout first so that most in-progress ops can complete
+         * (thus, no longer reference the sstables in question)
+         */
+        new Thread(new Runnable()
+        {
+            final long gcDelay = DatabaseDescriptor.getRpcTimeout();
+
+            public void run()
+            {
+                while (true)
+                {
+                    try
+                    {
+                        Thread.sleep(gcDelay * 10);
+                        if (gcRequested)
+                        {
+                            Thread.sleep(gcDelay);
+                            System.gc();
+                            gcRequested = false;
+                        }
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+        }, "COMPACTION-GC-INVOKER").start();
     }
 
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
-    private static final NamedThreadFactory gcThreadFactory = new NamedThreadFactory("GC-INVOKER");
 
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
@@ -308,7 +337,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name, cfs.getColumnFamilyName()));
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
-        gcAfterRpcTimeout();
+        gcRequested = true;
         submitMinorIfNeeded(cfs);
 
         String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
@@ -409,7 +438,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             cfs.replaceCompactedSSTables(originalSSTables, sstables);
         }
-        CompactionManager.gcAfterRpcTimeout();
+        gcRequested = true;
     }
 
     /**
@@ -439,22 +468,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             ci.close();
         }
-    }
-
-    /**
-     * perform a GC to clean out obsolete sstables, sleeping rpc timeout first so that most in-progress ops can complete
-     * (thus, no longer reference the sstables in question)
-     */
-    static void gcAfterRpcTimeout()
-    {
-        gcThreadFactory.newThread(new WrappedRunnable()
-        {
-            public void runMayThrow() throws InterruptedException
-            {
-                Thread.sleep(DatabaseDescriptor.getRpcTimeout());
-                System.gc();
-            }
-        }).start();
     }
 
     /*
