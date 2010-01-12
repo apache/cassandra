@@ -193,7 +193,6 @@ public class Table
                 if (tableInstance == null)
                 {
                     tableInstance = new Table(table);
-                    tableInstance.onStart();
                     instances.put(table, tableInstance);
                 }
             }
@@ -220,15 +219,7 @@ public class Table
         return columnFamilyStores.get(cfName);
     }
 
-    public void onStart() throws IOException
-    {
-        for (String columnFamily : tableMetadata.getColumnFamilies())
-        {
-            columnFamilyStores.get(columnFamily).onStart();
-        }
-    }
-    
-    /** 
+    /**
      * Do a cleanup of keys that do not belong locally.
      */
     public void forceCleanup()
@@ -349,7 +340,7 @@ public class Table
         tableMetadata = Table.TableMetadata.instance(table);
         for (String columnFamily : tableMetadata.getColumnFamilies())
         {
-            columnFamilyStores.put(columnFamily, ColumnFamilyStore.getColumnFamilyStore(table, columnFamily));
+            columnFamilyStores.put(columnFamily, ColumnFamilyStore.createColumnFamilyStore(table, columnFamily));
         }
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most

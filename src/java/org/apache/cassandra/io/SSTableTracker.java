@@ -27,11 +27,9 @@ import java.io.IOException;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {
-    private volatile Set<SSTableReader> sstables = Collections.emptySet();
+    private volatile Set<SSTableReader> sstables;
 
-    // TODO get rid of onstart crap.  this should really be part of the constructor,
-    // but CFS isn't designed to set this up in the constructor, yet.
-    public synchronized void onStart(Collection<SSTableReader> sstables)
+    public SSTableTracker(Collection<SSTableReader> sstables)
     {
         this.sstables = Collections.unmodifiableSet(new HashSet<SSTableReader>(sstables));
     }

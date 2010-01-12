@@ -112,7 +112,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private AtomicReference<BinaryMemtable> binaryMemtable_;
 
     /* SSTables on disk for this column family */
-    private SSTableTracker ssTables_ = new SSTableTracker();
+    private SSTableTracker ssTables_;
 
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
@@ -127,73 +127,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator_.set(indexValue);
         memtable_ = new Memtable(table_, columnFamily_);
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(table_, columnFamily_));
-        int cacheSize = SSTableReader.estimatedKeys(columnFamilyName);
-        rowCache = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, cacheSize);
-    }
 
-    public static ColumnFamilyStore getColumnFamilyStore(String table, String columnFamily) throws IOException
-    {
-        /*
-         * Get all data files associated with old Memtables for this table.
-         * These files are named as follows <Table>-1.db, ..., <Table>-n.db. Get
-         * the max which in this case is n and increment it to use it for next
-         * index.
-         */
-        List<Integer> generations = new ArrayList<Integer>();
-        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
-        for (String directory : dataFileDirectories)
-        {
-            File fileDir = new File(directory);
-            File[] files = fileDir.listFiles();
-            
-            for (File file : files)
-            {
-                String filename = file.getName();
-                String cfName = getColumnFamilyFromFileName(filename);
-
-                if (cfName.equals(columnFamily))
-                {
-                    generations.add(getGenerationFromFileName(filename));
-                }
-            }
-        }
-        Collections.sort(generations);
-        int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
-
-        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(table, columnFamily)), value);
-
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            mbs.registerMBean(cfs, new ObjectName(
-                    "org.apache.cassandra.db:type=ColumnFamilyStores,name=" + table + ",columnfamily=" + columnFamily));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        return cfs;
-    }
-
-    private Set<File> files()
-    {
-        Set<File> fileSet = new HashSet<File>(3 * ssTables_.size() + 6); // 6 is fudge factor so we don't have to double if there's a couple uncompacted ones around
-        for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(table_))
-        {
-            File[] files = new File(directory).listFiles();
-            for (File file : files)
-            {
-                String cfName = getColumnFamilyFromFileName(file.getName());
-                if (cfName.equals(columnFamily_))
-                    fileSet.add(file);
-            }
-        }
-        return fileSet;
-    }
-
-    void onStart() throws IOException
-    {
         if (logger_.isDebugEnabled())
             logger_.debug("Starting CFS " + columnFamily_);
         // scan for data files corresponding to this CF
@@ -249,7 +183,72 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             sstables.add(sstable);
         }
-        ssTables_.onStart(sstables);
+        ssTables_ = new SSTableTracker(sstables);
+
+        int cacheSize = (int)(0.1 * SSTableReader.estimatedKeys(columnFamilyName));
+        logger_.info("cache size for " + columnFamilyName + " is " + cacheSize);
+        rowCache = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, cacheSize);
+    }
+
+    public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException
+    {
+        /*
+         * Get all data files associated with old Memtables for this table.
+         * These files are named as follows <Table>-1.db, ..., <Table>-n.db. Get
+         * the max which in this case is n and increment it to use it for next
+         * index.
+         */
+        List<Integer> generations = new ArrayList<Integer>();
+        String[] dataFileDirectories = DatabaseDescriptor.getAllDataFileLocationsForTable(table);
+        for (String directory : dataFileDirectories)
+        {
+            File fileDir = new File(directory);
+            File[] files = fileDir.listFiles();
+            
+            for (File file : files)
+            {
+                String filename = file.getName();
+                String cfName = getColumnFamilyFromFileName(filename);
+
+                if (cfName.equals(columnFamily))
+                {
+                    generations.add(getGenerationFromFileName(filename));
+                }
+            }
+        }
+        Collections.sort(generations);
+        int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
+
+        ColumnFamilyStore cfs = new ColumnFamilyStore(table, columnFamily, "Super".equals(DatabaseDescriptor.getColumnType(table, columnFamily)), value);
+
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+        try
+        {
+            String mbeanName = "org.apache.cassandra.db:type=ColumnFamilyStores,name=" + table + ",columnfamily=" + columnFamily;
+            mbs.registerMBean(cfs, new ObjectName(mbeanName));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return cfs;
+    }
+
+    private Set<File> files()
+    {
+        Set<File> fileSet = new HashSet<File>();
+        for (String directory : DatabaseDescriptor.getAllDataFileLocationsForTable(table_))
+        {
+            File[] files = new File(directory).listFiles();
+            for (File file : files)
+            {
+                String cfName = getColumnFamilyFromFileName(file.getName());
+                if (cfName.equals(columnFamily_))
+                    fileSet.add(file);
+            }
+        }
+        return fileSet;
     }
 
     /*
