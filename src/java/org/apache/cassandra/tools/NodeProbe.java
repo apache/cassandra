@@ -271,7 +271,7 @@ public class NodeProbe
             query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,*");
             Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
             for (ObjectName objectName: result) {
-                String tableName = objectName.getKeyProperty("name");
+                String tableName = objectName.getKeyProperty("keyspace");
                 ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
 
                 if (!cfstoreMap.containsKey(tableName))
