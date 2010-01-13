@@ -119,10 +119,7 @@ public class Streaming
         {
             logger.info("Waiting for transfer to " + target + " to complete");
             StreamManager.instance(target).waitForStreamCompletion();
-            for (SSTableReader sstable : sstables)
-            {
-                sstable.markCompacted();
-            }
+            // (StreamManager will delete the streamed file on completion.)
             logger.info("Done with transfer to " + target);
         }
     }

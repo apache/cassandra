@@ -302,20 +302,21 @@ public class NodeProbe
                     int writeCount = cfstore.getWriteCount();
                     int readCount = cfstore.getReadCount();
                     
-                    tableReadCount += readCount;
-                    tableTotalReadTime += cfstore.getReadLatency() * readCount;
-                    tableWriteCount += writeCount;
-                    tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
+                    if (readCount > 0)
+                    {
+                        tableReadCount += readCount;
+                        tableTotalReadTime += cfstore.getReadLatency() * readCount;
+                    }
+                    if (writeCount > 0)
+                    {
+                        tableWriteCount += writeCount;
+                        tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
+                    }
                     tablePendingTasks += cfstore.getPendingTasks();
                 }
                 
-                double tableReadLatency = Double.NaN;
-                double tableWriteLatency = Double.NaN;
-
-                if (tableReadCount > 0.0f)
-                    tableReadLatency = tableTotalReadTime / tableReadCount;
-                if (tableWriteCount > 0.0f)
-                    tableWriteLatency = tableTotalWriteTime / tableWriteCount;
+                double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount : Double.NaN;
+                double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount : Double.NaN;
 
                 outs.println("\tRead Count: " + tableReadCount);
                 outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
