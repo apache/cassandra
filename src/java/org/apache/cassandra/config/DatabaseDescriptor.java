@@ -965,7 +965,7 @@ public class DatabaseDescriptor
     public static double getRowsCachedFraction(String tableName, String columnFamilyName)
     {
         Double v = tableRowsCachedFractions_.get(Pair.create(tableName, columnFamilyName));
-        return v == null ? 0.01 : v;
+        return v == null ? 0 : v;
     }
 
     private static class ConfigurationException extends Exception

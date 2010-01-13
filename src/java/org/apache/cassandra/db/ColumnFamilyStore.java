@@ -186,11 +186,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_ = new SSTableTracker(sstables);
 
         double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
-        int cacheSize = (int)(v * SSTableReader.estimatedKeys(columnFamilyName));
-        if (logger_.isDebugEnabled())
-            logger_.debug("cache size for " + columnFamilyName + " is " + cacheSize);
-        if (cacheSize > 0)
+        if (v > 0)
+        {
+            int cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
+            if (logger_.isDebugEnabled())
+                logger_.debug("enabling row cache for " + columnFamilyName + " with size " + cacheSize);
             rowCache = new InstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
+        }
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException
@@ -803,7 +805,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             else
             {
                 cf = getCachedRow(filter);
+                if (cf == null)
+                    return null;
                 sc = (SuperColumn)cf.getColumn(filter.path.superColumnName);
+                if (sc == null)
+                    return null;
             }
             
             SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);

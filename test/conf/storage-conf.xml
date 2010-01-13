@@ -48,7 +48,7 @@
        <ColumnFamily Name="Standard2"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong1"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong2"/>
-       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super1"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super1" RowsCachedFraction="0.1" KeysCachedFraction="0"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super2"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super3"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="UTF8Type" Name="Super4"/>
