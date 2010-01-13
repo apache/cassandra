@@ -183,6 +183,8 @@ class TestMutations(CassandraTester):
 
     def test_missing_super(self):
         _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))
+        _insert_super()
+        _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', _i64(1)), ConsistencyLevel.ONE))
 
     def test_count(self):
         _insert_simple()
@@ -585,8 +587,8 @@ class TestMutations(CassandraTester):
         assert _big_slice('Keyspace1', 'key1', ColumnParent('Standard1')) == []
         # Next, w/ a newer timestamp; it should come back:
         client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='c1'), 'value1', 4, ConsistencyLevel.ONE)
-        assert _big_slice('Keyspace1', 'key1', ColumnParent('Standard1')) == \
-            [ColumnOrSuperColumn(column=Column('c1', 'value1', 4))]
+        result = _big_slice('Keyspace1', 'key1', ColumnParent('Standard1'))
+        assert result == [ColumnOrSuperColumn(column=Column('c1', 'value1', 4))], result
 
         # check removing the entire super cf, too.
         client.remove('Keyspace1', 'key1', ColumnPath('Super1'), 3, ConsistencyLevel.ONE)

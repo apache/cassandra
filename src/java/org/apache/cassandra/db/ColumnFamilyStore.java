@@ -30,7 +30,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 import org.apache.cassandra.service.SliceRange;
 import org.apache.log4j.Logger;
 
@@ -752,15 +751,15 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
     }
 
-    private ColumnFamily getCachedRow(QueryFilter filter) throws IOException
+    private ColumnFamily cacheRow(String key) throws IOException
     {
         ColumnFamily cached;
-        if ((cached = rowCache.get(filter.key)) == null)
+        if ((cached = rowCache.get(key)) == null)
         {
-            cached = getTopLevelColumns(new IdentityQueryFilter(filter.key, new QueryPath(columnFamily_)), Integer.MIN_VALUE);
+            cached = getTopLevelColumns(new IdentityQueryFilter(key, new QueryPath(columnFamily_)), Integer.MIN_VALUE);
             if (cached == null)
                 return null;
-            rowCache.put(filter.key, cached);
+            rowCache.put(key, cached);
         }
         return cached;
     }
@@ -782,11 +781,11 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (rowCache == null)
                     return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
 
-                ColumnFamily cached = getCachedRow(filter);
+                ColumnFamily cached = cacheRow(filter.key);
                 ColumnIterator ci = filter.getMemColumnIterator(memtable_, cached, getComparator()); // TODO passing memtable here is confusing since it's almost entirely unused
                 ColumnFamily returnCF = ci.getColumnFamily();
                 filter.collectCollatedColumns(returnCF, ci, gcBefore);
-                return removeDeleted(returnCF);
+                return removeDeleted(returnCF, gcBefore);
             }
 
             // we are querying subcolumns of a supercolumn: fetch the supercolumn with NQF, then filter in-memory.
@@ -804,12 +803,13 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             else
             {
-                cf = getCachedRow(filter);
+                cf = cacheRow(filter.key);
                 if (cf == null)
                     return null;
                 sc = (SuperColumn)cf.getColumn(filter.path.superColumnName);
                 if (sc == null)
                     return null;
+                sc = (SuperColumn)sc.cloneMe();
             }
             
             SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
@@ -1229,7 +1229,8 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ssTables_.size();
     }
 
-    public ColumnFamily getCachedRow(String key)
+    /** raw cached row -- does not fetch the row if it is not present */
+    public ColumnFamily getRawCachedRow(String key)
     {
         return rowCache == null ? null : rowCache.get(key);
     }

@@ -33,7 +33,6 @@ import org.apache.cassandra.io.util.FileUtils;
 
 import java.net.InetAddress;
 
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
 
@@ -422,7 +421,7 @@ public class Table
                 if ((memtableToFlush=cfs.apply(mutation.key(), columnFamily)) != null)
                     memtablesToFlush.put(cfs, memtableToFlush);
 
-                ColumnFamily cachedRow = cfs.getCachedRow(mutation.key());
+                ColumnFamily cachedRow = cfs.getRawCachedRow(mutation.key());
                 if (cachedRow != null)
                     cachedRow.addAll(columnFamily);
             }
