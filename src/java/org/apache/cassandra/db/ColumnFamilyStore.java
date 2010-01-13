@@ -85,7 +85,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                Runtime.getRuntime().availableProcessors(),
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(2 * Runtime.getRuntime().availableProcessors()),
+                                               new LinkedBlockingQueue<Runnable>(1 + 2 * Runtime.getRuntime().availableProcessors()),
                                                new NamedThreadFactory("FLUSH-SORTER-POOL"));
     private static ExecutorService flushWriter_
             = new DebuggableThreadPoolExecutor(DatabaseDescriptor.getAllDataFileLocations().length,
