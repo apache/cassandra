@@ -82,7 +82,7 @@ public abstract class AbstractType implements Comparator<byte[]>
         StringBuilder builder = new StringBuilder();
         for (IColumn column : columns)
         {
-            builder.append(getString(column.name())).append(",");
+            builder.append(column.getString(this)).append(",");
         }
         return builder.toString();
     }

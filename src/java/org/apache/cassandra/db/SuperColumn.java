@@ -183,6 +183,7 @@ public final class SuperColumn implements IColumn, IColumnContainer
         {
         	addColumn(subColumn);
         }
+        FBUtilities.atomicSetMax(localDeletionTime, column.getLocalDeletionTime()); // do this first so we won't have a column that's "deleted" but has no local deletion time
         FBUtilities.atomicSetMax(markedForDeleteAt, column.getMarkedForDeleteAt());
     }
 

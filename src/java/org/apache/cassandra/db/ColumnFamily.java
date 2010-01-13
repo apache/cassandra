@@ -242,7 +242,7 @@ public final class ColumnFamily implements IColumnContainer
 
     public void delete(ColumnFamily cf2)
     {
-        FBUtilities.atomicSetMax(localDeletionTime, cf2.getLocalDeletionTime());
+        FBUtilities.atomicSetMax(localDeletionTime, cf2.getLocalDeletionTime()); // do this first so we won't have a column that's "deleted" but has no local deletion time
         FBUtilities.atomicSetMax(markedForDeleteAt, cf2.getMarkedForDeleteAt());
     }
 

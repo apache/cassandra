@@ -429,11 +429,6 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
      their contents; just the object itself as a "tombstone" that can be used to repair other
      replicas that do not know about the deletion.
      */
-    static ColumnFamily removeDeleted(ColumnFamily cf)
-    {
-        return removeDeleted(cf, CompactionManager.getDefaultGCBefore());
-    }
-
     public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
     {
         if (cf == null)
