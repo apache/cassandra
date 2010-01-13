@@ -939,7 +939,10 @@ public class DatabaseDescriptor
     public static AbstractType getComparator(String tableName, String cfName)
     {
         assert tableName != null;
-        return getCFMetaData(tableName, cfName).comparator;
+        CFMetaData cfmd = getCFMetaData(tableName, cfName);
+        if (cfmd == null)
+            throw new NullPointerException("Unknown ColumnFamily " + cfName + " in keyspace " + tableName);
+        return cfmd.comparator;
     }
 
     public static AbstractType getSubComparator(String tableName, String cfName)
