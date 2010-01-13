@@ -1,5 +1,6 @@
 0.5.0 final
  * avoid attempting to delete temporary bootstrap files twice (CASSANDRA-681)
+ * fix bogus NaN in nodeprobe cfstats output (CASSANDRA-646)
 
 
 0.5.0 RC3
