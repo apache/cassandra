@@ -1,3 +1,7 @@
+0.5.0 final
+ * avoid attempting to delete temporary bootstrap files twice (CASSANDRA-681)
+
+
 0.5.0 RC3
  * commit the correct version of the patch for CASSANDRA-663
 
