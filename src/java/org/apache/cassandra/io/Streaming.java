@@ -28,6 +28,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.File;
 import java.io.IOError;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
@@ -74,7 +76,21 @@ public class Streaming
                 Table table = Table.open(tName);
                 if (logger.isDebugEnabled())
                   logger.debug("Flushing memtables ...");
-                table.flush();
+                for (Future f : table.flush())
+                {
+                    try
+                    {
+                        f.get();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    catch (ExecutionException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
                 if (logger.isDebugEnabled())
                   logger.debug("Performing anticompaction ...");
                 /* Get the list of files that need to be streamed */

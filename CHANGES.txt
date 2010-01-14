@@ -9,6 +9,8 @@ dev
    (CASSANDRA-694)
  * optimize inner read in MessagingService, vastly improving multiple-node
    performance (CASSANDRA-675)
+ * wait for table flush before streaming data back to a bootstrapping node.
+   (CASSANDRA-696)
 
 
 0.5.0 RC3
