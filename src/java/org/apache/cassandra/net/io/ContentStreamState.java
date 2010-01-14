@@ -59,7 +59,7 @@ class ContentStreamState extends StartState
         }
     }
 
-    public byte[] read() throws IOException, ReadNotCompleteException
+    public byte[] read() throws IOException
     {        
         SocketChannel socketChannel = stream_.getStream();
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
@@ -70,7 +70,7 @@ class ContentStreamState extends StartState
             {
                 bytesRead_ += fc_.transferFrom(socketChannel, bytesRead_, ContentStreamState.count_);
                 if ( bytesRead_ != streamContext_.getExpectedBytes() )
-                    throw new ReadNotCompleteException("Specified number of bytes have not been read from the Socket Channel");
+                    return null;
             }
             catch ( IOException ex )
             {

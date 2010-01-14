@@ -31,7 +31,7 @@ class DoneState extends StartState
         bytes_ = bytes;
     }
 
-    public byte[] read() throws IOException, ReadNotCompleteException
+    public byte[] read() throws IOException
     {        
         morphState();
         return bytes_;
