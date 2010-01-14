@@ -5,6 +5,8 @@ dev
 0.5.0 final
  * avoid attempting to delete temporary bootstrap files twice (CASSANDRA-681)
  * fix bogus NaN in nodeprobe cfstats output (CASSANDRA-646)
+ * provide a policy for dealing with single thread executors w/ a full queue
+   (CASSANDRA-694)
 
 
 0.5.0 RC3

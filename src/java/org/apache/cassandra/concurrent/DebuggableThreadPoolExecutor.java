@@ -19,23 +19,35 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 
         if (maximumPoolSize > 1)
         {
+            // clearly strict serialization is not a requirement.  just make the calling thread execute.
             this.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         }
         else
         {
             // preserve task serialization.  this is more complicated than it needs to be,
-            // since TPE rejects if queue.offer reports a full queue.
-            // the easiest option (since most of TPE.execute deals with private members)
-            // appears to be to wrap the given queue class with one whose offer
-            // simply delegates to put().  this would be ugly, since it violates both
-            // the spirit and letter of queue.offer, but effective.
-            // so far, though, all our serialized executors use unbounded queues,
-            // so actually implementing this has not been necessary.
+            // since TPE rejects if queue.offer reports a full queue.  we'll just
+            // override this with a handler that retries until it gets in.  ugly, but effective.
+            // (there is an extensive analysis of the options here at
+            //  http://today.java.net/pub/a/today/2008/10/23/creating-a-notifying-blocking-thread-pool-executor.html)
             this.setRejectedExecutionHandler(new RejectedExecutionHandler()
             {
-                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor)
+                public void rejectedExecution(Runnable task, ThreadPoolExecutor executor)
                 {
-                    throw new AssertionError("Blocking serialized executor is not yet implemented");
+                    BlockingQueue<Runnable> queue = executor.getQueue();
+                    while (true)
+                    {
+                        if (executor.isShutdown())
+                            throw new RejectedExecutionException("ThreadPoolExecutor has shut down");
+                        try
+                        {
+                            if (queue.offer(task, 1000, TimeUnit.MILLISECONDS))
+                                break;
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new AssertionError(e);    
+                        }
+                    }
                 }
             });
         }
