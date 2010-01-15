@@ -77,7 +77,7 @@ public abstract class SSTable
         return new File(filename).getName().split("-")[0];
     }
 
-    protected static String indexFilename(String dataFile)
+    public static String indexFilename(String dataFile)
     {
         String[] parts = dataFile.split("-");
         parts[parts.length - 1] = "Index.db";

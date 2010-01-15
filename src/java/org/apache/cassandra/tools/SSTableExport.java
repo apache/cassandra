@@ -30,8 +30,12 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IteratingRow;
+import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableScanner;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.service.StorageService;
+
 import static org.apache.cassandra.utils.FBUtilities.bytesToHex;
 import org.apache.commons.cli.*;
 
@@ -44,6 +48,7 @@ public class SSTableExport
 
     private static final String OUTFILE_OPTION = "f";
     private static final String KEY_OPTION = "k";
+    private static final String ENUMERATEKEYS_OPTION = "e";
     private static Options options;
     private static CommandLine cmd;
     
@@ -59,6 +64,11 @@ public class SSTableExport
         optKey.setArgs(500);
         optKey.setRequired(false);
         options.addOption(optKey);
+
+        options = new Options();
+        Option optEnumerate = new Option(ENUMERATEKEYS_OPTION, false, "enumerate keys only");
+        optOutfile.setRequired(false);
+        options.addOption(optEnumerate);
     }
     
     private static String quote(String val)
@@ -131,6 +141,42 @@ public class SSTableExport
         }
      
         return json.toString();
+    }
+
+    /**
+     * Enumerate row keys from an SSTableReader and write the result to a PrintStream.
+     * 
+     * @param ssTableFile the file to export the rows from
+     * @param outs PrintStream to write the output to
+     * @throws IOException on failure to read/write input/output
+     */
+    public static void enumeratekeys(String ssTableFile, PrintStream outs)
+    throws IOException
+    {
+        IPartitioner partitioner = StorageService.getPartitioner();
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(SSTable.indexFilename(ssTableFile), "r");
+        while (!input.isEOF())
+        {
+            DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+            long dataPosition = input.readLong();
+            outs.println(decoratedKey.key);
+        }
+
+        outs.flush();
+    }
+
+    /**
+     * Enumerate row keys from an SSTable and write the result to a file.
+     * 
+     * @param ssTableFile the SSTable to export the rows from
+     * @param outFile file to write the output to
+     * @throws IOException on failure to read/write input/output
+     */
+    public static void enumeratekeys(String ssTableFile, String outFile)
+    throws IOException
+    {
+        PrintStream outs = new PrintStream(outFile);
+        enumeratekeys(ssTableFile, outs);
     }
     
     /**
@@ -304,22 +350,31 @@ public class SSTableExport
             System.exit(1);
         }
         
+
         String[] keys = cmd.getOptionValues(KEY_OPTION);
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
         
         if (outFile != null)
         {
-            if ((keys != null) && (keys.length > 0))
-                export(ssTableFileName, outFile, keys);
-            else
-                export(ssTableFileName, outFile);
+            if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+                enumeratekeys(ssTableFileName, outFile);
+            else {
+                if ((keys != null) && (keys.length > 0))
+                    export(ssTableFileName, outFile, keys);
+                else
+                    export(ssTableFileName, outFile);
+            }
         }
         else
         {
-            if ((keys != null) && (keys.length > 0))
-                export(ssTableFileName, System.out, keys);
-            else
-                export(ssTableFileName);
+            if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+                enumeratekeys(ssTableFileName, System.out);
+            else {
+                if ((keys != null) && (keys.length > 0))
+                    export(ssTableFileName, System.out, keys);
+                else
+                    export(ssTableFileName);
+            }
         }
         System.exit(0);
     }

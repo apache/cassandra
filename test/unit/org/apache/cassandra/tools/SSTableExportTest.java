@@ -45,6 +45,44 @@ import org.junit.Test;
 public class SSTableExportTest
 {
     @Test
+    public void testEnumeratekeys() throws IOException
+    {
+        File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
+        ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
+        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
+        DataOutputBuffer dob = new DataOutputBuffer();
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, partitioner);
+        
+        // Add rowA
+        cfamily.addColumn(new QueryPath("Standard1", null, "colA".getBytes()), "valA".getBytes(), 1, false);
+        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
+        writer.append(partitioner.decorateKey("rowA"), dob);
+        dob.reset();
+        cfamily.clear();
+        
+        // Add rowB
+        cfamily.addColumn(new QueryPath("Standard1", null, "colB".getBytes()), "valB".getBytes(), 1, false);
+        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
+        writer.append(partitioner.decorateKey("rowB"), dob);
+        dob.reset();
+        cfamily.clear();
+     
+        writer.closeAndOpenReader(0);
+        
+        // Enumerate and verify
+        File temp = File.createTempFile("Standard1", ".txt");
+        SSTableExport.enumeratekeys(writer.getFilename(), new PrintStream(temp.getPath()));
+
+        
+        FileReader file = new FileReader(temp);
+        char[] buf = new char[(int) temp.length()];
+        file.read(buf);
+        String output = new String(buf);
+        
+        assert output.equals("rowA\nrowB\n");
+    }
+
+    @Test
     public void testExportSimpleCf() throws IOException
     {
         File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
