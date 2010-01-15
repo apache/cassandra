@@ -48,7 +48,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private TcpConnectionManager pool_;
     private boolean isIncoming_ = false;
     private TcpReader tcpReader_;
-    private ReadWorkItem readWork_ = new ReadWorkItem(); 
+    private ConnectionReader reader_ = new ConnectionReader();
     private Queue<ByteBuffer> pendingWrites_ = new ConcurrentLinkedQueue<ByteBuffer>();
     private InetAddress localEp_;
     private InetAddress remoteEp_;
@@ -401,12 +401,12 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     {
         turnOffInterestOps(key, SelectionKey.OP_READ);
         // publish this event onto to the TCPReadEvent Queue.
-        MessagingService.getReadExecutor().execute(readWork_);
+        MessagingService.getReadExecutor().execute(reader_);
     }
     
-    class ReadWorkItem implements Runnable
+    class ConnectionReader implements Runnable
     {                 
-        // called from the TCP READ thread pool
+        // called from the TCP READ executor
         public void run()
         {                         
             if ( tcpReader_ == null )
@@ -441,7 +441,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
                     }
                     else
                     {
-                        /* Close this socket connection  used for streaming */
                         closeSocket();
                     }                    
                 }

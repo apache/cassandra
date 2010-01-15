@@ -67,7 +67,7 @@ public class MessagingService implements IFailureDetectionEventListener
     private static Map<String, IVerbHandler> verbHandlers_;
 
     /* Thread pool to handle messaging read activities of Socket and default stage */
-    private static ExecutorService messageDeserializationExecutor_;
+    private static ExecutorService messageReadExecutor_;
     
     /* Thread pool to handle deserialization of messages read from the socket. */
     private static ExecutorService messageDeserializerExecutor_;
@@ -82,8 +82,6 @@ public class MessagingService implements IFailureDetectionEventListener
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
     private static volatile MessagingService messagingService_ = new MessagingService();
-
-    public static final int MESSAGE_DESERIALIZE_THREADS = 4;
 
     public static int getVersion()
     {
@@ -123,25 +121,19 @@ public class MessagingService implements IFailureDetectionEventListener
         */
         callbackMap_ = new Cachetable<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
         taskCompletionMap_ = new Cachetable<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );        
-        
-        messageDeserializationExecutor_ = new JMXEnabledThreadPoolExecutor(
-                MESSAGE_DESERIALIZE_THREADS,
-                MESSAGE_DESERIALIZE_THREADS,
-                Integer.MAX_VALUE,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                new NamedThreadFactory("MESSAGING-SERVICE-POOL")
-        );
 
-        messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(
-                MESSAGE_DESERIALIZE_THREADS,
-                MESSAGE_DESERIALIZE_THREADS,
-                Integer.MAX_VALUE,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL")
-        );
-        
+        // read executor will have one runnable enqueued per connection with stuff to read on it,
+        // so there is no need to make it bounded, and one thread should be plenty.
+        messageReadExecutor_ = new JMXEnabledThreadPoolExecutor("MS-CONNECTION-READ-POOL");
+
+        // read executor puts messages to deserialize on this.
+        messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(1,
+                                                                        Runtime.getRuntime().availableProcessors(),
+                                                                        Integer.MAX_VALUE,
+                                                                        TimeUnit.SECONDS,
+                                                                        new LinkedBlockingQueue<Runnable>(),
+                                                                        new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL"));
+
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
                 
         protocol_ = hash(HashingSchemes.MD5, "FB-MESSAGING".getBytes());        
@@ -451,7 +443,7 @@ public class MessagingService implements IFailureDetectionEventListener
             udpConnections_.clear();
 
             /* Shutdown the threads in the EventQueue's */
-            messageDeserializationExecutor_.shutdownNow();
+            messageReadExecutor_.shutdownNow();
             messageDeserializerExecutor_.shutdownNow();
             streamExecutor_.shutdownNow();
 
@@ -508,7 +500,7 @@ public class MessagingService implements IFailureDetectionEventListener
 
     public static ExecutorService getReadExecutor()
     {
-        return messageDeserializationExecutor_;
+        return messageReadExecutor_;
     }
 
     public static ExecutorService getDeserializationExecutor()
