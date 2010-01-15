@@ -103,9 +103,9 @@ public class StorageProxy implements StorageProxyMBean
             for (final RowMutation rm: mutations)
             {
                 try
-        {
-            List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
-                    Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
+                {
+                    List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.key());
+                    Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.key(), naturalEndpoints);
                     Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
 
                     // 3 cases:
@@ -173,15 +173,15 @@ public class StorageProxy implements StorageProxyMBean
             for (RowMutation rm: mutations)
             {
                 mostRecentRowMutation = rm;
-                List<InetAddress> naturalEndpoints = StorageService.instance().getNaturalEndpoints(rm.key());
-                Map<InetAddress, InetAddress> endpointMap = StorageService.instance().getHintedEndpointMap(rm.key(), naturalEndpoints);
+                List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.key());
+                Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.key(), naturalEndpoints);
                 int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
     
                 // avoid starting a write we know can't achieve the required consistency
                 assureSufficientLiveNodes(endpointMap, blockFor);
                 
                 // send out the writes, as in insert() above, but this time with a callback that tracks responses
-                final WriteResponseHandler responseHandler = StorageService.instance().getWriteResponseHandler(blockFor, consistency_level);
+                final WriteResponseHandler responseHandler = StorageService.instance.getWriteResponseHandler(blockFor, consistency_level);
                 responseHandlers.add(responseHandler);
                 Message unhintedMessage = null;
                 for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
@@ -320,7 +320,7 @@ public class StorageProxy implements StorageProxyMBean
 
         for (ReadCommand command: commands)
         {
-            InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.key);
+            InetAddress endPoint = StorageService.instance.findSuitableEndPoint(command.key);
             Message message = command.makeReadMessage();
 
             if (logger.isDebugEnabled())
@@ -359,10 +359,10 @@ public class StorageProxy implements StorageProxyMBean
 
             for (ReadCommand command: commands)
             {
-                List<InetAddress> endpoints = StorageService.instance().getNaturalEndpoints(command.key);
+                List<InetAddress> endpoints = StorageService.instance.getNaturalEndpoints(command.key);
                 boolean foundLocal = endpoints.contains(FBUtilities.getLocalAddress());
                 //TODO: Throw InvalidRequest if we're in bootstrap mode?
-                if (foundLocal && !StorageService.instance().isBootstrapMode())
+                if (foundLocal && !StorageService.instance.isBootstrapMode())
                 {
                     localCommands.add(command);
                 }
@@ -417,8 +417,8 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.makeReadMessage();
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
-            InetAddress dataPoint = StorageService.instance().findSuitableEndPoint(command.key);
-            List<InetAddress> endpointList = StorageService.instance().getLiveNaturalEndpoints(command.key);
+            InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.key);
+            List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.key);
             if (endpointList.size() < responseCount)
                 throw new UnavailableException();
 
@@ -517,17 +517,17 @@ public class StorageProxy implements StorageProxyMBean
     static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level) throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
-        TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
+        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
 
-        InetAddress endPoint = StorageService.instance().getPrimary(command.startKey.token);
+        InetAddress endPoint = StorageService.instance.getPrimary(command.startKey.token);
         InetAddress startEndpoint = endPoint;
         int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getReplicationFactor(), consistency_level);
 
         Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
         do
         {
-            Range primaryRange = StorageService.instance().getPrimaryRangeForEndPoint(endPoint);
-            List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(primaryRange.right());
+            Range primaryRange = StorageService.instance.getPrimaryRangeForEndPoint(endPoint);
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(primaryRange.right());
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
 
@@ -595,10 +595,10 @@ public class StorageProxy implements StorageProxyMBean
     static List<String> getKeyRange(RangeCommand command) throws IOException, UnavailableException, TimeoutException
     {
         long startTime = System.currentTimeMillis();
-        TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
+        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
         Set<String> uniqueKeys = new HashSet<String>(command.maxResults);
 
-        InetAddress endPoint = StorageService.instance().findSuitableEndPoint(command.startWith);
+        InetAddress endPoint = StorageService.instance.findSuitableEndPoint(command.startWith);
         InetAddress startEndpoint = endPoint;
 
         do
@@ -628,7 +628,7 @@ public class StorageProxy implements StorageProxyMBean
             do
             {
                 endPoint = tokenMetadata.getSuccessor(endPoint);
-            } while (!FailureDetector.instance().isAlive(endPoint));
+            } while (!FailureDetector.instance.isAlive(endPoint));
         } while (!endPoint.equals(startEndpoint));
 
         rangeStats.add(System.currentTimeMillis() - startTime);
@@ -680,7 +680,7 @@ public class StorageProxy implements StorageProxyMBean
 
         public Object call() throws IOException
         {
-            List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(command.key);
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.key);
             /* Remove the local storage endpoint from the list. */
             endpoints.remove(FBUtilities.getLocalAddress());
 
@@ -692,7 +692,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // Do the consistency checks in the background and return the non NULL row
             if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                StorageService.instance().doConsistencyCheck(row, endpoints, command);
+                StorageService.instance.doConsistencyCheck(row, endpoints, command);
 
             return row;
         }

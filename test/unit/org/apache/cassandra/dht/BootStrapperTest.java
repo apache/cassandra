@@ -42,7 +42,7 @@ public class BootStrapperTest
     @Test
     public void testGuessToken() throws IOException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
 
         generateFakeEndpoints(3);
 
@@ -79,7 +79,7 @@ public class BootStrapperTest
 
     private void testSourceTargetComputation(int numOldNodes) throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
 
         generateFakeEndpoints(numOldNodes);
         Token myToken = StorageService.getPartitioner().getRandomToken();
@@ -119,7 +119,7 @@ public class BootStrapperTest
 
     private void generateFakeEndpoints(int numOldNodes) throws UnknownHostException
     {
-        TokenMetadata tmd = StorageService.instance().getTokenMetadata();
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner<?> p = StorageService.getPartitioner();
 

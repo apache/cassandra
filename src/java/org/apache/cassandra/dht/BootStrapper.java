@@ -87,7 +87,7 @@ public class BootStrapper
                 for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
                 {
                     InetAddress source = entry.getKey();
-                    StorageService.instance().addBootstrapSource(source);
+                    StorageService.instance.addBootstrapSource(source);
                     if (logger.isDebugEnabled())
                         logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
                     Streaming.requestRanges(source, entry.getValue());
@@ -187,7 +187,7 @@ public class BootStrapper
 
     static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget)
     {
-        return getWorkMap(rangesWithSourceTarget, FailureDetector.instance());
+        return getWorkMap(rangesWithSourceTarget, FailureDetector.instance);
     }
 
     static Multimap<InetAddress, Range> getWorkMap(Multimap<Range, InetAddress> rangesWithSourceTarget, IFailureDetector failureDetector)
@@ -217,7 +217,7 @@ public class BootStrapper
     {
         public void doVerb(Message message)
         {
-            StorageService ss = StorageService.instance();
+            StorageService ss = StorageService.instance;
             List<String> tokens = ss.getSplits(2);
             assert tokens.size() == 3 : tokens.size();
             Message response;

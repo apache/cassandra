@@ -63,9 +63,9 @@ public class AntiEntropyServiceTest extends CleanupHelper
             // bump the replication factor so that local overlaps with REMOTE below
             DatabaseDescriptorTest.setReplicationFactor(2);
 
-            StorageService.instance().initServer();
+            StorageService.instance.initServer();
             // generate a fake endpoint for which we can spoof receiving/sending trees
-            TokenMetadata tmd = StorageService.instance().getTokenMetadata();
+            TokenMetadata tmd = StorageService.instance.getTokenMetadata();
             IPartitioner part = StorageService.getPartitioner();
             REMOTE = InetAddress.getByName("127.0.0.2");
             tmd.updateNormalToken(part.getMinimumToken(), REMOTE);
@@ -75,14 +75,14 @@ public class AntiEntropyServiceTest extends CleanupHelper
             cfname = Table.open(tablename).getColumnFamilies().iterator().next();
             initialized = true;
         }
-        aes = AntiEntropyService.instance();
+        aes = AntiEntropyService.instance;
     }
 
     @Test
     public void testInstance() throws Throwable
     {
         assert null != aes;
-        assert aes == AntiEntropyService.instance();
+        assert aes == AntiEntropyService.instance;
     }
 
     @Test
@@ -218,7 +218,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         MerkleTree rtree = validator.tree;
 
         // change a range in one of the trees
-        Token min = StorageService.instance().getPartitioner().getMinimumToken();
+        Token min = StorageService.instance.getPartitioner().getMinimumToken();
         ltree.invalidate(min);
         MerkleTree.TreeRange changed = ltree.invalids(new Range(min, min)).next();
         changed.hash("non-empty hash!".getBytes());

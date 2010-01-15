@@ -84,7 +84,7 @@ public class EndPointState
     
     void addApplicationState(String key, ApplicationState appState)
     {
-        assert !StorageService.instance().isClientMode();
+        assert !StorageService.instance.isClientMode();
         applicationState_.put(key, appState);        
     }
     

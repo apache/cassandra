@@ -43,7 +43,7 @@ public class StreamingTest extends CleanupHelper
     @Test
     public void testTransferTable() throws Exception
     {
-        StorageService.instance().initServer();
+        StorageService.instance.initServer();
 
         // write a temporary SSTable, but don't register it
         Set<String> content = new HashSet<String>();

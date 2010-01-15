@@ -57,7 +57,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public CassandraServer()
     {
-        storageService = StorageService.instance();
+        storageService = StorageService.instance;
     }
 
     protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)

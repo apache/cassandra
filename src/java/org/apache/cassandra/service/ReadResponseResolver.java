@@ -134,7 +134,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
             RowMutation rowMutation = new RowMutation(table, key);
             rowMutation.add(diffCf);
             RowMutationMessage rowMutationMessage = new RowMutationMessage(rowMutation);
-            ReadRepairManager.instance().schedule(endPoints.get(i), rowMutationMessage);
+            ReadRepairManager.instance.schedule(endPoints.get(i), rowMutationMessage);
         }
     }
 

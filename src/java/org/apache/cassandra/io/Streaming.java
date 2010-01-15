@@ -169,11 +169,11 @@ public class Streaming
                 StreamInitiateMessage biMsg = StreamInitiateMessage.serializer().deserialize(new DataInputStream(bufIn));
                 StreamContextManager.StreamContext[] streamContexts = biMsg.getStreamContext();
 
-                if (streamContexts.length == 0 && StorageService.instance().isBootstrapMode())
+                if (streamContexts.length == 0 && StorageService.instance.isBootstrapMode())
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("no data needed from " + message.getFrom());
-                    StorageService.instance().removeBootstrapSource(message.getFrom());
+                    StorageService.instance.removeBootstrapSource(message.getFrom());
                     return;
                 }
 
@@ -313,9 +313,9 @@ public class Streaming
             MessagingService.instance().sendOneWay(message, host);
 
             /* If we're done with everything for this host, remove from bootstrap sources */
-            if (StreamContextManager.isDone(host) && StorageService.instance().isBootstrapMode())
+            if (StreamContextManager.isDone(host) && StorageService.instance.isBootstrapMode())
             {
-                StorageService.instance().removeBootstrapSource(host);
+                StorageService.instance.removeBootstrapSource(host);
             }
         }
     }

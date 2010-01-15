@@ -49,12 +49,12 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         {
             try
             {
-                synchronized( Gossiper.instance() )
+                synchronized( Gossiper.instance )
                 {
                 	/* Update the local heartbeat counter. */
                     endPointStateMap_.get(localEndPoint_).getHeartBeatState().updateHeartBeat();
                     List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
-                    Gossiper.instance().makeRandomGossipDigest(gDigests);
+                    Gossiper.instance.makeRandomGossipDigest(gDigests);
 
                     if ( gDigests.size() > 0 )
                     {
@@ -108,16 +108,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     final static String GOSSIP_DIGEST_ACK2_VERB = "GA2V";
     public final static int intervalInMillis_ = 1000;
     private static Logger logger_ = Logger.getLogger(Gossiper.class);
-    private static volatile Gossiper gossiper_;
-
-    public synchronized static Gossiper instance()
-    {
-        if ( gossiper_ == null )
-        {
-            gossiper_ = new Gossiper();
-        }
-        return gossiper_;
-    }
+    public static final Gossiper instance = new Gossiper();
 
     private Timer gossipTimer_;
     private InetAddress localEndPoint_;
@@ -144,7 +135,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         gossipTimer_ = new Timer(false);
         aVeryLongTime_ = 259200 * 1000;
         /* register with the Failure Detector for receiving Failure detector events */
-        FailureDetector.instance().registerFailureDetectionEventListener(this);
+        FailureDetector.instance.registerFailureDetectionEventListener(this);
         /* register the verbs */
         MessagingService.instance().registerVerbHandlers(JOIN_VERB_HANDLER, new JoinVerbHandler());
         MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_SYN_VERB, new GossipDigestSynVerbHandler());
@@ -382,7 +373,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             if ( endpoint.equals(localEndPoint_) )
                 continue;
 
-            FailureDetector.instance().interpret(endpoint);
+            FailureDetector.instance.interpret(endpoint);
             EndPointState epState = endPointStateMap_.get(endpoint);
             if ( epState != null )
             {
@@ -460,7 +451,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     void notifyFailureDetector(List<GossipDigest> gDigests)
     {
-        IFailureDetector fd = FailureDetector.instance();
+        IFailureDetector fd = FailureDetector.instance;
         for ( GossipDigest gDigest : gDigests )
         {
             EndPointState localEndPointState = endPointStateMap_.get(gDigest.endPoint_);
@@ -494,7 +485,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     void notifyFailureDetector(Map<InetAddress, EndPointState> remoteEpStateMap)
     {
-        IFailureDetector fd = FailureDetector.instance();
+        IFailureDetector fd = FailureDetector.instance;
         Set<InetAddress> endpoints = remoteEpStateMap.keySet();
         for ( InetAddress endpoint : endpoints )
         {
@@ -857,7 +848,7 @@ class JoinVerbHandler implements IVerbHandler
         }
         if ( joinMessage.clusterId_.equals( DatabaseDescriptor.getClusterName() ) )
         {
-            Gossiper.instance().join(from);
+            Gossiper.instance.join(from);
         }
     }
 }
@@ -884,16 +875,16 @@ class GossipDigestSynVerbHandler implements IVerbHandler
 
             List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
             /* Notify the Failure Detector */
-            Gossiper.instance().notifyFailureDetector(gDigestList);
+            Gossiper.instance.notifyFailureDetector(gDigestList);
 
             doSort(gDigestList);
 
             List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
             Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
-            Gossiper.instance().examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
+            Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
 
             GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
-            Message gDigestAckMessage = Gossiper.instance().makeGossipDigestAckMessage(gDigestAck);
+            Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAckMessage to " + from);
             MessagingService.instance().sendUdpOneWay(gDigestAckMessage, from);
@@ -928,8 +919,8 @@ class GossipDigestSynVerbHandler implements IVerbHandler
         for ( GossipDigest gDigest : gDigestList )
         {
             InetAddress ep = gDigest.getEndPoint();
-            EndPointState epState = Gossiper.instance().getEndPointStateForEndPoint(ep);
-            int version = (epState != null) ? Gossiper.instance().getMaxEndPointStateVersion( epState ) : 0;
+            EndPointState epState = Gossiper.instance.getEndPointStateForEndPoint(ep);
+            int version = (epState != null) ? Gossiper.instance.getMaxEndPointStateVersion( epState ) : 0;
             int diffVersion = Math.abs(version - gDigest.getMaxVersion() );
             diffDigests.add( new GossipDigest(ep, gDigest.getGeneration(), diffVersion) );
         }
@@ -970,8 +961,8 @@ class GossipDigestAckVerbHandler implements IVerbHandler
             if ( epStateMap.size() > 0 )
             {
                 /* Notify the Failure Detector */
-                Gossiper.instance().notifyFailureDetector(epStateMap);
-                Gossiper.instance().applyStateLocally(epStateMap);
+                Gossiper.instance.notifyFailureDetector(epStateMap);
+                Gossiper.instance.applyStateLocally(epStateMap);
             }
 
             /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
@@ -979,13 +970,13 @@ class GossipDigestAckVerbHandler implements IVerbHandler
             for( GossipDigest gDigest : gDigestList )
             {
                 InetAddress addr = gDigest.getEndPoint();
-                EndPointState localEpStatePtr = Gossiper.instance().getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
+                EndPointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
                 if ( localEpStatePtr != null )
                     deltaEpStateMap.put(addr, localEpStatePtr);
             }
 
             GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
-            Message gDigestAck2Message = Gossiper.instance().makeGossipDigestAck2Message(gDigestAck2);
+            Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAck2Message to " + from);
             MessagingService.instance().sendUdpOneWay(gDigestAck2Message, from);
@@ -1020,8 +1011,8 @@ class GossipDigestAck2VerbHandler implements IVerbHandler
         }
         Map<InetAddress, EndPointState> remoteEpStateMap = gDigestAck2Message.getEndPointStateMap();
         /* Notify the Failure Detector */
-        Gossiper.instance().notifyFailureDetector(remoteEpStateMap);
-        Gossiper.instance().applyStateLocally(remoteEpStateMap);
+        Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
+        Gossiper.instance.applyStateLocally(remoteEpStateMap);
     }
 }
 

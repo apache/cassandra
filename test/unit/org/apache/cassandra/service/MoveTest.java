@@ -47,7 +47,7 @@ public class MoveTest
     @Test
     public void testWriteEndPointsDuringLeave() throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
 
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
@@ -104,7 +104,7 @@ public class MoveTest
     @Test
     public void testSimultaneousMove() throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
@@ -286,7 +286,7 @@ public class MoveTest
     @Test
     public void testStateJumpToBootstrap() throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
@@ -355,7 +355,7 @@ public class MoveTest
     @Test
     public void testStateJumpToNormal() throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
@@ -399,7 +399,7 @@ public class MoveTest
     @Test
     public void testStateJumpToLeaving() throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
@@ -449,7 +449,7 @@ public class MoveTest
     @Test
     public void testStateJumpToLeft() throws UnknownHostException
     {
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();

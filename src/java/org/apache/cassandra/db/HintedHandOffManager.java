@@ -82,8 +82,8 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 public class HintedHandOffManager
 {
-    private static volatile HintedHandOffManager instance_;
-    private static final Lock lock_ = new ReentrantLock();
+    public static final HintedHandOffManager instance = new HintedHandOffManager();
+
     private static final Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
     final static long INTERVAL_IN_MS = 3600 * 1000; // check for ability to deliver hints this often
     public static final String HINTS_CF = "HintsColumnFamily";
@@ -91,26 +91,7 @@ public class HintedHandOffManager
 
     private final ExecutorService executor_ = new JMXEnabledThreadPoolExecutor("HINTED-HANDOFF-POOL");
 
-
-    public static HintedHandOffManager instance()
-    {
-        if (instance_ == null)
-        {
-            lock_.lock();
-            try
-            {
-                if (instance_ == null)
-                    instance_ = new HintedHandOffManager();
-            }
-            finally
-            {
-                lock_.unlock();
-            }
-        }
-        return instance_;
-    }
-
-    public HintedHandOffManager()
+    protected HintedHandOffManager()
     {
         new Thread(new WrappedRunnable()
         {
@@ -127,12 +108,12 @@ public class HintedHandOffManager
 
     private static boolean sendMessage(InetAddress endPoint, String tableName, String key) throws IOException
     {
-        if (!Gossiper.instance().isKnownEndpoint(endPoint))
+        if (!Gossiper.instance.isKnownEndpoint(endPoint))
         {
             logger_.warn("Hints found for endpoint " + endPoint + " which is not part of the gossip network.  discarding.");
             return true;
         }
-        if (!FailureDetector.instance().isAlive(endPoint))
+        if (!FailureDetector.instance.isAlive(endPoint))
         {
             return false;
         }

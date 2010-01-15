@@ -34,7 +34,7 @@ import org.apache.cassandra.io.ICompactSerializer;
  * e.g. if we want to disseminate load information for node A do the following:
  * 
  *      ApplicationState loadState = new ApplicationState(<string representation of load>);
- *      Gossiper.instance().addApplicationState("LOAD STATE", loadState);
+ *      Gossiper.instance.addApplicationState("LOAD STATE", loadState);
  */
 
 public class ApplicationState implements Comparable<ApplicationState>

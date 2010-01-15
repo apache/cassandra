@@ -36,14 +36,14 @@ public class StorageServiceTest
     {
         CleanupHelper.mkdirs();
         CleanupHelper.cleanup();
-        StorageService.instance().initClient();
+        StorageService.instance.initClient();
 
         // verify that no storage directories were created.
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
             assertFalse(new File(path).exists());
         }
-        StorageService.instance().stopClient();
+        StorageService.instance.stopClient();
         NetPackageAccessor.resetSelectorManager();
     }
 
@@ -52,7 +52,7 @@ public class StorageServiceTest
     {
         CleanupHelper.mkdirs();
         CleanupHelper.cleanup();
-        StorageService.instance().initServer();
+        StorageService.instance.initServer();
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
             // verify that storage directories are there.
@@ -61,8 +61,8 @@ public class StorageServiceTest
         // a proper test would be to call decommission here, but decommission() mixes both shutdown and datatransfer
         // calls.  This test is only interested in the shutdown-related items which a properly handled by just
         // stopping the client.
-        //StorageService.instance().decommission();
-        StorageService.instance().stopClient();
+        //StorageService.instance.decommission();
+        StorageService.instance.stopClient();
         NetPackageAccessor.resetSelectorManager();
     }
 }

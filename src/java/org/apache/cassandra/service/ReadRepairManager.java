@@ -48,9 +48,8 @@ import org.apache.log4j.Logger;
 class ReadRepairManager
 {
     private static final Logger logger_ = Logger.getLogger(ReadRepairManager.class);
-	private static final long expirationTimeInMillis = 2000;
-	private static final Lock lock_ = new ReentrantLock();
-	private static volatile ReadRepairManager self_ = null;
+    private static final long expirationTimeInMillis = 2000;
+    public static final ReadRepairManager instance = new ReadRepairManager();
 
 	/*
 	 * This is the internal class which actually
@@ -85,24 +84,6 @@ class ReadRepairManager
 	protected ReadRepairManager()
 	{
 
-	}
-
-	public  static ReadRepairManager instance()
-	{
-		if (self_ == null)
-		{
-            lock_.lock();
-            try
-            {
-                if (self_ == null)
-                    self_ = new ReadRepairManager();
-            }
-            finally
-            {
-                lock_.unlock();
-            }
-		}
-		return self_;
 	}
 
 	/*

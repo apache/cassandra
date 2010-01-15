@@ -69,14 +69,14 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             /*
             int threshold = (int)(StorageLoadBalancer.TOPHEAVY_RATIO * averageSystemLoad());
             int myLoad = localLoad();            
-            InetAddress predecessor = StorageService.instance().getPredecessor(StorageService.getLocalStorageEndPoint());
+            InetAddress predecessor = StorageService.instance.getPredecessor(StorageService.getLocalStorageEndPoint());
             if (logger_.isDebugEnabled())
               logger_.debug("Trying to relocate the predecessor " + predecessor);
             boolean value = tryThisNode(myLoad, threshold, predecessor);
             if ( !value )
             {
                 loadInfo2_.remove(predecessor);
-                InetAddress successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
+                InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndPoint());
                 if (logger_.isDebugEnabled())
                   logger_.debug("Trying to relocate the successor " + successor);
                 value = tryThisNode(myLoad, threshold, successor);
@@ -166,13 +166,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private static final long BROADCAST_INTERVAL = 5 * 60 * 1000L;
 
-    private static StorageLoadBalancer instance_;
-
-    public static synchronized StorageLoadBalancer instance()
-    {
-        return instance_ == null ? (instance_ = new StorageLoadBalancer()) : instance_;
-    }
-
+    public static final StorageLoadBalancer instance = new StorageLoadBalancer();
 
     private static final Logger logger_ = Logger.getLogger(StorageLoadBalancer.class);
     private static final String moveMessageVerbHandler_ = "MOVE-MESSAGE-VERB-HANDLER";
@@ -197,7 +191,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     private StorageLoadBalancer()
     {
         MessagingService.instance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
-        Gossiper.instance().register(this);
+        Gossiper.instance.register(this);
     }
 
     public void onChange(InetAddress endpoint, String stateName, ApplicationState state)
@@ -238,7 +232,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         if ( !isMoveable_.get() )
             return false;
         int myload = localLoad();
-        InetAddress successor = StorageService.instance().getSuccessor(StorageService.getLocalStorageEndPoint());
+        InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndPoint());
         LoadInfo li = loadInfo2_.get(successor);
         // "load" is NULL means that the successor node has not
         // yet gossiped its load information. We should return
@@ -301,7 +295,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
         else
         {
-            InetAddress successor = StorageService.instance().getSuccessor(target);
+            InetAddress successor = StorageService.instance.getSuccessor(target);
             double sLoad = loadInfo2_.get(successor);
             double targetLoad = loadInfo2_.get(target);
             return (sLoad + targetLoad) <= threshold;
@@ -310,11 +304,11 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private boolean isANeighbour(InetAddress neighbour)
     {
-        InetAddress predecessor = StorageService.instance().getPredecessor(FBUtilities.getLocalAddress());
+        InetAddress predecessor = StorageService.instance.getPredecessor(FBUtilities.getLocalAddress());
         if ( predecessor.equals(neighbour) )
             return true;
 
-        InetAddress successor = StorageService.instance().getSuccessor(FBUtilities.getLocalAddress());
+        InetAddress successor = StorageService.instance.getSuccessor(FBUtilities.getLocalAddress());
         if ( successor.equals(neighbour) )
             return true;
 

@@ -70,7 +70,7 @@ public class ReadVerbHandler implements IVerbHandler
 
         try
         {
-            if (StorageService.instance().isBootstrapMode())
+            if (StorageService.instance.isBootstrapMode())
             {
                 /* Don't service reads! */
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
@@ -106,11 +106,11 @@ public class ReadVerbHandler implements IVerbHandler
             /* Do read repair if header of the message says so */
             if (message.getHeader(ReadCommand.DO_REPAIR) != null)
             {
-                List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(command.key);
+                List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.key);
                 /* Remove the local storage endpoint from the list. */
                 endpoints.remove(FBUtilities.getLocalAddress());
                 if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                    StorageService.instance().doConsistencyCheck(row, endpoints, command);
+                    StorageService.instance.doConsistencyCheck(row, endpoints, command);
             }
         }
         catch (IOException ex)

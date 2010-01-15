@@ -179,7 +179,7 @@ public class MessagingService implements IFailureDetectionEventListener
 
         SelectionKey key = SelectorManager.getSelectorManager().register(serverChannel, handler, SelectionKey.OP_ACCEPT);          
         listenSockets_.put(localEp, key);
-        FailureDetector.instance().registerFailureDetectionEventListener(this);
+        FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
     
     /**
@@ -422,7 +422,7 @@ public class MessagingService implements IFailureDetectionEventListener
         logger_.info("Shutting down ...");
         synchronized (MessagingService.class)
         {
-            FailureDetector.instance().unregisterFailureDetectionEventListener(MessagingService.instance());
+            FailureDetector.instance.unregisterFailureDetectionEventListener(MessagingService.instance());
             /* Stop listening on any TCP socket */
             for (SelectionKey skey : listenSockets_.values())
             {

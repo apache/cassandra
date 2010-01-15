@@ -319,7 +319,7 @@ public class CompactionManager implements CompactionManagerMBean
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
 
             // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(table.name, cfs.getColumnFamilyName(), null, major);
+            AntiEntropyService.IValidator validator = AntiEntropyService.instance.getValidator(table.name, cfs.getColumnFamilyName(), null, major);
             validator.prepare();
             while (nni.hasNext())
             {
@@ -433,7 +433,7 @@ public class CompactionManager implements CompactionManagerMBean
     private void doCleanupCompaction(ColumnFamilyStore cfs) throws IOException
     {
         Collection<SSTableReader> originalSSTables = cfs.getSSTables();
-        List<SSTableReader> sstables = doAntiCompaction(cfs, originalSSTables, StorageService.instance().getLocalRanges(), null);
+        List<SSTableReader> sstables = doAntiCompaction(cfs, originalSSTables, StorageService.instance.getLocalRanges(), null);
         if (!sstables.isEmpty())
         {
             cfs.replaceCompactedSSTables(originalSSTables, sstables);
@@ -455,7 +455,7 @@ public class CompactionManager implements CompactionManagerMBean
             Iterator<CompactionIterator.CompactedRow> nni = new FilterIterator(ci, PredicateUtils.notNullPredicate());
 
             // validate the CF as we iterate over it
-            AntiEntropyService.IValidator validator = AntiEntropyService.instance().getValidator(cfs.getTable().name, cfs.getColumnFamilyName(), initiator, true);
+            AntiEntropyService.IValidator validator = AntiEntropyService.instance.getValidator(cfs.getTable().name, cfs.getColumnFamilyName(), initiator, true);
             validator.prepare();
             while (nni.hasNext())
             {

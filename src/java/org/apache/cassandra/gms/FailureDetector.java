@@ -42,36 +42,14 @@ import org.apache.log4j.Logger;
  */
 public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {
+    public static final IFailureDetector instance = new FailureDetector();
     private static Logger logger_ = Logger.getLogger(FailureDetector.class);
     private static final int sampleSize_ = 1000;
     private static final int phiConvictThreshold_ = 8;
     /* The Failure Detector has to have been up for at least 1 min. */
     private static final long uptimeThreshold_ = 60000;
-    private static volatile IFailureDetector failureDetector_;
-    /* Used to lock the factory for creation of FailureDetector instance */
-    private static Lock createLock_ = new ReentrantLock();
     /* The time when the module was instantiated. */
     private static long creationTime_;
-    
-    public static IFailureDetector instance()
-    {        
-        if ( failureDetector_ == null )
-        {
-            FailureDetector.createLock_.lock();
-            try
-            {
-                if ( failureDetector_ == null )
-                {
-                    failureDetector_ = new FailureDetector();
-                }
-            }
-            finally
-            {
-                createLock_.unlock();
-            }
-        }        
-        return failureDetector_;
-    }
     
     private Map<InetAddress, ArrivalWindow> arrivalSamples_ = new Hashtable<InetAddress, ArrivalWindow>();
     private List<IFailureDetectionEventListener> fdEvntListeners_ = new ArrayList<IFailureDetectionEventListener>();
@@ -141,7 +119,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return true;
 
     	/* Incoming port is assumed to be the Storage port. We need to change it to the control port */
-        EndPointState epState = Gossiper.instance().getEndPointStateForEndPoint(ep);
+        EndPointState epState = Gossiper.instance.getEndPointStateForEndPoint(ep);
         return epState.isAlive();
     }
     

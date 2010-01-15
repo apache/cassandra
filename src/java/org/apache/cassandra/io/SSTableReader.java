@@ -159,7 +159,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     public static List<DecoratedKey> getIndexedDecoratedKeys()
     {
-        final Range range = StorageService.instance().getLocalPrimaryRange();
+        final Range range = StorageService.instance.getLocalPrimaryRange();
 
         Predicate<SSTable> cfpred = Predicates.alwaysTrue();
         return getIndexedDecoratedKeysFor(cfpred, new Predicate<DecoratedKey>()

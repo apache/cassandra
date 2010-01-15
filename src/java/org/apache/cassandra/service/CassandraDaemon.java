@@ -95,7 +95,7 @@ public class CassandraDaemon
         CompactionManager.instance.checkAllColumnFamilies();
 
         // start server internals
-        StorageService.instance().initServer();
+        StorageService.instance.initServer();
         
         // now we start listening for clients
         CassandraServer cassandraServer = new CassandraServer();

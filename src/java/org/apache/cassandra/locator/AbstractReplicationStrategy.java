@@ -112,7 +112,7 @@ public abstract class AbstractReplicationStrategy
 
         for (InetAddress ep : targets)
         {
-            if (FailureDetector.instance().isAlive(ep))
+            if (FailureDetector.instance.isAlive(ep))
             {
                 map.put(ep, ep);
                 usedEndpoints.add(ep);
@@ -135,7 +135,7 @@ public abstract class AbstractReplicationStrategy
                 for (int i = startIndex, count = 1; count < totalNodes; ++count, i = (i + 1) % totalNodes)
                 {
                     InetAddress tmpEndPoint = tokenMetadata_.getEndPoint((Token) tokens.get(i));
-                    if (FailureDetector.instance().isAlive(tmpEndPoint) && !targets.contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
+                    if (FailureDetector.instance.isAlive(tmpEndPoint) && !targets.contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
                     {
                         hintLocation = tmpEndPoint;
                         break;

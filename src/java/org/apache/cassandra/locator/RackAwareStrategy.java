@@ -70,7 +70,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             return endpoints;
         }
         startIndex = (index + 1)%totalNodes;
-        EndPointSnitch endPointSnitch = (EndPointSnitch) StorageService.instance().getEndPointSnitch();
+        EndPointSnitch endPointSnitch = (EndPointSnitch) StorageService.instance.getEndPointSnitch();
 
         for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i + 1) % totalNodes)
         {

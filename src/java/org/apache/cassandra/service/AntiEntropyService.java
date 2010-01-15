@@ -98,7 +98,7 @@ public class AntiEntropyService
     public final static long NATURAL_REPAIR_FREQUENCY = 3600000;
 
     // singleton enforcement
-    private static volatile AntiEntropyService aeService;
+    public static final AntiEntropyService instance = new AntiEntropyService();
 
     /**
      * Map of CFPair to timestamp of the beginning of the last natural repair.
@@ -115,25 +115,10 @@ public class AntiEntropyService
      */
     private final Map<CFPair, Cachetable<InetAddress, TreePair>> trees;
 
-    public static AntiEntropyService instance()
-    {
-        if (aeService == null)
-        {
-            synchronized (AntiEntropyService.class)
-            {
-                if (aeService == null)
-                {
-                    aeService = new AntiEntropyService();
-                }
-            }
-        }
-        return aeService;
-    }
-
     /**
-     * Private constructor. Use AntiEntropyService.instance()
+     * Protected constructor. Use AntiEntropyService.instance.
      */
-    private AntiEntropyService()
+    protected AntiEntropyService()
     {
         MessagingService.instance().registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
         MessagingService.instance().registerVerbHandlers(TREE_RESPONSE_VERB, new TreeResponseVerbHandler());
@@ -165,7 +150,7 @@ public class AntiEntropyService
     private static Collection<InetAddress> getNeighbors()
     {
         InetAddress local = FBUtilities.getLocalAddress();
-        StorageService ss = StorageService.instance();
+        StorageService ss = StorageService.instance;
         return Collections2.filter(ss.getNaturalEndpoints(ss.getLocalToken()),
                                    Predicates.not(Predicates.equalTo(local)));
     }
@@ -311,7 +296,7 @@ public class AntiEntropyService
     {
         if (!major || table.equals(Table.SYSTEM_TABLE))
             return new NoopValidator();
-        if (StorageService.instance().getTokenMetadata().sortedTokens().size()  < 1)
+        if (StorageService.instance.getTokenMetadata().sortedTokens().size()  < 1)
             // gossiper isn't started
             return new NoopValidator();
         CFPair cfpair = new CFPair(table, cf);
@@ -495,7 +480,7 @@ public class AntiEntropyService
          */
         public Object call() throws Exception
         {
-            AntiEntropyService aes = AntiEntropyService.instance();
+            AntiEntropyService aes = AntiEntropyService.instance;
             InetAddress local = FBUtilities.getLocalAddress();
 
             Collection<InetAddress> neighbors = getNeighbors();
@@ -567,7 +552,7 @@ public class AntiEntropyService
          */
         public void run()
         {
-            StorageService ss = StorageService.instance();
+            StorageService ss = StorageService.instance;
 
             // restore partitioners (in case we were serialized)
             if (ltree.partitioner() == null)
@@ -775,7 +760,7 @@ public class AntiEntropyService
             {
                 // deserialize the remote tree, and register it
                 Validator rvalidator = this.deserialize(new DataInputStream(buffer));
-                AntiEntropyService.instance().rendezvous(rvalidator.cf, message.getFrom(), rvalidator.tree);
+                AntiEntropyService.instance.rendezvous(rvalidator.cf, message.getFrom(), rvalidator.tree);
             }
             catch (IOException e)
             {
