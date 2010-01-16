@@ -47,7 +47,7 @@ import org.apache.cassandra.io.Streaming;
  * keys at an Endpoint. Monitor load information for a 5 minute
  * interval and then do load balancing operations if necessary.
  */
-public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
+public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 {
     class LoadBalancer implements Runnable
     {

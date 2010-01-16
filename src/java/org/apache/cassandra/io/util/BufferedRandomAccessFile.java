@@ -36,7 +36,7 @@ import java.util.Arrays;
  * superclass.
  */
 
-public final class BufferedRandomAccessFile extends RandomAccessFile implements FileDataInput
+public class BufferedRandomAccessFile extends RandomAccessFile implements FileDataInput
 {
     static final int LogBuffSz_ = 16; // 64K buffer
     public static final int BuffSz_ = (1 << LogBuffSz_);

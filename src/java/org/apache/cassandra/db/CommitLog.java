@@ -79,7 +79,7 @@ public class CommitLog
     private static final Logger logger_ = Logger.getLogger(CommitLog.class);
     private static final Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
 
-    public static final class CommitLogContext
+    public static class CommitLogContext
     {
         /* Commit Log associated with this operation */
         public final String file;

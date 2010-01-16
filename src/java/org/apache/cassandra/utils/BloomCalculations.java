@@ -82,7 +82,7 @@ public class BloomCalculations {
      * A wrapper class that holds two key parameters for a Bloom Filter: the
      * number of hash functions used, and the number of buckets per element used.
      */
-    public static final class BloomSpecification {
+    public static class BloomSpecification {
         final int K; // number of hash functions.
         final int bucketsPerElement;
 

@@ -36,7 +36,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
  *  with something like PCollections -- http://code.google.com
  */
 
-public final class Column implements IColumn
+public class Column implements IColumn
 {
     private static Logger logger_ = Logger.getLogger(Column.class);
 

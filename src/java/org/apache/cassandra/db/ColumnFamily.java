@@ -38,7 +38,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
 
 
-public final class ColumnFamily implements IColumnContainer
+public class ColumnFamily implements IColumnContainer
 {
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();

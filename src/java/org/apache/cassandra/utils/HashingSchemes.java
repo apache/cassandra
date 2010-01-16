@@ -26,7 +26,7 @@ package org.apache.cassandra.utils;
  * To change this template use File | Settings | File Templates.
  */
 
-public final class HashingSchemes
+public class HashingSchemes
 {
     public static final String SHA_1 = "SHA-1";
     public static final String SHA1 = "SHA1";

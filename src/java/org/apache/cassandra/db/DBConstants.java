@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.db;
 
-final class DBConstants
+class DBConstants
 {
 	public static final int boolSize_ = 1;
 	public static final int intSize_ = 4;

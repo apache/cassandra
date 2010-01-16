@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.net;
 
-public final class ProtocolHeader
+public class ProtocolHeader
 {
     public static final String SERIALIZER = "SERIALIZER";
     public static final String COMPRESSION = "COMPRESSION";

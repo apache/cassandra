@@ -772,7 +772,7 @@ public class AntiEntropyService
     /**
      * A tuple of table and cf.
      */
-    static final class CFPair extends Pair<String,String>
+    static class CFPair extends Pair<String,String>
     {
         public CFPair(String table, String cf)
         {
@@ -785,7 +785,7 @@ public class AntiEntropyService
      * A tuple of a local and remote tree. One of the trees should be null, but
      * not both.
      */
-    static final class TreePair extends Pair<MerkleTree,MerkleTree>
+    static class TreePair extends Pair<MerkleTree,MerkleTree>
     {
         public TreePair(MerkleTree local, MerkleTree remote)
         {

@@ -55,7 +55,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.collect.Iterators;
 import com.google.common.base.Predicate;
 
-public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
+public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
 

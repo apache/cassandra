@@ -33,7 +33,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
 
 
-public final class SuperColumn implements IColumn, IColumnContainer
+public class SuperColumn implements IColumn, IColumnContainer
 {
 	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
 

@@ -57,7 +57,7 @@ import com.google.common.collect.HashMultimap;
  * This class will also maintain histograms of the load information
  * of other nodes in the cluster.
  */
-public final class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
+public class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
 
