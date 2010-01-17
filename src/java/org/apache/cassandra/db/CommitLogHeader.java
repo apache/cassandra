@@ -120,20 +120,21 @@ class CommitLogHeader
     
     public String toString()
     {
-        StringBuilder sb = new StringBuilder("");        
+        StringBuilder sb = new StringBuilder("");
+        sb.append("CLH(dirty={");
         for ( int i = 0; i < dirty.size(); ++i )
         {
-            sb.append((dirty.get(i) ? 0 : 1));
-            sb.append(":");
-            sb.append(Table.TableMetadata.getColumnFamilyName(i));
-            sb.append(" ");
-        }        
-        sb.append(" | " );        
-        for ( int position : lastFlushedAt)
+            if (dirty.get(i))
+            {
+                sb.append(Table.TableMetadata.getColumnFamilyName(i)).append(", ");
+            }
+        }
+        sb.append("}, flushed={");
+        for (int i = 0; i < lastFlushedAt.length; i++)
         {
-            sb.append(position);
-            sb.append(" ");
-        }        
+            sb.append(Table.TableMetadata.getColumnFamilyName(i)).append(": ").append(lastFlushedAt[i]).append(", ");
+        }
+        sb.append("})");
         return sb.toString();
     }
 
