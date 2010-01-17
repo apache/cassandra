@@ -148,6 +148,4 @@ public interface StorageServiceMBean
 
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
-    
-    public List<InetAddress> getLiveNaturalEndpoints(String key);
 }
