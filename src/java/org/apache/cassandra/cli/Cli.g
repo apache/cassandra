@@ -188,7 +188,7 @@ K_SET:        'SET';
 K_SHOW:       'SHOW';
 K_TABLE:      'KEYSPACE';
 K_TABLES:     'KEYSPACES';
-K_VERSION:    'VERSION';
+K_VERSION:    'API VERSION';
 
 // private syntactic rules
 fragment

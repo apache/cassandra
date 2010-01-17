@@ -30,7 +30,7 @@ public class CliCompleter extends SimpleCompletor
             "show config file",
             "show cluster name",
             "show keyspaces",
-            "show version",
+            "show api version",
     };
     private static String[] keyspaceCommands = {
             "get",

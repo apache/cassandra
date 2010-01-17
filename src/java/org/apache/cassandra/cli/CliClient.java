@@ -117,7 +117,7 @@ public class CliClient
        css_.out.println("show config file                                Display contents of config file.");
        css_.out.println("show cluster name                                          Display cluster name.");
        css_.out.println("show keyspaces                                           Show list of keyspaces.");
-       css_.out.println("show version                                                Show server version.");
+       css_.out.println("show api version                                        Show server API version.");
        css_.out.println("get <ksp>.<cf>['<key>']                                  Get a slice of columns.");
        css_.out.println("get <ksp>.<cf>['<key>']['<super>']                   Get a slice of sub columns.");
        css_.out.println("get <ksp>.<cf>['<key>']['<col>']                             Get a column value.");
