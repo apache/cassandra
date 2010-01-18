@@ -805,6 +805,13 @@ public class DatabaseDescriptor
         return tables_;
     }
 
+    public static List<String> getNonSystemTables()
+    {
+        List<String> tables = new ArrayList<String>(tables_);
+        tables.remove(Table.SYSTEM_TABLE);
+        return Collections.unmodifiableList(tables);
+    }
+
     public static String getTable(String tableName)
     {
         assert tableName != null;

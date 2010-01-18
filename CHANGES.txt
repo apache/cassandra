@@ -11,6 +11,8 @@ dev
    performance (CASSANDRA-675)
  * wait for table flush before streaming data back to a bootstrapping node.
    (CASSANDRA-696)
+ * keep track of bootstrapping sources by table so that bootstrapping doesn't 
+   give the indication of finishing early (CASSANDRA-673)
 
 
 0.5.0 RC3

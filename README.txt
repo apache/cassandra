@@ -22,6 +22,7 @@ and running, and demonstrate some simple reads and writes.
   * tar -zxvf cassandra-$VERSION.tgz
   * cd cassandra-$VERSION
   * sudo mkdir -p /var/log/cassandra
+  * sudo chown -R `whoami` /var/log/cassandra
   * sudo mkdir -p /var/lib/cassandra
   * sudo chown -R `whoami` /var/lib/cassandra
 

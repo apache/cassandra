@@ -129,22 +129,25 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     private AbstractReplicationStrategy replicationStrategy_;
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
-    private Set<InetAddress> bootstrapSet;
+    private Multimap<InetAddress, String> bootstrapSet;
     /* when intialized as a client, we shouldn't write to the system table. */
     private boolean isClientMode;
   
-    public synchronized void addBootstrapSource(InetAddress s)
+    public synchronized void addBootstrapSource(InetAddress s, String table)
     {
         if (logger_.isDebugEnabled())
             logger_.debug("Added " + s + " as a bootstrap source");
-        bootstrapSet.add(s);
+        bootstrapSet.put(s, table);
     }
     
-    public synchronized void removeBootstrapSource(InetAddress s)
+    public synchronized void removeBootstrapSource(InetAddress s, String table)
     {
-        bootstrapSet.remove(s);
+        if (table == null)
+            bootstrapSet.removeAll(s);
+        else
+            bootstrapSet.remove(s, table);
         if (logger_.isDebugEnabled())
-            logger_.debug("Removed " + s + " as a bootstrap source; remaining is [" + StringUtils.join(bootstrapSet, ", ") + "]");
+            logger_.debug("Removed " + s + " as a bootstrap source; remaining is [" + StringUtils.join(bootstrapSet.keySet(), ", ") + "]");
 
         if (bootstrapSet.isEmpty())
         {
@@ -182,7 +185,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             throw new RuntimeException(e);
         }
 
-        bootstrapSet = new HashSet<InetAddress>();
+        bootstrapSet = HashMultimap.create();
         endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
 
         /* register the verb handlers */

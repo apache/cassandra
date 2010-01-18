@@ -186,6 +186,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         long start = System.currentTimeMillis();
         SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
+        logger.info("Sampling index for " + dataFileName);
         sstable.loadIndexFile();
         sstable.loadBloomFilter();
         if (keysCacheFraction > 0)

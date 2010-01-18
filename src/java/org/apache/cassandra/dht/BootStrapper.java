@@ -87,7 +87,8 @@ public class BootStrapper
                 for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
                 {
                     InetAddress source = entry.getKey();
-                    StorageService.instance.addBootstrapSource(source);
+                    for (String table : DatabaseDescriptor.getNonSystemTables())
+                        StorageService.instance.addBootstrapSource(source, table);
                     if (logger.isDebugEnabled())
                         logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
                     Streaming.requestRanges(source, entry.getValue());

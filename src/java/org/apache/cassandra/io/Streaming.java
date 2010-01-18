@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class Streaming
 {
     private static Logger logger = Logger.getLogger(Streaming.class);
+    private static String TABLE_NAME = "STREAMING-TABLE-NAME";
     public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
     /**
@@ -127,6 +128,7 @@ public class Streaming
         StreamManager.instance(target).addFilesToStream(streamContexts);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(streamContexts);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
+        message.addHeader(Streaming.TABLE_NAME, table.getBytes());
         if (logger.isDebugEnabled())
           logger.debug("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance().sendOneWay(message, target);
@@ -163,6 +165,8 @@ public class Streaming
         {
             byte[] body = message.getMessageBody();
             ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+            if (logger.isDebugEnabled())
+                logger.debug(String.format("StreamInitiateVerbeHandler.doVerb %s %s %s", message.getVerb(), message.getMessageId(), message.getMessageType()));
 
             try
             {
@@ -173,7 +177,7 @@ public class Streaming
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("no data needed from " + message.getFrom());
-                    StorageService.instance.removeBootstrapSource(message.getFrom());
+                    StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(Streaming.TABLE_NAME)));
                     return;
                 }
 
@@ -315,7 +319,7 @@ public class Streaming
             /* If we're done with everything for this host, remove from bootstrap sources */
             if (StreamContextManager.isDone(host) && StorageService.instance.isBootstrapMode())
             {
-                StorageService.instance.removeBootstrapSource(host);
+                StorageService.instance.removeBootstrapSource(host, streamContext.getTable());
             }
         }
     }
