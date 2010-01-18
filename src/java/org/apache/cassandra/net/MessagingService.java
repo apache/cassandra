@@ -137,7 +137,7 @@ public class MessagingService implements IFailureDetectionEventListener
 
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
                 
-        protocol_ = hash(HashingSchemes.MD5, "FB-MESSAGING".getBytes());        
+        protocol_ = hash("MD5", "FB-MESSAGING".getBytes());        
         /* register the response verb handler */
         registerVerbHandlers(MessagingService.responseVerbHandler_, new ResponseVerbHandler());
     }

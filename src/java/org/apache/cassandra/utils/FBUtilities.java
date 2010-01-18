@@ -177,7 +177,7 @@ public class FBUtilities
 
     public static BigInteger hash(String data)
     {
-        byte[] result = hash(HashingSchemes.MD5, data.getBytes());
+        byte[] result = hash("MD5", data.getBytes());
         BigInteger hash = new BigInteger(result);
         return hash.abs();        
     }
