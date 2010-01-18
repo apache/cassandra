@@ -91,15 +91,16 @@
        ~ index. Consider increasing this if you have fewer, wider rows.
        ~ Set to 0 to disable entirely.
        ~
-       ~ The optional RowsCachedFraction attribute specifies
-       ~ The fraction of rows per sstable whose entire contents we cache in
-       ~ memory.  Do not use this on ColumnFamilies with large rows, or
+       ~ The optional RowsCached attribute specifies the number of rows
+       ~ whose entire contents we cache in memory, either as a fixed number
+       ~ of rows or as a percent of rows in the ColumnFamily.  
+       ~ Do not use this on ColumnFamilies with large rows, or
        ~ ColumnFamilies with high write:read ratios.  As with key caching,
        ~ valid values are from 0 to 1.  The default 0 disables it entirely.
       -->
       <ColumnFamily CompareWith="BytesType" 
                     Name="Standard1" 
-                    RowsCachedFraction="0.1"
+                    RowsCached="10%"
                     KeysCachedFraction="0"/>
       <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
       <ColumnFamily CompareWith="TimeUUIDType" Name="StandardByUUID1"/>
@@ -107,6 +108,8 @@
                     CompareWith="UTF8Type"
                     CompareSubcolumnsWith="UTF8Type"
                     Name="Super1"
+                    RowsCached="1000"
+                    KeysCachedFraction="0"
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
     </Keyspace>
   </Keyspaces>

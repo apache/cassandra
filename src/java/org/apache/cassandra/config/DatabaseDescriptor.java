@@ -87,7 +87,7 @@ public class DatabaseDescriptor
     private static int bmtThreshold_ = 256;
 
     private static Map<Pair<String, String>, Double> tableKeysCachedFractions_ = new HashMap<Pair<String, String>, Double>();
-    private static Map<Pair<String, String>, Double> tableRowsCachedFractions_ = new HashMap<Pair<String, String>, Double>();
+    private static Map<Pair<String, String>, Double> tableRowCacheSizes = new HashMap<Pair<String, String>, Double>();
 
     /*
      * A map from table names to the set of column families for the table and the
@@ -523,9 +523,16 @@ public class DatabaseDescriptor
                         tableKeysCachedFractions_.put(Pair.create(tName, cfName), Double.valueOf(value));
                     }
                     
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCachedFraction")) != null)
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCached")) != null)
                     {
-                        tableRowsCachedFractions_.put(Pair.create(tName, cfName), Double.valueOf(value));
+                        if (value.endsWith("%"))
+                        {
+                            tableRowCacheSizes.put(Pair.create(tName, cfName), Double.valueOf(value.substring(0, value.length() - 1)) / 100);
+                        }
+                        else
+                        {
+                            tableRowCacheSizes.put(Pair.create(tName, cfName), Double.valueOf(value));
+                        }
                     }
 
                     // Parse out user-specified logical names for the various dimensions
@@ -964,7 +971,7 @@ public class DatabaseDescriptor
 
     public static double getRowsCachedFraction(String tableName, String columnFamilyName)
     {
-        Double v = tableRowsCachedFractions_.get(Pair.create(tableName, columnFamilyName));
+        Double v = tableRowCacheSizes.get(Pair.create(tableName, columnFamilyName));
         return v == null ? 0 : v;
     }
 

@@ -191,7 +191,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
         if (v > 0)
         {
-            int cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
+            int cacheSize;
+            if (v < 1)
+                cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
+            else
+                cacheSize = (int)v;
             if (logger_.isDebugEnabled())
                 logger_.debug("enabling row cache for " + columnFamilyName + " with size " + cacheSize);
             rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
