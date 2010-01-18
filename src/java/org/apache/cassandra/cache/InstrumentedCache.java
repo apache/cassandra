@@ -1,10 +1,11 @@
-package org.apache.cassandra.utils;
+package org.apache.cassandra.cache;
 
 import java.lang.management.ManagementFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+import org.apache.cassandra.utils.TimedStatsDeque;
 
 public class InstrumentedCache<K, V> implements InstrumentedCacheMBean
 {

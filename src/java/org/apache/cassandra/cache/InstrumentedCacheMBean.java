@@ -1,4 +1,4 @@
-package org.apache.cassandra.utils;
+package org.apache.cassandra.cache;
 
 public interface InstrumentedCacheMBean
 {

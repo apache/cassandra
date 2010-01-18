@@ -30,6 +30,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.service.SliceRange;
 import org.apache.log4j.Logger;
 

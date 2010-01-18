@@ -22,6 +22,9 @@ import java.util.*;
 
 import org.apache.log4j.Logger;
 
+import org.apache.cassandra.cache.ICacheExpungeHook;
+import org.apache.cassandra.cache.ICachetable;
+
 public class Cachetable<K, V> implements ICachetable<K, V>
 {
     private class CacheableObject

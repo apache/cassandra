@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import org.apache.cassandra.cache.ICachetable;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;

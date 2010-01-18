@@ -16,21 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.utils;
+package org.apache.cassandra.cache;
 
-import java.util.Enumeration;
-import java.util.Set;
-
-public interface ICachetable<K,V>
+/**
+ * Created by IntelliJ IDEA.
+ * User: lakshman
+ * Date: Aug 16, 2005
+ * Time: 1:08:58 PM
+ * To change this template use File | Settings | File Templates.
+ */
+public interface ICacheExpungeHook<K,V>
 {
-    public void put(K key, V value);
-    public void put(K key, V value, ICacheExpungeHook<K,V> hook);
-	public V get(K key);
-    public V remove(K key);
-    public int size();
-    public boolean containsKey(K key);
-    public boolean containsValue(V value);
-    public boolean isEmpty();    
-    public Set<K> keySet();
-    public void shutdown();
+    public void callMe(K key , V value);
 }

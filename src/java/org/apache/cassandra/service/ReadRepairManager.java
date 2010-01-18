@@ -30,8 +30,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Cachetable;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.ICacheExpungeHook;
-import org.apache.cassandra.utils.ICachetable;
+import org.apache.cassandra.cache.ICacheExpungeHook;
+import org.apache.cassandra.cache.ICachetable;
 
 import org.apache.log4j.Logger;
 
