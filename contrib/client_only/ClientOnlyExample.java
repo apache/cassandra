@@ -34,7 +34,7 @@ public class ClientOnlyExample
 
     private static void testWriting() throws IOException
     {
-        StorageService.instance().initClient();
+        StorageService.instance.initClient();
         // sleep for a bit so that gossip can do its thing.
         try
         {
@@ -67,12 +67,12 @@ public class ClientOnlyExample
             System.out.println("wrote key" + i);
         }
         System.out.println("Done writing.");
-        StorageService.instance().stopClient();
+        StorageService.instance.stopClient();
     }
 
     private static void testReading() throws IOException
     {
-        StorageService.instance().initClient();
+        StorageService.instance.initClient();
         // sleep for a bit so that gossip can do its thing.
         try
         {
@@ -123,7 +123,7 @@ public class ClientOnlyExample
         // no need to do this:
         // StorageService.instance().decommission();
         // do this instead:
-        StorageService.instance().stopClient();
+        StorageService.instance.stopClient();
     }
 
     /**
