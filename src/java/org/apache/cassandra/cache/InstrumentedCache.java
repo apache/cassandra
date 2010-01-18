@@ -5,7 +5,7 @@ import org.apache.cassandra.utils.TimedStatsDeque;
 
 public class InstrumentedCache<K, V>
 {
-    private final int capacity;
+    private int capacity;
     private final ConcurrentLinkedHashMap<K, V> map;
     private final TimedStatsDeque stats;
 
@@ -37,6 +37,12 @@ public class InstrumentedCache<K, V>
     {
         return capacity;
     }
+
+    public void setCapacity(int capacity)
+    {
+        map.setCapacity(capacity);
+        this.capacity = capacity;
+     }
 
     public int getSize()
     {
