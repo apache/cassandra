@@ -1,6 +1,6 @@
 package org.apache.cassandra.cache;
 
-public interface InstrumentedCacheMBean
+public interface JMXAggregatingCacheMBean
 {
     public int getCapacity();
     public int getSize();

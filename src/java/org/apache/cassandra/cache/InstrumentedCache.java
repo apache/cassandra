@@ -1,34 +1,19 @@
 package org.apache.cassandra.cache;
 
-import java.lang.management.ManagementFactory;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 import org.apache.cassandra.utils.TimedStatsDeque;
 
-public class InstrumentedCache<K, V> implements InstrumentedCacheMBean
+public class InstrumentedCache<K, V>
 {
     private final int capacity;
     private final ConcurrentLinkedHashMap<K, V> map;
     private final TimedStatsDeque stats;
 
-    public InstrumentedCache(String table, String name, int capacity)
+    public InstrumentedCache(int capacity)
     {
         this.capacity = capacity;
         map = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, capacity);
         stats = new TimedStatsDeque(60000);
-
-        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        try
-        {
-            String mbeanName = "org.apache.cassandra.db:type=Caches,keyspace=" + table + ",cache=" + name;
-            mbs.registerMBean(this, new ObjectName(mbeanName));
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     public void put(K key, V value)

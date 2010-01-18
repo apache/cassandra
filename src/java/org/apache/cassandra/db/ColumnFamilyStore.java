@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.cache.InstrumentedCache;
+import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.service.SliceRange;
 import org.apache.log4j.Logger;
 
@@ -106,7 +107,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable_;
 
-    private InstrumentedCache<String, ColumnFamily> rowCache;
+    private JMXInstrumentedCache<String, ColumnFamily> rowCache;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable_;
@@ -191,7 +192,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             int cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
             if (logger_.isDebugEnabled())
                 logger_.debug("enabling row cache for " + columnFamilyName + " with size " + cacheSize);
-            rowCache = new InstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
+            rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
         }
     }
 
