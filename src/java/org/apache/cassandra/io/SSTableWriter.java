@@ -27,6 +27,7 @@ import java.util.HashMap;
 
 import org.apache.log4j.Logger;
 
+import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
@@ -151,9 +152,9 @@ public class SSTableWriter extends SSTable
         rename(filterFilename());
         path = rename(path); // important to do this last since index & filter file names are derived from it
 
-        ConcurrentLinkedHashMap<DecoratedKey, SSTableReader.PositionSize> keyCache = cacheFraction > 0
-                                                        ? SSTableReader.createKeyCache((int) (cacheFraction * keysWritten))
-                                                        : null;
+        InstrumentedCache<DecoratedKey, PositionSize> keyCache = cacheFraction > 0
+                                                                 ? SSTableReader.createKeyCache((int)(cacheFraction * keysWritten))
+                                                                 : null;
         return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);
     }
 

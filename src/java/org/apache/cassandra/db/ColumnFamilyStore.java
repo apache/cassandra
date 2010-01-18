@@ -30,7 +30,9 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.cache.InstrumentedCache;
+import org.apache.cassandra.cache.JMXAggregatingCache;
 import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.cassandra.service.SliceRange;
 import org.apache.log4j.Logger;
@@ -193,6 +195,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (logger_.isDebugEnabled())
                 logger_.debug("enabling row cache for " + columnFamilyName + " with size " + cacheSize);
             rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
+        }
+        
+        if (DatabaseDescriptor.getKeysCachedFraction(table, columnFamilyName) > 0)
+        {
+            // we don't need to keep a reference to the aggregator, just create it so it registers itself w/ JMX
+            new JMXAggregatingCache(new Iterable<InstrumentedCache>()
+            {
+                public Iterator<InstrumentedCache> iterator()
+                {
+                    final Iterator<SSTableReader> iter = ssTables_.iterator();
+                    return new AbstractIterator<InstrumentedCache>()
+                    {
+                        @Override
+                        protected InstrumentedCache computeNext()
+                        {
+                            return iter.hasNext() ? iter.next().getKeyCache() : endOfData();
+                        }
+                    };
+                }
+            }, table, columnFamilyName + "KeyCache");
         }
     }
 

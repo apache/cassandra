@@ -30,6 +30,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.commons.lang.StringUtils;
 
+import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.utils.BloomFilter;
@@ -203,18 +204,18 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private final MappedByteBuffer[] buffers;
 
 
-    public static ConcurrentLinkedHashMap<DecoratedKey, PositionSize> createKeyCache(int size)
+    public static InstrumentedCache<DecoratedKey, PositionSize> createKeyCache(int size)
     {
-        return ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, size);
+        return new InstrumentedCache<DecoratedKey, PositionSize>(size);
     }
 
-    private ConcurrentLinkedHashMap<DecoratedKey, PositionSize> keyCache;
+    private InstrumentedCache<DecoratedKey, PositionSize> keyCache;
 
     SSTableReader(String filename,
                   IPartitioner partitioner,
                   List<KeyPosition> indexPositions, Map<KeyPosition, PositionSize> spannedIndexDataPositions,
                   BloomFilter bloomFilter,
-                  ConcurrentLinkedHashMap<DecoratedKey, PositionSize> keyCache)
+                  InstrumentedCache<DecoratedKey, PositionSize> keyCache)
             throws IOException
     {
         super(filename, partitioner);
@@ -573,6 +574,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public ColumnFamily makeColumnFamily()
     {
         return ColumnFamily.create(getTableName(), getColumnFamilyName());
+    }
+
+    public InstrumentedCache<DecoratedKey, PositionSize> getKeyCache()
+    {
+        return keyCache;
     }
 
     public ICompactSerializer2<IColumn> getColumnSerializer()
