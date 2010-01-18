@@ -18,14 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-/**
- * Created by IntelliJ IDEA.
- * User: lakshman
- * Date: Aug 17, 2005
- * Time: 3:32:42 PM
- * To change this template use File | Settings | File Templates.
- */
-
 public class HashingSchemes
 {
     public static final String SHA_1 = "SHA-1";
