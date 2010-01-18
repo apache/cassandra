@@ -25,7 +25,7 @@
 
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra</artifactId>
-  <version>0.5</version>
+  <version>0.6-SNAPSHOT</version>
   <packaging>jar</packaging>
   <name>Cassandra</name>
   <inceptionYear>2009</inceptionYear>
@@ -186,13 +186,6 @@
       <version>UNKNOWN</version>
       <scope>system</scope>
       <systemPath>${basedir}/lib/libthrift-r820831.jar</systemPath>
-    </dependency>
-    <dependency>
-      <groupId>reardencommerce</groupId>
-      <artifactId>reardencommerce</artifactId>
-      <version>UNKNOWN</version>
-      <scope>system</scope>
-      <systemPath>${basedir}/lib/clhm-production.jar</systemPath>
     </dependency>
     <dependency>
       <groupId>jsonsimple</groupId>
