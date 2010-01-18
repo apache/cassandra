@@ -20,6 +20,15 @@ public class JMXAggregatingCache implements JMXAggregatingCacheMBean
         return capacity;
     }
 
+    public void setCapacity(int capacity)
+    {
+        double ratio = capacity / getCapacity();
+        for (InstrumentedCache cache : caches)
+        {
+            cache.setCapacity(Math.max(1, (int)(cache.getCapacity() * ratio)));
+        }
+    }
+
     public int getSize()
     {
         int size = 0;
