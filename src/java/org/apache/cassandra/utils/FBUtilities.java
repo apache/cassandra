@@ -275,7 +275,7 @@ public class FBUtilities
 
     public static String mapToString(Map<?,?> map)
     {
-        StringBuilder sb = new StringBuilder("");
+        StringBuilder sb = new StringBuilder("{");
 
         for (Map.Entry entry : map.entrySet())
         {
