@@ -119,8 +119,8 @@
    ~ as it is on the classpath.  Out of the box, Cassandra provides
    ~ org.apache.cassandra.auth.AllowAllAuthenticator and,
    ~ org.apache.cassandra.auth.SimpleAuthenticator 
-   ~ (SimpleAuthenticator uses authorization.properties and
-   ~ passwd.properties by default).
+   ~ (SimpleAuthenticator uses access.properties and passwd.properties by
+   ~ default).
    ~
    ~ If you don't specify an authenticator, AllowAllAuthenticator is used.
   -->
