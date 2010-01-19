@@ -704,6 +704,10 @@ public class CassandraServer implements Cassandra.Iface
 
     protected void checkLoginDone() throws InvalidRequestException
     {
+        // FIXME: This disables the "you must call login()" requirement when the configured
+        // authenticator is AllowAllAuthenticator. This is a temporary measure until CASSANDRA-714 is complete.
+        if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
+            return;
         if (!loginDone.get()) throw new InvalidRequestException("Login is required before any other API calls");
     }
 
