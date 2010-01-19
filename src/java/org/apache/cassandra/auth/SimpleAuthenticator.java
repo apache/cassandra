@@ -52,6 +52,8 @@ public class SimpleAuthenticator implements IAuthenticator
         String password = authRequest.getCredentials().get(PASSWORD_KEY);
         if (null == password) throw new AuthenticationException("Authentication request was missing the required key '" + PASSWORD_KEY + "'");
 
+        boolean authenticated = false;
+
         try
         {
             FileInputStream in = new FileInputStream(pfilename);
@@ -61,7 +63,6 @@ public class SimpleAuthenticator implements IAuthenticator
 
             // note we keep the message here and for the wrong password exactly the same to prevent attackers from guessing what users are valid
             if (null == props.getProperty(username)) throw new AuthenticationException(authenticationErrorMessage(mode, username));
-            boolean authenticated = false;
             switch (mode)
             {
                 case PLAIN:
@@ -71,8 +72,6 @@ public class SimpleAuthenticator implements IAuthenticator
                     authenticated = MessageDigest.isEqual(password.getBytes(), MessageDigest.getInstance("MD5").digest(props.getProperty(username).getBytes()));
                     break;
             }
-
-            if (!authenticated) throw new AuthenticationException(authenticationErrorMessage(mode, username));
         }
         catch (NoSuchAlgorithmException e)
         {
@@ -88,8 +87,10 @@ public class SimpleAuthenticator implements IAuthenticator
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Unexpected authentication problem: " + e.getMessage());
+            throw new RuntimeException("Unexpected authentication problem", e);
         }
+
+        if (!authenticated) throw new AuthenticationException(authenticationErrorMessage(mode, username));
 
         // if we're here, the authentication succeeded. Now let's see if the user is authorized for this keyspace.
 
@@ -112,8 +113,6 @@ public class SimpleAuthenticator implements IAuthenticator
             {
                 if (allow.equals(username)) authorized = true;
             }
-
-            if (!authorized) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
         }
         catch (FileNotFoundException e)
         {
@@ -125,8 +124,10 @@ public class SimpleAuthenticator implements IAuthenticator
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Unexpected authorization problem: " + e.getMessage());
+            throw new RuntimeException("Unexpected authorization problem", e);
         }
+
+        if (!authorized) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
     }
 
     static String authorizationErrorMessage(String keyspace, String username)
