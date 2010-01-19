@@ -176,7 +176,7 @@ public class HintedHandOffManager
             {
                 QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-                if (hintColumnFamily == null)
+                if (pagingFinished(hintColumnFamily, startColumn))
                     break;
                 Collection<IColumn> keys = hintColumnFamily.getSortedColumns();
 
@@ -198,7 +198,7 @@ public class HintedHandOffManager
                         deleteHintKey(tableName, keyColumn.name());
                     }
 
-                    startColumn = keyColumn.name(); // repeating the last as the first is fine since we just deleted it
+                    startColumn = keyColumn.name();
                 }
             }
         }
@@ -214,6 +214,13 @@ public class HintedHandOffManager
 
         if (logger_.isDebugEnabled())
           logger_.debug("Finished deliverAllHints");
+    }
+
+    private static boolean pagingFinished(ColumnFamily hintColumnFamily, byte[] startColumn)
+    {
+        // done if no hints found or the start column (same as last column processed in previous iteration) is the only one
+        return hintColumnFamily == null
+               || (hintColumnFamily.getSortedColumns().size() == 1 && hintColumnFamily.getColumn(startColumn) != null);
     }
 
     private static void deliverHintsToEndpoint(InetAddress endPoint) throws IOException, DigestMismatchException, InvalidRequestException, TimeoutException
@@ -233,7 +240,7 @@ public class HintedHandOffManager
             {
                 QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
-                if (hintColumnFamily == null)
+                if (pagingFinished(hintColumnFamily, startColumn))
                     break;
                 Collection<IColumn> keys = hintColumnFamily.getSortedColumns();
 
@@ -253,7 +260,7 @@ public class HintedHandOffManager
                         }
                     }
 
-                    startColumn = keyColumn.name(); // repeating the last as the first is fine since we just deleted it
+                    startColumn = keyColumn.name();
                 }
             }
         }
