@@ -28,6 +28,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.commons.lang.ArrayUtils;
 
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -49,6 +50,16 @@ public class CassandraServer implements Cassandra.Iface
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
 
+    // will be set only by login()
+    private ThreadLocal<Boolean> loginDone = new ThreadLocal<Boolean>() 
+    {
+        @Override
+        protected Boolean initialValue()
+        {
+            return false;
+        }
+    };
+
     /*
       * Handle to the storage service to interact with the other machines in the
       * cluster.
@@ -59,7 +70,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         storageService = StorageService.instance;
     }
-
+    
     protected Map<String, ColumnFamily> readColumnFamily(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -198,6 +209,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
+
+        checkLoginDone();
+
         return multigetSliceInternal(keyspace, Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
     }
     
@@ -206,6 +220,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
+
+        checkLoginDone();
+
         return multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
     }
 
@@ -242,6 +259,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get");
+
+        checkLoginDone();
+
         ColumnOrSuperColumn column = multigetInternal(table, Arrays.asList(key), column_path, consistency_level).get(key);
         if (!column.isSetColumn() && !column.isSetSuper_column())
         {
@@ -291,6 +311,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("multiget");
+
+        checkLoginDone();
+
         return multigetInternal(table, keys, column_path, consistency_level);
     }
 
@@ -349,6 +372,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get_count");
+
+        checkLoginDone();
+
         return multigetCountInternal(table, Arrays.asList(key), column_parent, consistency_level).get(key);
     }
 
@@ -394,6 +420,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("insert");
+
+        checkLoginDone();
+
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPath(table, column_path);
 
@@ -414,6 +443,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
+
+        checkLoginDone();
+
         ThriftValidation.validateKey(key);
 
         for (String cfName : cfmap.keySet())
@@ -432,7 +464,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("batch_mutate");
-        
+
+        checkLoginDone();
+
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
         for (Map.Entry<String, Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
         {
@@ -473,6 +507,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("remove");
+
+        checkLoginDone();
+
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(table, column_path);
         
@@ -586,6 +623,8 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
 
+        checkLoginDone();
+
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
         if (!StorageService.getPartitioner().preservesOrder())
         {
@@ -629,6 +668,9 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get_key_range");
+
+        checkLoginDone();
+
         ThriftValidation.validateCommand(tablename, columnFamily);
         if (!StorageService.getPartitioner().preservesOrder())
         {
@@ -653,5 +695,18 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    @Override
+    public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
+    {
+        DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
+        loginDone.set(true);
+    }
+
+    protected void checkLoginDone() throws InvalidRequestException
+    {
+        if (!loginDone.get()) throw new InvalidRequestException("Login is required before any other API calls");
+    }
+
+    
     // main method moved to CassandraDaemon
 }

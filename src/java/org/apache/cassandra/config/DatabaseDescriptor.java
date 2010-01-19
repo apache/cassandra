@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.config;
 
+import org.apache.cassandra.auth.AllowAllAuthenticator;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -137,6 +139,8 @@ public class DatabaseDescriptor
     private static boolean snapshotBeforeCompaction_;
     private static boolean autoBootstrap_ = false;
 
+    private static IAuthenticator authenticator = new AllowAllAuthenticator();
+
     static
     {
         try
@@ -221,6 +225,21 @@ public class DatabaseDescriptor
                 indexAccessMode_ = diskAccessMode_;
             }
 
+            /* Authentication and authorization backend, implementing IAuthenticator */
+            String authenticatorClassName = xmlUtils.getNodeValue("/Storage/Authenticator");
+            if (authenticatorClassName != null)
+            {
+                try
+                {
+                    Class cls = Class.forName(authenticatorClassName);
+                    authenticator = (IAuthenticator) cls.getConstructor().newInstance();
+                }
+                catch (ClassNotFoundException e)
+                {
+                    throw new ConfigurationException("Invalid authenticator class " + authenticatorClassName);
+                }
+            }
+            
             /* Hashing strategy */
             String partitionerClassName = xmlUtils.getNodeValue("/Storage/Partitioner");
             if (partitionerClassName == null)
@@ -597,6 +616,11 @@ public class DatabaseDescriptor
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static IAuthenticator getAuthenticator()
+    {
+        return authenticator;
     }
 
     public static boolean isThriftFramed()

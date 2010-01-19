@@ -115,6 +115,18 @@
   </Keyspaces>
 
   <!--
+   ~ Authenticator: any IAuthenticator may be used, including your own as long
+   ~ as it is on the classpath.  Out of the box, Cassandra provides
+   ~ org.apache.cassandra.auth.AllowAllAuthenticator and,
+   ~ org.apache.cassandra.auth.SimpleAuthenticator 
+   ~ (SimpleAuthenticator uses authorization.properties and
+   ~ passwd.properties by default).
+   ~
+   ~ If you don't specify an authenticator, AllowAllAuthenticator is used.
+  -->
+  <Authenticator>org.apache.cassandra.auth.AllowAllAuthenticator</Authenticator>
+
+  <!--
    ~ Partitioner: any IPartitioner may be used, including your own as long
    ~ as it is on the classpath.  Out of the box, Cassandra provides
    ~ org.apache.cassandra.dht.RandomPartitioner,

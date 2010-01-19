@@ -114,6 +114,16 @@ exception UnavailableException {
 exception TimedOutException {
 }
 
+/** invalid authentication request (user does not exist or credentials invalid) */
+exception AuthenticationException {
+    1: required string why
+}
+
+/** invalid authorization request (user does not have access to keyspace) */
+exception AuthorizationException {
+    1: required string why
+}
+
 
 #
 # service api
@@ -244,8 +254,18 @@ struct Mutation {
     2: optional Deletion deletion,
 }
 
+/**
+    Authentication requests can contain any data, dependent on the AuthenticationBackend used
+*/
+
+struct AuthenticationRequest {
+    1: required map<string, string> credentials,
+}
 
 service Cassandra {
+  # auth methods
+  void login(1: required string keyspace, 2:required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
+ 
   # retrieval methods
 
   /**
