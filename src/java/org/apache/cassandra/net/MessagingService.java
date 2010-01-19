@@ -465,25 +465,22 @@ public class MessagingService implements IFailureDetectionEventListener
     }
 
     public static void receive(Message message)
-    {        
-        enqueueRunnable(message.getMessageType(), new MessageDeliveryTask(message));
-    }
+    {
+        Runnable runnable = new MessageDeliveryTask(message);
 
-    private static void enqueueRunnable(String stageName, Runnable runnable){
-        
-        ExecutorService stage = StageManager.getStage(stageName);
-        
-        if ( stage != null )
+        ExecutorService stage = StageManager.getStage(message.getMessageType());
+        if (stage == null)
         {
-            stage.execute(runnable);
-        } 
-        else
-        {
-            logger_.warn("Running on default stage - beware");
+            if (logger_.isDebugEnabled())
+                logger_.debug("Running " + message.getMessageType() + " on default stage");
             messageDeserializerExecutor_.execute(runnable);
         }
-    }    
-    
+        else
+        {
+            stage.execute(runnable);
+        }
+    }
+
     public static IAsyncCallback getRegisteredCallback(String key)
     {
         return callbackMap_.get(key);
