@@ -35,8 +35,8 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.*;
@@ -49,8 +49,9 @@ public class MessagingService implements IFailureDetectionEventListener
     private static int version_ = 1;
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
     private static SerializerType serializerType_ = SerializerType.BINARY;
-    
-    private static byte[] protocol_ = new byte[16];
+
+    public static final int PROTOCOL_SIZE = 16;
+    private static byte[] protocol_ = new byte[PROTOCOL_SIZE];
     /* Verb Handler for the Response */
     public static final String responseVerbHandler_ = "RESPONSE";
 
@@ -61,9 +62,6 @@ public class MessagingService implements IFailureDetectionEventListener
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<String, IVerbHandler> verbHandlers_;
 
-    /* Thread pool to handle messaging read activities of Socket and default stage */
-    private static ExecutorService messageReadExecutor_;
-    
     /* Thread pool to handle deserialization of messages read from the socket. */
     private static ExecutorService messageDeserializerExecutor_;
     
@@ -99,10 +97,6 @@ public class MessagingService implements IFailureDetectionEventListener
         callbackMap_ = new Cachetable<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
         taskCompletionMap_ = new Cachetable<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );        
 
-        // read executor will have one runnable enqueued per connection with stuff to read on it,
-        // so there is no need to make it bounded, and one thread should be plenty.
-        messageReadExecutor_ = new JMXEnabledThreadPoolExecutor("MS-CONNECTION-READ-POOL");
-
         // read executor puts messages to deserialize on this.
         messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(1,
                                                                         Runtime.getRuntime().availableProcessors(),
@@ -116,6 +110,8 @@ public class MessagingService implements IFailureDetectionEventListener
         protocol_ = hash("MD5", "FB-MESSAGING".getBytes());        
         /* register the response verb handler */
         registerVerbHandlers(MessagingService.responseVerbHandler_, new ResponseVerbHandler());
+
+        FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
     
     public byte[] hash(String type, byte data[])
@@ -147,15 +143,28 @@ public class MessagingService implements IFailureDetectionEventListener
     public void listen(InetAddress localEp) throws IOException
     {        
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
-        ServerSocket ss = serverChannel.socket();
+        final ServerSocket ss = serverChannel.socket();
         ss.setReuseAddress(true);
         ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
-        serverChannel.configureBlocking(false);
-        
-        SelectionKeyHandler handler = new TcpConnectionHandler(localEp);
 
-        SelectionKey key = SelectorManager.getSelectorManager().register(serverChannel, handler, SelectionKey.OP_ACCEPT);          
-        FailureDetector.instance.registerFailureDetectionEventListener(this);
+        new Thread(new Runnable()
+        {
+            public void run()
+            {
+                while (true)
+                {
+                    try
+                    {
+                        Socket socket = ss.accept();
+                        new IncomingTcpConnection(socket).start();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }, "ACCEPT-" + localEp).start();
     }
     
     /**
@@ -396,7 +405,6 @@ public class MessagingService implements IFailureDetectionEventListener
     {
         logger_.info("Shutting down ...");
 
-        messageReadExecutor_.shutdownNow();
         messageDeserializerExecutor_.shutdownNow();
         streamExecutor_.shutdownNow();
         StageManager.shutdownNow();
@@ -440,11 +448,6 @@ public class MessagingService implements IFailureDetectionEventListener
         return taskCompletionMap_.remove(key);
     }
 
-    public static ExecutorService getReadExecutor()
-    {
-        return messageReadExecutor_;
-    }
-
     public static ExecutorService getDeserializationExecutor()
     {
         return messageDeserializerExecutor_;
@@ -453,6 +456,12 @@ public class MessagingService implements IFailureDetectionEventListener
     public static boolean isProtocolValid(byte[] protocol)
     {
         return isEqual(protocol_, protocol);
+    }
+
+    public static void validateProtocol(byte[] protocol) throws IOException
+    {
+        if (!isProtocolValid(protocol))
+            throw new IOException("invalid protocol header");
     }
     
     public static boolean isEqual(byte digestA[], byte digestB[])
@@ -494,7 +503,7 @@ public class MessagingService implements IFailureDetectionEventListener
         /* Finished the protocol header setup */
 
         byte[] header = FBUtilities.toByteArray(n);
-        ByteBuffer buffer = ByteBuffer.allocate(16 + header.length + size.length + bytes.length);
+        ByteBuffer buffer = ByteBuffer.allocate(PROTOCOL_SIZE + header.length + size.length + bytes.length);
         buffer.put(protocol_);
         buffer.put(header);
         buffer.put(size);

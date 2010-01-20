@@ -28,12 +28,13 @@ import org.apache.log4j.Logger;
 
 class MessageDeserializationTask implements Runnable
 {
-    private static Logger logger_ = Logger.getLogger(MessageDeserializationTask.class); 
-    private byte[] bytes_ = new byte[0];
+    private static Logger logger_ = Logger.getLogger(MessageDeserializationTask.class);
     
-    MessageDeserializationTask(byte[] bytes)
+    private ByteArrayInputStream bytes;
+    
+    MessageDeserializationTask(ByteArrayInputStream bytes)
     {
-        bytes_ = bytes;        
+        this.bytes = bytes;
     }
     
     public void run()
@@ -41,7 +42,7 @@ class MessageDeserializationTask implements Runnable
         Message message = null;
         try
         {
-            message = Message.serializer().deserialize(new DataInputStream(new ByteArrayInputStream(bytes_)));
+            message = Message.serializer().deserialize(new DataInputStream(bytes));
         }
         catch (IOException e)
         {

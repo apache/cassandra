@@ -33,9 +33,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.io.ProtocolState;
-import org.apache.cassandra.net.io.StartState;
-import org.apache.cassandra.net.io.TcpReader;
 
 import org.apache.log4j.Logger;
 
@@ -47,8 +44,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     private SelectionKey key_;
     private TcpConnectionManager pool_;
     private boolean isIncoming_ = false;
-    private TcpReader tcpReader_;
-    private ConnectionReader reader_ = new ConnectionReader();
     private Queue<ByteBuffer> pendingWrites_ = new ConcurrentLinkedQueue<ByteBuffer>();
     private InetAddress localEp_;
     private InetAddress remoteEp_;
@@ -108,31 +103,6 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
     {
         this(from, to, null, true);
     }
-    
-    /*
-     * This method is invoked by the TcpConnectionHandler to accept incoming TCP connections.
-     * Accept the connection and then register interest for reads.
-    */
-    static void acceptConnection(SocketChannel socketChannel, InetAddress localEp, boolean isIncoming) throws IOException
-    {
-        TcpConnection tcpConnection = new TcpConnection(socketChannel, localEp, true);
-        tcpConnection.registerReadInterest();
-    }
-    
-    private void registerReadInterest() throws IOException
-    {
-        key_ = SelectorManager.getSelectorManager().register(socketChannel_, this, SelectionKey.OP_READ);
-    }
-    
-    // used for incoming connections
-    TcpConnection(SocketChannel socketChannel, InetAddress localEp, boolean isIncoming) throws IOException
-    {       
-        socketChannel_ = socketChannel;
-        socketChannel_.configureBlocking(false);                           
-        isIncoming_ = isIncoming;
-        localEp_ = localEp;
-    }
-
 
     public InetAddress getEndPoint()
     {
@@ -395,79 +365,7 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
             }
         }
     }
-    
-    // called in the selector thread
-    public void read(SelectionKey key)
-    {
-        turnOffInterestOps(key, SelectionKey.OP_READ);
-        // publish this event onto to the TCPReadEvent Queue.
-        MessagingService.getReadExecutor().execute(reader_);
-    }
-    
-    class ConnectionReader implements Runnable
-    {                 
-        // called from the TCP READ executor
-        public void run()
-        {                         
-            if ( tcpReader_ == null )
-            {
-                tcpReader_ = new TcpReader(TcpConnection.this);    
-                StartState nextState = tcpReader_.getSocketState(TcpReader.TcpReaderState.PREAMBLE);
-                if ( nextState == null )
-                {
-                    nextState = new ProtocolState(tcpReader_);
-                    tcpReader_.putSocketState(TcpReader.TcpReaderState.PREAMBLE, nextState);
-                }
-                tcpReader_.morphState(nextState);
-            }
-            
-            try
-            {           
-                byte[] bytes;
-                while ( (bytes = tcpReader_.read()).length > 0 )
-                {                       
-                    ProtocolHeader pH = tcpReader_.getProtocolHeader();                    
-                    if ( !pH.isStreamingMode_ )
-                    {
-                        /* first message received */
-                        if (remoteEp_ == null)
-                        {
-                            remoteEp_ = socketChannel_.socket().getInetAddress();
-                        }
-                        
-                        /* Deserialize and handle the message */
-                        MessagingService.getDeserializationExecutor().submit(new MessageDeserializationTask(bytes));                                                  
-                        tcpReader_.resetState();
-                    }
-                    else
-                    {
-                        closeSocket();
-                    }                    
-                }
-            }
-            catch ( IOException ex )
-            {                   
-                handleException(ex);
-            }
-            catch ( Throwable th )
-            {
-                handleException(th);
-            }
-            finally
-            {
-                if (key_.isValid()) //not valid if closeSocket has been called above
-                    turnOnInterestOps(key_, SelectionKey.OP_READ);
-            }
-        }
-        
-        private void handleException(Throwable th)
-        {
-            logger_.warn("Problem reading from socket connected to : " + socketChannel_, th);
-            // This is to fix the weird Linux bug with NIO.
-            errorClose();
-        }
-    }
-    
+
     public int compareTo(Object o)
     {
         if (o instanceof TcpConnection) 
