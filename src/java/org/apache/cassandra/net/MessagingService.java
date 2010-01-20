@@ -166,26 +166,7 @@ public class MessagingService implements IFailureDetectionEventListener
             }
         }, "ACCEPT-" + localEp).start();
     }
-    
-    /**
-     * Listen on the specified port.
-     * @param localEp InetAddress whose port to listen on.
-     */
-    public void listenUDP(InetAddress localEp)
-    {
-        UdpConnection connection = new UdpConnection();
-        if (logger_.isDebugEnabled())
-          logger_.debug("Starting to listen on " + localEp);
-        try
-        {
-            connection.init(localEp);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-    
+
     public static OutboundTcpConnectionPool getConnectionPool(InetAddress from, InetAddress to)
     {
         String key = from + ":" + to;
@@ -344,36 +325,6 @@ public class MessagingService implements IFailureDetectionEventListener
         return iar;
     }
     
-    /**
-     * Send a message to a given endpoint. This method adheres to the fire and forget
-     * style messaging.
-     * @param message messages to be sent.
-     * @param to endpoint to which the message needs to be sent
-     */
-    public void sendUdpOneWay(Message message, InetAddress to)
-    {
-        if (message.getFrom().equals(to)) {
-            MessagingService.receive(message);
-            return;
-        }
-        
-        UdpConnection connection = null;
-        try
-        {
-            connection = new UdpConnection(); 
-            connection.init();            
-            connection.write(message, to);            
-        }            
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        finally
-        {
-            if ( connection != null )
-                connection.close();
-        }
-    }
     /**
      * Stream a file from source to destination. This is highly optimized
      * to not hold any of the contents of the file in memory.

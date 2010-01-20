@@ -232,11 +232,6 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isClientMode = true;
         logger_.info("Starting up client gossip");
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
-        MessagingService.instance.listenUDP(FBUtilities.getLocalAddress());
-
-        SelectorManager.getSelectorManager().start();
-        SelectorManager.getUdpSelectorManager().start();
-
         Gossiper.instance.register(this);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
     }
@@ -248,13 +243,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         DatabaseDescriptor.createAllDirectories();
         logger_.info("Starting up server gossip");
 
-        /* Listen for application messages */
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
-        /* Listen for control messages */
-        MessagingService.instance.listenUDP(FBUtilities.getLocalAddress());
-
-        SelectorManager.getSelectorManager().start();
-        SelectorManager.getUdpSelectorManager().start();
 
         StorageLoadBalancer.instance.startBroadcasting();
 

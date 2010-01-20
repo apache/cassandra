@@ -221,10 +221,8 @@
    ~ address associated with the hostname (it might not be).
   -->
   <ListenAddress>localhost</ListenAddress>
-  <!-- TCP port, for commands and data -->
+  <!-- internal communications port -->
   <StoragePort>7000</StoragePort>
-  <!-- UDP port, for membership communications (gossip) -->
-  <ControlPort>7001</ControlPort>
 
   <!--
    ~ The address to bind the Thrift RPC service to. Unlike ListenAddress

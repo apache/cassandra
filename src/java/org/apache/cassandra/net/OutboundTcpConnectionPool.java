@@ -47,7 +47,8 @@ class OutboundTcpConnectionPool
      */
     synchronized OutboundTcpConnection getConnection(Message msg)
     {
-        if (StageManager.RESPONSE_STAGE.equals(msg.getMessageType()))
+        if (StageManager.RESPONSE_STAGE.equals(msg.getMessageType())
+            || StageManager.GOSSIP_STAGE.equals(msg.getMessageType()))
         {
             if (ackCon == null)
                 ackCon = newCon();

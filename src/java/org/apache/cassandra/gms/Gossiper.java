@@ -308,7 +308,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         InetAddress to = liveEndPoints.get(index);
         if (logger_.isTraceEnabled())
             logger_.trace("Sending a GossipDigestSynMessage to " + to + " ...");
-        MessagingService.instance.sendUdpOneWay(message, to);
+        MessagingService.instance.sendOneWay(message, to);
         return seeds_.contains(to);
     }
 
@@ -887,7 +887,7 @@ class GossipDigestSynVerbHandler implements IVerbHandler
             Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAckMessage to " + from);
-            MessagingService.instance.sendUdpOneWay(gDigestAckMessage, from);
+            MessagingService.instance.sendOneWay(gDigestAckMessage, from);
         }
         catch (IOException e)
         {
@@ -979,7 +979,7 @@ class GossipDigestAckVerbHandler implements IVerbHandler
             Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAck2Message to " + from);
-            MessagingService.instance.sendUdpOneWay(gDigestAck2Message, from);
+            MessagingService.instance.sendOneWay(gDigestAck2Message, from);
         }
         catch ( IOException e )
         {

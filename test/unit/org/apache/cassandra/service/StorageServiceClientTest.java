@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.NetPackageAccessor;
 import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
@@ -29,7 +28,7 @@ import static org.junit.Assert.assertFalse;
 import java.io.File;
 import java.io.IOException;
 
-public class StorageServiceTest
+public class StorageServiceClientTest
 {
     @Test
     public void testClientOnlyMode() throws IOException
@@ -44,25 +43,5 @@ public class StorageServiceTest
             assertFalse(new File(path).exists());
         }
         StorageService.instance.stopClient();
-        NetPackageAccessor.resetSelectorManager();
-    }
-
-    @Test
-    public void testRegularMode() throws IOException, InterruptedException
-    {
-        CleanupHelper.mkdirs();
-        CleanupHelper.cleanup();
-        StorageService.instance.initServer();
-        for (String path : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            // verify that storage directories are there.
-            assertTrue(new File(path).exists());
-        }
-        // a proper test would be to call decommission here, but decommission() mixes both shutdown and datatransfer
-        // calls.  This test is only interested in the shutdown-related items which a properly handled by just
-        // stopping the client.
-        //StorageService.instance.decommission();
-        StorageService.instance.stopClient();
-        NetPackageAccessor.resetSelectorManager();
     }
 }
