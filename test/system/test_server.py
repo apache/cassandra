@@ -505,7 +505,7 @@ class TestMutations(CassandraTester):
         # get doesn't specify supercolumn name
         _expect_exception(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1'), ConsistencyLevel.ONE), InvalidRequestException)
         # invalid CF
-        _expect_exception(lambda: client.get_key_range('Keyspace1', 'S', '', '', 1000, ConsistencyLevel.ONE), InvalidRequestException)
+        _expect_exception(lambda: client.get_range_slice('Keyspace1', ColumnParent('S'), SlicePredicate(column_names=['', '']), '', '', 5, ConsistencyLevel.ONE), InvalidRequestException)
         # 'x' is not a valid Long
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Super1', 'sc1', 'x'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
         # start is not a valid Long
@@ -672,49 +672,57 @@ class TestMutations(CassandraTester):
 
 
     def test_empty_range(self):
-        assert client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE) == []
+        assert client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE) == []
         _insert_simple()
-        assert client.get_key_range('Keyspace1', 'Super1', '', '', 1000, ConsistencyLevel.ONE) == []
+        assert client.get_range_slice('Keyspace1', ColumnParent('Super1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE) == []
 
     def test_range_with_remove(self):
         _insert_simple()
-        assert client.get_key_range('Keyspace1', 'Standard1', 'key1', '', 1000, ConsistencyLevel.ONE) == ['key1']
+        assert client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), 'key1', '', 1000, ConsistencyLevel.ONE)[0].key == 'key1'
 
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1', column='c1'), 1, ConsistencyLevel.ONE)
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1', column='c2'), 1, ConsistencyLevel.ONE)
-        actual = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE)
-        assert actual == [], actual
+        actual = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c2']), '', '', 1000, ConsistencyLevel.ONE)
+        assert actual == [KeySlice(columns=[], key='key1')], actual
 
     def test_range_with_remove_cf(self):
         _insert_simple()
-        assert client.get_key_range('Keyspace1', 'Standard1', 'key1', '', 1000, ConsistencyLevel.ONE) == ['key1']
+        assert client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), 'key1', '', 1000, ConsistencyLevel.ONE)[0].key == 'key1'
 
         client.remove('Keyspace1', 'key1', ColumnPath('Standard1'), 1, ConsistencyLevel.ONE)
-        actual = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE)
-        assert actual == [], actual
+        actual = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE)
+        assert actual == [KeySlice(columns=[], key='key1')], actual
 
     def test_range_collation(self):
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
             client.insert('Keyspace1', key, ColumnPath('Standard1', column=key), 'v', 0, ConsistencyLevel.ONE)
-        L = client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE)
+        slices = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['-a', '-a']), '', '', 1000, ConsistencyLevel.ONE)
         # note the collated ordering rather than ascii
-        assert L == ['0', '1', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '2', '20', '21', '22', '23', '24', '25', '26', '27','28', '29', '3', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '4', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '5', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '6', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '7', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '8', '80', '81', '82', '83', '84', '85', '86', '87', '88', '89', '9', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', 'a', '-a', 'b', '-b'], L
+        L = ['0', '1', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '2', '20', '21', '22', '23', '24', '25', '26', '27','28', '29', '3', '30', '31', '32', '33', '34', '35', '36', '37', '38', '39', '4', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '5', '50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '6', '60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '7', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '8', '80', '81', '82', '83', '84', '85', '86', '87', '88', '89', '9', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', 'a', '-a', 'b', '-b']
+        assert len(slices) == len(L)
+        for key, ks in zip(L, slices):
+            assert key == ks.key
 
     def test_range_partial(self):
         for key in ['-a', '-b', 'a', 'b'] + [str(i) for i in xrange(100)]:
             client.insert('Keyspace1', key, ColumnPath('Standard1', column=key), 'v', 0, ConsistencyLevel.ONE)
+        
+        def check_slices_against_keys(keyList, sliceList):
+            assert len(keyList) == len(sliceList)
+            for key, ks in zip(keyList, sliceList):
+                assert key == ks.key
+        
+        slices = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['-a', '-a']), 'a', '', 1000, ConsistencyLevel.ONE)
+        check_slices_against_keys(['a', '-a', 'b', '-b'], slices)
+        
+        slices = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['-a', '-a']), '', '15', 1000, ConsistencyLevel.ONE)
+        check_slices_against_keys(['0', '1', '10', '11', '12', '13', '14', '15'], slices)
 
-        L = client.get_key_range('Keyspace1', 'Standard1', 'a', '', 1000, ConsistencyLevel.ONE)
-        assert L == ['a', '-a', 'b', '-b'], L
-
-        L = client.get_key_range('Keyspace1', 'Standard1', '', '15', 1000, ConsistencyLevel.ONE)
-        assert L == ['0', '1', '10', '11', '12', '13', '14', '15'], L
-
-        L = client.get_key_range('Keyspace1', 'Standard1', '50', '51', 1000, ConsistencyLevel.ONE)
-        assert L == ['50', '51'], L
-    
-        L = client.get_key_range('Keyspace1', 'Standard1', '1', '', 10, ConsistencyLevel.ONE)
-        assert L == ['1', '10', '11', '12', '13', '14', '15', '16', '17', '18'], L
+        slices = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['-a', '-a']), '50', '51', 1000, ConsistencyLevel.ONE)
+        check_slices_against_keys(['50', '51'], slices)
+        
+        slices = client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['-a', '-a']), '1', '', 10, ConsistencyLevel.ONE)
+        check_slices_against_keys(['1', '10', '11', '12', '13', '14', '15', '16', '17', '18'], slices)
 
     def test_get_slice_range(self):
         _insert_range()

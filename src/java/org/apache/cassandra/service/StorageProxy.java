@@ -592,53 +592,6 @@ public class StorageProxy implements StorageProxyMBean
         return results;
     }
 
-    static List<String> getKeyRange(RangeCommand command) throws IOException, UnavailableException, TimeoutException
-    {
-        long startTime = System.currentTimeMillis();
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-        Set<String> uniqueKeys = new HashSet<String>(command.maxResults);
-
-        InetAddress endPoint = StorageService.instance.findSuitableEndPoint(command.startWith);
-        InetAddress startEndpoint = endPoint;
-
-        do
-        {
-            Message message = command.getMessage();
-            if (logger.isDebugEnabled())
-                logger.debug("reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            IAsyncResult iar = MessagingService.instance().sendRR(message, endPoint);
-
-            // read response
-            byte[] responseBody;
-            responseBody = iar.get(DatabaseDescriptor.getRpcTimeout(), TimeUnit.MILLISECONDS);
-           
-            RangeReply rangeReply = RangeReply.read(responseBody);
-            uniqueKeys.addAll(rangeReply.keys);
-
-            if (uniqueKeys.size() >= command.maxResults || rangeReply.rangeCompletedLocally)
-            {
-                break;
-            }
-
-            // set up the next query --
-            // it's tempting to try to optimize this by starting with the last key seen for the next node,
-            // but that won't work when you have a replication factor of more than one--any node, not just
-            // the one holding the keys where the range wraps, could include both the smallest keys, and the largest,
-            // so starting with the largest in our scan of the next node means we'd never see keys from the middle.
-            do
-            {
-                endPoint = tokenMetadata.getSuccessor(endPoint);
-            } while (!FailureDetector.instance.isAlive(endPoint));
-        } while (!endPoint.equals(startEndpoint));
-
-        rangeStats.add(System.currentTimeMillis() - startTime);
-        List<String> allKeys = new ArrayList<String>(uniqueKeys);
-        Collections.sort(allKeys, keyComparator);
-        return (allKeys.size() > command.maxResults)
-               ? allKeys.subList(0, command.maxResults)
-               : allKeys;
-    }
-
     public double getReadLatency()
     {
         return readStats.mean();

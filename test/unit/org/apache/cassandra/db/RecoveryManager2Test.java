@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collections;
 
+import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
@@ -38,6 +39,7 @@ public class RecoveryManager2Test extends CleanupHelper
     public void testWithFlush() throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();
+        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
 
         for (int i = 0; i < 100; i++)
         {
@@ -52,7 +54,7 @@ public class RecoveryManager2Test extends CleanupHelper
         cfs.clearUnsafe();
         RecoveryManager.doRecovery(); // this is a no-op. is testing this useful?
 
-        Set<String> foundKeys = new HashSet<String>(cfs.getKeyRange("", "", 1000).keys);
+        Set<String> foundKeys = new HashSet<String>(cfs.getKeyRange(emptyKey, emptyKey, 1000).keys);
         assert foundKeys.equals(Collections.emptySet());
     }
 

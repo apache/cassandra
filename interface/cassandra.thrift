@@ -319,15 +319,6 @@ service Cassandra {
                 4:required ConsistencyLevel consistency_level=1)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
-  /** @deprecated; use get_range_slice instead */
-  list<string> get_key_range(1:required string keyspace, 
-                             2:required string column_family, 
-                             3:required string start="", 
-                             4:required string finish="", 
-                             5:required i32 count=100,
-                             6:required ConsistencyLevel consistency_level=1)
-               throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
-
   /**
    returns a subset of columns for a range of keys.
   */

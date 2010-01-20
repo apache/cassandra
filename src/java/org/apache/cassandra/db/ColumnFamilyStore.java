@@ -921,130 +921,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param stopAt key to stop at, inclusive.  empty string = stop only when keys are exhausted.
      * @param maxResults
      * @return list of keys between startWith and stopAt
-     */
-    public RangeReply getKeyRange(final String startWith, final String stopAt, int maxResults)
-    throws IOException, ExecutionException, InterruptedException
-    {
-        final DecoratedKey startWithDK = partitioner.decorateKey(startWith);
-        final DecoratedKey stopAtDK = partitioner.decorateKey(stopAt);
-
-        // create a CollatedIterator that will return unique keys from different sources
-        // (current memtable, historical memtables, and SSTables) in the correct order.
-        List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
-
-        // we iterate through memtables with a priority queue to avoid more sorting than necessary.
-        // this predicate throws out the keys before the start of our range.
-        Predicate<DecoratedKey> p = new Predicate<DecoratedKey>()
-        {
-            public boolean apply(DecoratedKey key)
-            {
-                return startWithDK.compareTo(key) <= 0
-                       && (stopAt.isEmpty() || key.compareTo(stopAtDK) <= 0);
-            }
-        };
-
-        // current memtable keys.  have to go through the CFS api for locking.
-        iterators.add(Iterators.filter(memtableKeyIterator(), p));
-        // historical memtables
-        for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily_))
-        {
-            iterators.add(Iterators.filter(memtable.getKeyIterator(), p));
-        }
-
-        // sstables
-        for (SSTableReader sstable : ssTables_)
-        {
-            final SSTableScanner scanner = sstable.getScanner(KEY_RANGE_FILE_BUFFER_SIZE);
-            scanner.seekTo(startWithDK);
-            Iterator<DecoratedKey> iter = new CloseableIterator<DecoratedKey>()
-            {
-                public boolean hasNext()
-                {
-                    return scanner.hasNext();
-                }
-                public DecoratedKey next()
-                {
-                    return scanner.next().getKey();
-                }
-                public void remove()
-                {
-                    throw new UnsupportedOperationException();
-                }
-                public void close() throws IOException
-                {
-                    scanner.close();
-                }
-            };
-            assert iter instanceof Closeable; // otherwise we leak FDs
-            iterators.add(iter);
-        }
-
-        Iterator<DecoratedKey> collated = IteratorUtils.collatedIterator(DecoratedKey.comparator, iterators);
-        Iterable<DecoratedKey> reduced = new ReducingIterator<DecoratedKey, DecoratedKey>(collated) {
-            DecoratedKey current;
-
-            public void reduce(DecoratedKey current)
-            {
-                 this.current = current;
-            }
-
-            protected DecoratedKey getReduced()
-            {
-                return current;
-            }
-        };
-
-        try
-        {
-            // pull keys out of the CollatedIterator.  checking tombstone status is expensive,
-            // so we set an arbitrary limit on how many we'll do at once.
-            List<String> keys = new ArrayList<String>();
-            boolean rangeCompletedLocally = false;
-            for (DecoratedKey current : reduced)
-            {
-                if (!stopAt.isEmpty() && stopAtDK.compareTo(current) < 0)
-                {
-                    rangeCompletedLocally = true;
-                    break;
-                }
-                // make sure there is actually non-tombstone content associated w/ this key
-                // TODO record the key source(s) somehow and only check that source (e.g., memtable or sstable)
-                QueryFilter filter = new SliceQueryFilter(current.key, new QueryPath(columnFamily_), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
-                if (getColumnFamily(filter, Integer.MAX_VALUE) != null)
-                {
-                    keys.add(current.key);
-                }
-                if (keys.size() >= maxResults)
-                {
-                    rangeCompletedLocally = true;
-                    break;
-                }
-            }
-            return new RangeReply(keys, rangeCompletedLocally);
-        }
-        finally
-        {
-            for (Iterator iter : iterators)
-            {
-                if (iter instanceof Closeable)
-                {
-                    ((Closeable)iter).close();
-                }
-            }
-        }
-    }
-
-    /**
-     * @param startWith key to start with, inclusive.  empty string = start at beginning.
-     * @param stopAt key to stop at, inclusive.  empty string = stop only when keys are exhausted.
-     * @param maxResults
-     * @return list of keys between startWith and stopAt
 
        TODO refactor better.  this is just getKeyRange w/o the deletion check, for the benefit of
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    public RangeReply getKeyRangeRaw(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
+    public RangeReply getKeyRange(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
         // create a CollatedIterator that will return unique keys from different sources
@@ -1161,7 +1043,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public RangeSliceReply getRangeSlice(byte[] super_column, final DecoratedKey startKey, final DecoratedKey finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
     throws IOException, ExecutionException, InterruptedException
     {
-        RangeReply rr = getKeyRangeRaw(startKey, finishKey, keyMax);
+        RangeReply rr = getKeyRange(startKey, finishKey, keyMax);
         List<Row> rows = new ArrayList<Row>(rr.keys.size());
         final QueryPath queryPath =  new QueryPath(columnFamily_, super_column, null);
         final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(getComparator());

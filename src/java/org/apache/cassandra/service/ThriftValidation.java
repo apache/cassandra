@@ -44,18 +44,6 @@ public class ThriftValidation
         }
     }
 
-    static void validateCommand(String tablename, String... columnFamilyNames) throws KeyspaceNotDefinedException, ColumnFamilyNotDefinedException
-    {
-        validateTable(tablename);
-        for (String cfName : columnFamilyNames)
-        {
-            if (DatabaseDescriptor.getColumnType(tablename, cfName) == null)
-            {
-                throw new ColumnFamilyNotDefinedException("Column Family " + cfName + " is invalid.");
-            }
-        }
-    }
-
     private static void validateTable(String tablename) throws KeyspaceNotDefinedException
     {
         if (!DatabaseDescriptor.getTables().contains(tablename))

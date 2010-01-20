@@ -1,5 +1,6 @@
 dev
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
+ * remove get_key_range (deprecated in 0.5) (CASSANDRA-710)
 
 
 0.5.0 final

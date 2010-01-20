@@ -19,14 +19,13 @@
 package org.apache.cassandra.io;
 
 import static junit.framework.Assert.assertEquals;
-import static org.junit.Assert.*;
 
 import java.net.InetAddress;
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RangeReply;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTableUtils;
@@ -44,6 +43,7 @@ public class StreamingTest extends CleanupHelper
     public void testTransferTable() throws Exception
     {
         StorageService.instance.initServer();
+        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
 
         // write a temporary SSTable, but don't register it
         Set<String> content = new HashSet<String>();
@@ -57,7 +57,7 @@ public class StreamingTest extends CleanupHelper
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
-        RangeReply rr = cfstore.getKeyRange("", "", 2);
+        RangeReply rr = cfstore.getKeyRange(emptyKey, emptyKey, 2);
         assert rr.keys.size() == 1;
         assert rr.keys.contains("key");
     }

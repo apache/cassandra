@@ -625,6 +625,7 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginDone();
 
+        ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
         if (!StorageService.getPartitioner().preservesOrder())
         {
@@ -661,38 +662,6 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         return keySlices;
-    }
-
-    public List<String> get_key_range(String tablename, String columnFamily, String startWith, String stopAt, int maxResults, ConsistencyLevel consistency_level)
-            throws InvalidRequestException, TException, UnavailableException, TimedOutException
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("get_key_range");
-
-        checkLoginDone();
-
-        ThriftValidation.validateCommand(tablename, columnFamily);
-        if (!StorageService.getPartitioner().preservesOrder())
-        {
-            throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
-        }
-        if (maxResults <= 0)
-        {
-            throw new InvalidRequestException("maxResults must be positive");
-        }
-
-        try
-        {
-            return StorageProxy.getKeyRange(new RangeCommand(tablename, columnFamily, startWith, stopAt, maxResults));
-        }
-        catch (TimeoutException e)
-        {
-        	throw new TimedOutException();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
