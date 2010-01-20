@@ -50,8 +50,8 @@ public class MessagingService implements IFailureDetectionEventListener
     //TODO: make this parameter dynamic somehow.  Not sure if config is appropriate.
     private static SerializerType serializerType_ = SerializerType.BINARY;
 
-    public static final int PROTOCOL_SIZE = 16;
-    private static byte[] protocol_ = new byte[PROTOCOL_SIZE];
+    /** we preface every message with this number so the recipient can validate the sender is sane */
+    public static final int PROTOCOL_MAGIC = 0xCA552DFA;
     /* Verb Handler for the Response */
     public static final String responseVerbHandler_ = "RESPONSE";
 
@@ -107,7 +107,6 @@ public class MessagingService implements IFailureDetectionEventListener
 
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
                 
-        protocol_ = hash("MD5", "FB-MESSAGING".getBytes());        
         /* register the response verb handler */
         registerVerbHandlers(MessagingService.responseVerbHandler_, new ResponseVerbHandler());
 
@@ -317,7 +316,7 @@ public class MessagingService implements IFailureDetectionEventListener
             throw new RuntimeException(e);
         }
         assert data.length > 0;
-        ByteBuffer buffer = packIt(data , false, false);
+        ByteBuffer buffer = packIt(data , false);
 
         // write it
         connection.write(buffer);
@@ -399,14 +398,9 @@ public class MessagingService implements IFailureDetectionEventListener
         return messageDeserializerExecutor_;
     }
 
-    public static boolean isProtocolValid(byte[] protocol)
+    public static void validateMagic(int magic) throws IOException
     {
-        return isEqual(protocol_, protocol);
-    }
-
-    public static void validateProtocol(byte[] protocol) throws IOException
-    {
-        if (!isProtocolValid(protocol))
+        if (magic != PROTOCOL_MAGIC)
             throw new IOException("invalid protocol header");
     }
     
@@ -420,10 +414,9 @@ public class MessagingService implements IFailureDetectionEventListener
         return x >>> (p + 1) - n & ~(-1 << n);
     }
         
-    public static ByteBuffer packIt(byte[] bytes, boolean compress, boolean stream)
+    public static ByteBuffer packIt(byte[] bytes, boolean compress)
     {
-        byte[] size = FBUtilities.toByteArray(bytes.length);
-        /* 
+        /*
              Setting up the protocol header. This is 4 bytes long
              represented as an integer. The first 2 bits indicate
              the serializer type. The 3rd bit indicates if compression
@@ -433,32 +426,25 @@ public class MessagingService implements IFailureDetectionEventListener
              The next 8 bits indicate a version number. Remaining 15 bits 
              are not used currently.            
         */
-        int n = 0;
+        int header = 0;
         // Setting up the serializer bit
-        n |= serializerType_.ordinal();
+        header |= serializerType_.ordinal();
         // set compression bit.
-        if ( compress )
-            n |= 4;
-        
-        // set streaming bit
-        if ( stream )
-            n |= 8;
-        
+        if (compress)
+            header |= 4;
         // Setting up the version bit
-        n |= (version_ << 8);               
-        /* Finished the protocol header setup */
+        header |= (version_ << 8);
 
-        byte[] header = FBUtilities.toByteArray(n);
-        ByteBuffer buffer = ByteBuffer.allocate(PROTOCOL_SIZE + header.length + size.length + bytes.length);
-        buffer.put(protocol_);
-        buffer.put(header);
-        buffer.put(size);
+        ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 4 + bytes.length);
+        buffer.putInt(PROTOCOL_MAGIC);
+        buffer.putInt(header);
+        buffer.putInt(bytes.length);
         buffer.put(bytes);
         buffer.flip();
         return buffer;
     }
         
-    public static ByteBuffer constructStreamHeader(boolean compress, boolean stream)
+    public static ByteBuffer constructStreamHeader(boolean compress)
     {
         /* 
         Setting up the protocol header. This is 4 bytes long
@@ -470,25 +456,21 @@ public class MessagingService implements IFailureDetectionEventListener
         The next 8 bits indicate a version number. Remaining 15 bits 
         are not used currently.            
         */
-        int n = 0;
+        int header = 0;
         // Setting up the serializer bit
-        n |= serializerType_.ordinal();
+        header |= serializerType_.ordinal();
         // set compression bit.
         if ( compress )
-            n |= 4;
-       
+            header |= 4;
         // set streaming bit
-        if ( stream )
-            n |= 8;
-       
-        // Setting up the version bit 
-        n |= (version_ << 8);              
+        header |= 8;
+        // Setting up the version bit
+        header |= (version_ << 8);
         /* Finished the protocol header setup */
 
-        byte[] header = FBUtilities.toByteArray(n);
-        ByteBuffer buffer = ByteBuffer.allocate(16 + header.length);
-        buffer.put(protocol_);
-        buffer.put(header);
+        ByteBuffer buffer = ByteBuffer.allocate(4 + 4);
+        buffer.putInt(PROTOCOL_MAGIC);
+        buffer.putInt(header);
         buffer.flip();
         return buffer;
     }

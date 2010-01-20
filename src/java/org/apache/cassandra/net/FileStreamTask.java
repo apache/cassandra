@@ -80,7 +80,7 @@ public class FileStreamTask extends WrappedRunnable
         {
             FileChannel fc = raf.getChannel();
 
-            ByteBuffer buffer = MessagingService.constructStreamHeader(false, true);
+            ByteBuffer buffer = MessagingService.constructStreamHeader(false);
             channel.write(buffer);
             assert buffer.remaining() == 0;
 
