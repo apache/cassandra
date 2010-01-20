@@ -68,7 +68,7 @@ public class MessagingService implements IFailureDetectionEventListener
     /* Thread pool to handle messaging write activities */
     private static ExecutorService streamExecutor_;
     
-    private static NonBlockingHashMap<String, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<String, OutboundTcpConnectionPool>();
+    private static NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
     
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
@@ -132,8 +132,8 @@ public class MessagingService implements IFailureDetectionEventListener
     /** called by failure detection code to notify that housekeeping should be performed on downed sockets. */
     public void convict(InetAddress ep)
     {
-        logger_.debug("Canceling pool for " + ep);
-        getConnectionPool(FBUtilities.getLocalAddress(), ep).reset();
+        logger_.debug("Resetting pool for " + ep);
+        getConnectionPool(ep).reset();
     }
 
     /**
@@ -167,21 +167,20 @@ public class MessagingService implements IFailureDetectionEventListener
         }, "ACCEPT-" + localEp).start();
     }
 
-    public static OutboundTcpConnectionPool getConnectionPool(InetAddress from, InetAddress to)
+    public static OutboundTcpConnectionPool getConnectionPool(InetAddress to)
     {
-        String key = from + ":" + to;
-        OutboundTcpConnectionPool cp = connectionManagers_.get(key);
+        OutboundTcpConnectionPool cp = connectionManagers_.get(to);
         if (cp == null)
         {
-            connectionManagers_.putIfAbsent(key, new OutboundTcpConnectionPool(from, to));
-            cp = connectionManagers_.get(key);
+            connectionManagers_.putIfAbsent(to, new OutboundTcpConnectionPool(to));
+            cp = connectionManagers_.get(to);
         }
         return cp;
     }
 
-    public static OutboundTcpConnection getConnection(InetAddress from, InetAddress to, Message msg)
+    public static OutboundTcpConnection getConnection(InetAddress to, Message msg)
     {
-        return getConnectionPool(from, to).getConnection(msg);
+        return getConnectionPool(to).getConnection(msg);
     }
         
     /**
@@ -292,12 +291,20 @@ public class MessagingService implements IFailureDetectionEventListener
             return;
         }
 
+        // message sinks are a testing hook
         Message processedMessage = SinkManager.processClientMessageSink(message);
         if (processedMessage == null)
         {
             return;
         }
 
+        // get pooled connection (really, connection queue)
+        OutboundTcpConnection connection = null;
+        connection = getConnection(to, message);
+        if (connection == null)
+            return;
+
+        // pack message with header in a bytebuffer
         byte[] data;
         try
         {
@@ -312,8 +319,7 @@ public class MessagingService implements IFailureDetectionEventListener
         assert data.length > 0;
         ByteBuffer buffer = packIt(data , false, false);
 
-        OutboundTcpConnection connection = null;
-        connection = getConnection(processedMessage.getFrom(), to, message);
+        // write it
         connection.write(buffer);
     }
     

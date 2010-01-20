@@ -21,29 +21,29 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.net.InetAddress;
 
+import org.apache.log4j.Logger;
+
 import org.apache.cassandra.concurrent.StageManager;
 
 class OutboundTcpConnectionPool
 {
-    private InetAddress localEp_;
+    private static Logger logger = Logger.getLogger(OutboundTcpConnectionPool.class);
+
+    private final int OPEN_RETRY_DELAY = 100; // ms between retries
+
     private InetAddress remoteEp_;
     private OutboundTcpConnection cmdCon;
     private OutboundTcpConnection ackCon;
+    private long lastFailedAttempt = Long.MIN_VALUE;
 
-    // TODO localEp is ignored, get rid of it
-    OutboundTcpConnectionPool(InetAddress localEp, InetAddress remoteEp)
+    OutboundTcpConnectionPool(InetAddress remoteEp)
     {
-        localEp_ = localEp;
         remoteEp_ = remoteEp;
-    }
-
-    private OutboundTcpConnection newCon()
-    {
-        return new OutboundTcpConnection(this, localEp_, remoteEp_);
     }
 
     /**
      * returns the appropriate connection based on message type.
+     * returns null if a connection could not be established.
      */
     synchronized OutboundTcpConnection getConnection(Message msg)
     {
@@ -51,13 +51,39 @@ class OutboundTcpConnectionPool
             || StageManager.GOSSIP_STAGE.equals(msg.getMessageType()))
         {
             if (ackCon == null)
-                ackCon = newCon();
+            {
+                if (System.currentTimeMillis() < lastFailedAttempt + OPEN_RETRY_DELAY)
+                    return null;
+                try
+                {
+                    ackCon = new OutboundTcpConnection(this, remoteEp_);
+                }
+                catch (IOException e)
+                {
+                    lastFailedAttempt = System.currentTimeMillis();
+                    if (logger.isDebugEnabled())
+                        logger.debug("unable to connect to " + remoteEp_, e);
+                }
+            }
             return ackCon;
         }
         else
         {
             if (cmdCon == null)
-                cmdCon = newCon();
+            {
+                if (System.currentTimeMillis() < lastFailedAttempt + OPEN_RETRY_DELAY)
+                    return null;
+                try
+                {
+                    cmdCon = new OutboundTcpConnection(this, remoteEp_);
+                }
+                catch (IOException e)
+                {
+                    lastFailedAttempt = System.currentTimeMillis();
+                    if (logger.isDebugEnabled())
+                        logger.debug("unable to connect to " + remoteEp_, e);
+                }
+            }
             return cmdCon;
         }
     }

@@ -5,6 +5,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -22,19 +23,16 @@ public class OutboundTcpConnection
     public DataOutputStream output;
     public Socket socket;
 
-    // TODO localEp is ignored, get rid of it
-    public OutboundTcpConnection(final OutboundTcpConnectionPool pool, InetAddress localEp, final InetAddress remoteEp)
+    public OutboundTcpConnection(final OutboundTcpConnectionPool pool, final InetAddress remoteEp)
+    throws IOException
     {
-        try
-        {
-            socket = new Socket(remoteEp, DatabaseDescriptor.getStoragePort());
-            socket.setTcpNoDelay(true);
-            output = new DataOutputStream(socket.getOutputStream());
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        if (logger.isDebugEnabled())
+            logger.debug("attempting to connect to " + remoteEp);
+
+        socket = new Socket(remoteEp, DatabaseDescriptor.getStoragePort());
+        socket.setTcpNoDelay(true);
+        output = new DataOutputStream(socket.getOutputStream());
+
         new Thread(new Runnable()
         {
             public void run()
