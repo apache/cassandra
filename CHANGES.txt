@@ -1,6 +1,17 @@
 dev
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
- * remove get_key_range (deprecated in 0.5) (CASSANDRA-710)
+ * remove get_key_range Thrift API, deprecated in 0.5 (CASSANDRA-710)
+ * support fat clients using gossiper and StorageProxy to perform
+   replication in-process [jvm-only] (CASSANDRA-535)
+ * support mmapped I/O for reads, on by default on 64bit JVMs 
+   (CASSANDRA-408, CASSANDRA-669)
+ * improve insert concurrency, particularly during Hinted Handoff
+   (CASSANDRA-658)
+ * faster network code (CASSANDRA-675)
+ * stress.py moved to contrib (CASSANDRA-635)
+ * row caching [must be explicitly enabled per-CF in config] (CASSANDRA-678)
+ * present a useful measure of compaction progress in JMX (CASSANDRA-599)
+ * add bin/sstablekeys (CASSNADRA-679)
 
 
 0.5.0 final

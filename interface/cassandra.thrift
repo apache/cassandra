@@ -350,6 +350,7 @@ service Cassandra {
     Insert Columns or SuperColumns across different Column Families for the same row key. batch_mutation is a
     map<string, list<ColumnOrSuperColumn>> -- a map which pairs column family names with the relevant ColumnOrSuperColumn
     objects to insert.
+    @deprecated; use batch_mutate instead
    */
   void batch_insert(1:required string keyspace, 
                     2:required string key, 
