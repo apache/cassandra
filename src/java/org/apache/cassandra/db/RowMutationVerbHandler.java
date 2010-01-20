@@ -62,7 +62,7 @@ public class RowMutationVerbHandler implements IVerbHandler
             Message responseMessage = WriteResponse.makeWriteResponseMessage(message, response);
             if (logger_.isDebugEnabled())
               logger_.debug(rm + " applied.  Sending response to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.instance().sendOneWay(responseMessage, message.getFrom());
+            MessagingService.instance.sendOneWay(responseMessage, message.getFrom());
         }
         catch (IOException e)
         {

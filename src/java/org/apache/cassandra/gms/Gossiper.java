@@ -137,10 +137,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
         /* register the verbs */
-        MessagingService.instance().registerVerbHandlers(JOIN_VERB_HANDLER, new JoinVerbHandler());
-        MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_SYN_VERB, new GossipDigestSynVerbHandler());
-        MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_ACK_VERB, new GossipDigestAckVerbHandler());
-        MessagingService.instance().registerVerbHandlers(GOSSIP_DIGEST_ACK2_VERB, new GossipDigestAck2VerbHandler());
+        MessagingService.instance.registerVerbHandlers(JOIN_VERB_HANDLER, new JoinVerbHandler());
+        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_SYN_VERB, new GossipDigestSynVerbHandler());
+        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_ACK_VERB, new GossipDigestAckVerbHandler());
+        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_ACK2_VERB, new GossipDigestAck2VerbHandler());
     }
 
     /** Register with the Gossiper for EndPointState notifications */
@@ -308,7 +308,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         InetAddress to = liveEndPoints.get(index);
         if (logger_.isTraceEnabled())
             logger_.trace("Sending a GossipDigestSynMessage to " + to + " ...");
-        MessagingService.instance().sendUdpOneWay(message, to);
+        MessagingService.instance.sendUdpOneWay(message, to);
         return seeds_.contains(to);
     }
 
@@ -887,7 +887,7 @@ class GossipDigestSynVerbHandler implements IVerbHandler
             Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAckMessage to " + from);
-            MessagingService.instance().sendUdpOneWay(gDigestAckMessage, from);
+            MessagingService.instance.sendUdpOneWay(gDigestAckMessage, from);
         }
         catch (IOException e)
         {
@@ -979,7 +979,7 @@ class GossipDigestAckVerbHandler implements IVerbHandler
             Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
             if (logger_.isTraceEnabled())
                 logger_.trace("Sending a GossipDigestAck2Message to " + from);
-            MessagingService.instance().sendUdpOneWay(gDigestAck2Message, from);
+            MessagingService.instance.sendUdpOneWay(gDigestAck2Message, from);
         }
         catch ( IOException e )
         {

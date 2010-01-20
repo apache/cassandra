@@ -83,7 +83,7 @@ public class StreamManager
             File file = filesToStream_.get(0);
             if (logger_.isDebugEnabled())
               logger_.debug("Streaming " + file.length() + " length file " + file + " ...");
-            MessagingService.instance().stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to_);
+            MessagingService.instance.stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to_);
         }
     }
     

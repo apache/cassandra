@@ -58,12 +58,6 @@ public class MessagingService implements IFailureDetectionEventListener
     private static ICachetable<String, IAsyncCallback> callbackMap_;
     private static ICachetable<String, IAsyncResult> taskCompletionMap_;
     
-    /* List of sockets we are listening on */
-    private static Map<InetAddress, SelectionKey> listenSockets_ = new HashMap<InetAddress, SelectionKey>();
-
-    /* List of UdpConnections we are listening on */
-    private static Map<InetAddress, UdpConnection> udpConnections_ = new HashMap<InetAddress, UdpConnection>();
-    
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<String, IVerbHandler> verbHandlers_;
 
@@ -78,33 +72,15 @@ public class MessagingService implements IFailureDetectionEventListener
     
     private static NonBlockingHashMap<String, TcpConnectionManager> connectionManagers_ = new NonBlockingHashMap<String, TcpConnectionManager>();
     
-    private static volatile boolean bShutdown_ = false;
-    
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
-    private static volatile MessagingService messagingService_ = new MessagingService();
+    public static final MessagingService instance = new MessagingService();
 
     public static int getVersion()
     {
         return version_;
     }
 
-    public static MessagingService instance()
-    {   
-    	if ( bShutdown_ )
-    	{
-            synchronized (MessagingService.class)
-            {
-                if ( bShutdown_ )
-                {
-            		messagingService_ = new MessagingService();
-            		bShutdown_ = false;
-                }
-            }
-    	}
-        return messagingService_;
-    }
-    
     public Object clone() throws CloneNotSupportedException
     {
         //Prevents the singleton from being cloned
@@ -179,7 +155,6 @@ public class MessagingService implements IFailureDetectionEventListener
         SelectionKeyHandler handler = new TcpConnectionHandler(localEp);
 
         SelectionKey key = SelectorManager.getSelectorManager().register(serverChannel, handler, SelectionKey.OP_ACCEPT);          
-        listenSockets_.put(localEp, key);
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
     
@@ -195,7 +170,6 @@ public class MessagingService implements IFailureDetectionEventListener
         try
         {
             connection.init(localEp);
-            udpConnections_.put(localEp, connection);
         }
         catch (IOException e)
         {
@@ -421,47 +395,17 @@ public class MessagingService implements IFailureDetectionEventListener
     public static void shutdown()
     {
         logger_.info("Shutting down ...");
-        synchronized (MessagingService.class)
-        {
-            FailureDetector.instance.unregisterFailureDetectionEventListener(MessagingService.instance());
-            /* Stop listening on any TCP socket */
-            for (SelectionKey skey : listenSockets_.values())
-            {
-                skey.cancel();
-                try
-                {
-                    skey.channel().close();
-                }
-                catch (IOException e) {}
-            }
-            listenSockets_.clear();
 
-            /* Stop listening on any UDP ports. */
-            for (UdpConnection con : udpConnections_.values())
-            {
-                con.close();
-            }
-            udpConnections_.clear();
+        messageReadExecutor_.shutdownNow();
+        messageDeserializerExecutor_.shutdownNow();
+        streamExecutor_.shutdownNow();
+        StageManager.shutdownNow();
 
-            /* Shutdown the threads in the EventQueue's */
-            messageReadExecutor_.shutdownNow();
-            messageDeserializerExecutor_.shutdownNow();
-            streamExecutor_.shutdownNow();
+        /* shut down the cachetables */
+        taskCompletionMap_.shutdown();
+        callbackMap_.shutdown();
 
-            StageManager.shutdown();
-            
-            /* shut down the cachetables */
-            taskCompletionMap_.shutdown();
-            callbackMap_.shutdown();
-
-            /* Interrupt the selector manager thread */
-            SelectorManager.getSelectorManager().interrupt();
-
-            connectionManagers_.clear();
-            verbHandlers_.clear();
-            bShutdown_ = true;
-        }
-        logger_.info("Shutdown invocation complete.");
+        logger_.info("Shutdown complete (no further commands will be processed)");
     }
 
     public static void receive(Message message)

@@ -131,7 +131,7 @@ public class Streaming
         message.addHeader(Streaming.TABLE_NAME, table.getBytes());
         if (logger.isDebugEnabled())
           logger.debug("Sending a stream initiate message to " + target + " ...");
-        MessagingService.instance().sendOneWay(message, target);
+        MessagingService.instance.sendOneWay(message, target);
 
         if (streamContexts.length > 0)
         {
@@ -149,7 +149,7 @@ public class Streaming
     {
         StreamRequestMetadata streamRequestMetadata = new StreamRequestMetadata(FBUtilities.getLocalAddress(), ranges);
         Message message = StreamRequestMessage.makeStreamRequestMessage(new StreamRequestMessage(streamRequestMetadata));
-        MessagingService.instance().sendOneWay(message, source);
+        MessagingService.instance.sendOneWay(message, source);
     }
 
     public static class StreamInitiateVerbHandler implements IVerbHandler
@@ -202,7 +202,7 @@ public class Streaming
                 if (logger.isDebugEnabled())
                   logger.debug("Sending a stream initiate done message ...");
                 Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.streamInitiateDoneVerbHandler_, new byte[0] );
-                MessagingService.instance().sendOneWay(doneMessage, message.getFrom());
+                MessagingService.instance.sendOneWay(doneMessage, message.getFrom());
             }
             catch (IOException ex)
             {
@@ -314,7 +314,7 @@ public class Streaming
             /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
             StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
             Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
-            MessagingService.instance().sendOneWay(message, host);
+            MessagingService.instance.sendOneWay(message, host);
 
             /* If we're done with everything for this host, remove from bootstrap sources */
             if (StreamContextManager.isDone(host) && StorageService.instance.isBootstrapMode())

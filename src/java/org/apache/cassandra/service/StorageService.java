@@ -188,17 +188,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         endPointSnitch_ = DatabaseDescriptor.getEndPointSnitch();
 
         /* register the verb handlers */
-        MessagingService.instance().registerVerbHandlers(binaryVerbHandler_, new BinaryVerbHandler());
-        MessagingService.instance().registerVerbHandlers(mutationVerbHandler_, new RowMutationVerbHandler());
-        MessagingService.instance().registerVerbHandlers(readRepairVerbHandler_, new ReadRepairVerbHandler());
-        MessagingService.instance().registerVerbHandlers(readVerbHandler_, new ReadVerbHandler());
-        MessagingService.instance().registerVerbHandlers(rangeSliceVerbHandler_, new RangeSliceVerbHandler());
+        MessagingService.instance.registerVerbHandlers(binaryVerbHandler_, new BinaryVerbHandler());
+        MessagingService.instance.registerVerbHandlers(mutationVerbHandler_, new RowMutationVerbHandler());
+        MessagingService.instance.registerVerbHandlers(readRepairVerbHandler_, new ReadRepairVerbHandler());
+        MessagingService.instance.registerVerbHandlers(readVerbHandler_, new ReadVerbHandler());
+        MessagingService.instance.registerVerbHandlers(rangeSliceVerbHandler_, new RangeSliceVerbHandler());
         // see BootStrapper for a summary of how the bootstrap verbs interact
-        MessagingService.instance().registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
-        MessagingService.instance().registerVerbHandlers(streamRequestVerbHandler_, new StreamRequestVerbHandler() );
-        MessagingService.instance().registerVerbHandlers(streamInitiateVerbHandler_, new Streaming.StreamInitiateVerbHandler());
-        MessagingService.instance().registerVerbHandlers(streamInitiateDoneVerbHandler_, new Streaming.StreamInitiateDoneVerbHandler());
-        MessagingService.instance().registerVerbHandlers(streamFinishedVerbHandler_, new Streaming.StreamFinishedVerbHandler());
+        MessagingService.instance.registerVerbHandlers(bootstrapTokenVerbHandler_, new BootStrapper.BootstrapTokenVerbHandler());
+        MessagingService.instance.registerVerbHandlers(streamRequestVerbHandler_, new StreamRequestVerbHandler() );
+        MessagingService.instance.registerVerbHandlers(streamInitiateVerbHandler_, new Streaming.StreamInitiateVerbHandler());
+        MessagingService.instance.registerVerbHandlers(streamInitiateDoneVerbHandler_, new Streaming.StreamInitiateDoneVerbHandler());
+        MessagingService.instance.registerVerbHandlers(streamFinishedVerbHandler_, new Streaming.StreamFinishedVerbHandler());
 
         replicationStrategy_ = getReplicationStrategy(tokenMetadata_);
     }
@@ -231,8 +231,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     {
         isClientMode = true;
         logger_.info("Starting up client gossip");
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
-        MessagingService.instance().listenUDP(FBUtilities.getLocalAddress());
+        MessagingService.instance.listen(FBUtilities.getLocalAddress());
+        MessagingService.instance.listenUDP(FBUtilities.getLocalAddress());
 
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
@@ -249,9 +249,9 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         logger_.info("Starting up server gossip");
 
         /* Listen for application messages */
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        MessagingService.instance.listen(FBUtilities.getLocalAddress());
         /* Listen for control messages */
-        MessagingService.instance().listenUDP(FBUtilities.getLocalAddress());
+        MessagingService.instance.listenUDP(FBUtilities.getLocalAddress());
 
         SelectorManager.getSelectorManager().start();
         SelectorManager.getUdpSelectorManager().start();
@@ -961,7 +961,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public void forceTableRepair(final String tableName, final String... columnFamilies) throws IOException
     {
         // request that all relevant endpoints generate trees
-        final MessagingService ms = MessagingService.instance();
+        final MessagingService ms = MessagingService.instance;
         final List<InetAddress> endpoints = getNaturalEndpoints(getLocalToken());
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {

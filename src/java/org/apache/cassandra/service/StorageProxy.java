@@ -137,7 +137,7 @@ public class StorageProxy implements StorageProxyMBean
                                     unhintedMessage = rm.makeRowMutationMessage();
                                 if (logger.isDebugEnabled())
                                     logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + target);
-                                MessagingService.instance().sendOneWay(unhintedMessage, target);
+                                MessagingService.instance.sendOneWay(unhintedMessage, target);
                             }
                         }
                         else
@@ -146,7 +146,7 @@ public class StorageProxy implements StorageProxyMBean
                             hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
-                            MessagingService.instance().sendOneWay(hintedMessage, hintedTarget);
+                            MessagingService.instance.sendOneWay(hintedMessage, hintedTarget);
                         }
                     }
                 }
@@ -202,11 +202,11 @@ public class StorageProxy implements StorageProxyMBean
                             if (unhintedMessage == null)
                             {
                                 unhintedMessage = rm.makeRowMutationMessage();
-                                MessagingService.instance().addCallback(responseHandler, unhintedMessage.getMessageId());
+                                MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + naturalTarget);
-                            MessagingService.instance().sendOneWay(unhintedMessage, naturalTarget);
+                            MessagingService.instance.sendOneWay(unhintedMessage, naturalTarget);
                         }
                     }
                     else
@@ -216,7 +216,7 @@ public class StorageProxy implements StorageProxyMBean
                         hintedMessage.addHeader(RowMutation.HINT, naturalTarget.getAddress());
                         if (logger.isDebugEnabled())
                             logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + maybeHintedTarget + " for " + naturalTarget);
-                        MessagingService.instance().sendOneWay(hintedMessage, maybeHintedTarget);
+                        MessagingService.instance.sendOneWay(hintedMessage, maybeHintedTarget);
                     }
                 }
             }
@@ -326,7 +326,7 @@ public class StorageProxy implements StorageProxyMBean
             if (logger.isDebugEnabled())
                 logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
             message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
-            iars.add(MessagingService.instance().sendRR(message, endPoint));
+            iars.add(MessagingService.instance.sendRR(message, endPoint));
         }
 
         for (IAsyncResult iar: iars)
@@ -436,7 +436,7 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
             QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver(command.table, responseCount));
-            MessagingService.instance().sendRR(messages, endPoints, quorumResponseHandler);
+            MessagingService.instance.sendRR(messages, endPoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndPoints.add(endPoints);
         }
@@ -465,7 +465,7 @@ public class StorageProxy implements StorageProxyMBean
                             readResponseResolverRepair);
                     logger.info("DigestMismatchException: " + ex.getMessage());
                     Message messageRepair = command.makeReadMessage();
-                    MessagingService.instance().sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
+                    MessagingService.instance.sendRR(messageRepair, commandEndPoints.get(commandIndex), quorumResponseHandlerRepair);
                     try
                     {
                         row = quorumResponseHandlerRepair.get();
@@ -556,7 +556,7 @@ public class StorageProxy implements StorageProxyMBean
                 logger.debug("reading " + command + " for " + primaryRange + " from " + message.getMessageId() + "@" + endPoint);
             for (InetAddress replicaEndpoint : endpoints)
             {
-                MessagingService.instance().sendRR(message, replicaEndpoint, handler);
+                MessagingService.instance.sendRR(message, replicaEndpoint, handler);
             }
 
             // if we're done, great, otherwise, move to the next range

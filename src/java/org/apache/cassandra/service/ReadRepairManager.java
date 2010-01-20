@@ -20,7 +20,6 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.io.IOError;
-import java.util.concurrent.locks.*;
 
 import org.apache.cassandra.db.RowMutationMessage;
 import java.net.InetAddress;
@@ -74,7 +73,7 @@ class ReadRepairManager
             {
                 throw new RuntimeException(e);
             }
-            MessagingService.instance().sendOneWay(message, to);
+            MessagingService.instance.sendOneWay(message, to);
 		}
 
 	}

@@ -182,7 +182,7 @@ public class BootStrapper
     {
         Message message = new Message(FBUtilities.getLocalAddress(), "", StorageService.bootstrapTokenVerbHandler_, ArrayUtils.EMPTY_BYTE_ARRAY);
         BootstrapTokenCallback btc = new BootstrapTokenCallback();
-        MessagingService.instance().sendRR(message, maxEndpoint, btc);
+        MessagingService.instance.sendRR(message, maxEndpoint, btc);
         return btc.getToken();
     }
 
@@ -230,7 +230,7 @@ public class BootStrapper
             {
                 throw new AssertionError();
             }
-            MessagingService.instance().sendOneWay(response, message.getFrom());
+            MessagingService.instance.sendOneWay(response, message.getFrom());
         }
     }
 

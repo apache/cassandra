@@ -19,13 +19,9 @@
 package org.apache.cassandra.db;
 
 import java.util.Collection;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.Arrays;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.io.IOException;
 
 import org.apache.log4j.Logger;
@@ -128,7 +124,7 @@ public class HintedHandOffManager
         }
         Message message = rm.makeRowMutationMessage();
         WriteResponseHandler responseHandler = new WriteResponseHandler(1);
-        MessagingService.instance().sendRR(message, new InetAddress[] { endPoint }, responseHandler);
+        MessagingService.instance.sendRR(message, new InetAddress[] { endPoint }, responseHandler);
 
         try
         {

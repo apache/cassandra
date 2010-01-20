@@ -120,8 +120,8 @@ public class AntiEntropyService
      */
     protected AntiEntropyService()
     {
-        MessagingService.instance().registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
-        MessagingService.instance().registerVerbHandlers(TREE_RESPONSE_VERB, new TreeResponseVerbHandler());
+        MessagingService.instance.registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
+        MessagingService.instance.registerVerbHandlers(TREE_RESPONSE_VERB, new TreeResponseVerbHandler());
         naturalRepairs = new ConcurrentHashMap<CFPair, Long>();
         trees = new HashMap<CFPair, Cachetable<InetAddress, TreePair>>();
     }
@@ -225,7 +225,7 @@ public class AntiEntropyService
      */
     void notifyNeighbors(Validator validator, InetAddress local, Collection<InetAddress> neighbors)
     {
-        MessagingService ms = MessagingService.instance();
+        MessagingService ms = MessagingService.instance;
 
         try
         {

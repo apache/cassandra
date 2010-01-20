@@ -83,12 +83,12 @@ public class StageManager
     /**
      * This method shuts down all registered stages.
      */
-    public static void shutdown()
+    public static void shutdownNow()
     {
         Set<String> stages = StageManager.stages.keySet();
         for (String stage : stages)
         {
-            StageManager.stages.get(stage).shutdown();
+            StageManager.stages.get(stage).shutdownNow();
         }
     }
 }

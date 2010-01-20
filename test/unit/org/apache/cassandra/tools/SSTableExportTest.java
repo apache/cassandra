@@ -83,8 +83,7 @@ public class SSTableExportTest
     }
 
     @Test
-    public void testExportSimpleCf() throws IOException
-    {
+    public void testExportSimpleCf() throws IOException    {
         File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();

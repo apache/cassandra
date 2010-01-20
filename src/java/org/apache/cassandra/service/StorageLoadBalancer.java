@@ -154,7 +154,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         public void doVerb(Message message)
         {
             Message reply = message.getReply(FBUtilities.getLocalAddress(), new byte[] {(byte)(isMoveable_.get() ? 1 : 0)});
-            MessagingService.instance().sendOneWay(reply, message.getFrom());
+            MessagingService.instance.sendOneWay(reply, message.getFrom());
             if ( isMoveable_.get() )
             {
                 // MoveMessage moveMessage = (MoveMessage)message.getMessageBody()[0];
@@ -190,7 +190,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private StorageLoadBalancer()
     {
-        MessagingService.instance().registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
+        MessagingService.instance.registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
         Gossiper.instance.register(this);
     }
 

@@ -101,7 +101,7 @@ public class ReadVerbHandler implements IVerbHandler
             Message response = message.getReply(FBUtilities.getLocalAddress(), bytes);
             if (logger_.isDebugEnabled())
               logger_.debug("Read key " + command.key + "; sending response to " + message.getMessageId() + "@" + message.getFrom());
-            MessagingService.instance().sendOneWay(response, message.getFrom());
+            MessagingService.instance.sendOneWay(response, message.getFrom());
 
             /* Do read repair if header of the message says so */
             if (message.getHeader(ReadCommand.DO_REPAIR) != null)
