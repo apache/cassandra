@@ -44,6 +44,8 @@ class FileStreamTask implements Runnable
     
     public void run()
     {
+        /*
+        TODO
         TcpConnection connection = null;
         try
         {                        
@@ -61,6 +63,6 @@ class FileStreamTask implements Runnable
             }
             throw new RuntimeException(e);
         }
+         */
     }
-
 }

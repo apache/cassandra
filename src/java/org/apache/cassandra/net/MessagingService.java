@@ -68,7 +68,7 @@ public class MessagingService implements IFailureDetectionEventListener
     /* Thread pool to handle messaging write activities */
     private static ExecutorService streamExecutor_;
     
-    private static NonBlockingHashMap<String, TcpConnectionManager> connectionManagers_ = new NonBlockingHashMap<String, TcpConnectionManager>();
+    private static NonBlockingHashMap<String, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<String, OutboundTcpConnectionPool>();
     
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
@@ -186,19 +186,19 @@ public class MessagingService implements IFailureDetectionEventListener
         }
     }
     
-    public static TcpConnectionManager getConnectionPool(InetAddress from, InetAddress to)
+    public static OutboundTcpConnectionPool getConnectionPool(InetAddress from, InetAddress to)
     {
         String key = from + ":" + to;
-        TcpConnectionManager cp = connectionManagers_.get(key);
+        OutboundTcpConnectionPool cp = connectionManagers_.get(key);
         if (cp == null)
         {
-            connectionManagers_.putIfAbsent(key, new TcpConnectionManager(from, to));
+            connectionManagers_.putIfAbsent(key, new OutboundTcpConnectionPool(from, to));
             cp = connectionManagers_.get(key);
         }
         return cp;
     }
 
-    public static TcpConnection getConnection(InetAddress from, InetAddress to, Message msg) throws IOException
+    public static OutboundTcpConnection getConnection(InetAddress from, InetAddress to, Message msg)
     {
         return getConnectionPool(from, to).getConnection(msg);
     }
@@ -331,20 +331,9 @@ public class MessagingService implements IFailureDetectionEventListener
         assert data.length > 0;
         ByteBuffer buffer = packIt(data , false, false);
 
-        TcpConnection connection = null;
-        try
-        {
-            connection = MessagingService.getConnection(processedMessage.getFrom(), to, message);
-            connection.write(buffer);
-        }
-        catch (IOException e)
-        {
-            if (connection != null)
-            {
-                connection.errorClose();
-            }
-            logger_.error("unexpected error writing " + message, e);
-        }
+        OutboundTcpConnection connection = null;
+        connection = getConnection(processedMessage.getFrom(), to, message);
+        connection.write(buffer);
     }
     
     public IAsyncResult sendRR(Message message, InetAddress to)

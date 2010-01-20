@@ -23,29 +23,29 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.StageManager;
 
-class TcpConnectionManager
+class OutboundTcpConnectionPool
 {
     private InetAddress localEp_;
     private InetAddress remoteEp_;
-    private TcpConnection cmdCon;
-    private TcpConnection ackCon;
+    private OutboundTcpConnection cmdCon;
+    private OutboundTcpConnection ackCon;
 
-    TcpConnectionManager(InetAddress localEp, InetAddress remoteEp)
+    // TODO localEp is ignored, get rid of it
+    OutboundTcpConnectionPool(InetAddress localEp, InetAddress remoteEp)
     {
         localEp_ = localEp;
         remoteEp_ = remoteEp;
     }
 
-    private TcpConnection newCon() throws IOException
+    private OutboundTcpConnection newCon()
     {
-        TcpConnection con = new TcpConnection(this, localEp_, remoteEp_);
-        return con;
+        return new OutboundTcpConnection(this, localEp_, remoteEp_);
     }
 
     /**
      * returns the appropriate connection based on message type.
      */
-    synchronized TcpConnection getConnection(Message msg) throws IOException
+    synchronized OutboundTcpConnection getConnection(Message msg)
     {
         if (StageManager.RESPONSE_STAGE.equals(msg.getMessageType()))
         {
@@ -63,7 +63,7 @@ class TcpConnectionManager
 
     synchronized void reset()
     {
-        for (TcpConnection con : new TcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
             if (con != null)
                 con.closeSocket();
         cmdCon = null;
