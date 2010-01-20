@@ -20,49 +20,89 @@ package org.apache.cassandra.net;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.SocketChannel;
 
 import org.apache.log4j.Logger;
 
-class FileStreamTask implements Runnable
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.WrappedRunnable;
+
+public class FileStreamTask extends WrappedRunnable
 {
-    private static Logger logger_ = Logger.getLogger( FileStreamTask.class );
+    private static Logger logger = Logger.getLogger( FileStreamTask.class );
     
-    private String file_;
-    private long startPosition_;
-    private long total_;
-    private InetAddress from_;
-    private InetAddress to_;
-    
-    FileStreamTask(String file, long startPosition, long total, InetAddress from, InetAddress to)
+    public static final int CHUNK_SIZE = 64*1024*1024;
+
+    private final String file;
+    private final long startPosition;
+    private final long endPosition;
+    private final InetAddress to;
+
+    FileStreamTask(String file, long startPosition, long endPosition, InetAddress from, InetAddress to)
     {
-        file_ = file;
-        startPosition_ = startPosition;
-        total_ = total;
-        from_ = from;
-        to_ = to;
+        this.file = file;
+        this.startPosition = startPosition;
+        this.endPosition = endPosition;
+        this.to = to;
     }
     
-    public void run()
+    public void runMayThrow() throws IOException
     {
-        /*
-        TODO
-        TcpConnection connection = null;
+        SocketChannel channel = SocketChannel.open(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
         try
-        {                        
-            connection = new TcpConnection(from_, to_);
-            File file = new File(file_);             
-            connection.stream(file, startPosition_, total_);
-            if (logger_.isDebugEnabled())
-              logger_.debug("Done streaming " + file);
-        }
-        catch (Exception e)
         {
-            if (connection != null)
-            {
-                connection.errorClose();
-            }
-            throw new RuntimeException(e);
+            stream(channel);
         }
-         */
+        finally
+        {
+            try
+            {
+                channel.close();
+            }
+            catch (IOException e)
+            {
+                if (logger.isDebugEnabled())
+                    logger.debug("error closing socket", e);
+            }
+        }
+        if (logger.isDebugEnabled())
+          logger.debug("Done streaming " + file);
     }
+
+    private void stream(SocketChannel channel) throws IOException
+    {
+        long start = startPosition;
+        RandomAccessFile raf = new RandomAccessFile(new File(file), "r");
+        try
+        {
+            FileChannel fc = raf.getChannel();
+
+            ByteBuffer buffer = MessagingService.constructStreamHeader(false, true);
+            channel.write(buffer);
+            assert buffer.remaining() == 0;
+
+            while (start < endPosition)
+            {
+                long bytesTransferred = fc.transferTo(start, CHUNK_SIZE, channel);
+                if (logger.isDebugEnabled())
+                    logger.debug("Bytes transferred " + bytesTransferred);
+                start += bytesTransferred;
+            }
+        }
+        finally
+        {
+            try
+            {
+                raf.close();
+            }
+            catch (IOException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
 }
