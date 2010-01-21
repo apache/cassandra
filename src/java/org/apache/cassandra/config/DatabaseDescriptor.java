@@ -912,9 +912,9 @@ public class DatabaseDescriptor
         return tableLocations;
     }
 
-    public static String getDataFileLocationForTable(String table)
+    public synchronized static String getNextAvailableDataLocation()
     {
-        String dataFileDirectory = dataFileDirectories_[currentIndex_] + File.separator + table;
+        String dataFileDirectory = dataFileDirectories_[currentIndex_];
         currentIndex_ = (currentIndex_ + 1) % dataFileDirectories_.length;
         return dataFileDirectory;
     }
