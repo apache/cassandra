@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import org.apache.cassandra.cache.ICachetable;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
@@ -56,8 +55,8 @@ public class MessagingService implements IFailureDetectionEventListener
     public static final String responseVerbHandler_ = "RESPONSE";
 
     /* This records all the results mapped by message Id */
-    private static ICachetable<String, IAsyncCallback> callbackMap_;
-    private static ICachetable<String, IAsyncResult> taskCompletionMap_;
+    private static ExpiringMap<String, IAsyncCallback> callbackMap_;
+    private static ExpiringMap<String, IAsyncResult> taskCompletionMap_;
     
     /* Lookup table for registering message handlers based on the verb. */
     private static Map<String, IVerbHandler> verbHandlers_;
@@ -94,8 +93,8 @@ public class MessagingService implements IFailureDetectionEventListener
          * which is the sum of the threads in the pool that adds shit into the table and the 
          * pool that retrives the callback from here.
         */
-        callbackMap_ = new Cachetable<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
-        taskCompletionMap_ = new Cachetable<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );        
+        callbackMap_ = new ExpiringMap<String, IAsyncCallback>( 2 * DatabaseDescriptor.getRpcTimeout() );
+        taskCompletionMap_ = new ExpiringMap<String, IAsyncResult>( 2 * DatabaseDescriptor.getRpcTimeout() );
 
         // read executor puts messages to deserialize on this.
         messageDeserializerExecutor_ = new JMXEnabledThreadPoolExecutor(1,

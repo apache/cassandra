@@ -113,7 +113,7 @@ public class AntiEntropyService
      *
      * This map is only accessed from AE_SERVICE_STAGE, so it is not synchronized.
      */
-    private final Map<CFPair, Cachetable<InetAddress, TreePair>> trees;
+    private final Map<CFPair, ExpiringMap<InetAddress, TreePair>> trees;
 
     /**
      * Protected constructor. Use AntiEntropyService.instance.
@@ -123,7 +123,7 @@ public class AntiEntropyService
         MessagingService.instance.registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(TREE_RESPONSE_VERB, new TreeResponseVerbHandler());
         naturalRepairs = new ConcurrentHashMap<CFPair, Long>();
-        trees = new HashMap<CFPair, Cachetable<InetAddress, TreePair>>();
+        trees = new HashMap<CFPair, ExpiringMap<InetAddress, TreePair>>();
     }
 
     /**
@@ -133,12 +133,12 @@ public class AntiEntropyService
      * @param cf Column family to fetch trees for.
      * @return The store of trees for the given cf.
      */
-    private Cachetable<InetAddress, TreePair> rendezvousPairs(CFPair cf)
+    private ExpiringMap<InetAddress, TreePair> rendezvousPairs(CFPair cf)
     {
-        Cachetable<InetAddress, TreePair> ctrees = trees.get(cf);
+        ExpiringMap<InetAddress, TreePair> ctrees = trees.get(cf);
         if (ctrees == null)
         {
-            ctrees = new Cachetable<InetAddress, TreePair>(TREE_STORE_TIMEOUT);
+            ctrees = new ExpiringMap<InetAddress, TreePair>(TREE_STORE_TIMEOUT);
             trees.put(cf, ctrees);
         }
         return ctrees;
@@ -168,7 +168,7 @@ public class AntiEntropyService
         InetAddress LOCAL = FBUtilities.getLocalAddress();
 
         // return the rendezvous pairs for this cf
-        Cachetable<InetAddress, TreePair> ctrees = rendezvousPairs(cf);
+        ExpiringMap<InetAddress, TreePair> ctrees = rendezvousPairs(cf);
 
         List<Differencer> differencers = new ArrayList<Differencer>();
         if (LOCAL.equals(endpoint))

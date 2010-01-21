@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.cache.ICacheExpungeHook;
-import org.apache.cassandra.cache.ICachetable;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
@@ -132,7 +131,7 @@ class ConsistencyManager implements Runnable
     }
 
 	private static long scheduledTimeMillis_ = 600;
-	private static ICachetable<String, String> readRepairTable_ = new Cachetable<String, String>(scheduledTimeMillis_);
+	private static ExpiringMap<String, String> readRepairTable_ = new ExpiringMap<String, String>(scheduledTimeMillis_);
 	private final Row row_;
 	protected final List<InetAddress> replicas_;
 	private final ReadCommand readCommand_;

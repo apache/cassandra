@@ -23,9 +23,8 @@ import java.util.*;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.cache.ICacheExpungeHook;
-import org.apache.cassandra.cache.ICachetable;
 
-public class Cachetable<K, V> implements ICachetable<K, V>
+public class ExpiringMap<K, V>
 {
     private class CacheableObject
     {
@@ -117,7 +116,7 @@ public class Cachetable<K, V> implements ICachetable<K, V>
     private Map<K, ICacheExpungeHook<K, V>> hooks_;
     private Timer timer_;
     private static int counter_ = 0;
-    private static final Logger LOGGER = Logger.getLogger(Cachetable.class);
+    private static final Logger LOGGER = Logger.getLogger(ExpiringMap.class);
 
     private void init(long expiration)
     {
@@ -136,7 +135,7 @@ public class Cachetable<K, V> implements ICachetable<K, V>
     * Specify the TTL for objects in the cache
     * in milliseconds.
     */
-    public Cachetable(long expiration)
+    public ExpiringMap(long expiration)
     {
         init(expiration);
     }
@@ -147,7 +146,7 @@ public class Cachetable<K, V> implements ICachetable<K, V>
     * a key has a key-specific hook installed invoke that
     * instead.
     */
-    public Cachetable(long expiration, ICacheExpungeHook<K, V> global)
+    public ExpiringMap(long expiration, ICacheExpungeHook<K, V> global)
     {
         init(expiration);
         globalHook_ = global;

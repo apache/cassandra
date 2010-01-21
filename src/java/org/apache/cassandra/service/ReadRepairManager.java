@@ -27,10 +27,9 @@ import java.net.UnknownHostException;
 
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.Cachetable;
+import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.cache.ICacheExpungeHook;
-import org.apache.cassandra.cache.ICachetable;
 
 import org.apache.log4j.Logger;
 
@@ -78,7 +77,7 @@ class ReadRepairManager
 
 	}
 
-	private ICachetable<String, Message> readRepairTable_ = new Cachetable<String, Message>(expirationTimeInMillis, new ReadRepairManager.ReadRepairPerformer());
+	private ExpiringMap<String, Message> readRepairTable_ = new ExpiringMap<String, Message>(expirationTimeInMillis, new ReadRepairManager.ReadRepairPerformer());
 
 	protected ReadRepairManager()
 	{
