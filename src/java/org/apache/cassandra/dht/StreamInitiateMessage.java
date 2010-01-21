@@ -48,7 +48,7 @@ public class StreamInitiateMessage
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         StreamInitiateMessage.serializer().serialize(biMessage, dos);
-        return new Message(FBUtilities.getLocalAddress(), "", StorageService.streamInitiateVerbHandler_, bos.toByteArray() );
+        return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_INITIATE, bos.toByteArray() );
     }
     
     protected StreamContextManager.StreamContext[] streamContexts_ = new StreamContextManager.StreamContext[0];

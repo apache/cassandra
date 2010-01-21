@@ -54,7 +54,7 @@ public class Message
         body_ = body;
     }
 
-    public Message(InetAddress from, String messageType, String verb, byte[] body)
+    public Message(InetAddress from, String messageType, StorageService.Verb verb, byte[] body)
     {
         this(new Header(from, messageType, verb), body);
     }    
@@ -64,21 +64,6 @@ public class Message
         return header_.getDetail(key);
     }
     
-    public void removeHeader(Object key)
-    {
-        header_.removeDetail(key);
-    }
-    
-    public void setMessageType(String type)
-    {
-        header_.setMessageType(type);
-    }
-
-    public void setMessageVerb(String verb)
-    {
-        header_.setMessageVerb(verb);
-    }
-
     public void addHeader(String key, byte[] value)
     {
         header_.addDetail(key, value);
@@ -104,7 +89,7 @@ public class Message
         return header_.getMessageType();
     }
 
-    public String getVerb()
+    public StorageService.Verb getVerb()
     {
         return header_.getVerb();
     }
@@ -122,7 +107,7 @@ public class Message
     // TODO should take byte[] + length so we don't have to copy to a byte[] of exactly the right len
     public Message getReply(InetAddress from, byte[] args)
     {
-        Header header = new Header(getMessageId(), from, StageManager.RESPONSE_STAGE, StorageService.responseVerbHandler_);
+        Header header = new Header(getMessageId(), from, StageManager.RESPONSE_STAGE, StorageService.Verb.READ_RESPONSE);
         return new Message(header, args);
     }
     

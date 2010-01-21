@@ -169,7 +169,6 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
     public static final StorageLoadBalancer instance = new StorageLoadBalancer();
 
     private static final Logger logger_ = Logger.getLogger(StorageLoadBalancer.class);
-    private static final String moveMessageVerbHandler_ = "MOVE-MESSAGE-VERB-HANDLER";
     /* time to delay in minutes the actual load balance procedure if heavily loaded */
     private static final int delay_ = 5;
     /* If a node's load is this factor more than the average, it is considered Heavy */
@@ -190,7 +189,6 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     private StorageLoadBalancer()
     {
-        MessagingService.instance.registerVerbHandlers(StorageLoadBalancer.moveMessageVerbHandler_, new MoveMessageVerbHandler());
         Gossiper.instance.register(this);
     }
 

@@ -25,6 +25,7 @@ import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.io.SerializerType;
 import org.apache.cassandra.net.sink.SinkManager;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -59,7 +60,7 @@ public class MessagingService implements IFailureDetectionEventListener
     private static ExpiringMap<String, IAsyncResult> taskCompletionMap_;
     
     /* Lookup table for registering message handlers based on the verb. */
-    private static Map<String, IVerbHandler> verbHandlers_;
+    private static Map<StorageService.Verb, IVerbHandler> verbHandlers_;
 
     /* Thread pool to handle deserialization of messages read from the socket. */
     private static ExecutorService messageDeserializerExecutor_;
@@ -86,7 +87,7 @@ public class MessagingService implements IFailureDetectionEventListener
 
     protected MessagingService()
     {        
-        verbHandlers_ = new HashMap<String, IVerbHandler>();
+        verbHandlers_ = new HashMap<StorageService.Verb, IVerbHandler>();
         /*
          * Leave callbacks in the cachetable long enough that any related messages will arrive
          * before the callback is evicted from the table. The concurrency level is set at 128
@@ -179,13 +180,13 @@ public class MessagingService implements IFailureDetectionEventListener
     /**
      * Register a verb and the corresponding verb handler with the
      * Messaging Service.
-     * @param type name of the verb.
+     * @param verb
      * @param verbHandler handler for the specified verb
      */
-    public void registerVerbHandlers(String type, IVerbHandler verbHandler)
+    public void registerVerbHandlers(StorageService.Verb verb, IVerbHandler verbHandler)
     {
-    	assert !verbHandlers_.containsKey(type);
-    	verbHandlers_.put(type, verbHandler);
+    	assert !verbHandlers_.containsKey(verb);
+    	verbHandlers_.put(verb, verbHandler);
     }
         
     /**
@@ -194,7 +195,7 @@ public class MessagingService implements IFailureDetectionEventListener
      * @param type for which the verb handler is sought
      * @return a reference to IVerbHandler which is the handler for the specified verb
      */
-    public IVerbHandler getVerbHandler(String type)
+    public IVerbHandler getVerbHandler(StorageService.Verb type)
     {
         return verbHandlers_.get(type);
     }

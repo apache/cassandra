@@ -201,7 +201,7 @@ public class Streaming
                 StreamContextManager.registerStreamCompletionHandler(message.getFrom(), new StreamCompletionHandler());
                 if (logger.isDebugEnabled())
                   logger.debug("Sending a stream initiate done message ...");
-                Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.streamInitiateDoneVerbHandler_, new byte[0] );
+                Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_INITIATE_DONE, new byte[0] );
                 MessagingService.instance.sendOneWay(doneMessage, message.getFrom());
             }
             catch (IOException ex)

@@ -43,15 +43,15 @@ public class RowMutationMessage
 
     public Message makeRowMutationMessage() throws IOException
     {         
-        return makeRowMutationMessage(StorageService.mutationVerbHandler_);
+        return makeRowMutationMessage(StorageService.Verb.MUTATION);
     }
     
-    public Message makeRowMutationMessage(String verbHandlerName) throws IOException
+    public Message makeRowMutationMessage(StorageService.Verb verb) throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream( bos );
         RowMutationMessage.serializer().serialize(this, dos);
-        return new Message(FBUtilities.getLocalAddress(), StageManager.MUTATION_STAGE, verbHandlerName, bos.toByteArray());
+        return new Message(FBUtilities.getLocalAddress(), StageManager.MUTATION_STAGE, verb, bos.toByteArray());
     }
     
     @XmlElement(name="RowMutation")

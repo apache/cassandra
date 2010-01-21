@@ -20,6 +20,8 @@ package org.apache.cassandra.net;
 
 import org.apache.log4j.Logger;
 
+import org.apache.cassandra.service.StorageService;
+
 public class MessageDeliveryTask implements Runnable
 {
     private Message message_;
@@ -32,7 +34,7 @@ public class MessageDeliveryTask implements Runnable
     
     public void run()
     { 
-        String verb = message_.getVerb();
+        StorageService.Verb verb = message_.getVerb();
         IVerbHandler verbHandler = MessagingService.instance.getVerbHandler(verb);
         assert verbHandler != null : "unknown verb " + verb;
         verbHandler.doVerb(message_);

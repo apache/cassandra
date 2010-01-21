@@ -219,7 +219,7 @@ public class StreamContextManager
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream( bos );
             StreamStatusMessage.serializer().serialize(streamStatusMessage, dos);
-            return new Message(FBUtilities.getLocalAddress(), "", StorageService.streamFinishedVerbHandler_, bos.toByteArray());
+            return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
         }
         
         protected StreamContextManager.StreamStatus streamStatus_;

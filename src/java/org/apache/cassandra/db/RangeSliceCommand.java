@@ -101,7 +101,7 @@ public class RangeSliceCommand
         serializer.serialize(this, dob);
         return new Message(FBUtilities.getLocalAddress(),
                            StageManager.READ_STAGE,
-                           StorageService.rangeSliceVerbHandler_,
+                           StorageService.Verb.RANGE_SLICE,
                            Arrays.copyOf(dob.getData(), dob.getLength()));
     }
 
