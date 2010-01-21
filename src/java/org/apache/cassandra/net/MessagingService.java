@@ -126,7 +126,7 @@ public class MessagingService implements IFailureDetectionEventListener
     /** called by failure detection code to notify that housekeeping should be performed on downed sockets. */
     public void convict(InetAddress ep)
     {
-        logger_.debug("Resetting pool for " + ep);
+        logger_.trace("Resetting pool for " + ep);
         getConnectionPool(ep).reset();
     }
 
