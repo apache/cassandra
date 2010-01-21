@@ -27,6 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService;
 
 import org.apache.log4j.Logger;
 
@@ -98,14 +99,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     }
 
     final static int MAX_GOSSIP_PACKET_SIZE = 1428;
-    /* GSV - abbreviation for GOSSIP-DIGEST-SYN-VERB */
-    final static String JOIN_VERB_HANDLER = "JVH";
-    /* GSV - abbreviation for GOSSIP-DIGEST-SYN-VERB */
-    final static String GOSSIP_DIGEST_SYN_VERB = "GSV";
-    /* GAV - abbreviation for GOSSIP-DIGEST-ACK-VERB */
-    final static String GOSSIP_DIGEST_ACK_VERB = "GAV";
-    /* GA2V - abbreviation for GOSSIP-DIGEST-ACK2-VERB */
-    final static String GOSSIP_DIGEST_ACK2_VERB = "GA2V";
     public final static int intervalInMillis_ = 1000;
     private static Logger logger_ = Logger.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
@@ -136,11 +129,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         aVeryLongTime_ = 259200 * 1000;
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
-        /* register the verbs */
-        MessagingService.instance.registerVerbHandlers(JOIN_VERB_HANDLER, new JoinVerbHandler());
-        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_SYN_VERB, new GossipDigestSynVerbHandler());
-        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_ACK_VERB, new GossipDigestAckVerbHandler());
-        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_ACK2_VERB, new GossipDigestAck2VerbHandler());
     }
 
     /** Register with the Gossiper for EndPointState notifications */
@@ -271,7 +259,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream( bos );
         GossipDigestSynMessage.serializer().serialize(gDigestMessage, dos);
-        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, GOSSIP_DIGEST_SYN_VERB, bos.toByteArray());
+        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, StorageService.GOSSIP_DIGEST_SYN_VERB, bos.toByteArray());
     }
 
     Message makeGossipDigestAckMessage(GossipDigestAckMessage gDigestAckMessage) throws IOException
@@ -281,7 +269,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         GossipDigestAckMessage.serializer().serialize(gDigestAckMessage, dos);
         if (logger_.isTraceEnabled())
             logger_.trace("@@@@ Size of GossipDigestAckMessage is " + bos.toByteArray().length);
-        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, GOSSIP_DIGEST_ACK_VERB, bos.toByteArray());
+        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, StorageService.GOSSIP_DIGEST_ACK_VERB, bos.toByteArray());
     }
 
     Message makeGossipDigestAck2Message(GossipDigestAck2Message gDigestAck2Message) throws IOException
@@ -289,7 +277,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         ByteArrayOutputStream bos = new ByteArrayOutputStream(Gossiper.MAX_GOSSIP_PACKET_SIZE);
         DataOutputStream dos = new DataOutputStream(bos);
         GossipDigestAck2Message.serializer().serialize(gDigestAck2Message, dos);
-        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, GOSSIP_DIGEST_ACK2_VERB, bos.toByteArray());
+        return new Message(localEndPoint_, StageManager.GOSSIP_STAGE, StorageService.GOSSIP_DIGEST_ACK2_VERB, bos.toByteArray());
     }
 
     /**
@@ -822,197 +810,196 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         gossipTimer_.cancel();
         gossipTimer_ = new Timer(false); // makes the Gossiper reentrant.
     }
-}
 
-class JoinVerbHandler implements IVerbHandler
-{
-    private static Logger logger_ = Logger.getLogger( JoinVerbHandler.class);
-
-    public void doVerb(Message message)
+    public static class JoinVerbHandler implements IVerbHandler
     {
-        InetAddress from = message.getFrom();
-        if (logger_.isDebugEnabled())
-          logger_.debug("Received a JoinMessage from " + from);
+        private static Logger logger_ = Logger.getLogger( JoinVerbHandler.class);
 
-        byte[] bytes = message.getMessageBody();
-        DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
-
-        JoinMessage joinMessage;
-        try
+        public void doVerb(Message message)
         {
-            joinMessage = JoinMessage.serializer().deserialize(dis);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        if ( joinMessage.clusterId_.equals( DatabaseDescriptor.getClusterName() ) )
-        {
-            Gossiper.instance.join(from);
-        }
-    }
-}
+            InetAddress from = message.getFrom();
+            if (logger_.isDebugEnabled())
+              logger_.debug("Received a JoinMessage from " + from);
 
-class GossipDigestSynVerbHandler implements IVerbHandler
-{
-    private static Logger logger_ = Logger.getLogger( GossipDigestSynVerbHandler.class);
+            byte[] bytes = message.getMessageBody();
+            DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
 
-    public void doVerb(Message message)
-    {
-        InetAddress from = message.getFrom();
-        if (logger_.isTraceEnabled())
-            logger_.trace("Received a GossipDigestSynMessage from " + from);
-
-        byte[] bytes = message.getMessageBody();
-        DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
-
-        try
-        {
-            GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis);
-            /* If the message is from a different cluster throw it away. */
-            if ( !gDigestMessage.clusterId_.equals(DatabaseDescriptor.getClusterName()) )
-                return;
-
-            List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
-            /* Notify the Failure Detector */
-            Gossiper.instance.notifyFailureDetector(gDigestList);
-
-            doSort(gDigestList);
-
-            List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
-            Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
-            Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
-
-            GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
-            Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
-            if (logger_.isTraceEnabled())
-                logger_.trace("Sending a GossipDigestAckMessage to " + from);
-            MessagingService.instance.sendOneWay(gDigestAckMessage, from);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /*
-     * First construct a map whose key is the endpoint in the GossipDigest and the value is the
-     * GossipDigest itself. Then build a list of version differences i.e difference between the
-     * version in the GossipDigest and the version in the local state for a given InetAddress.
-     * Sort this list. Now loop through the sorted list and retrieve the GossipDigest corresponding
-     * to the endpoint from the map that was initially constructed.
-    */
-    private void doSort(List<GossipDigest> gDigestList)
-    {
-        /* Construct a map of endpoint to GossipDigest. */
-        Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<InetAddress, GossipDigest>();
-        for ( GossipDigest gDigest : gDigestList )
-        {
-            epToDigestMap.put(gDigest.getEndPoint(), gDigest);
-        }
-
-        /*
-         * These digests have their maxVersion set to the difference of the version
-         * of the local EndPointState and the version found in the GossipDigest.
-        */
-        List<GossipDigest> diffDigests = new ArrayList<GossipDigest>();
-        for ( GossipDigest gDigest : gDigestList )
-        {
-            InetAddress ep = gDigest.getEndPoint();
-            EndPointState epState = Gossiper.instance.getEndPointStateForEndPoint(ep);
-            int version = (epState != null) ? Gossiper.instance.getMaxEndPointStateVersion( epState ) : 0;
-            int diffVersion = Math.abs(version - gDigest.getMaxVersion() );
-            diffDigests.add( new GossipDigest(ep, gDigest.getGeneration(), diffVersion) );
-        }
-
-        gDigestList.clear();
-        Collections.sort(diffDigests);
-        int size = diffDigests.size();
-        /*
-         * Report the digests in descending order. This takes care of the endpoints
-         * that are far behind w.r.t this local endpoint
-        */
-        for ( int i = size - 1; i >= 0; --i )
-        {
-            gDigestList.add( epToDigestMap.get(diffDigests.get(i).getEndPoint()) );
-        }
-    }
-}
-
-class GossipDigestAckVerbHandler implements IVerbHandler
-{
-    private static Logger logger_ = Logger.getLogger(GossipDigestAckVerbHandler.class);
-
-    public void doVerb(Message message)
-    {
-        InetAddress from = message.getFrom();
-        if (logger_.isTraceEnabled())
-            logger_.trace("Received a GossipDigestAckMessage from " + from);
-
-        byte[] bytes = message.getMessageBody();
-        DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
-
-        try
-        {
-            GossipDigestAckMessage gDigestAckMessage = GossipDigestAckMessage.serializer().deserialize(dis);
-            List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
-            Map<InetAddress, EndPointState> epStateMap = gDigestAckMessage.getEndPointStateMap();
-
-            if ( epStateMap.size() > 0 )
+            JoinMessage joinMessage;
+            try
             {
+                joinMessage = JoinMessage.serializer().deserialize(dis);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            if ( joinMessage.clusterId_.equals( DatabaseDescriptor.getClusterName() ) )
+            {
+                Gossiper.instance.join(from);
+            }
+        }
+    }
+
+    public static class GossipDigestSynVerbHandler implements IVerbHandler
+    {
+        private static Logger logger_ = Logger.getLogger( GossipDigestSynVerbHandler.class);
+
+        public void doVerb(Message message)
+        {
+            InetAddress from = message.getFrom();
+            if (logger_.isTraceEnabled())
+                logger_.trace("Received a GossipDigestSynMessage from " + from);
+
+            byte[] bytes = message.getMessageBody();
+            DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
+
+            try
+            {
+                GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis);
+                /* If the message is from a different cluster throw it away. */
+                if ( !gDigestMessage.clusterId_.equals(DatabaseDescriptor.getClusterName()) )
+                    return;
+
+                List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
                 /* Notify the Failure Detector */
-                Gossiper.instance.notifyFailureDetector(epStateMap);
-                Gossiper.instance.applyStateLocally(epStateMap);
-            }
+                Gossiper.instance.notifyFailureDetector(gDigestList);
 
-            /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
-            Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
-            for( GossipDigest gDigest : gDigestList )
+                doSort(gDigestList);
+
+                List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
+                Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
+                Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
+
+                GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
+                Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
+                if (logger_.isTraceEnabled())
+                    logger_.trace("Sending a GossipDigestAckMessage to " + from);
+                MessagingService.instance.sendOneWay(gDigestAckMessage, from);
+            }
+            catch (IOException e)
             {
-                InetAddress addr = gDigest.getEndPoint();
-                EndPointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
-                if ( localEpStatePtr != null )
-                    deltaEpStateMap.put(addr, localEpStatePtr);
+                throw new RuntimeException(e);
+            }
+        }
+
+        /*
+         * First construct a map whose key is the endpoint in the GossipDigest and the value is the
+         * GossipDigest itself. Then build a list of version differences i.e difference between the
+         * version in the GossipDigest and the version in the local state for a given InetAddress.
+         * Sort this list. Now loop through the sorted list and retrieve the GossipDigest corresponding
+         * to the endpoint from the map that was initially constructed.
+        */
+        private void doSort(List<GossipDigest> gDigestList)
+        {
+            /* Construct a map of endpoint to GossipDigest. */
+            Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<InetAddress, GossipDigest>();
+            for ( GossipDigest gDigest : gDigestList )
+            {
+                epToDigestMap.put(gDigest.getEndPoint(), gDigest);
             }
 
-            GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
-            Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
-            if (logger_.isTraceEnabled())
-                logger_.trace("Sending a GossipDigestAck2Message to " + from);
-            MessagingService.instance.sendOneWay(gDigestAck2Message, from);
-        }
-        catch ( IOException e )
-        {
-            throw new RuntimeException(e);
+            /*
+             * These digests have their maxVersion set to the difference of the version
+             * of the local EndPointState and the version found in the GossipDigest.
+            */
+            List<GossipDigest> diffDigests = new ArrayList<GossipDigest>();
+            for ( GossipDigest gDigest : gDigestList )
+            {
+                InetAddress ep = gDigest.getEndPoint();
+                EndPointState epState = Gossiper.instance.getEndPointStateForEndPoint(ep);
+                int version = (epState != null) ? Gossiper.instance.getMaxEndPointStateVersion( epState ) : 0;
+                int diffVersion = Math.abs(version - gDigest.getMaxVersion() );
+                diffDigests.add( new GossipDigest(ep, gDigest.getGeneration(), diffVersion) );
+            }
+
+            gDigestList.clear();
+            Collections.sort(diffDigests);
+            int size = diffDigests.size();
+            /*
+             * Report the digests in descending order. This takes care of the endpoints
+             * that are far behind w.r.t this local endpoint
+            */
+            for ( int i = size - 1; i >= 0; --i )
+            {
+                gDigestList.add( epToDigestMap.get(diffDigests.get(i).getEndPoint()) );
+            }
         }
     }
-}
 
-class GossipDigestAck2VerbHandler implements IVerbHandler
-{
-    private static Logger logger_ = Logger.getLogger(GossipDigestAck2VerbHandler.class);
-
-    public void doVerb(Message message)
+    public static class GossipDigestAckVerbHandler implements IVerbHandler
     {
-        InetAddress from = message.getFrom();
-        if (logger_.isTraceEnabled())
-            logger_.trace("Received a GossipDigestAck2Message from " + from);
+        private static Logger logger_ = Logger.getLogger(GossipDigestAckVerbHandler.class);
 
-        byte[] bytes = message.getMessageBody();
-        DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
-        GossipDigestAck2Message gDigestAck2Message;
-        try
+        public void doVerb(Message message)
         {
-            gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis);
+            InetAddress from = message.getFrom();
+            if (logger_.isTraceEnabled())
+                logger_.trace("Received a GossipDigestAckMessage from " + from);
+
+            byte[] bytes = message.getMessageBody();
+            DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
+
+            try
+            {
+                GossipDigestAckMessage gDigestAckMessage = GossipDigestAckMessage.serializer().deserialize(dis);
+                List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
+                Map<InetAddress, EndPointState> epStateMap = gDigestAckMessage.getEndPointStateMap();
+
+                if ( epStateMap.size() > 0 )
+                {
+                    /* Notify the Failure Detector */
+                    Gossiper.instance.notifyFailureDetector(epStateMap);
+                    Gossiper.instance.applyStateLocally(epStateMap);
+                }
+
+                /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
+                Map<InetAddress, EndPointState> deltaEpStateMap = new HashMap<InetAddress, EndPointState>();
+                for( GossipDigest gDigest : gDigestList )
+                {
+                    InetAddress addr = gDigest.getEndPoint();
+                    EndPointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
+                    if ( localEpStatePtr != null )
+                        deltaEpStateMap.put(addr, localEpStatePtr);
+                }
+
+                GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
+                Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
+                if (logger_.isTraceEnabled())
+                    logger_.trace("Sending a GossipDigestAck2Message to " + from);
+                MessagingService.instance.sendOneWay(gDigestAck2Message, from);
+            }
+            catch ( IOException e )
+            {
+                throw new RuntimeException(e);
+            }
         }
-        catch (IOException e)
+    }
+
+    public static class GossipDigestAck2VerbHandler implements IVerbHandler
+    {
+        private static Logger logger_ = Logger.getLogger(GossipDigestAck2VerbHandler.class);
+
+        public void doVerb(Message message)
         {
-            throw new RuntimeException(e);
+            InetAddress from = message.getFrom();
+            if (logger_.isTraceEnabled())
+                logger_.trace("Received a GossipDigestAck2Message from " + from);
+
+            byte[] bytes = message.getMessageBody();
+            DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
+            GossipDigestAck2Message gDigestAck2Message;
+            try
+            {
+                gDigestAck2Message = GossipDigestAck2Message.serializer().deserialize(dis);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            Map<InetAddress, EndPointState> remoteEpStateMap = gDigestAck2Message.getEndPointStateMap();
+            /* Notify the Failure Detector */
+            Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
+            Gossiper.instance.applyStateLocally(remoteEpStateMap);
         }
-        Map<InetAddress, EndPointState> remoteEpStateMap = gDigestAck2Message.getEndPointStateMap();
-        /* Notify the Failure Detector */
-        Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
-        Gossiper.instance.applyStateLocally(remoteEpStateMap);
     }
 }
-

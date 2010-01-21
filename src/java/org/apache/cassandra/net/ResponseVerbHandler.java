@@ -20,7 +20,7 @@ package org.apache.cassandra.net;
 
 import org.apache.log4j.Logger;
 
-class ResponseVerbHandler implements IVerbHandler
+public class ResponseVerbHandler implements IVerbHandler
 {
     private static final Logger logger_ = Logger.getLogger( ResponseVerbHandler.class );
     

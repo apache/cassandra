@@ -85,6 +85,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public final static String streamRequestVerbHandler_ = "BS-METADATA-VERB-HANDLER";
     public final static String rangeSliceVerbHandler_ = "RANGE-SLICE-VERB-HANDLER";
     public final static String bootstrapTokenVerbHandler_ = "SPLITS-VERB-HANDLER";
+    public final static String TREE_REQUEST_VERB = "TREE-REQUEST-VERB";
+    public final static String TREE_RESPONSE_VERB = "TREE-RESPONSE-VERB";
+    public static final String responseVerbHandler_ = "RESPONSE";
+    /* GSV - abbreviation for GOSSIP-DIGEST-SYN-VERB */
+    public final static String JOIN_VERB = "JVH";
+    /* GSV - abbreviation for GOSSIP-DIGEST-SYN-VERB */
+    public final static String GOSSIP_DIGEST_SYN_VERB = "GSV";
+    /* GAV - abbreviation for GOSSIP-DIGEST-ACK-VERB */
+    public final static String GOSSIP_DIGEST_ACK_VERB = "GAV";
+    /* GA2V - abbreviation for GOSSIP-DIGEST-ACK2-VERB */
+    public final static String GOSSIP_DIGEST_ACK2_VERB = "GA2V";
 
     private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
 
@@ -199,6 +210,14 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(streamInitiateVerbHandler_, new Streaming.StreamInitiateVerbHandler());
         MessagingService.instance.registerVerbHandlers(streamInitiateDoneVerbHandler_, new Streaming.StreamInitiateDoneVerbHandler());
         MessagingService.instance.registerVerbHandlers(streamFinishedVerbHandler_, new Streaming.StreamFinishedVerbHandler());
+        MessagingService.instance.registerVerbHandlers(responseVerbHandler_, new ResponseVerbHandler());
+        MessagingService.instance.registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
+        MessagingService.instance.registerVerbHandlers(TREE_RESPONSE_VERB, new AntiEntropyService.TreeResponseVerbHandler());
+
+        MessagingService.instance.registerVerbHandlers(JOIN_VERB, new Gossiper.JoinVerbHandler());
+        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_SYN_VERB, new Gossiper.GossipDigestSynVerbHandler());
+        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_ACK_VERB, new Gossiper.GossipDigestAckVerbHandler());
+        MessagingService.instance.registerVerbHandlers(GOSSIP_DIGEST_ACK2_VERB, new Gossiper.GossipDigestAck2VerbHandler());
 
         replicationStrategy_ = getReplicationStrategy(tokenMetadata_);
     }

@@ -105,11 +105,6 @@ public class MessagingService implements IFailureDetectionEventListener
                                                                         new NamedThreadFactory("MESSAGE-DESERIALIZER-POOL"));
 
         streamExecutor_ = new JMXEnabledThreadPoolExecutor("MESSAGE-STREAMING-POOL");
-                
-        /* register the response verb handler */
-        registerVerbHandlers(MessagingService.responseVerbHandler_, new ResponseVerbHandler());
-
-        FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
     
     public byte[] hash(String type, byte data[])

@@ -89,9 +89,6 @@ public class AntiEntropyService
 {
     private static final Logger logger = Logger.getLogger(AntiEntropyService.class);
 
-    public final static String TREE_REQUEST_VERB = "TREE-REQUEST-VERB";
-    public final static String TREE_RESPONSE_VERB = "TREE-RESPONSE-VERB";
-
     // millisecond lifetime to store trees before they become stale
     public final static long TREE_STORE_TIMEOUT = 600000;
     // max millisecond frequency that natural (automatic) repairs should run at
@@ -120,8 +117,6 @@ public class AntiEntropyService
      */
     protected AntiEntropyService()
     {
-        MessagingService.instance.registerVerbHandlers(TREE_REQUEST_VERB, new TreeRequestVerbHandler());
-        MessagingService.instance.registerVerbHandlers(TREE_RESPONSE_VERB, new TreeResponseVerbHandler());
         naturalRepairs = new ConcurrentHashMap<CFPair, Long>();
         trees = new HashMap<CFPair, ExpiringMap<InetAddress, TreePair>>();
     }
@@ -662,7 +657,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(new CFPair(table, cf), dos);
-                return new Message(FBUtilities.getLocalAddress(), StageManager.AE_SERVICE_STAGE, TREE_REQUEST_VERB, bos.toByteArray());
+                return new Message(FBUtilities.getLocalAddress(), StageManager.AE_SERVICE_STAGE, StorageService.TREE_REQUEST_VERB, bos.toByteArray());
             }
             catch(IOException e)
             {
@@ -720,7 +715,7 @@ public class AntiEntropyService
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(bos);
                 SERIALIZER.serialize(validator, dos);
-                return new Message(local, StageManager.AE_SERVICE_STAGE, TREE_RESPONSE_VERB, bos.toByteArray());
+                return new Message(local, StageManager.AE_SERVICE_STAGE, StorageService.TREE_RESPONSE_VERB, bos.toByteArray());
             }
             catch(IOException e)
             {

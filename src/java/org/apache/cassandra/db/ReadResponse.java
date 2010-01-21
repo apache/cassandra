@@ -51,15 +51,6 @@ private static ICompactSerializer<ReadResponse> serializer_;
         return serializer_;
     }
     
-	public static Message makeReadResponseMessage(ReadResponse readResponse) throws IOException
-    {
-    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream( bos );
-        ReadResponse.serializer().serialize(readResponse, dos);
-        Message message = new Message(FBUtilities.getLocalAddress(), StageManager.RESPONSE_STAGE, MessagingService.responseVerbHandler_, bos.toByteArray());
-        return message;
-    }
-	
 	private Row row_;
 	private byte[] digest_ = ArrayUtils.EMPTY_BYTE_ARRAY;
     private boolean isDigestQuery_ = false;
