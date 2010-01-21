@@ -1,3 +1,7 @@
+0.5.1
+ * ensure all files for an sstable are streamed to the same directory.
+   (CASSANDRA-716)
+
 0.5.0 final
  * avoid attempting to delete temporary bootstrap files twice (CASSANDRA-681)
  * fix bogus NaN in nodeprobe cfstats output (CASSANDRA-646)

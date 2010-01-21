@@ -182,6 +182,9 @@ public class Streaming
                 }
 
                 Map<String, String> fileNames = getNewNames(streamContexts);
+                Map<String, String> pathNames = new HashMap<String, String>();
+                for (String ssName : fileNames.keySet())
+                    pathNames.put(ssName, DatabaseDescriptor.getNextAvailableDataLocation());
                 /*
                  * For each of stream context's in the incoming message
                  * generate the new file names and store the new file names
@@ -190,7 +193,7 @@ public class Streaming
                 for (StreamContextManager.StreamContext streamContext : streamContexts )
                 {
                     StreamContextManager.StreamStatus streamStatus = new StreamContextManager.StreamStatus(streamContext.getTargetFile(), streamContext.getExpectedBytes() );
-                    String file = getNewFileNameFromOldContextAndNames(fileNames, streamContext);
+                    String file = getNewFileNameFromOldContextAndNames(fileNames, pathNames, streamContext);
 
                     if (logger.isDebugEnabled())
                       logger.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
@@ -211,6 +214,7 @@ public class Streaming
         }
 
         public String getNewFileNameFromOldContextAndNames(Map<String, String> fileNames,
+                                                           Map<String, String> pathNames,
                 StreamContextManager.StreamContext streamContext)
         {
             File sourceFile = new File( streamContext.getTargetFile() );
@@ -219,12 +223,14 @@ public class Streaming
             String ssTableNum = piece[1];
             String typeOfFile = piece[2];
 
-            String newFileNameExpanded = fileNames.get( streamContext.getTable() + "-" + cfName + "-" + ssTableNum );
+            String newFileNameExpanded = fileNames.get(streamContext.getTable() + "-" + cfName + "-" + ssTableNum);
+            String path = pathNames.get(streamContext.getTable() + "-" + cfName + "-" + ssTableNum);
             //Drop type (Data.db) from new FileName
             String newFileName = newFileNameExpanded.replace("Data.db", typeOfFile);
-            return DatabaseDescriptor.getDataFileLocationForTable(streamContext.getTable()) + File.separator + newFileName;
+            return path + File.separator + streamContext.getTable() + File.separator + newFileName;
         }
 
+        // todo: this method needs to be private, or package at the very least for easy unit testing.
         public Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts) throws IOException
         {
             /*

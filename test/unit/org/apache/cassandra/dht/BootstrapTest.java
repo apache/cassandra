@@ -23,8 +23,10 @@ import static org.junit.Assert.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.io.StreamContextManager;
 import org.apache.cassandra.io.Streaming;
 
@@ -36,18 +38,22 @@ public class BootstrapTest
     public void testGetNewNames() throws IOException
     {
         StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[3];
-        streamContexts[0] = new StreamContextManager.StreamContext("/foo/Standard1-500-Data.db", 100, "Keyspace1");
-        streamContexts[1] = new StreamContextManager.StreamContext("/foo/Standard1-500-Index.db", 100, "Keyspace1");
-        streamContexts[2] = new StreamContextManager.StreamContext("/foo/Standard1-500-Filter.db", 100, "Keyspace1");
+        streamContexts[0] = new StreamContextManager.StreamContext("/baz/foo/Standard1-500-Data.db", 100, "Keyspace1");
+        streamContexts[1] = new StreamContextManager.StreamContext("/bar/foo/Standard1-500-Index.db", 100, "Keyspace1");
+        streamContexts[2] = new StreamContextManager.StreamContext("/bad/foo/Standard1-500-Filter.db", 100, "Keyspace1");
         Streaming.StreamInitiateVerbHandler bivh = new Streaming.StreamInitiateVerbHandler();
         Map<String, String> fileNames = bivh.getNewNames(streamContexts);
+        Map<String, String> paths = new HashMap<String, String>();
+        for (String ssName : fileNames.keySet())
+            paths.put(ssName, DatabaseDescriptor.getNextAvailableDataLocation());
+        assertEquals(1, paths.size());
         String result = fileNames.get("Keyspace1-Standard1-500");
         assertEquals(true, result.contains("Standard1"));
         assertEquals(true, result.contains("Data.db"));
         assertEquals(1, fileNames.entrySet().size());
 
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, streamContexts[0])).getName().matches("Standard1-tmp-\\d+-Data.db"));
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, streamContexts[1])).getName().matches("Standard1-tmp-\\d+-Index.db"));
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, streamContexts[2])).getName().matches("Standard1-tmp-\\d+-Filter.db"));
+        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, streamContexts[0])).getName().matches("Standard1-tmp-\\d+-Data.db"));
+        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, streamContexts[1])).getName().matches("Standard1-tmp-\\d+-Index.db"));
+        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, streamContexts[2])).getName().matches("Standard1-tmp-\\d+-Filter.db"));
     }
 }

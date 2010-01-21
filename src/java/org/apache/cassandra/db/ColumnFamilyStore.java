@@ -365,7 +365,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
     synchronized String getTempSSTablePath()
     {
         String fname = getTempSSTableFileName();
-        return new File(DatabaseDescriptor.getDataFileLocationForTable(table_), fname).getAbsolutePath();
+        return new File(DatabaseDescriptor.getNextAvailableDataLocation() + File.separator + table_, fname).getAbsolutePath();
     }
 
     public String getTempSSTableFileName()
