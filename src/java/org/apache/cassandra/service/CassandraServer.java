@@ -618,7 +618,7 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int maxRows, ConsistencyLevel consistency_level)
-            throws InvalidRequestException, UnavailableException, TException, TimedOutException
+    throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
@@ -664,7 +664,6 @@ public class CassandraServer implements Cassandra.Iface
         return keySlices;
     }
 
-    @Override
     public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
         DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
