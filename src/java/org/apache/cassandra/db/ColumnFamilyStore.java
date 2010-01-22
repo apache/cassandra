@@ -1140,6 +1140,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return rowCache == null ? null : rowCache.get(key);
     }
 
+    void invalidateCachedRow(String key)
+    {
+        if (rowCache != null)
+            rowCache.remove(key);
+    }
+
     /**
      * for testing.  no effort is made to clear historical memtables.
      */

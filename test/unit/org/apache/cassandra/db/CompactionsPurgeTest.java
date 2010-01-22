@@ -36,6 +36,7 @@ import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.assertEquals;
+import static org.apache.cassandra.db.TableTest.assertColumns;
 
 public class CompactionsPurgeTest extends CleanupHelper
 {
@@ -48,7 +49,7 @@ public class CompactionsPurgeTest extends CleanupHelper
 
         Table table = Table.open(TABLE1);
         String cfName = "Standard1";
-        ColumnFamilyStore store = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
 
         String key = "key1";
         RowMutation rm;
@@ -60,7 +61,7 @@ public class CompactionsPurgeTest extends CleanupHelper
             rm.add(new QueryPath(cfName, null, String.valueOf(i).getBytes()), new byte[0], 0);
         }
         rm.apply();
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
 
         // deletes
         for (int i = 0; i < 10; i++)
@@ -69,28 +70,29 @@ public class CompactionsPurgeTest extends CleanupHelper
             rm.delete(new QueryPath(cfName, null, String.valueOf(i).getBytes()), 1);
             rm.apply();
         }
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
 
         // resurrect one column
         rm = new RowMutation(TABLE1, key);
         rm.add(new QueryPath(cfName, null, String.valueOf(5).getBytes()), new byte[0], 2);
         rm.apply();
-        store.forceBlockingFlush();
+        cfs.forceBlockingFlush();
 
         // verify that non-major compaction does no GC to ensure correctness (see CASSANDRA-604)
-        Collection<SSTableReader> sstablesIncomplete = store.getSSTables();
+        Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
         rm = new RowMutation(TABLE1, key + "x");
         rm.add(new QueryPath(cfName, null, "0".getBytes()), new byte[0], 0);
         rm.apply();
-        store.forceBlockingFlush();
-        CompactionManager.instance.doCompaction(store, sstablesIncomplete, CompactionManager.getDefaultGCBefore());
-        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        cfs.forceBlockingFlush();
+        CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, CompactionManager.getDefaultGCBefore());
+        ColumnFamily cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
         assert cf.getColumnCount() == 10;
 
         // major compact and test that all columns but the resurrected one is completely gone
-        CompactionManager.instance.submitMajor(store, 0, Integer.MAX_VALUE).get();
-        cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
-        assert cf.getColumnCount() == 1;
+        CompactionManager.instance.submitMajor(cfs, 0, Integer.MAX_VALUE).get();
+        cfs.invalidateCachedRow(key);
+        cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        assertColumns(cf, "5");
         assert cf.getColumn(String.valueOf(5).getBytes()) != null;
     }
 
