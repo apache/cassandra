@@ -57,7 +57,7 @@ public class IncomingTcpConnection extends Thread
             catch (EOFException e)
             {
                 if (logger.isTraceEnabled())
-                    logger.trace("error reading from socket; closing", e);
+                    logger.trace("eof reading from socket; closing", e);
                 break;
             }
             catch (IOException e)
