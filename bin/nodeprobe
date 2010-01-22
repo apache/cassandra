@@ -51,6 +51,6 @@ case "`uname`" in
 esac
 
 $JAVA -cp $CLASSPATH -Dstorage-config=$CASSANDRA_CONF \
-        org.apache.cassandra.tools.NodeProbe $@
+        org.apache.cassandra.tools.NodeCmd $@
 
 # vi:ai sw=4 ts=4 tw=0 et
