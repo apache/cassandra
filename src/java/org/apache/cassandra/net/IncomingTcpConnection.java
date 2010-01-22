@@ -1,9 +1,6 @@
 package org.apache.cassandra.net;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
@@ -56,6 +53,12 @@ public class IncomingTcpConnection extends Thread
                     input.readFully(contentBytes);
                     MessagingService.getDeserializationExecutor().submit(new MessageDeserializationTask(new ByteArrayInputStream(contentBytes)));
                 }
+            }
+            catch (EOFException e)
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("error reading from socket; closing", e);
+                break;
             }
             catch (IOException e)
             {
