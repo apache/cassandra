@@ -1,21 +1,28 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
-
+import java.io.PrintStream;
+import java.lang.management.MemoryUsage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.apache.cassandra.concurrent.IExecutorMBean;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
+import org.apache.cassandra.dht.Range;
+import org.apache.commons.cli.*;
 
 public class NodeCmd {
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
     private static final int defaultPort = 8080;
     private static Options options = null;
+    
+    private NodeProbe probe;
     
     static
     {
@@ -24,6 +31,11 @@ public class NodeCmd {
         optHost.setRequired(true);
         options.addOption(optHost);
         options.addOption(PORT_OPTION, true, "remote jmx agent port number");
+    }
+    
+    public NodeCmd(NodeProbe probe)
+    {
+        this.probe = probe;
     }
     
     /**
@@ -38,6 +50,204 @@ public class NodeCmd {
                 " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
+    }
+    
+    /**
+     * Write a textual representation of the Cassandra ring.
+     * 
+     * @param outs the stream to write to
+     */
+    public void printRing(PrintStream outs)
+    {
+        Map<Range, List<String>> rangeMap = probe.getRangeToEndPointMap();
+        List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
+        Collections.sort(ranges);
+        Set<String> liveNodes = probe.getLiveNodes();
+        Set<String> deadNodes = probe.getUnreachableNodes();
+        Map<String, String> loadMap = probe.getLoadMap();
+
+        // Print range-to-endpoint mapping
+        int counter = 0;
+        outs.print(String.format("%-14s", "Address"));
+        outs.print(String.format("%-11s", "Status"));
+        outs.print(String.format("%-14s", "Load"));
+        outs.print(String.format("%-43s", "Range"));
+        outs.println("Ring");
+        // emphasize that we're showing the right part of each range
+        if (ranges.size() > 1)
+        {
+            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left()));
+        }
+        // normal range & node info
+        for (Range range : ranges) {
+            List<String> endpoints = rangeMap.get(range);
+            String primaryEndpoint = endpoints.get(0);
+
+            outs.print(String.format("%-14s", primaryEndpoint));
+
+            String status = liveNodes.contains(primaryEndpoint)
+                          ? "Up"
+                          : deadNodes.contains(primaryEndpoint)
+                            ? "Down"
+                            : "?";
+            outs.print(String.format("%-11s", status));
+
+            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
+            outs.print(String.format("%-14s", load));
+
+            outs.print(String.format("%-43s", range.right()));
+
+            String asciiRingArt;
+            if (counter == 0)
+            {
+                asciiRingArt = "|<--|";
+            }
+            else if (counter == (rangeMap.size() - 1))
+            {
+                asciiRingArt = "|-->|";
+            }
+            else
+            {
+                if ((rangeMap.size() > 4) && ((counter % 2) == 0))
+                    asciiRingArt = "v   |";
+                else if ((rangeMap.size() > 4) && ((counter % 2) != 0))
+                    asciiRingArt = "|   ^";
+                else
+                    asciiRingArt = "|   |";
+            }
+            outs.println(asciiRingArt);
+            
+            counter++;
+        }
+    }
+    
+    public void printThreadPoolStats(PrintStream outs)
+    {
+        outs.print(String.format("%-25s", "Pool Name"));
+        outs.print(String.format("%10s", "Active"));
+        outs.print(String.format("%10s", "Pending"));
+        outs.print(String.format("%15s", "Completed"));
+        outs.println();
+        
+        Iterator<Map.Entry<String, IExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
+        
+        for (; threads.hasNext();)
+        {
+            Map.Entry<String, IExecutorMBean> thread = threads.next();
+            String poolName = thread.getKey();
+            IExecutorMBean threadPoolProxy = thread.getValue();
+            outs.print(String.format("%-25s", poolName));
+            outs.print(String.format("%10d", threadPoolProxy.getActiveCount()));
+            outs.print(String.format("%10d", threadPoolProxy.getPendingTasks()));
+            outs.print(String.format("%15d", threadPoolProxy.getCompletedTasks()));
+            outs.println();
+        }
+    }
+
+    /**
+     * Write node information.
+     * 
+     * @param outs the stream to write to
+     */
+    public void printInfo(PrintStream outs)
+    {
+        outs.println(probe.getToken());
+        outs.println(String.format("%-17s: %s", "Load", probe.getLoadString()));
+        outs.println(String.format("%-17s: %s", "Generation No", probe.getCurrentGenerationNumber()));
+        
+        // Uptime
+        long secondsUp = probe.getUptime() / 1000;
+        outs.println(String.format("%-17s: %d", "Uptime (seconds)", secondsUp));
+
+        // Memory usage
+        MemoryUsage heapUsage = probe.getHeapMemoryUsage();
+        double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
+        double memMax = (double)heapUsage.getMax() / (1024 * 1024);
+        outs.println(String.format("%-17s: %.2f / %.2f", "Heap Memory (MB)", memUsed, memMax));
+    }
+    
+    public void printColumnFamilyStats(PrintStream outs)
+    {
+        Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
+        
+        // get a list of column family stores
+        Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> cfamilies = probe.getColumnFamilyStoreMBeanProxies();
+
+        for (;cfamilies.hasNext();)
+        {
+            Map.Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
+            String tableName = entry.getKey();
+            ColumnFamilyStoreMBean cfsProxy = entry.getValue();
+            
+            if (!cfstoreMap.containsKey(tableName))
+            {
+                List<ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
+                columnFamilies.add(cfsProxy);
+                cfstoreMap.put(tableName, columnFamilies);
+            }
+            else
+            {
+                cfstoreMap.get(tableName).add(cfsProxy);
+            }
+        }
+
+        // print out the table statistics
+        for (String tableName : cfstoreMap.keySet())
+        {
+            List<ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
+            int tableReadCount = 0;
+            int tableWriteCount = 0;
+            int tablePendingTasks = 0;
+            double tableTotalReadTime = 0.0f;
+            double tableTotalWriteTime = 0.0f;
+            
+            outs.println("Keyspace: " + tableName);
+            for (ColumnFamilyStoreMBean cfstore : columnFamilies)
+            {
+                int writeCount = cfstore.getWriteCount();
+                int readCount = cfstore.getReadCount();
+                
+                if (readCount > 0)
+                {
+                    tableReadCount += readCount;
+                    tableTotalReadTime += cfstore.getReadLatency() * readCount;
+                }
+                if (writeCount > 0)
+                {
+                    tableWriteCount += writeCount;
+                    tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
+                }
+                tablePendingTasks += cfstore.getPendingTasks();
+            }
+            
+            double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount : Double.NaN;
+            double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount : Double.NaN;
+
+            outs.println("\tRead Count: " + tableReadCount);
+            outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
+            outs.println("\tWrite Count: " + tableWriteCount);
+            outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
+            outs.println("\tPending Tasks: " + tablePendingTasks);
+
+            // print out column family statistics for this table
+            for (ColumnFamilyStoreMBean cfstore : columnFamilies)
+            {
+                outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
+                outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
+                outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
+                outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
+                outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
+                outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
+                outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
+                outs.println("\t\tRead Count: " + cfstore.getReadCount());
+                outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getReadLatency()) + " ms.");
+                outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
+                outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
+                outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
+                outs.println("");
+            }
+            outs.println("----------------");
+        }
     }
     
     public static void main(String[] args) throws IOException, InterruptedException, ParseException
@@ -80,16 +290,18 @@ public class NodeCmd {
             System.exit(1);
         }
         
+        NodeCmd nodeCmd = new NodeCmd(probe);
+        
         // Execute the requested command.
         String[] arguments = cmd.getArgs();
         String cmdName = arguments[0];
         if (cmdName.equals("ring"))
         {
-            probe.printRing(System.out);
+            nodeCmd.printRing(System.out);
         }
         else if (cmdName.equals("info"))
         {
-            probe.printInfo(System.out);
+            nodeCmd.printInfo(System.out);
         }
         else if (cmdName.equals("cleanup"))
         {
@@ -101,7 +313,7 @@ public class NodeCmd {
         }
         else if (cmdName.equals("cfstats"))
         {
-            probe.printColumnFamilyStats(System.out);
+            nodeCmd.printColumnFamilyStats(System.out);
         }
         else if (cmdName.equals("decommission"))
         {
@@ -142,7 +354,7 @@ public class NodeCmd {
         }
         else if (cmdName.equals("tpstats"))
         {
-            probe.printThreadPoolStats(System.out);
+            nodeCmd.printThreadPoolStats(System.out);
         }
         else if (cmdName.equals("flush") || cmdName.equals("repair"))
         {

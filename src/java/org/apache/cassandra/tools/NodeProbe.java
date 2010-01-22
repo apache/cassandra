@@ -24,12 +24,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.AbstractMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Map.Entry;
 
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
@@ -138,159 +138,32 @@ public class NodeProbe
     {
         ssProxy.forceTableRepair(tableName, columnFamilies);
     }
-
-    /**
-     * Write a textual representation of the Cassandra ring.
-     * 
-     * @param outs the stream to write to
-     */
-    public void printRing(PrintStream outs)
+    
+    public Map<Range, List<String>> getRangeToEndPointMap()
     {
-        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndPointMap();
-        List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
-        Collections.sort(ranges);
-        Set<String> liveNodes = ssProxy.getLiveNodes();
-        Set<String> deadNodes = ssProxy.getUnreachableNodes();
-        Map<String, String> loadMap = ssProxy.getLoadMap();
-
-        // Print range-to-endpoint mapping
-        int counter = 0;
-        outs.print(String.format("%-14s", "Address"));
-        outs.print(String.format("%-11s", "Status"));
-        outs.print(String.format("%-14s", "Load"));
-        outs.print(String.format("%-43s", "Range"));
-        outs.println("Ring");
-        // emphasize that we're showing the right part of each range
-        if (ranges.size() > 1)
-        {
-            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left()));
-        }
-        // normal range & node info
-        for (Range range : ranges) {
-            List<String> endpoints = rangeMap.get(range);
-            String primaryEndpoint = endpoints.get(0);
-
-            outs.print(String.format("%-14s", primaryEndpoint));
-
-            String status = liveNodes.contains(primaryEndpoint)
-                          ? "Up"
-                          : deadNodes.contains(primaryEndpoint)
-                            ? "Down"
-                            : "?";
-            outs.print(String.format("%-11s", status));
-
-            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
-            outs.print(String.format("%-14s", load));
-
-            outs.print(String.format("%-43s", range.right()));
-
-            String asciiRingArt;
-            if (counter == 0)
-            {
-                asciiRingArt = "|<--|";
-            }
-            else if (counter == (rangeMap.size() - 1))
-            {
-                asciiRingArt = "|-->|";
-            }
-            else
-            {
-                if ((rangeMap.size() > 4) && ((counter % 2) == 0))
-                    asciiRingArt = "v   |";
-                else if ((rangeMap.size() > 4) && ((counter % 2) != 0))
-                    asciiRingArt = "|   ^";
-                else
-                    asciiRingArt = "|   |";
-            }
-            outs.println(asciiRingArt);
-            
-            counter++;
-        }
+        return ssProxy.getRangeToEndPointMap();
     }
     
-    public void printColumnFamilyStats(PrintStream outs)
+    public Set<String> getLiveNodes()
     {
-        ObjectName query;
+        return ssProxy.getLiveNodes();
+    }
+    
+    public Set<String> getUnreachableNodes()
+    {
+        return ssProxy.getUnreachableNodes();
+    }
+    
+    public Map<String, String> getLoadMap()
+    {
+        return ssProxy.getLoadMap();
+    }
+
+    public Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> getColumnFamilyStoreMBeanProxies()
+    {
         try
         {
-            Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
-            
-            // get a list of column family stores
-            query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,*");
-            Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
-            for (ObjectName objectName: result) {
-                String tableName = objectName.getKeyProperty("keyspace");
-                ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
-
-                if (!cfstoreMap.containsKey(tableName))
-                {
-                    List<ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
-                    columnFamilies.add(cfsProxy);
-                    cfstoreMap.put(tableName, columnFamilies);
-                }
-                else
-                {
-                    cfstoreMap.get(tableName).add(cfsProxy);
-                }
-            }
-
-            // print out the table statistics
-            for (String tableName : cfstoreMap.keySet())
-            {
-                List<ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
-                int tableReadCount = 0;
-                int tableWriteCount = 0;
-                int tablePendingTasks = 0;
-                double tableTotalReadTime = 0.0f;
-                double tableTotalWriteTime = 0.0f;
-                
-                outs.println("Keyspace: " + tableName);
-                for (ColumnFamilyStoreMBean cfstore : columnFamilies)
-                {
-                    int writeCount = cfstore.getWriteCount();
-                    int readCount = cfstore.getReadCount();
-                    
-                    if (readCount > 0)
-                    {
-                        tableReadCount += readCount;
-                        tableTotalReadTime += cfstore.getReadLatency() * readCount;
-                    }
-                    if (writeCount > 0)
-                    {
-                        tableWriteCount += writeCount;
-                        tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
-                    }
-                    tablePendingTasks += cfstore.getPendingTasks();
-                }
-                
-                double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount : Double.NaN;
-                double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount : Double.NaN;
-
-                outs.println("\tRead Count: " + tableReadCount);
-                outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
-                outs.println("\tWrite Count: " + tableWriteCount);
-                outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
-                outs.println("\tPending Tasks: " + tablePendingTasks);
-
-                // print out column family statistics for this table
-                for (ColumnFamilyStoreMBean cfstore : columnFamilies)
-                {
-                    outs.println("\t\tColumn Family: " + cfstore.getColumnFamilyName());
-                    outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
-                    outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
-                    outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
-                    outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
-                    outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
-                    outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
-                    outs.println("\t\tRead Count: " + cfstore.getReadCount());
-                    outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getReadLatency()) + " ms.");
-                    outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
-                    outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
-                    outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
-                    outs.println("");
-                }
-                outs.println("----------------");
-            }
+            return new ColumnFamilyStoreMBeanIterator(mbeanServerConn);
         }
         catch (MalformedObjectNameException e)
         {
@@ -301,27 +174,30 @@ public class NodeProbe
             throw new RuntimeException("Could not retrieve list of stat mbeans.", e);
         }
     }
-
-    /**
-     * Write node information.
-     * 
-     * @param outs the stream to write to
-     */
-    public void printInfo(PrintStream outs)
+    
+    public String getToken()
     {
-        outs.println(ssProxy.getToken());
-        outs.println(String.format("%-17s: %s", "Load", ssProxy.getLoadString()));
-        outs.println(String.format("%-17s: %s", "Generation No", ssProxy.getCurrentGenerationNumber()));
-        
-        // Uptime
-        long secondsUp = runtimeProxy.getUptime() / 1000;
-        outs.println(String.format("%-17s: %d", "Uptime (seconds)", secondsUp));
-
-        // Memory usage
-        MemoryUsage heapUsage = memProxy.getHeapMemoryUsage();
-        double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
-        double memMax = (double)heapUsage.getMax() / (1024 * 1024);
-        outs.println(String.format("%-17s: %.2f / %.2f", "Heap Memory (MB)", memUsed, memMax));
+        return ssProxy.getToken();
+    }
+    
+    public String getLoadString()
+    {
+        return ssProxy.getLoadString();
+    }
+    
+    public int getCurrentGenerationNumber()
+    {
+        return ssProxy.getCurrentGenerationNumber();
+    }
+    
+    public long getUptime()
+    {
+        return runtimeProxy.getUptime();
+    }
+    
+    public MemoryUsage getHeapMemoryUsage()
+    {
+        return memProxy.getHeapMemoryUsage();
     }
     
     /**
@@ -361,35 +237,12 @@ public class NodeProbe
     {
         ssProxy.removeToken(token);
     }
-
-    /**
-     * Print out the size of the queues in the thread pools
-     *
-     * @param outs Output stream to generate the output on.
-     */
-    public void printThreadPoolStats(PrintStream outs)
+  
+    public Iterator<Map.Entry<String, IExecutorMBean>> getThreadPoolMBeanProxies()
     {
-        ObjectName query;
         try
         {
-            outs.print(String.format("%-25s", "Pool Name"));
-            outs.print(String.format("%10s", "Active"));
-            outs.print(String.format("%10s", "Pending"));
-            outs.print(String.format("%15s", "Completed"));
-            outs.println();
-
-            query = new ObjectName("org.apache.cassandra.concurrent:type=*");
-            Set<ObjectName> result = mbeanServerConn.queryNames(query, null);
-            for (ObjectName objectName : result)
-            {
-                String poolName = objectName.getKeyProperty("type");
-                IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, IExecutorMBean.class);
-                outs.print(String.format("%-25s", poolName));
-                outs.print(String.format("%10d", threadPoolProxy.getActiveCount()));
-                outs.print(String.format("%10d", threadPoolProxy.getPendingTasks()));
-                outs.print(String.format("%15d", threadPoolProxy.getCompletedTasks()));
-                outs.println();
-            }
+            return new ThreadPoolProxyMBeanIterator(mbeanServerConn);
         }
         catch (MalformedObjectNameException e)
         {
@@ -426,4 +279,74 @@ public class NodeProbe
              mcmProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
         }
     }
+}
+
+class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
+{
+    private Iterator<ObjectName> resIter;
+    private MBeanServerConnection mbeanServerConn;
+    
+    public ColumnFamilyStoreMBeanIterator(MBeanServerConnection mbeanServerConn)
+    throws MalformedObjectNameException, NullPointerException, IOException
+    {
+        ObjectName query = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,*");
+        resIter = mbeanServerConn.queryNames(query, null).iterator();
+        this.mbeanServerConn = mbeanServerConn;
+    }
+
+    @Override
+    public boolean hasNext()
+    {
+        return resIter.hasNext();
+    }
+
+    @Override
+    public Entry<String, ColumnFamilyStoreMBean> next()
+    {
+        ObjectName objectName = resIter.next();
+        String tableName = objectName.getKeyProperty("keyspace");
+        ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, ColumnFamilyStoreMBean.class);
+        return new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(tableName, cfsProxy);
+    }
+
+    @Override
+    public void remove()
+    {
+        throw new UnsupportedOperationException();
+    }
+}
+
+class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecutorMBean>>
+{
+    private Iterator<ObjectName> resIter;
+    private MBeanServerConnection mbeanServerConn;
+    
+    public ThreadPoolProxyMBeanIterator(MBeanServerConnection mbeanServerConn) 
+    throws MalformedObjectNameException, NullPointerException, IOException
+    {
+        ObjectName query = new ObjectName("org.apache.cassandra.concurrent:type=*");
+        resIter = mbeanServerConn.queryNames(query, null).iterator();
+        this.mbeanServerConn = mbeanServerConn;
+    }
+    
+    @Override
+    public boolean hasNext()
+    {
+        return resIter.hasNext();
+    }
+
+    @Override
+    public Map.Entry<String, IExecutorMBean> next()
+    {
+        ObjectName objectName = resIter.next();
+        String poolName = objectName.getKeyProperty("type");
+        IExecutorMBean threadPoolProxy = JMX.newMBeanProxy(mbeanServerConn, objectName, IExecutorMBean.class);
+        return new AbstractMap.SimpleImmutableEntry<String, IExecutorMBean>(poolName, threadPoolProxy);
+    }
+
+    @Override
+    public void remove()
+    {
+        throw new UnsupportedOperationException();
+    }   
 }
