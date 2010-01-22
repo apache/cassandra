@@ -74,6 +74,15 @@ public interface StorageServiceMBean
      * @return generation number
      */
     public int getCurrentGenerationNumber();
+    
+    /**
+     * This method returns the N endpoints that are responsible for storing the
+     * specified key i.e for replication.
+     *
+     * @param key - key for which we need to find the endpoint return value -
+     * the endpoint responsible for this key
+     */
+    public List<InetAddress> getNaturalEndpoints(String key);
 
     /**
      * Forces major compaction (all sstable files compacted)

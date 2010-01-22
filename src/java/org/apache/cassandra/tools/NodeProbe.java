@@ -24,6 +24,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
+import java.net.InetAddress;
 import java.util.AbstractMap;
 import java.util.Iterator;
 import java.util.List;
@@ -278,6 +279,11 @@ public class NodeProbe
         {
              mcmProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
         }
+    }
+    
+    public List<InetAddress> getEndPoints(String key)
+    {
+        return ssProxy.getNaturalEndpoints(key);
     }
 }
 
