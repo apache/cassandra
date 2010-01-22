@@ -176,9 +176,9 @@ public class StorageProxy implements StorageProxyMBean
                 List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.key());
                 Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.key(), naturalEndpoints);
                 int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
-    
+                
                 // avoid starting a write we know can't achieve the required consistency
-                assureSufficientLiveNodes(endpointMap, blockFor);
+                assureSufficientLiveNodes(endpointMap, blockFor, consistency_level);
                 
                 // send out the writes, as in insert() above, but this time with a callback that tracks responses
                 final WriteResponseHandler responseHandler = StorageService.instance.getWriteResponseHandler(blockFor, consistency_level);
@@ -211,9 +211,11 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     else
                     {
-                        // (hints aren't part of the callback since they don't count towards consistency until they are on the final destination node)
                         Message hintedMessage = rm.makeRowMutationMessage();
                         hintedMessage.addHeader(RowMutation.HINT, naturalTarget.getAddress());
+                        // (hints are part of the callback and count towards consistency only under CL.ANY
+                        if (consistency_level == ConsistencyLevel.ANY)
+                            MessagingService.instance.addCallback(responseHandler, hintedMessage.getMessageId());
                         if (logger.isDebugEnabled())
                             logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + maybeHintedTarget + " for " + naturalTarget);
                         MessagingService.instance.sendOneWay(hintedMessage, maybeHintedTarget);
@@ -240,20 +242,30 @@ public class StorageProxy implements StorageProxyMBean
 
     }
 
-    private static void assureSufficientLiveNodes(Map<InetAddress, InetAddress> endpointMap, int blockFor)
+    private static void assureSufficientLiveNodes(Map<InetAddress, InetAddress> endpointMap, int blockFor, ConsistencyLevel consistencyLevel)
             throws UnavailableException
     {
-        int liveNodes = 0;
-        for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+        if (consistencyLevel == ConsistencyLevel.ANY)
         {
-            if (entry.getKey().equals(entry.getValue()))
-            {
-                liveNodes++;
-            }
+            // ensure there are blockFor distinct living nodes (hints are ok).
+            if (new HashSet(endpointMap.values()).size() < blockFor)
+                throw new UnavailableException();
         }
-        if (liveNodes < blockFor)
+        else
         {
-            throw new UnavailableException();
+            // only count live + unhinted nodes.
+            int liveNodes = 0;
+            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+            {
+                if (entry.getKey().equals(entry.getValue()))
+                {
+                    liveNodes++;
+                }
+            }
+            if (liveNodes < blockFor)
+            {
+                throw new UnavailableException();
+            }
         }
     }
 
@@ -295,6 +307,10 @@ public class StorageProxy implements StorageProxyMBean
         else if (consistency_level == ConsistencyLevel.ALL)
         {
             blockFor = naturalTargets + bootstrapTargets;
+        }
+        else if (consistency_level == ConsistencyLevel.ANY)
+        {
+            blockFor = 1;
         }
         else
         {

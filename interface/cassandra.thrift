@@ -138,12 +138,14 @@ exception AuthorizationException {
  *
  * Write:
  *      ZERO    Ensure nothing. A write happens asynchronously in background
+ *      ANY     Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
  *      ONE     Ensure that the write has been written to at least 1 node's commit log and memory table before responding to the client.
  *      QUORUM  Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes before responding to the client.
  *      ALL     Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
  *
  * Read:
  *      ZERO    Not supported, because it doesn't make sense.
+ *      ANY     Not supported. You probably want ONE instead.
  *      ONE     Will return the record returned by the first node to respond. A consistency check is always done in a
  *              background thread to fix any consistency issues when ConsistencyLevel.ONE is used. This means subsequent
  *              calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
@@ -158,6 +160,7 @@ enum ConsistencyLevel {
     DCQUORUM = 3,
     DCQUORUMSYNC = 4,
     ALL = 5,
+    ANY = 6,
 }
 
 /**
@@ -275,7 +278,7 @@ service Cassandra {
   ColumnOrSuperColumn get(1:required string keyspace,
                           2:required string key,
                           3:required ColumnPath column_path,
-                          4:required ConsistencyLevel consistency_level=1)
+                          4:required ConsistencyLevel consistency_level=ONE)
                       throws (1:InvalidRequestException ire, 2:NotFoundException nfe, 3:UnavailableException ue, 4:TimedOutException te),
 
   /**
@@ -286,7 +289,7 @@ service Cassandra {
                                       2:required string key, 
                                       3:required ColumnParent column_parent, 
                                       4:required SlicePredicate predicate, 
-                                      5:required ConsistencyLevel consistency_level=1)
+                                      5:required ConsistencyLevel consistency_level=ONE)
                             throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -297,7 +300,7 @@ service Cassandra {
   map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
                                            2:required list<string> keys, 
                                            3:required ColumnPath column_path, 
-                                           4:required ConsistencyLevel consistency_level=1)
+                                           4:required ConsistencyLevel consistency_level=ONE)
                                   throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -307,7 +310,7 @@ service Cassandra {
                                                        2:required list<string> keys, 
                                                        3:required ColumnParent column_parent, 
                                                        4:required SlicePredicate predicate, 
-                                                       5:required ConsistencyLevel consistency_level=1)
+                                                       5:required ConsistencyLevel consistency_level=ONE)
                                         throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -316,7 +319,7 @@ service Cassandra {
   i32 get_count(1:required string keyspace, 
                 2:required string key, 
                 3:required ColumnParent column_parent, 
-                4:required ConsistencyLevel consistency_level=1)
+                4:required ConsistencyLevel consistency_level=ONE)
       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -328,7 +331,7 @@ service Cassandra {
                                  4:required string start_key="", 
                                  5:required string finish_key="", 
                                  6:required i32 row_count=100, 
-                                 7:required ConsistencyLevel consistency_level=1)
+                                 7:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods
@@ -343,7 +346,7 @@ service Cassandra {
               3:required ColumnPath column_path, 
               4:required binary value, 
               5:required i64 timestamp, 
-              6:required ConsistencyLevel consistency_level=0)
+              6:required ConsistencyLevel consistency_level=ZERO)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -355,7 +358,7 @@ service Cassandra {
   void batch_insert(1:required string keyspace, 
                     2:required string key, 
                     3:required map<string, list<ColumnOrSuperColumn>> cfmap,
-                    4:required ConsistencyLevel consistency_level=0)
+                    4:required ConsistencyLevel consistency_level=ZERO)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
@@ -367,12 +370,12 @@ service Cassandra {
               2:required string key,
               3:required ColumnPath column_path,
               4:required i64 timestamp,
-              5:ConsistencyLevel consistency_level=0)
+              5:ConsistencyLevel consistency_level=ZERO)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   void batch_mutate(1:required string keyspace,
                     2:required map<string, map<string, list<Mutation>>> mutation_map,
-                    3:required ConsistencyLevel consistency_level=0)
+                    3:required ConsistencyLevel consistency_level=ZERO)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
        
   // Meta-APIs -- APIs to get information about the node or cluster,

@@ -21,12 +21,14 @@ import org.apache.thrift.TEnum;
  * 
  * Write:
  *      ZERO    Ensure nothing. A write happens asynchronously in background
+ *      ANY     Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
  *      ONE     Ensure that the write has been written to at least 1 node's commit log and memory table before responding to the client.
  *      QUORUM  Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes before responding to the client.
  *      ALL     Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
  * 
  * Read:
  *      ZERO    Not supported, because it doesn't make sense.
+ *      ANY     Not supported. You probably want ONE instead.
  *      ONE     Will return the record returned by the first node to respond. A consistency check is always done in a
  *              background thread to fix any consistency issues when ConsistencyLevel.ONE is used. This means subsequent
  *              calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
@@ -40,7 +42,8 @@ public enum ConsistencyLevel implements TEnum {
   QUORUM(2),
   DCQUORUM(3),
   DCQUORUMSYNC(4),
-  ALL(5);
+  ALL(5),
+  ANY(6);
 
   private static final Map<Integer, ConsistencyLevel> BY_VALUE = new HashMap<Integer,ConsistencyLevel>() {{
     for(ConsistencyLevel val : ConsistencyLevel.values()) {

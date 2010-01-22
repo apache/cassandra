@@ -13,6 +13,7 @@ dev
  * row caching [must be explicitly enabled per-CF in config] (CASSANDRA-678)
  * present a useful measure of compaction progress in JMX (CASSANDRA-599)
  * add bin/sstablekeys (CASSNADRA-679)
+ * add ConsistencyLevel.ANY (CASSANDRA-687)
 
 
 0.5.1
