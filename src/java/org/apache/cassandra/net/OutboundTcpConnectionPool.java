@@ -27,14 +27,9 @@ import org.apache.cassandra.concurrent.StageManager;
 
 class OutboundTcpConnectionPool
 {
-    private static Logger logger = Logger.getLogger(OutboundTcpConnectionPool.class);
-
-    private final int OPEN_RETRY_DELAY = 100; // ms between retries
-
     private InetAddress remoteEp_;
     private OutboundTcpConnection cmdCon;
     private OutboundTcpConnection ackCon;
-    private long lastFailedAttempt = Long.MIN_VALUE;
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
@@ -52,18 +47,8 @@ class OutboundTcpConnectionPool
         {
             if (ackCon == null)
             {
-                if (System.currentTimeMillis() < lastFailedAttempt + OPEN_RETRY_DELAY)
-                    return null;
-                try
-                {
-                    ackCon = new OutboundTcpConnection(this, remoteEp_);
-                }
-                catch (IOException e)
-                {
-                    lastFailedAttempt = System.currentTimeMillis();
-                    if (logger.isDebugEnabled())
-                        logger.debug("unable to connect to " + remoteEp_, e);
-                }
+                ackCon = new OutboundTcpConnection(this, remoteEp_);
+                ackCon.start();
             }
             return ackCon;
         }
@@ -71,18 +56,8 @@ class OutboundTcpConnectionPool
         {
             if (cmdCon == null)
             {
-                if (System.currentTimeMillis() < lastFailedAttempt + OPEN_RETRY_DELAY)
-                    return null;
-                try
-                {
-                    cmdCon = new OutboundTcpConnection(this, remoteEp_);
-                }
-                catch (IOException e)
-                {
-                    lastFailedAttempt = System.currentTimeMillis();
-                    if (logger.isDebugEnabled())
-                        logger.debug("unable to connect to " + remoteEp_, e);
-                }
+                cmdCon = new OutboundTcpConnection(this, remoteEp_);
+                cmdCon.start();
             }
             return cmdCon;
         }
@@ -93,7 +68,5 @@ class OutboundTcpConnectionPool
         for (OutboundTcpConnection con : new OutboundTcpConnection[] { cmdCon, ackCon })
             if (con != null)
                 con.closeSocket();
-        cmdCon = null;
-        ackCon = null;
     }
 }

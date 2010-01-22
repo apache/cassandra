@@ -293,10 +293,7 @@ public class MessagingService implements IFailureDetectionEventListener
         }
 
         // get pooled connection (really, connection queue)
-        OutboundTcpConnection connection = null;
-        connection = getConnection(to, message);
-        if (connection == null)
-            return;
+        OutboundTcpConnection connection = getConnection(to, message);
 
         // pack message with header in a bytebuffer
         byte[] data;
