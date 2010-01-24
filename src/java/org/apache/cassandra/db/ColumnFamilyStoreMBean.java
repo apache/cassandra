@@ -98,4 +98,9 @@ public interface ColumnFamilyStoreMBean
      * @return total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd
      */
     public long getTotalDiskSpaceUsed();
+
+    /**
+     * force a major compaction of this column family
+     */
+    public void forceMajorCompaction();
 }

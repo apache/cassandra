@@ -1146,6 +1146,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rowCache.remove(key);
     }
 
+    public void forceMajorCompaction()
+    {
+        CompactionManager.instance.submitMajor(this);
+    }
+
     /**
      * for testing.  no effort is made to clear historical memtables.
      */
