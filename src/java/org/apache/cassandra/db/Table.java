@@ -33,6 +33,7 @@ import org.apache.cassandra.io.DataOutputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
@@ -163,9 +164,8 @@ public class Table
         }
     }
     
-    /* Used to lock the factory for creation of Table instance */
-    private static final Lock createLock_ = new ReentrantLock();
-    private static final Map<String, Table> instances_ = new HashMap<String, Table>();
+    /** Table objects, one per keyspace.  only one instance should ever exist for any given keyspace. */
+    private static final Map<String, Table> instances_ = new NonBlockingHashMap<String, Table>();
     /* Table name. */
     private final String table_;
     /* Handle to the Table Metadata */
@@ -178,25 +178,18 @@ public class Table
     public static Table open(String table) throws IOException
     {
         Table tableInstance = instances_.get(table);
-        /*
-         * Read the config and figure the column families for this table.
-         * Set the isConfigured flag so that we do not read config all the
-         * time.
-        */
         if (tableInstance == null)
         {
-            Table.createLock_.lock();
-            try
+            // instantiate the Table.  we could use putIfAbsent but it's important to making sure it is only done once
+            // per keyspace, so we synchronize and re-check before doing it.
+            synchronized (Table.class)
             {
+                tableInstance = instances_.get(table);
                 if (tableInstance == null)
                 {
                     tableInstance = new Table(table);
                     instances_.put(table, tableInstance);
                 }
-            }
-            finally
-            {
-                createLock_.unlock();
             }
         }
         return tableInstance;
