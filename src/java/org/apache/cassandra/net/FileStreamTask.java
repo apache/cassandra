@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -51,7 +52,11 @@ public class FileStreamTask extends WrappedRunnable
     
     public void runMayThrow() throws IOException
     {
-        SocketChannel channel = SocketChannel.open(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
+        SocketChannel channel = SocketChannel.open();
+        // force local binding on correctly specified interface.
+        channel.socket().bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+        // obey the unwritten law that all nodes on a cluster must use the same storage port.
+        channel.connect(new InetSocketAddress(to, DatabaseDescriptor.getStoragePort()));
         try
         {
             stream(channel);

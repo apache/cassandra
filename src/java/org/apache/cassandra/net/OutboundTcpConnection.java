@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -123,7 +124,8 @@ public class OutboundTcpConnection extends Thread
         {
             try
             {
-                socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort());
+                // zero means 'bind on any available port.'
+                socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
                 socket.setTcpNoDelay(true);
                 output = new DataOutputStream(socket.getOutputStream());
                 return true;
