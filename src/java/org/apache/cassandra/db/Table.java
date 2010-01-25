@@ -319,10 +319,7 @@ public class Table
         }
     }
 
-    /*
-     * Get the list of all SSTables on disk.
-    */
-    public List<SSTableReader> getAllSSTablesOnDisk()
+    List<SSTableReader> getAllSSTablesOnDisk()
     {
         List<SSTableReader> list = new ArrayList<SSTableReader>();
         Set<String> columnFamilies = tableMetadata.getColumnFamilies();
@@ -462,22 +459,6 @@ public class Table
                 cfStore.applyBinary(key, column.value());
             }
         }
-    }
-
-    public SortedSet<String> getApplicationColumnFamilies()
-    {
-        if (applicationColumnFamilies == null)
-        {
-            applicationColumnFamilies = new TreeSet<String>();
-            for (String cfName : getColumnFamilies())
-            {
-                if (DatabaseDescriptor.isApplicationColumnFamily(cfName))
-                {
-                    applicationColumnFamilies.add(cfName);
-                }
-            }
-        }
-        return applicationColumnFamilies;
     }
 
     public String getDataFileLocation(long expectedCompactedFileSize)

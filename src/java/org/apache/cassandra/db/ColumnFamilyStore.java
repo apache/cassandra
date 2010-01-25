@@ -120,8 +120,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
     private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
     
-    private final IPartitioner partitioner = StorageService.getPartitioner();
-
     ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
     {
         table_ = table;

@@ -388,16 +388,6 @@ public class ColumnFamily implements IColumnContainer
         return subcolumnComparator == null ? "" : subcolumnComparator.getClass().getCanonicalName();
     }
 
-    public int serializedSize()
-    {
-        int subtotal = 4 * IColumn.UtfPrefix_ + name_.length() + type_.length() +  getComparatorName().length() + getSubComparatorName().length() + 4 + 8 + 4;
-        for (IColumn column : columns_.values())
-        {
-            subtotal += column.serializedSize();
-        }
-        return subtotal;
-    }
-
     public static AbstractType getComparatorFor(String table, String columnFamilyName, byte[] superColumnName)
     {
         return superColumnName == null
