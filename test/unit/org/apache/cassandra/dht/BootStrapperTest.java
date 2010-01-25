@@ -110,6 +110,7 @@ public class BootStrapperTest
             public void report(InetAddress ep) { throw new UnsupportedOperationException(); }
             public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
             public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
+            public void remove(InetAddress ep) { throw new UnsupportedOperationException(); }
         };
         Multimap<InetAddress, Range> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
         assertEquals(1, temp.keySet().size());
