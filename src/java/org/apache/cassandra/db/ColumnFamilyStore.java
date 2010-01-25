@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.cache.IAggregatableCacheProvider;
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.cache.JMXAggregatingCache;
 import org.apache.cassandra.cache.JMXInstrumentedCache;
@@ -197,17 +198,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
 
         // we don't need to keep a reference to the key cache aggregator, just create it so it registers itself w/ JMX
-        new JMXAggregatingCache(new Iterable<InstrumentedCache>()
+        new JMXAggregatingCache(new Iterable<IAggregatableCacheProvider>()
         {
-            public Iterator<InstrumentedCache> iterator()
+            public Iterator<IAggregatableCacheProvider> iterator()
             {
                 final Iterator<SSTableReader> iter = ssTables_.iterator();
-                return new AbstractIterator<InstrumentedCache>()
+                return new AbstractIterator<IAggregatableCacheProvider>()
                 {
                     @Override
-                    protected InstrumentedCache computeNext()
+                    protected IAggregatableCacheProvider computeNext()
                     {
-                        return iter.hasNext() ? iter.next().getKeyCache() : endOfData();
+                        if (!iter.hasNext())
+                            return endOfData();
+
+                        return new IAggregatableCacheProvider()
+                        {
+                            SSTableReader sstable = iter.next();
+
+                            public InstrumentedCache getCache()
+                            {
+                                return sstable.getKeyCache();
+                            }
+
+                            public long getObjectCount()
+                            {
+                                return sstable.getIndexPositions().size() * SSTableReader.indexInterval();
+                            }
+                        };
                     }
                 };
             }

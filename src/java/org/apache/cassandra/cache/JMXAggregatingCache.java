@@ -1,40 +1,49 @@
 package org.apache.cassandra.cache;
 
+import java.util.Iterator;
+
+import com.google.common.collect.AbstractIterator;
+
 public class JMXAggregatingCache implements JMXAggregatingCacheMBean
 {
-    private final Iterable<InstrumentedCache> caches;
+    private final Iterable<IAggregatableCacheProvider> cacheProviders;
 
-    public JMXAggregatingCache(Iterable<InstrumentedCache> caches, String table, String name)
+    public JMXAggregatingCache(Iterable<IAggregatableCacheProvider> caches, String table, String name)
     {
-        this.caches = caches;
+        this.cacheProviders = caches;
         AbstractCache.registerMBean(this, table, name);
     }
 
     public int getCapacity()
     {
         int capacity = 0;
-        for (InstrumentedCache cache : caches)
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
         {
-            capacity += cache.getCapacity();
+            capacity += cacheProvider.getCache().getCapacity();
         }
         return capacity;
     }
 
     public void setCapacity(int capacity)
     {
-        double ratio = capacity / getCapacity();
-        for (InstrumentedCache cache : caches)
+        long totalObjects = 0;
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
         {
-            cache.setCapacity(Math.max(1, (int)(cache.getCapacity() * ratio)));
+            totalObjects += cacheProvider.getObjectCount();
+        }
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
+        {
+            double ratio = ((double)cacheProvider.getObjectCount()) / totalObjects;
+            cacheProvider.getCache().setCapacity((int)(capacity * ratio));
         }
     }
 
     public int getSize()
     {
         int size = 0;
-        for (InstrumentedCache cache : caches)
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
         {
-            size += cache.getSize();
+            size += cacheProvider.getCache().getSize();
         }
         return size;
     }
@@ -43,9 +52,9 @@ public class JMXAggregatingCache implements JMXAggregatingCacheMBean
     {
         int n = 0;
         double rate = 0;
-        for (InstrumentedCache cache : caches)
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
         {
-            rate += cache.getHitRate();
+            rate += cacheProvider.getCache().getHitRate();
             n++;
         }
         return rate / n;
