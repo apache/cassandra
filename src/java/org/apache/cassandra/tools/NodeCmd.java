@@ -10,6 +10,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.management.JMX;
+import javax.management.ObjectName;
+
+import org.apache.cassandra.cache.JMXAggregatingCacheMBean;
+import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
@@ -45,9 +50,10 @@ public class NodeCmd {
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [name], clearsnapshot, " +
+                "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
                 "tpstats, flush, repair, decommission, move, loadbalance, removetoken, " +
-                " getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
+                "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
+                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
         String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -169,7 +175,7 @@ public class NodeCmd {
     public void printColumnFamilyStats(PrintStream outs)
     {
         Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
-        
+
         // get a list of column family stores
         Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> cfamilies = probe.getColumnFamilyStoreMBeanProxies();
 
@@ -178,7 +184,7 @@ public class NodeCmd {
             Map.Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
             String tableName = entry.getKey();
             ColumnFamilyStoreMBean cfsProxy = entry.getValue();
-            
+
             if (!cfstoreMap.containsKey(tableName))
             {
                 List<ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
@@ -200,13 +206,13 @@ public class NodeCmd {
             int tablePendingTasks = 0;
             double tableTotalReadTime = 0.0f;
             double tableTotalWriteTime = 0.0f;
-            
+
             outs.println("Keyspace: " + tableName);
             for (ColumnFamilyStoreMBean cfstore : columnFamilies)
             {
                 int writeCount = cfstore.getWriteCount();
                 int readCount = cfstore.getReadCount();
-                
+
                 if (readCount > 0)
                 {
                     tableReadCount += readCount;
@@ -219,7 +225,7 @@ public class NodeCmd {
                 }
                 tablePendingTasks += cfstore.getPendingTasks();
             }
-            
+
             double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount : Double.NaN;
             double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount : Double.NaN;
 
@@ -244,6 +250,31 @@ public class NodeCmd {
                 outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
                 outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
                 outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
+
+                JMXAggregatingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
+                if (keyCacheMBean.getCapacity() > 0)
+                {
+                    outs.println("\t\tKey cache capacity: " + keyCacheMBean.getCapacity());
+                    outs.println("\t\tKey cache size: " + keyCacheMBean.getSize());
+                    outs.println("\t\tKey cache hit rate: " + keyCacheMBean.getHitRate());
+                }
+                else
+                {
+                    outs.println("\t\tKey cache: disabled");
+                }
+
+                JMXInstrumentedCacheMBean rowCacheMBean = probe.getRowCacheMBean(tableName, cfstore.getColumnFamilyName());
+                if (rowCacheMBean.getCapacity() > 0)
+                {
+                    outs.println("\t\tRow cache capacity: " + rowCacheMBean.getCapacity());
+                    outs.println("\t\tRow cache size: " + rowCacheMBean.getSize());
+                    outs.println("\t\tRow cache hit rate: " + rowCacheMBean.getHitRate());
+                }
+                else
+                {
+                    outs.println("\t\tRow cache: disabled");
+                }
+
                 outs.println("");
             }
             outs.println("----------------");
@@ -374,6 +405,18 @@ public class NodeCmd {
                 probe.forceTableFlush(cmd.getArgs()[1], columnFamilies);
             else // cmdName.equals("repair")
                 probe.forceTableRepair(cmd.getArgs()[1], columnFamilies);
+        }
+        else if (cmdName.equals("setcachecapacity"))
+        {
+            if (cmd.getArgs().length != 5)
+            {
+                System.err.println("cacheinfo requires keyspace and column family name arguments, followed by key cache capacity and row cache capacity, in rows");
+            }
+            String tableName = cmd.getArgs()[1];
+            String cfName = cmd.getArgs()[2];
+            int keyCacheCapacity = Integer.valueOf(cmd.getArgs()[3]);
+            int rowCacheCapacity = Integer.valueOf(cmd.getArgs()[4]);
+            probe.setCacheCapacities(tableName, cfName, keyCacheCapacity, rowCacheCapacity);
         }
         else if (cmdName.equals("getcompactionthreshold"))
         {

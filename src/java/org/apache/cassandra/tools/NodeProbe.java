@@ -32,14 +32,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 
-import javax.management.JMX;
-import javax.management.MBeanServerConnection;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
+import javax.management.*;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import org.apache.cassandra.cache.JMXAggregatingCache;
+import org.apache.cassandra.cache.JMXAggregatingCacheMBean;
+import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
@@ -175,7 +175,33 @@ public class NodeProbe
             throw new RuntimeException("Could not retrieve list of stat mbeans.", e);
         }
     }
+
+    public JMXAggregatingCacheMBean getKeyCacheMBean(String tableName, String cfName)
+    {
+        String keyCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "KeyCache";
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), JMXAggregatingCacheMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
     
+    public JMXInstrumentedCacheMBean getRowCacheMBean(String tableName, String cfName)
+    {
+        String rowCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "RowCache";
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn, new ObjectName(rowCachePath), JMXInstrumentedCacheMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public String getToken()
     {
         return ssProxy.getToken();
@@ -280,7 +306,26 @@ public class NodeProbe
              mcmProxy.setMaximumCompactionThreshold(maximumCompactionThreshold);
         }
     }
-    
+
+    public void setCacheCapacities(String tableName, String cfName, int keyCacheCapacity, int rowCacheCapacity)
+    {
+        try
+        {
+            String keyCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "KeyCache";
+            JMXAggregatingCacheMBean keyCacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), JMXAggregatingCacheMBean.class);
+            keyCacheMBean.setCapacity(keyCacheCapacity);
+
+            String rowCachePath = "org.apache.cassandra.db:type=Caches,keyspace=" + tableName + ",cache=" + cfName + "RowCache";
+            JMXInstrumentedCacheMBean rowCacheMBean = null;
+            rowCacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(rowCachePath), JMXInstrumentedCacheMBean.class);
+            rowCacheMBean.setCapacity(rowCacheCapacity);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public List<InetAddress> getEndPoints(String key)
     {
         return ssProxy.getNaturalEndpoints(key);
@@ -300,13 +345,11 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
         this.mbeanServerConn = mbeanServerConn;
     }
 
-    @Override
     public boolean hasNext()
     {
         return resIter.hasNext();
     }
 
-    @Override
     public Entry<String, ColumnFamilyStoreMBean> next()
     {
         ObjectName objectName = resIter.next();
@@ -315,7 +358,6 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
         return new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(tableName, cfsProxy);
     }
 
-    @Override
     public void remove()
     {
         throw new UnsupportedOperationException();
@@ -335,13 +377,11 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecut
         this.mbeanServerConn = mbeanServerConn;
     }
     
-    @Override
     public boolean hasNext()
     {
         return resIter.hasNext();
     }
 
-    @Override
     public Map.Entry<String, IExecutorMBean> next()
     {
         ObjectName objectName = resIter.next();
@@ -350,7 +390,6 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, IExecut
         return new AbstractMap.SimpleImmutableEntry<String, IExecutorMBean>(poolName, threadPoolProxy);
     }
 
-    @Override
     public void remove()
     {
         throw new UnsupportedOperationException();
