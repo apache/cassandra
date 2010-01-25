@@ -27,7 +27,7 @@ public class SSTableAccessor
     public static SSTableReader getSSTableReader(String filename, IPartitioner<?> partitioner)
     throws IOException
     {
-        SSTableReader sstable =  new SSTableReader(filename, partitioner, null, null, null, null);
+        SSTableReader sstable =  new SSTableReader(filename, partitioner, null, null, null, SSTableReader.createKeyCache(0));
         sstable.loadBloomFilter();
         sstable.loadIndexFile();
         return sstable;

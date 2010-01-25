@@ -109,7 +109,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* active memtable associated with this ColumnFamilyStore. */
     private Memtable memtable_;
 
-    private JMXInstrumentedCache<String, ColumnFamily> rowCache;
+    private final JMXInstrumentedCache<String, ColumnFamily> rowCache;
 
     // TODO binarymemtable ops are not threadsafe (do they need to be?)
     private AtomicReference<BinaryMemtable> binaryMemtable_;
@@ -187,37 +187,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_ = new SSTableTracker(sstables);
 
         double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
-        if (v > 0)
+        int cacheSize;
+        if (0 < v && v < 1)
+            cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
+        else
+            cacheSize = (int)v;
+        if (logger_.isDebugEnabled())
+            logger_.debug("row cache capacity for " + columnFamilyName + " is " + cacheSize);
+        rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
+
+        // we don't need to keep a reference to the key cache aggregator, just create it so it registers itself w/ JMX
+        new JMXAggregatingCache(new Iterable<InstrumentedCache>()
         {
-            int cacheSize;
-            if (v < 1)
-                cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
-            else
-                cacheSize = (int)v;
-            if (logger_.isDebugEnabled())
-                logger_.debug("enabling row cache for " + columnFamilyName + " with size " + cacheSize);
-            rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
-        }
-        
-        if (DatabaseDescriptor.getKeysCachedFraction(table, columnFamilyName) > 0)
-        {
-            // we don't need to keep a reference to the aggregator, just create it so it registers itself w/ JMX
-            new JMXAggregatingCache(new Iterable<InstrumentedCache>()
+            public Iterator<InstrumentedCache> iterator()
             {
-                public Iterator<InstrumentedCache> iterator()
+                final Iterator<SSTableReader> iter = ssTables_.iterator();
+                return new AbstractIterator<InstrumentedCache>()
                 {
-                    final Iterator<SSTableReader> iter = ssTables_.iterator();
-                    return new AbstractIterator<InstrumentedCache>()
+                    @Override
+                    protected InstrumentedCache computeNext()
                     {
-                        @Override
-                        protected InstrumentedCache computeNext()
-                        {
-                            return iter.hasNext() ? iter.next().getKeyCache() : endOfData();
-                        }
-                    };
-                }
-            }, table, columnFamilyName + "KeyCache");
-        }
+                        return iter.hasNext() ? iter.next().getKeyCache() : endOfData();
+                    }
+                };
+            }
+        }, table, columnFamilyName + "KeyCache");
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException
@@ -799,7 +793,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (filter.path.superColumnName == null)
             {
-                if (rowCache == null)
+                if (rowCache.getCapacity() == 0)
                     return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
 
                 ColumnFamily cached = cacheRow(filter.key);
@@ -812,7 +806,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // we are querying subcolumns of a supercolumn: fetch the supercolumn with NQF, then filter in-memory.
             ColumnFamily cf;
             SuperColumn sc;
-            if (rowCache == null)
+            if (rowCache.getCapacity() == 0)
             {
                 QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
                 cf = getTopLevelColumns(nameFilter, gcBefore);
@@ -1135,7 +1129,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** raw cached row -- does not fetch the row if it is not present */
     public ColumnFamily getRawCachedRow(String key)
     {
-        return rowCache == null ? null : rowCache.get(key);
+        return rowCache.getCapacity() == 0 ? null : rowCache.get(key);
     }
 
     void invalidateCachedRow(String key)

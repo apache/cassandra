@@ -219,6 +219,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
             throws IOException
     {
         super(filename, partitioner);
+        assert keyCache != null;
 
         if (DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
         {
@@ -288,7 +289,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private SSTableReader(String filename, IPartitioner partitioner) throws IOException
     {
-        this(filename, partitioner, null, null, null, null);
+        this(filename, partitioner, null, null, null, SSTableReader.createKeyCache(0));
     }
 
     public List<KeyPosition> getIndexPositions()
@@ -385,7 +386,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return null;
-        if (keyCache != null)
+        if (keyCache.getCapacity() > 0)
         {
             PositionSize cachedPosition = keyCache.get(decoratedKey);
             if (cachedPosition != null)
@@ -446,7 +447,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     {
                         info = new PositionSize(position, length() - position);
                     }
-                    if (keyCache != null)
+                    if (keyCache.getCapacity() > 0)
                         keyCache.put(decoratedKey, info);
                     return info;
                 }
