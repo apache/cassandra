@@ -22,8 +22,10 @@ import org.apache.cassandra.dht.Range;
 import org.apache.commons.cli.*;
 
 public class NodeCmd {
-    private static final String HOST_OPTION = "host";
-    private static final String PORT_OPTION = "port";
+    private static final String HOST_OPT_LONG = "host";
+    private static final String HOST_OPT_SHORT = "h";
+    private static final String PORT_OPT_LONG = "port";
+    private static final String PORT_OPT_SHORT = "p";
     private static final int defaultPort = 8080;
     private static Options options = null;
     
@@ -32,10 +34,10 @@ public class NodeCmd {
     static
     {
         options = new Options();
-        Option optHost = new Option(HOST_OPTION, true, "node hostname or ip address");
+        Option optHost = new Option(HOST_OPT_SHORT, HOST_OPT_LONG, true, "node hostname or ip address");
         optHost.setRequired(true);
         options.addOption(optHost);
-        options.addOption(PORT_OPTION, true, "remote jmx agent port number");
+        options.addOption(PORT_OPT_SHORT, PORT_OPT_LONG, true, "remote jmx agent port number");
     }
     
     public NodeCmd(NodeProbe probe)
@@ -54,7 +56,7 @@ public class NodeCmd {
                 "tpstats, flush, repair, decommission, move, loadbalance, removetoken, " +
                 "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
                 "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
-        String usage = String.format("java %s -host <arg> <command>%n", NodeProbe.class.getName());
+        String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
     
@@ -284,12 +286,23 @@ public class NodeCmd {
     public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
         CommandLineParser parser = new PosixParser();
-        CommandLine cmd = parser.parse(options, args);
+        CommandLine cmd = null;
         
-        String host = cmd.getOptionValue(HOST_OPTION);
+        try
+        {
+            cmd = parser.parse(options, args);
+        }
+        catch (ParseException parseExcep)
+        {
+            System.err.println(parseExcep);
+            printUsage();
+            System.exit(1);
+        }
+
+        String host = cmd.getOptionValue(HOST_OPT_LONG);
         int port = defaultPort;
         
-        String portNum = cmd.getOptionValue(PORT_OPTION);
+        String portNum = cmd.getOptionValue(PORT_OPT_LONG);
         if (portNum != null)
         {
             try
