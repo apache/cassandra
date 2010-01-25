@@ -48,6 +48,12 @@ public class EndPointState
     boolean isAlive_;
     boolean isAGossiper_;
 
+    // whether this endpoint has token associated with it or not. Initially set false for all
+    // endpoints. After certain time of inactivity, gossiper will examine if this node has a
+    // token or not and will set this true if token is found. If there is no token, this is a
+    // fat client and will be removed automatically from gossip.
+    boolean hasToken_;
+
     public static ICompactSerializer<EndPointState> serializer()
     {
         return serializer_;
@@ -59,6 +65,7 @@ public class EndPointState
         updateTimestamp_ = System.currentTimeMillis(); 
         isAlive_ = true; 
         isAGossiper_ = false;
+        hasToken_ = false;
     }
         
     HeartBeatState getHeartBeatState()
@@ -119,6 +126,16 @@ public class EndPointState
     {                
         //isAlive_ = false;
         isAGossiper_ = value;        
+    }
+
+    public synchronized void setHasToken(boolean value)
+    {
+        hasToken_ = value;
+    }
+
+    public boolean getHasToken()
+    {
+        return hasToken_;
     }
 
     public List<Map.Entry<String,ApplicationState>> getSortedApplicationStates()

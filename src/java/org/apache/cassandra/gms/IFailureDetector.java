@@ -55,6 +55,11 @@ public interface IFailureDetector
      * param ep endpoint being reported.
     */
     public void report(InetAddress ep);
+
+    /**
+     * remove endpoint from failure detector
+     */
+    public void remove(InetAddress ep);
     
     /**
      * Register interest for Failure Detector events. 

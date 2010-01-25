@@ -28,6 +28,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.io.Streaming;
 
 import org.apache.log4j.Logger;
 
@@ -106,6 +107,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     private Timer gossipTimer_;
     private InetAddress localEndPoint_;
     private long aVeryLongTime_;
+    private long FatClientTimeout_;
     private Random random_ = new Random();
 
     /* subscribers for interest in EndPointState change */
@@ -123,10 +125,19 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     /* map where key is the endpoint and value is the state associated with the endpoint */
     Map<InetAddress, EndPointState> endPointStateMap_ = new Hashtable<InetAddress, EndPointState>();
 
+    /* map where key is endpoint and value is timestamp when this endpoint was removed from
+     * gossip. We will ignore any gossip regarding these endpoints for Streaming.RING_DELAY time
+     * after removal to prevent nodes from falsely reincarnating during the time when removal
+     * gossip gets propagated to all nodes */
+    Map<InetAddress, Long> justRemovedEndPoints_ = new Hashtable<InetAddress, Long>();
+
     private Gossiper()
     {
         gossipTimer_ = new Timer(false);
+        // 3 days
         aVeryLongTime_ = 259200 * 1000;
+        // 1 hour
+        FatClientTimeout_ = 60 * 60 * 1000;
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
     }
@@ -198,6 +209,18 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     void evictFromMembership(InetAddress endpoint)
     {
         unreachableEndpoints_.remove(endpoint);
+    }
+
+    /**
+     * Removes the endpoint completely from Gossip
+     */
+    public void removeEndPoint(InetAddress endpoint)
+    {
+        liveEndpoints_.remove(endpoint);
+        unreachableEndpoints_.remove(endpoint);
+        endPointStateMap_.remove(endpoint);
+        FailureDetector.instance.remove(endpoint);
+        justRemovedEndPoints_.put(endpoint, System.currentTimeMillis());
     }
 
     /**
@@ -354,8 +377,9 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     void doStatusCheck()
     {
-        Set<InetAddress> eps = endPointStateMap_.keySet();
+        long now = System.currentTimeMillis();
 
+        Set<InetAddress> eps = endPointStateMap_.keySet();
         for ( InetAddress endpoint : eps )
         {
             if ( endpoint.equals(localEndPoint_) )
@@ -365,10 +389,38 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             EndPointState epState = endPointStateMap_.get(endpoint);
             if ( epState != null )
             {
-                long duration = System.currentTimeMillis() - epState.getUpdateTimestamp();
+                long duration = now - epState.getUpdateTimestamp();
+
+                // check if this is a fat client. fat clients are removed automatically from
+                // gosip after FatClientTimeout
+                if (!epState.getHasToken() && !epState.isAlive() && (duration > FatClientTimeout_))
+                {
+                    if (StorageService.instance.getTokenMetadata().isMember(endpoint))
+                        epState.setHasToken(true);
+                    else
+                    {
+                        logger_.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout_ + "ms, removing from gossip");
+                        removeEndPoint(endpoint);
+                    }
+                }
+
                 if ( !epState.isAlive() && (duration > aVeryLongTime_) )
                 {
                     evictFromMembership(endpoint);
+                }
+            }
+
+            if (!justRemovedEndPoints_.isEmpty())
+            {
+                Hashtable<InetAddress, Long> copy = new Hashtable<InetAddress, Long>(justRemovedEndPoints_);
+                for (Map.Entry<InetAddress, Long> entry : copy.entrySet())
+                {
+                    if ((now - entry.getValue()) > Streaming.RING_DELAY)
+                    {
+                        if (logger_.isDebugEnabled())
+                            logger_.debug(Streaming.RING_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
+                        justRemovedEndPoints_.remove(entry.getKey());
+                    }
                 }
             }
         }
@@ -520,6 +572,8 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     private void handleNewJoin(InetAddress ep, EndPointState epState)
     {
+        if (justRemovedEndPoints_.containsKey(ep))
+            return;
     	logger_.info("Node " + ep + " is now part of the cluster");
         handleMajorStateChange(ep, epState, false);
     }

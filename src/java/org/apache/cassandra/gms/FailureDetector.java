@@ -157,6 +157,11 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             }
         }        
     }
+
+    public void remove(InetAddress ep)
+    {
+        arrivalSamples_.remove(ep);
+    }
     
     public void registerFailureDetectionEventListener(IFailureDetectionEventListener listener)
     {

@@ -533,18 +533,36 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             // if we're here, endPoint is not leaving but broadcasting remove token command
             assert (typeOfState.equals(REMOVE_TOKEN));
             InetAddress endPointThatLeft = tokenMetadata_.getEndPoint(token);
+            // let's make sure that we're not removing ourselves. This can happen when a node
+            // enters ring as a replacement for a removed node. removeToken for the old node is
+            // still in gossip, so we will see it.
+            if (endPointThatLeft.equals(FBUtilities.getLocalAddress()))
+            {
+                logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
+                return;
+            }
             if (logger_.isDebugEnabled())
                 logger_.debug("Token " + token + " removed manually (endpoint was " + ((endPointThatLeft == null) ? "unknown" : endPointThatLeft) + ")");
             if (endPointThatLeft != null)
             {
-                restoreReplicaCount(endPointThatLeft);
-                tokenMetadata_.removeEndpoint(endPointThatLeft);
+                removeEndPointLocally(endPointThatLeft);
             }
         }
 
         // remove token from bootstrap tokens just in case it is still there
         tokenMetadata_.removeBootstrapToken(token);
         calculatePendingRanges();
+    }
+
+    /**
+     * endPoint was completely removed from ring (as a result of removetoken command). Remove it
+     * from token metadata and gossip and restore replica count.
+     */
+    private void removeEndPointLocally(InetAddress endPoint)
+    {
+        restoreReplicaCount(endPoint);
+        Gossiper.instance.removeEndPoint(endPoint);
+        tokenMetadata_.removeEndpoint(endPoint);
     }
 
     /**
@@ -1378,13 +1396,15 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         InetAddress endPoint = tokenMetadata_.getEndPoint(token);
         if (endPoint != null)
         {
+            if (endPoint.equals(FBUtilities.getLocalAddress()))
+                throw new UnsupportedOperationException("Cannot remove node's own token");
+
             // Let's make sure however that we're not removing a live
             // token (member)
             if (Gossiper.instance.getLiveMembers().contains(endPoint))
                 throw new UnsupportedOperationException("Node " + endPoint + " is alive and owns this token. Use decommission command to remove it from the ring");
 
-            restoreReplicaCount(endPoint);
-            tokenMetadata_.removeEndpoint(endPoint);
+            removeEndPointLocally(endPoint);
             calculatePendingRanges();
         }
 
