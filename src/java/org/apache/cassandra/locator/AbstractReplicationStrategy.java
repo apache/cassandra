@@ -29,7 +29,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.service.ConsistencyLevel;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -110,6 +112,9 @@ public abstract class AbstractReplicationStrategy
         Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
         Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
 
+        IEndPointSnitch endPointSnitch = StorageService.instance.getEndPointSnitch();
+        Set<InetAddress> liveNodes = Gossiper.instance.getLiveMembers();
+
         for (InetAddress ep : targets)
         {
             if (FailureDetector.instance.isAlive(ep))
@@ -119,25 +124,21 @@ public abstract class AbstractReplicationStrategy
             }
             else
             {
+                // Ignore targets that have died when bootstrapping
+                if (!tokenMetadata_.isMember(ep))
+                    continue;
+
                 // find another endpoint to store a hint on.  prefer endpoints that aren't already in use
                 InetAddress hintLocation = null;
-                List tokens = tokenMetadata_.sortedTokens();
-                Token token = tokenMetadata_.getToken(ep);
-                int index = Collections.binarySearch(tokens, token);
-                if (index < 0)
+                List<InetAddress> preferred = endPointSnitch.getSortedListByProximity(ep, liveNodes);
+
+                for (InetAddress hintCandidate : preferred)
                 {
-                    index = (index + 1) * (-1);
-                    if (index >= tokens.size()) // handle wrap
-                        index = 0;
-                }
-                int totalNodes = tokens.size();
-                int startIndex = (index + 1) % totalNodes;
-                for (int i = startIndex, count = 1; count < totalNodes; ++count, i = (i + 1) % totalNodes)
-                {
-                    InetAddress tmpEndPoint = tokenMetadata_.getEndPoint((Token) tokens.get(i));
-                    if (FailureDetector.instance.isAlive(tmpEndPoint) && !targets.contains(tmpEndPoint) && !usedEndpoints.contains(tmpEndPoint))
+                    if (!targets.contains(hintCandidate)
+                        && !usedEndpoints.contains(hintCandidate)
+                        && tokenMetadata_.isMember(hintCandidate))
                     {
-                        hintLocation = tmpEndPoint;
+                        hintLocation = hintCandidate;
                         break;
                     }
                 }

@@ -35,6 +35,7 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
@@ -165,10 +166,10 @@ public class Table
             return FBUtilities.mapToString(tableMetadataMap);
         }
     }
-    
-    /* Used to lock the factory for creation of Table instance */
-    private static final Lock createLock = new ReentrantLock();
-    private static final Map<String, Table> instances = new HashMap<String, Table>();
+
+    /** Table objects, one per keyspace.  only one instance should ever exist for any given keyspace. */
+    private static final Map<String, Table> instances = new NonBlockingHashMap<String, Table>();
+
     /* Table name. */
     public final String name;
     /* Handle to the Table Metadata */
@@ -181,25 +182,18 @@ public class Table
     public static Table open(String table) throws IOException
     {
         Table tableInstance = instances.get(table);
-        /*
-         * Read the config and figure the column families for this table.
-         * Set the isConfigured flag so that we do not read config all the
-         * time.
-        */
         if (tableInstance == null)
         {
-            Table.createLock.lock();
-            try
+            // instantiate the Table.  we could use putIfAbsent but it's important to making sure it is only done once
+            // per keyspace, so we synchronize and re-check before doing it.
+            synchronized (Table.class)
             {
+                tableInstance = instances.get(table);
                 if (tableInstance == null)
                 {
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
                 }
-            }
-            finally
-            {
-                createLock.unlock();
             }
         }
         return tableInstance;
