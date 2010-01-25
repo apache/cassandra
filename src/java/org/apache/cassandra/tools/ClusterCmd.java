@@ -32,8 +32,10 @@ import org.apache.commons.cli.PosixParser;
  * JMX cluster wide operations for Cassandra.
  */
 public class ClusterCmd {
-    private static final String HOST_OPTION = "host";
-    private static final String PORT_OPTION = "port";
+    private static final String HOST_OPT_LONG = "host";
+    private static final String HOST_OPT_SHORT = "h";
+    private static final String PORT_OPT_LONG = "port";
+    private static final String PORT_OPT_SHORT = "p";
     private static final int defaultPort = 8080;
     private static Options options = null;
     private CommandLine cmd = null;
@@ -44,10 +46,10 @@ public class ClusterCmd {
     static
     {
         options = new Options();
-        Option optHost = new Option(HOST_OPTION, true, "node hostname or ip address");
+        Option optHost = new Option(HOST_OPT_SHORT, HOST_OPT_LONG, true, "node hostname or ip address");
         optHost.setRequired(true);
         options.addOption(optHost);
-        options.addOption(PORT_OPTION, true, "remote jmx agent port number");
+        options.addOption(PORT_OPT_SHORT, PORT_OPT_LONG, true, "remote jmx agent port number");
     }
 
     /**
@@ -60,9 +62,9 @@ public class ClusterCmd {
     private ClusterCmd(String[] cmdArgs) throws ParseException, IOException, InterruptedException
     {
         parseArgs(cmdArgs);
-        this.host = cmd.getOptionValue(HOST_OPTION);
+        this.host = cmd.getOptionValue(HOST_OPT_SHORT);
 
-        String portNum = cmd.getOptionValue(PORT_OPTION);
+        String portNum = cmd.getOptionValue(PORT_OPT_SHORT);
         if (portNum != null)
         {
             try
