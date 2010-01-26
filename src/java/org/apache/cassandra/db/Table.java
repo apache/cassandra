@@ -204,9 +204,9 @@ public class Table
         return tableMetadata.getColumnFamilies();
     }
 
-    Map<String, ColumnFamilyStore> getColumnFamilyStores()
+    Collection<ColumnFamilyStore> getColumnFamilyStores()
     {
-        return columnFamilyStores;
+        return Collections.unmodifiableCollection(columnFamilyStores.values());
     }
 
     public ColumnFamilyStore getColumnFamilyStore(String cfName)

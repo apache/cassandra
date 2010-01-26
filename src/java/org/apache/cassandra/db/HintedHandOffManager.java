@@ -116,7 +116,7 @@ public class HintedHandOffManager
 
         Table table = Table.open(tableName);
         RowMutation rm = new RowMutation(tableName, key);
-        for (ColumnFamilyStore cfstore : table.getColumnFamilyStores().values())
+        for (ColumnFamilyStore cfstore : table.getColumnFamilyStores())
         {
             ColumnFamily cf = cfstore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfstore.getColumnFamilyName())));
             if (cf != null)

@@ -564,7 +564,7 @@ public class CompactionManager implements CompactionManagerMBean
         // perform estimates
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores().values())
+            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores())
             {
                 Runnable runnable = new Runnable()
                 {
@@ -583,7 +583,7 @@ public class CompactionManager implements CompactionManagerMBean
         // bog down the executor in actual compactions.
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores().values())
+            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores())
             {
                 submitMinorIfNeeded(cfs);
             }
