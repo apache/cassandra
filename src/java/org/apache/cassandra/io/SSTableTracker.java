@@ -34,25 +34,41 @@ public class SSTableTracker implements Iterable<SSTableReader>
         this.sstables = Collections.unmodifiableSet(new HashSet<SSTableReader>(sstables));
     }
 
-    public synchronized void add(SSTableReader sstable)
+    public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements) throws IOException
     {
-        assert sstable != null;
-        assert sstable.getIndexPositions() != null;
         Set<SSTableReader> sstablesNew = new HashSet<SSTableReader>(sstables);
-        sstablesNew.add(sstable);
-        sstables = Collections.unmodifiableSet(sstablesNew);
-    }
 
-    // todo replace w/ compactionfinished for CASSANDRA-431
-    public synchronized void markCompacted(Iterable<SSTableReader> compacted) throws IOException
-    {
-        Set<SSTableReader> sstablesNew = new HashSet<SSTableReader>(sstables);
-        for (SSTableReader sstable : compacted)
+        for (SSTableReader sstable : replacements)
+        {
+            assert sstable.getIndexPositions() != null;
+            sstablesNew.add(sstable);
+        }
+
+        for (SSTableReader sstable : oldSSTables)
         {
             sstablesNew.remove(sstable);
             sstable.markCompacted();
         }
+
         sstables = Collections.unmodifiableSet(sstablesNew);
+    }
+
+    public synchronized void add(SSTableReader sstable)
+    {
+        assert sstable != null;
+        try
+        {
+            replace(Collections.<SSTableReader>emptyList(), Arrays.asList(sstable));
+        }
+        catch (IOException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
+    public synchronized void markCompacted(Collection<SSTableReader> compacted) throws IOException
+    {
+        replace(compacted, Collections.<SSTableReader>emptyList());
     }
 
     // the modifiers create new, unmodifiable objects each time; the volatile fences the assignment

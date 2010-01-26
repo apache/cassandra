@@ -616,11 +616,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
             throws IOException
     {
-        for (SSTableReader sstable : replacements)
-        {
-            ssTables_.add(sstable);
-        }
-        ssTables_.markCompacted(sstables);
+        ssTables_.replace(sstables, replacements);
     }
 
     public static List<Memtable> getUnflushedMemtables(String cfName)
