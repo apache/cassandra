@@ -14,6 +14,7 @@ dev
  * present a useful measure of compaction progress in JMX (CASSANDRA-599)
  * add bin/sstablekeys (CASSNADRA-679)
  * add ConsistencyLevel.ANY (CASSANDRA-687)
+ * make removetoken remove nodes from gossip entirely (CASSANDRA-644)
 
 
 0.5.1
