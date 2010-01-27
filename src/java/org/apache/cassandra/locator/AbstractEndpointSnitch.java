@@ -25,10 +25,15 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
+/**
+ * An endpoint snitch tells Cassandra information about network topology that it can use to route
+ * requests more efficiently (with "sortByProximity").  Of the abstract methods, isOnSameRack
+ * and isInSameDataCenter are always required; getLocation is only used by DatacenterShardStrategy.
+ */
 public abstract class AbstractEndpointSnitch implements IEndPointSnitch
 {
     /**
-     * Helps determine if 2 nodes are in the same rack in the data center.
+     * Determines if 2 nodes are in the same rack in the data center.
      * @param host a specified endpoint
      * @param host2 another specified endpoint
      * @return true if on the same rack false otherwise
@@ -37,7 +42,7 @@ public abstract class AbstractEndpointSnitch implements IEndPointSnitch
     abstract public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException;
 
     /**
-     * Helps determine if 2 nodes are in the same data center.
+     * Determines if 2 nodes are in the same data center.
      * @param host a specified endpoint
      * @param host2 another specified endpoint
      * @return true if in the same data center false otherwise
@@ -46,7 +51,9 @@ public abstract class AbstractEndpointSnitch implements IEndPointSnitch
     abstract public boolean isInSameDataCenter(InetAddress host, InetAddress host2) throws UnknownHostException;
 
     /**
-     * Given endpoints this method will help us know the datacenter name where the node is located at.
+     * Determines the name of the datacenter this endpoint lives in.
+     * @param endpoint
+     * @return the name of the datacenter the endpoint lives in
      */
     abstract public String getLocation(InetAddress endpoint) throws UnknownHostException;
 

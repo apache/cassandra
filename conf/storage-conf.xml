@@ -158,9 +158,10 @@
 
   <!--
    ~ EndPointSnitch: Setting this to the class that implements
-   ~ IEndPointSnitch which will see if two endpoints are in the same data
-   ~ center or on the same rack. Out of the box, Cassandra provides
-   ~ org.apache.cassandra.locator.EndPointSnitch
+   ~ AbstractEndpointSnitch, which lets Cassandra know enough
+   ~ about your network topology to route requests efficiently.
+   ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
+   ~ and PropertyFileEndPointSnitch is available in contrib/.
   -->
   <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
 

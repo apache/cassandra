@@ -22,6 +22,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
+/**
+ * A simple endpoint snitch implementation that assumes rack and dc information is encoded
+ * in the ip address.
+ */
 public class EndPointSnitch extends AbstractEndpointSnitch
 {
     public boolean isOnSameRack(InetAddress host, InetAddress host2) throws UnknownHostException
