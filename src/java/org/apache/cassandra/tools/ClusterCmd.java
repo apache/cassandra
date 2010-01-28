@@ -19,6 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.net.InetAddress;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -138,7 +139,7 @@ public class ClusterCmd {
     {
         HelpFormatter hf = new HelpFormatter();
         String header = String.format(
-                "%nAvailable commands: get_endpoints [key]");
+                "%nAvailable commands: get_endpoints [key], global_snapshot [name], clear_global_snapshot");
         String usage = String.format("java %s -host <arg> <command>%n", ClusterCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -150,15 +151,83 @@ public class ClusterCmd {
         System.out.println(String.format("%-17s: %s", "Endpoints", endpoints));
     }
 
+     /**
+     * Take a snapshot of all tables on all (live) nodes in the cluster
+     *
+     * @param snapshotName name of the snapshot
+     */
+    public void takeGlobalSnapshot(String snapshotName) throws IOException, InterruptedException
+    {
+        Set<String> liveNodes = probe.getLiveNodes();
+        try
+        {
+            probe.takeSnapshot(snapshotName);
+            System.out.println(host + " snapshot taken");
+        }
+        catch (IOException e)
+        {
+            System.out.println(host + " snapshot FAILED: " + e.getMessage());
+        }
+
+        liveNodes.remove(this.host);
+        for (String liveNode : liveNodes)
+        {
+            try
+            {
+                this.host = liveNode;
+                probe = new NodeProbe(host, port);
+                probe.takeSnapshot(snapshotName);
+                System.out.println(host + " snapshot taken");
+            }
+            catch (IOException e)
+            {
+                System.out.println(host + " snapshot FAILED: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Remove all the existing snapshots from all (live) nodes in the cluster
+     */
+    public void clearGlobalSnapshot() throws IOException, InterruptedException
+    {
+        Set<String> liveNodes = probe.getLiveNodes();
+        try
+        {
+            probe.clearSnapshot();
+            System.out.println(host + " snapshot cleared");
+        }
+        catch (IOException e)
+        {
+            System.out.println(host + " snapshot clear FAILED: " + e.getMessage());
+        }
+
+        liveNodes.remove(this.host);
+        for (String liveNode : liveNodes)
+        {
+            try
+            {
+                this.host = liveNode;
+                probe = new NodeProbe(host, port);
+                probe.clearSnapshot();
+                System.out.println(host + " snapshot cleared");
+            }
+            catch (IOException e)
+            {
+                System.out.println(host + " snapshot clear FAILED: " + e.getMessage());
+            }
+        }
+    }
+
     /**
      * @param args
      */
     public static void main(String[] args) throws IOException, InterruptedException
     {
-        ClusterCmd probe = null;
+        ClusterCmd clusterCmd = null;
         try
         {
-            probe = new ClusterCmd(args);
+            clusterCmd = new ClusterCmd(args);
         }
         catch (ParseException pe)
         {
@@ -173,7 +242,7 @@ public class ClusterCmd {
             System.exit(3);
         }
 
-        if (probe.getArgs().length < 1)
+        if (clusterCmd.getArgs().length < 1)
         {
             System.err.println("Missing argument for command.");
             ClusterCmd.printUsage();
@@ -181,7 +250,7 @@ public class ClusterCmd {
         }
 
         // Execute the requested command.
-        String[] arguments = probe.getArgs();
+        String[] arguments = clusterCmd.getArgs();
         String cmdName = arguments[0];
         if (cmdName.equals("get_endpoints"))
         {
@@ -189,7 +258,20 @@ public class ClusterCmd {
             {
                 System.err.println("missing key argument");
             }
-            probe.printEndPoints(arguments[1]);
+            clusterCmd.printEndPoints(arguments[1]);
+        }
+	else if (cmdName.equals("global_snapshot"))
+	{
+            String snapshotName = "";
+            if (arguments.length > 1)
+            {
+                snapshotName = arguments[1];
+            }
+	    clusterCmd.takeGlobalSnapshot(snapshotName);
+	}
+        else if (cmdName.equals("clear_global_snapshot"))
+        {
+            clusterCmd.clearGlobalSnapshot();
         }
         else
         {
