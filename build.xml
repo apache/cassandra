@@ -189,6 +189,7 @@
             <src path="${build.src}"/>
             <src path="${build.src.gen-java}"/>
             <src path="${interface.src.dir}"/>
+            <src path="${interface.avro.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
 
