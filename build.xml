@@ -57,7 +57,7 @@
     <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
 
     <condition property="ivy.jar.exists">
-      <available file="${build.lib}/ivy-${ivy.version}.jar" />
+      <available file="${build.dir}/ivy-${ivy.version}.jar" />
     </condition>
 
     <!-- 
@@ -72,6 +72,7 @@
         <fileset dir="${build.dir.lib}">
           <include name="**/*.jar" />
         </fileset>
+        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
     </path>
 
     <!--
@@ -85,11 +86,16 @@
     </target>
 
     <target name="clean">
-        <delete dir="${build.dir}" />
+        <delete dir="${build.test.dir}" />
+        <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${interface.avro.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
+
+    <target name="realclean" depends="clean">
+        <delete dir="${build.dir}" />
+    </target>
 
     <!--
        This generates the CLI grammar files from Cli.g
@@ -114,7 +120,7 @@
     <target name="ivy-download" unless="ivy.jar.exists" depends="init">
       <echo>Downloading Ivy...</echo>
       <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
-           dest="${build.dir}/lib/ivy-${ivy.version}.jar" usetimestamp="true" />
+           dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
     </target>
 
     <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
@@ -129,8 +135,13 @@
                     pattern="${build.dir.lib}/[artifact]-[revision].[ext]" />
     </target>
 
-    <!-- Generate -->
-    <target name="generate" depends="init">
+    <!--
+       Generate avro code
+    -->
+    <target name="check-avro-generate">
+        <uptodate property="avroUpToDate"
+                  srcfile="${interface.dir}/cassandra.avpr"
+                  targetfile="${interface.avro.dir}/org/apache/cassandra/avro/Cassandra.java" />
       <taskdef name="protocol"
                classname="org.apache.avro.specific.ProtocolTask">
         <classpath refid="cassandra.classpath" />
@@ -142,7 +153,10 @@
           classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
         <classpath refid="cassandra.classpath" />
       </taskdef>
-  
+    </target>
+    <target name="avro-generate" unless="avroUpToDate"
+            depends="init,check-avro-generate">
+      <echo>Generating avro code...</echo>
       <protocol destdir="${interface.avro.dir}">
         <fileset dir="${interface.dir}">
           <include name="**/*.avpr" />
@@ -156,6 +170,9 @@
       </schema>
     </target>
 
+    <!--
+       Generate thrift code
+    -->
     <target name="gen-thrift-java">
       <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
@@ -185,16 +202,16 @@
 	The build target builds all the .class files
     -->
     <target name="build"
-            depends="ivy-retrieve,generate,build-subprojects,build-project"/>
+        depends="ivy-retrieve,avro-generate,build-subprojects,build-project"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	
-    <target depends="init,gen-cli-grammar" name="build-project">
+    <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${interface.thrift.dir}"/>
+            <src path="${interface.thrift.dir}/gen-java"/>
             <src path="${interface.avro.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
