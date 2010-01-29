@@ -114,11 +114,11 @@ launch_service()
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
         $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props \
-                org.apache.cassandra.service.CassandraDaemon
+                org.apache.cassandra.thrift.CassandraDaemon
     # Startup CassandraDaemon, background it, and write the pid.
     else
         exec $JAVA $JVM_OPTS $cassandra_parms -cp $CLASSPATH $props \
-                    org.apache.cassandra.service.CassandraDaemon <&- &
+                    org.apache.cassandra.thrift.CassandraDaemon <&- &
         [ ! -z $pidpath ] && printf "%d" $! > $pidpath
     fi
 

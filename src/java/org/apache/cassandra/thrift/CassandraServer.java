@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
@@ -35,9 +35,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
 
-import static org.apache.cassandra.service.ThriftGlue.*;
+import static org.apache.cassandra.thrift.ThriftGlue.*;
 
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.Cassandra.Iface;
 import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
 import org.json.simple.JSONValue;

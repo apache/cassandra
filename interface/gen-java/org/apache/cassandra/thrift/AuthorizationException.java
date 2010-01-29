@@ -3,7 +3,7 @@
  *
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -24,16 +24,18 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * RPC timeout was exceeded.  either a node failed mid-operation, or load was too high, or the requested op was too large.
+ * invalid authorization request (user does not have access to keyspace)
  */
-public class TimedOutException extends Exception implements TBase<TimedOutException._Fields>, java.io.Serializable, Cloneable, Comparable<TimedOutException> {
-  private static final TStruct STRUCT_DESC = new TStruct("TimedOutException");
+public class AuthorizationException extends Exception implements TBase<AuthorizationException._Fields>, java.io.Serializable, Cloneable, Comparable<AuthorizationException> {
+  private static final TStruct STRUCT_DESC = new TStruct("AuthorizationException");
 
+  private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
 
+  public String why;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
-;
+    WHY((short)1, "why");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -85,33 +87,80 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
       return _fieldName;
     }
   }
+
+  // isset id assignments
+
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+    put(_Fields.WHY, new FieldMetaData("why", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(TimedOutException.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(AuthorizationException.class, metaDataMap);
   }
 
-  public TimedOutException() {
+  public AuthorizationException() {
+  }
+
+  public AuthorizationException(
+    String why)
+  {
+    this();
+    this.why = why;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public TimedOutException(TimedOutException other) {
+  public AuthorizationException(AuthorizationException other) {
+    if (other.isSetWhy()) {
+      this.why = other.why;
+    }
   }
 
-  public TimedOutException deepCopy() {
-    return new TimedOutException(this);
+  public AuthorizationException deepCopy() {
+    return new AuthorizationException(this);
   }
 
   @Deprecated
-  public TimedOutException clone() {
-    return new TimedOutException(this);
+  public AuthorizationException clone() {
+    return new AuthorizationException(this);
+  }
+
+  public String getWhy() {
+    return this.why;
+  }
+
+  public AuthorizationException setWhy(String why) {
+    this.why = why;
+    return this;
+  }
+
+  public void unsetWhy() {
+    this.why = null;
+  }
+
+  /** Returns true if field why is set (has been asigned a value) and false otherwise */
+  public boolean isSetWhy() {
+    return this.why != null;
+  }
+
+  public void setWhyIsSet(boolean value) {
+    if (!value) {
+      this.why = null;
+    }
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
+    case WHY:
+      if (value == null) {
+        unsetWhy();
+      } else {
+        setWhy((String)value);
+      }
+      break;
+
     }
   }
 
@@ -121,6 +170,9 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
+    case WHY:
+      return getWhy();
+
     }
     throw new IllegalStateException();
   }
@@ -132,6 +184,8 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     switch (field) {
+    case WHY:
+      return isSetWhy();
     }
     throw new IllegalStateException();
   }
@@ -144,14 +198,23 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof TimedOutException)
-      return this.equals((TimedOutException)that);
+    if (that instanceof AuthorizationException)
+      return this.equals((AuthorizationException)that);
     return false;
   }
 
-  public boolean equals(TimedOutException that) {
+  public boolean equals(AuthorizationException that) {
     if (that == null)
       return false;
+
+    boolean this_present_why = true && this.isSetWhy();
+    boolean that_present_why = true && that.isSetWhy();
+    if (this_present_why || that_present_why) {
+      if (!(this_present_why && that_present_why))
+        return false;
+      if (!this.why.equals(that.why))
+        return false;
+    }
 
     return true;
   }
@@ -161,14 +224,22 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
     return 0;
   }
 
-  public int compareTo(TimedOutException other) {
+  public int compareTo(AuthorizationException other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    TimedOutException typedOther = (TimedOutException)other;
+    AuthorizationException typedOther = (AuthorizationException)other;
 
+    lastComparison = Boolean.valueOf(isSetWhy()).compareTo(isSetWhy());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    lastComparison = TBaseHelper.compareTo(why, typedOther.why);
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
     return 0;
   }
 
@@ -186,6 +257,13 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
         TProtocolUtil.skip(iprot, field.type);
       } else {
         switch (fieldId) {
+          case WHY:
+            if (field.type == TType.STRING) {
+              this.why = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
         }
         iprot.readFieldEnd();
       }
@@ -200,21 +278,36 @@ public class TimedOutException extends Exception implements TBase<TimedOutExcept
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
+    if (this.why != null) {
+      oprot.writeFieldBegin(WHY_FIELD_DESC);
+      oprot.writeString(this.why);
+      oprot.writeFieldEnd();
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("TimedOutException(");
+    StringBuilder sb = new StringBuilder("AuthorizationException(");
     boolean first = true;
 
+    sb.append("why:");
+    if (this.why == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.why);
+    }
+    first = false;
     sb.append(")");
     return sb.toString();
   }
 
   public void validate() throws TException {
     // check for required fields
+    if (why == null) {
+      throw new TProtocolException("Required field 'why' was not present! Struct: " + toString());
+    }
   }
 
 }

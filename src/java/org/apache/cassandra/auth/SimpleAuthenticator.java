@@ -6,6 +6,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
 
 public class SimpleAuthenticator implements IAuthenticator
 {

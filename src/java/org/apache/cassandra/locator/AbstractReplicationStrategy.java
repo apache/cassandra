@@ -28,10 +28,10 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.service.ConsistencyLevel;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**

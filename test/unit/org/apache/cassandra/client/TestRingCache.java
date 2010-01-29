@@ -20,11 +20,13 @@ package org.apache.cassandra.client;
 import java.net.InetAddress;
 import java.util.List;
 
-import org.apache.cassandra.service.Cassandra;
-import org.apache.cassandra.service.Column;
-import org.apache.cassandra.service.ColumnPath;
-import org.apache.cassandra.service.ConsistencyLevel;
-import static org.apache.cassandra.service.ThriftGlue.createColumnPath;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnPath;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;

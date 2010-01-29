@@ -37,6 +37,8 @@ import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.io.SSTableReader;
@@ -1192,7 +1194,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         throw new UnavailableException(); // no nodes that could contain key are alive
     }
 
-    Map<String, String> getStringEndpointMap()
+    public Map<String, String> getStringEndpointMap()
     {
         HashMap<String, String> map = new HashMap<String, String>();
         for (Token t : tokenMetadata_.sortedTokens())

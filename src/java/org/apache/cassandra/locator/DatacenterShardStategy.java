@@ -31,6 +31,7 @@ import java.util.Map.Entry;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 
 /**
  * This Stategy is little diffrent than the Rack aware Statergy. If there is

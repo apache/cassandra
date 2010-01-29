@@ -3,7 +3,7 @@
  *
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -24,19 +24,16 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * Invalid request could mean keyspace or column family does not exist, required parameters are missing, or a parameter is malformed.
- * why contains an associated error message.
+ * RPC timeout was exceeded.  either a node failed mid-operation, or load was too high, or the requested op was too large.
  */
-public class InvalidRequestException extends Exception implements TBase<InvalidRequestException._Fields>, java.io.Serializable, Cloneable, Comparable<InvalidRequestException> {
-  private static final TStruct STRUCT_DESC = new TStruct("InvalidRequestException");
+public class TimedOutException extends Exception implements TBase<TimedOutException._Fields>, java.io.Serializable, Cloneable, Comparable<TimedOutException> {
+  private static final TStruct STRUCT_DESC = new TStruct("TimedOutException");
 
-  private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
 
-  public String why;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
-    WHY((short)1, "why");
+;
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -88,80 +85,33 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
       return _fieldName;
     }
   }
-
-  // isset id assignments
-
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.WHY, new FieldMetaData("why", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.STRING)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(InvalidRequestException.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(TimedOutException.class, metaDataMap);
   }
 
-  public InvalidRequestException() {
-  }
-
-  public InvalidRequestException(
-    String why)
-  {
-    this();
-    this.why = why;
+  public TimedOutException() {
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public InvalidRequestException(InvalidRequestException other) {
-    if (other.isSetWhy()) {
-      this.why = other.why;
-    }
+  public TimedOutException(TimedOutException other) {
   }
 
-  public InvalidRequestException deepCopy() {
-    return new InvalidRequestException(this);
+  public TimedOutException deepCopy() {
+    return new TimedOutException(this);
   }
 
   @Deprecated
-  public InvalidRequestException clone() {
-    return new InvalidRequestException(this);
-  }
-
-  public String getWhy() {
-    return this.why;
-  }
-
-  public InvalidRequestException setWhy(String why) {
-    this.why = why;
-    return this;
-  }
-
-  public void unsetWhy() {
-    this.why = null;
-  }
-
-  /** Returns true if field why is set (has been asigned a value) and false otherwise */
-  public boolean isSetWhy() {
-    return this.why != null;
-  }
-
-  public void setWhyIsSet(boolean value) {
-    if (!value) {
-      this.why = null;
-    }
+  public TimedOutException clone() {
+    return new TimedOutException(this);
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
-    case WHY:
-      if (value == null) {
-        unsetWhy();
-      } else {
-        setWhy((String)value);
-      }
-      break;
-
     }
   }
 
@@ -171,9 +121,6 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
-    case WHY:
-      return getWhy();
-
     }
     throw new IllegalStateException();
   }
@@ -185,8 +132,6 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     switch (field) {
-    case WHY:
-      return isSetWhy();
     }
     throw new IllegalStateException();
   }
@@ -199,23 +144,14 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof InvalidRequestException)
-      return this.equals((InvalidRequestException)that);
+    if (that instanceof TimedOutException)
+      return this.equals((TimedOutException)that);
     return false;
   }
 
-  public boolean equals(InvalidRequestException that) {
+  public boolean equals(TimedOutException that) {
     if (that == null)
       return false;
-
-    boolean this_present_why = true && this.isSetWhy();
-    boolean that_present_why = true && that.isSetWhy();
-    if (this_present_why || that_present_why) {
-      if (!(this_present_why && that_present_why))
-        return false;
-      if (!this.why.equals(that.why))
-        return false;
-    }
 
     return true;
   }
@@ -225,22 +161,14 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     return 0;
   }
 
-  public int compareTo(InvalidRequestException other) {
+  public int compareTo(TimedOutException other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    InvalidRequestException typedOther = (InvalidRequestException)other;
+    TimedOutException typedOther = (TimedOutException)other;
 
-    lastComparison = Boolean.valueOf(isSetWhy()).compareTo(isSetWhy());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(why, typedOther.why);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
     return 0;
   }
 
@@ -258,13 +186,6 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
         TProtocolUtil.skip(iprot, field.type);
       } else {
         switch (fieldId) {
-          case WHY:
-            if (field.type == TType.STRING) {
-              this.why = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
         }
         iprot.readFieldEnd();
       }
@@ -279,36 +200,21 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.why != null) {
-      oprot.writeFieldBegin(WHY_FIELD_DESC);
-      oprot.writeString(this.why);
-      oprot.writeFieldEnd();
-    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("InvalidRequestException(");
+    StringBuilder sb = new StringBuilder("TimedOutException(");
     boolean first = true;
 
-    sb.append("why:");
-    if (this.why == null) {
-      sb.append("null");
-    } else {
-      sb.append(this.why);
-    }
-    first = false;
     sb.append(")");
     return sb.toString();
   }
 
   public void validate() throws TException {
     // check for required fields
-    if (why == null) {
-      throw new TProtocolException("Required field 'why' was not present! Struct: " + toString());
-    }
   }
 
 }

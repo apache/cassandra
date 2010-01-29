@@ -1,4 +1,4 @@
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -30,7 +30,7 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
-import static org.apache.cassandra.service.ThriftGlue.*;
+import static org.apache.cassandra.thrift.ThriftGlue.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 

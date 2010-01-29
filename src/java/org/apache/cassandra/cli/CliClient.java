@@ -23,9 +23,21 @@ import org.apache.thrift.*;
 
 import org.antlr.runtime.tree.*;
 
-import static org.apache.cassandra.service.ThriftGlue.*;
+import static org.apache.cassandra.thrift.ThriftGlue.*;
 
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.NotFoundException;
+import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.thrift.SuperColumn;
+import org.apache.cassandra.thrift.TimedOutException;
+import org.apache.cassandra.thrift.UnavailableException;
 
 import java.util.*;
 import java.io.UnsupportedEncodingException;

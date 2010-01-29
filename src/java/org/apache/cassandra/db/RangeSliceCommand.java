@@ -38,14 +38,14 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.concurrent.StageManager;
 
-import static org.apache.cassandra.service.ThriftGlue.createColumnParent;
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnParent;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.ColumnParent;
-import org.apache.cassandra.service.SlicePredicate;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;

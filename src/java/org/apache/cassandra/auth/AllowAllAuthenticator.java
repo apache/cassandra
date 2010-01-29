@@ -1,8 +1,8 @@
 package org.apache.cassandra.auth;
 
-import org.apache.cassandra.service.AuthenticationException;
-import org.apache.cassandra.service.AuthenticationRequest;
-import org.apache.cassandra.service.AuthorizationException;
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
 
 public class AllowAllAuthenticator implements IAuthenticator
 {

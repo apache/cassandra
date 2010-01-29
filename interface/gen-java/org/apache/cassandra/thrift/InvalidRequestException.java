@@ -3,7 +3,7 @@
  *
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -24,10 +24,11 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * invalid authentication request (user does not exist or credentials invalid)
+ * Invalid request could mean keyspace or column family does not exist, required parameters are missing, or a parameter is malformed.
+ * why contains an associated error message.
  */
-public class AuthenticationException extends Exception implements TBase<AuthenticationException._Fields>, java.io.Serializable, Cloneable, Comparable<AuthenticationException> {
-  private static final TStruct STRUCT_DESC = new TStruct("AuthenticationException");
+public class InvalidRequestException extends Exception implements TBase<InvalidRequestException._Fields>, java.io.Serializable, Cloneable, Comparable<InvalidRequestException> {
+  private static final TStruct STRUCT_DESC = new TStruct("InvalidRequestException");
 
   private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
 
@@ -96,13 +97,13 @@ public class AuthenticationException extends Exception implements TBase<Authenti
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(AuthenticationException.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(InvalidRequestException.class, metaDataMap);
   }
 
-  public AuthenticationException() {
+  public InvalidRequestException() {
   }
 
-  public AuthenticationException(
+  public InvalidRequestException(
     String why)
   {
     this();
@@ -112,26 +113,26 @@ public class AuthenticationException extends Exception implements TBase<Authenti
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public AuthenticationException(AuthenticationException other) {
+  public InvalidRequestException(InvalidRequestException other) {
     if (other.isSetWhy()) {
       this.why = other.why;
     }
   }
 
-  public AuthenticationException deepCopy() {
-    return new AuthenticationException(this);
+  public InvalidRequestException deepCopy() {
+    return new InvalidRequestException(this);
   }
 
   @Deprecated
-  public AuthenticationException clone() {
-    return new AuthenticationException(this);
+  public InvalidRequestException clone() {
+    return new InvalidRequestException(this);
   }
 
   public String getWhy() {
     return this.why;
   }
 
-  public AuthenticationException setWhy(String why) {
+  public InvalidRequestException setWhy(String why) {
     this.why = why;
     return this;
   }
@@ -198,12 +199,12 @@ public class AuthenticationException extends Exception implements TBase<Authenti
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof AuthenticationException)
-      return this.equals((AuthenticationException)that);
+    if (that instanceof InvalidRequestException)
+      return this.equals((InvalidRequestException)that);
     return false;
   }
 
-  public boolean equals(AuthenticationException that) {
+  public boolean equals(InvalidRequestException that) {
     if (that == null)
       return false;
 
@@ -224,13 +225,13 @@ public class AuthenticationException extends Exception implements TBase<Authenti
     return 0;
   }
 
-  public int compareTo(AuthenticationException other) {
+  public int compareTo(InvalidRequestException other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    AuthenticationException typedOther = (AuthenticationException)other;
+    InvalidRequestException typedOther = (InvalidRequestException)other;
 
     lastComparison = Boolean.valueOf(isSetWhy()).compareTo(isSetWhy());
     if (lastComparison != 0) {
@@ -289,7 +290,7 @@ public class AuthenticationException extends Exception implements TBase<Authenti
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("AuthenticationException(");
+    StringBuilder sb = new StringBuilder("InvalidRequestException(");
     boolean first = true;
 
     sb.append("why:");

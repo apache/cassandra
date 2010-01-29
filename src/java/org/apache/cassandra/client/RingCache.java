@@ -27,9 +27,9 @@ import org.apache.cassandra.locator.TokenMetadata;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import org.apache.cassandra.service.Cassandra;
-import org.apache.cassandra.service.CassandraServer;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.CassandraServer;
 import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;

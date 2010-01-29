@@ -27,8 +27,8 @@ import java.io.DataInputStream;
 
 import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.service.ColumnParent;
-import org.apache.cassandra.service.ColumnPath;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.db.ColumnSerializer;
 
 public class QueryPath

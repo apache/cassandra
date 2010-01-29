@@ -40,6 +40,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.WrappedRunnable;

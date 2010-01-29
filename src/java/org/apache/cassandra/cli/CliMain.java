@@ -26,7 +26,8 @@ import org.apache.thrift.transport.TFramedTransport;
 import jline.*;
 import java.io.*;
 
-import org.apache.cassandra.service.Cassandra;
+import org.apache.cassandra.thrift.Cassandra;
+
 import static org.apache.cassandra.db.Table.SYSTEM_TABLE;
 
 //

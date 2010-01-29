@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +35,8 @@ import org.apache.thrift.transport.TTransportFactory;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.Cassandra.Processor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.RecoveryManager;

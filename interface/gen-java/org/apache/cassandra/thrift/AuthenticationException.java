@@ -3,7 +3,7 @@
  *
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -24,10 +24,10 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * invalid authorization request (user does not have access to keyspace)
+ * invalid authentication request (user does not exist or credentials invalid)
  */
-public class AuthorizationException extends Exception implements TBase<AuthorizationException._Fields>, java.io.Serializable, Cloneable, Comparable<AuthorizationException> {
-  private static final TStruct STRUCT_DESC = new TStruct("AuthorizationException");
+public class AuthenticationException extends Exception implements TBase<AuthenticationException._Fields>, java.io.Serializable, Cloneable, Comparable<AuthenticationException> {
+  private static final TStruct STRUCT_DESC = new TStruct("AuthenticationException");
 
   private static final TField WHY_FIELD_DESC = new TField("why", TType.STRING, (short)1);
 
@@ -96,13 +96,13 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(AuthorizationException.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(AuthenticationException.class, metaDataMap);
   }
 
-  public AuthorizationException() {
+  public AuthenticationException() {
   }
 
-  public AuthorizationException(
+  public AuthenticationException(
     String why)
   {
     this();
@@ -112,26 +112,26 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public AuthorizationException(AuthorizationException other) {
+  public AuthenticationException(AuthenticationException other) {
     if (other.isSetWhy()) {
       this.why = other.why;
     }
   }
 
-  public AuthorizationException deepCopy() {
-    return new AuthorizationException(this);
+  public AuthenticationException deepCopy() {
+    return new AuthenticationException(this);
   }
 
   @Deprecated
-  public AuthorizationException clone() {
-    return new AuthorizationException(this);
+  public AuthenticationException clone() {
+    return new AuthenticationException(this);
   }
 
   public String getWhy() {
     return this.why;
   }
 
-  public AuthorizationException setWhy(String why) {
+  public AuthenticationException setWhy(String why) {
     this.why = why;
     return this;
   }
@@ -198,12 +198,12 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof AuthorizationException)
-      return this.equals((AuthorizationException)that);
+    if (that instanceof AuthenticationException)
+      return this.equals((AuthenticationException)that);
     return false;
   }
 
-  public boolean equals(AuthorizationException that) {
+  public boolean equals(AuthenticationException that) {
     if (that == null)
       return false;
 
@@ -224,13 +224,13 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
     return 0;
   }
 
-  public int compareTo(AuthorizationException other) {
+  public int compareTo(AuthenticationException other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    AuthorizationException typedOther = (AuthorizationException)other;
+    AuthenticationException typedOther = (AuthenticationException)other;
 
     lastComparison = Boolean.valueOf(isSetWhy()).compareTo(isSetWhy());
     if (lastComparison != 0) {
@@ -289,7 +289,7 @@ public class AuthorizationException extends Exception implements TBase<Authoriza
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("AuthorizationException(");
+    StringBuilder sb = new StringBuilder("AuthenticationException(");
     boolean first = true;
 
     sb.append("why:");

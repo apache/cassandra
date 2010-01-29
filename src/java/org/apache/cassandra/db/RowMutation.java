@@ -37,6 +37,9 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.*;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.Deletion;
+import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -246,7 +249,7 @@ public class RowMutation
                 if (cosc.column == null)
                 {
                     assert cosc.super_column != null;
-                    for (org.apache.cassandra.service.Column column : cosc.super_column.columns)
+                    for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
                     {
                         rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp);
                     }
@@ -281,7 +284,7 @@ public class RowMutation
     {
         if (cosc.column == null)
         {
-            for (org.apache.cassandra.service.Column column : cosc.super_column.columns)
+            for (org.apache.cassandra.thrift.Column column : cosc.super_column.columns)
             {
                 rm.add(new QueryPath(cfName, cosc.super_column.name, column.name), column.value, column.timestamp);
             }

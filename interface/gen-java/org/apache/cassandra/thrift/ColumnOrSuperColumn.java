@@ -3,7 +3,7 @@
  *
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -24,23 +24,28 @@ import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
 /**
- * A Mutation is either an insert, represented by filling column_or_supercolumn, or a deletion, represented by filling the deletion attribute.
- * @param column_or_supercolumn. An insert to a column or supercolumn
- * @param deletion. A deletion of a column or supercolumn
+ * Methods for fetching rows/records from Cassandra will return either a single instance of ColumnOrSuperColumn or a list
+ * of ColumnOrSuperColumns (get_slice()). If you're looking up a SuperColumn (or list of SuperColumns) then the resulting
+ * instances of ColumnOrSuperColumn will have the requested SuperColumn in the attribute super_column. For queries resulting
+ * in Columns, those values will be in the attribute column. This change was made between 0.3 and 0.4 to standardize on
+ * single query methods that may return either a SuperColumn or Column.
+ * 
+ * @param column. The Column returned by get() or get_slice().
+ * @param super_column. The SuperColumn returned by get() or get_slice().
  */
-public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, Cloneable, Comparable<Mutation> {
-  private static final TStruct STRUCT_DESC = new TStruct("Mutation");
+public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn._Fields>, java.io.Serializable, Cloneable, Comparable<ColumnOrSuperColumn> {
+  private static final TStruct STRUCT_DESC = new TStruct("ColumnOrSuperColumn");
 
-  private static final TField COLUMN_OR_SUPERCOLUMN_FIELD_DESC = new TField("column_or_supercolumn", TType.STRUCT, (short)1);
-  private static final TField DELETION_FIELD_DESC = new TField("deletion", TType.STRUCT, (short)2);
+  private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRUCT, (short)1);
+  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRUCT, (short)2);
 
-  public ColumnOrSuperColumn column_or_supercolumn;
-  public Deletion deletion;
+  public Column column;
+  public SuperColumn super_column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
-    COLUMN_OR_SUPERCOLUMN((short)1, "column_or_supercolumn"),
-    DELETION((short)2, "deletion");
+    COLUMN((short)1, "column"),
+    SUPER_COLUMN((short)2, "super_column");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -96,103 +101,103 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
   // isset id assignments
 
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.COLUMN_OR_SUPERCOLUMN, new FieldMetaData("column_or_supercolumn", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, ColumnOrSuperColumn.class)));
-    put(_Fields.DELETION, new FieldMetaData("deletion", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, Deletion.class)));
+    put(_Fields.COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
+        new StructMetaData(TType.STRUCT, Column.class)));
+    put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
+        new StructMetaData(TType.STRUCT, SuperColumn.class)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(Mutation.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(ColumnOrSuperColumn.class, metaDataMap);
   }
 
-  public Mutation() {
+  public ColumnOrSuperColumn() {
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public Mutation(Mutation other) {
-    if (other.isSetColumn_or_supercolumn()) {
-      this.column_or_supercolumn = new ColumnOrSuperColumn(other.column_or_supercolumn);
+  public ColumnOrSuperColumn(ColumnOrSuperColumn other) {
+    if (other.isSetColumn()) {
+      this.column = new Column(other.column);
     }
-    if (other.isSetDeletion()) {
-      this.deletion = new Deletion(other.deletion);
+    if (other.isSetSuper_column()) {
+      this.super_column = new SuperColumn(other.super_column);
     }
   }
 
-  public Mutation deepCopy() {
-    return new Mutation(this);
+  public ColumnOrSuperColumn deepCopy() {
+    return new ColumnOrSuperColumn(this);
   }
 
   @Deprecated
-  public Mutation clone() {
-    return new Mutation(this);
+  public ColumnOrSuperColumn clone() {
+    return new ColumnOrSuperColumn(this);
   }
 
-  public ColumnOrSuperColumn getColumn_or_supercolumn() {
-    return this.column_or_supercolumn;
+  public Column getColumn() {
+    return this.column;
   }
 
-  public Mutation setColumn_or_supercolumn(ColumnOrSuperColumn column_or_supercolumn) {
-    this.column_or_supercolumn = column_or_supercolumn;
+  public ColumnOrSuperColumn setColumn(Column column) {
+    this.column = column;
     return this;
   }
 
-  public void unsetColumn_or_supercolumn() {
-    this.column_or_supercolumn = null;
+  public void unsetColumn() {
+    this.column = null;
   }
 
-  /** Returns true if field column_or_supercolumn is set (has been asigned a value) and false otherwise */
-  public boolean isSetColumn_or_supercolumn() {
-    return this.column_or_supercolumn != null;
+  /** Returns true if field column is set (has been asigned a value) and false otherwise */
+  public boolean isSetColumn() {
+    return this.column != null;
   }
 
-  public void setColumn_or_supercolumnIsSet(boolean value) {
+  public void setColumnIsSet(boolean value) {
     if (!value) {
-      this.column_or_supercolumn = null;
+      this.column = null;
     }
   }
 
-  public Deletion getDeletion() {
-    return this.deletion;
+  public SuperColumn getSuper_column() {
+    return this.super_column;
   }
 
-  public Mutation setDeletion(Deletion deletion) {
-    this.deletion = deletion;
+  public ColumnOrSuperColumn setSuper_column(SuperColumn super_column) {
+    this.super_column = super_column;
     return this;
   }
 
-  public void unsetDeletion() {
-    this.deletion = null;
+  public void unsetSuper_column() {
+    this.super_column = null;
   }
 
-  /** Returns true if field deletion is set (has been asigned a value) and false otherwise */
-  public boolean isSetDeletion() {
-    return this.deletion != null;
+  /** Returns true if field super_column is set (has been asigned a value) and false otherwise */
+  public boolean isSetSuper_column() {
+    return this.super_column != null;
   }
 
-  public void setDeletionIsSet(boolean value) {
+  public void setSuper_columnIsSet(boolean value) {
     if (!value) {
-      this.deletion = null;
+      this.super_column = null;
     }
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
-    case COLUMN_OR_SUPERCOLUMN:
+    case COLUMN:
       if (value == null) {
-        unsetColumn_or_supercolumn();
+        unsetColumn();
       } else {
-        setColumn_or_supercolumn((ColumnOrSuperColumn)value);
+        setColumn((Column)value);
       }
       break;
 
-    case DELETION:
+    case SUPER_COLUMN:
       if (value == null) {
-        unsetDeletion();
+        unsetSuper_column();
       } else {
-        setDeletion((Deletion)value);
+        setSuper_column((SuperColumn)value);
       }
       break;
 
@@ -205,11 +210,11 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
-    case COLUMN_OR_SUPERCOLUMN:
-      return getColumn_or_supercolumn();
+    case COLUMN:
+      return getColumn();
 
-    case DELETION:
-      return getDeletion();
+    case SUPER_COLUMN:
+      return getSuper_column();
 
     }
     throw new IllegalStateException();
@@ -222,10 +227,10 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     switch (field) {
-    case COLUMN_OR_SUPERCOLUMN:
-      return isSetColumn_or_supercolumn();
-    case DELETION:
-      return isSetDeletion();
+    case COLUMN:
+      return isSetColumn();
+    case SUPER_COLUMN:
+      return isSetSuper_column();
     }
     throw new IllegalStateException();
   }
@@ -238,30 +243,30 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof Mutation)
-      return this.equals((Mutation)that);
+    if (that instanceof ColumnOrSuperColumn)
+      return this.equals((ColumnOrSuperColumn)that);
     return false;
   }
 
-  public boolean equals(Mutation that) {
+  public boolean equals(ColumnOrSuperColumn that) {
     if (that == null)
       return false;
 
-    boolean this_present_column_or_supercolumn = true && this.isSetColumn_or_supercolumn();
-    boolean that_present_column_or_supercolumn = true && that.isSetColumn_or_supercolumn();
-    if (this_present_column_or_supercolumn || that_present_column_or_supercolumn) {
-      if (!(this_present_column_or_supercolumn && that_present_column_or_supercolumn))
+    boolean this_present_column = true && this.isSetColumn();
+    boolean that_present_column = true && that.isSetColumn();
+    if (this_present_column || that_present_column) {
+      if (!(this_present_column && that_present_column))
         return false;
-      if (!this.column_or_supercolumn.equals(that.column_or_supercolumn))
+      if (!this.column.equals(that.column))
         return false;
     }
 
-    boolean this_present_deletion = true && this.isSetDeletion();
-    boolean that_present_deletion = true && that.isSetDeletion();
-    if (this_present_deletion || that_present_deletion) {
-      if (!(this_present_deletion && that_present_deletion))
+    boolean this_present_super_column = true && this.isSetSuper_column();
+    boolean that_present_super_column = true && that.isSetSuper_column();
+    if (this_present_super_column || that_present_super_column) {
+      if (!(this_present_super_column && that_present_super_column))
         return false;
-      if (!this.deletion.equals(that.deletion))
+      if (!this.super_column.equals(that.super_column))
         return false;
     }
 
@@ -273,27 +278,27 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
     return 0;
   }
 
-  public int compareTo(Mutation other) {
+  public int compareTo(ColumnOrSuperColumn other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    Mutation typedOther = (Mutation)other;
+    ColumnOrSuperColumn typedOther = (ColumnOrSuperColumn)other;
 
-    lastComparison = Boolean.valueOf(isSetColumn_or_supercolumn()).compareTo(isSetColumn_or_supercolumn());
+    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(isSetColumn());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(column_or_supercolumn, typedOther.column_or_supercolumn);
+    lastComparison = TBaseHelper.compareTo(column, typedOther.column);
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetDeletion()).compareTo(isSetDeletion());
+    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(isSetSuper_column());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(deletion, typedOther.deletion);
+    lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
     if (lastComparison != 0) {
       return lastComparison;
     }
@@ -314,18 +319,18 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
         TProtocolUtil.skip(iprot, field.type);
       } else {
         switch (fieldId) {
-          case COLUMN_OR_SUPERCOLUMN:
+          case COLUMN:
             if (field.type == TType.STRUCT) {
-              this.column_or_supercolumn = new ColumnOrSuperColumn();
-              this.column_or_supercolumn.read(iprot);
+              this.column = new Column();
+              this.column.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case DELETION:
+          case SUPER_COLUMN:
             if (field.type == TType.STRUCT) {
-              this.deletion = new Deletion();
-              this.deletion.read(iprot);
+              this.super_column = new SuperColumn();
+              this.super_column.read(iprot);
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -344,17 +349,17 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    if (this.column_or_supercolumn != null) {
-      if (isSetColumn_or_supercolumn()) {
-        oprot.writeFieldBegin(COLUMN_OR_SUPERCOLUMN_FIELD_DESC);
-        this.column_or_supercolumn.write(oprot);
+    if (this.column != null) {
+      if (isSetColumn()) {
+        oprot.writeFieldBegin(COLUMN_FIELD_DESC);
+        this.column.write(oprot);
         oprot.writeFieldEnd();
       }
     }
-    if (this.deletion != null) {
-      if (isSetDeletion()) {
-        oprot.writeFieldBegin(DELETION_FIELD_DESC);
-        this.deletion.write(oprot);
+    if (this.super_column != null) {
+      if (isSetSuper_column()) {
+        oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
+        this.super_column.write(oprot);
         oprot.writeFieldEnd();
       }
     }
@@ -364,25 +369,25 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("Mutation(");
+    StringBuilder sb = new StringBuilder("ColumnOrSuperColumn(");
     boolean first = true;
 
-    if (isSetColumn_or_supercolumn()) {
-      sb.append("column_or_supercolumn:");
-      if (this.column_or_supercolumn == null) {
+    if (isSetColumn()) {
+      sb.append("column:");
+      if (this.column == null) {
         sb.append("null");
       } else {
-        sb.append(this.column_or_supercolumn);
+        sb.append(this.column);
       }
       first = false;
     }
-    if (isSetDeletion()) {
+    if (isSetSuper_column()) {
       if (!first) sb.append(", ");
-      sb.append("deletion:");
-      if (this.deletion == null) {
+      sb.append("super_column:");
+      if (this.super_column == null) {
         sb.append("null");
       } else {
-        sb.append(this.deletion);
+        sb.append(this.super_column);
       }
       first = false;
     }

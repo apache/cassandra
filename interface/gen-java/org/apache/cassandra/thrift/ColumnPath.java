@@ -3,7 +3,7 @@
  *
  * DO NOT EDIT UNLESS YOU ARE SURE THAT YOU KNOW WHAT YOU ARE DOING
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -23,22 +23,32 @@ import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
 
-public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, Cloneable, Comparable<Deletion> {
-  private static final TStruct STRUCT_DESC = new TStruct("Deletion");
+/**
+ * The ColumnPath is the path to a single column in Cassandra. It might make sense to think of ColumnPath and
+ * ColumnParent in terms of a directory structure.
+ * 
+ * ColumnPath is used to looking up a single column.
+ * 
+ * @param column_family. The name of the CF of the column being looked up.
+ * @param super_column. The super column name.
+ * @param column. The column name.
+ */
+public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializable, Cloneable, Comparable<ColumnPath> {
+  private static final TStruct STRUCT_DESC = new TStruct("ColumnPath");
 
-  private static final TField TIMESTAMP_FIELD_DESC = new TField("timestamp", TType.I64, (short)1);
-  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)2);
-  private static final TField PREDICATE_FIELD_DESC = new TField("predicate", TType.STRUCT, (short)3);
+  private static final TField COLUMN_FAMILY_FIELD_DESC = new TField("column_family", TType.STRING, (short)3);
+  private static final TField SUPER_COLUMN_FIELD_DESC = new TField("super_column", TType.STRING, (short)4);
+  private static final TField COLUMN_FIELD_DESC = new TField("column", TType.STRING, (short)5);
 
-  public long timestamp;
+  public String column_family;
   public byte[] super_column;
-  public SlicePredicate predicate;
+  public byte[] column;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
-    TIMESTAMP((short)1, "timestamp"),
-    SUPER_COLUMN((short)2, "super_column"),
-    PREDICATE((short)3, "predicate");
+    COLUMN_FAMILY((short)3, "column_family"),
+    SUPER_COLUMN((short)4, "super_column"),
+    COLUMN((short)5, "column");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -92,86 +102,85 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
   }
 
   // isset id assignments
-  private static final int __TIMESTAMP_ISSET_ID = 0;
-  private BitSet __isset_bit_vector = new BitSet(1);
 
   public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
-    put(_Fields.TIMESTAMP, new FieldMetaData("timestamp", TFieldRequirementType.REQUIRED, 
-        new FieldValueMetaData(TType.I64)));
+    put(_Fields.COLUMN_FAMILY, new FieldMetaData("column_family", TFieldRequirementType.REQUIRED, 
+        new FieldValueMetaData(TType.STRING)));
     put(_Fields.SUPER_COLUMN, new FieldMetaData("super_column", TFieldRequirementType.OPTIONAL, 
         new FieldValueMetaData(TType.STRING)));
-    put(_Fields.PREDICATE, new FieldMetaData("predicate", TFieldRequirementType.OPTIONAL, 
-        new StructMetaData(TType.STRUCT, SlicePredicate.class)));
+    put(_Fields.COLUMN, new FieldMetaData("column", TFieldRequirementType.OPTIONAL, 
+        new FieldValueMetaData(TType.STRING)));
   }});
 
   static {
-    FieldMetaData.addStructMetaDataMap(Deletion.class, metaDataMap);
+    FieldMetaData.addStructMetaDataMap(ColumnPath.class, metaDataMap);
   }
 
-  public Deletion() {
+  public ColumnPath() {
   }
 
-  public Deletion(
-    long timestamp)
+  public ColumnPath(
+    String column_family)
   {
     this();
-    this.timestamp = timestamp;
-    setTimestampIsSet(true);
+    this.column_family = column_family;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
-  public Deletion(Deletion other) {
-    __isset_bit_vector.clear();
-    __isset_bit_vector.or(other.__isset_bit_vector);
-    this.timestamp = other.timestamp;
+  public ColumnPath(ColumnPath other) {
+    if (other.isSetColumn_family()) {
+      this.column_family = other.column_family;
+    }
     if (other.isSetSuper_column()) {
       this.super_column = new byte[other.super_column.length];
       System.arraycopy(other.super_column, 0, super_column, 0, other.super_column.length);
     }
-    if (other.isSetPredicate()) {
-      this.predicate = new SlicePredicate(other.predicate);
+    if (other.isSetColumn()) {
+      this.column = new byte[other.column.length];
+      System.arraycopy(other.column, 0, column, 0, other.column.length);
     }
   }
 
-  public Deletion deepCopy() {
-    return new Deletion(this);
+  public ColumnPath deepCopy() {
+    return new ColumnPath(this);
   }
 
   @Deprecated
-  public Deletion clone() {
-    return new Deletion(this);
+  public ColumnPath clone() {
+    return new ColumnPath(this);
   }
 
-  public long getTimestamp() {
-    return this.timestamp;
+  public String getColumn_family() {
+    return this.column_family;
   }
 
-  public Deletion setTimestamp(long timestamp) {
-    this.timestamp = timestamp;
-    setTimestampIsSet(true);
+  public ColumnPath setColumn_family(String column_family) {
+    this.column_family = column_family;
     return this;
   }
 
-  public void unsetTimestamp() {
-    __isset_bit_vector.clear(__TIMESTAMP_ISSET_ID);
+  public void unsetColumn_family() {
+    this.column_family = null;
   }
 
-  /** Returns true if field timestamp is set (has been asigned a value) and false otherwise */
-  public boolean isSetTimestamp() {
-    return __isset_bit_vector.get(__TIMESTAMP_ISSET_ID);
+  /** Returns true if field column_family is set (has been asigned a value) and false otherwise */
+  public boolean isSetColumn_family() {
+    return this.column_family != null;
   }
 
-  public void setTimestampIsSet(boolean value) {
-    __isset_bit_vector.set(__TIMESTAMP_ISSET_ID, value);
+  public void setColumn_familyIsSet(boolean value) {
+    if (!value) {
+      this.column_family = null;
+    }
   }
 
   public byte[] getSuper_column() {
     return this.super_column;
   }
 
-  public Deletion setSuper_column(byte[] super_column) {
+  public ColumnPath setSuper_column(byte[] super_column) {
     this.super_column = super_column;
     return this;
   }
@@ -191,37 +200,37 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     }
   }
 
-  public SlicePredicate getPredicate() {
-    return this.predicate;
+  public byte[] getColumn() {
+    return this.column;
   }
 
-  public Deletion setPredicate(SlicePredicate predicate) {
-    this.predicate = predicate;
+  public ColumnPath setColumn(byte[] column) {
+    this.column = column;
     return this;
   }
 
-  public void unsetPredicate() {
-    this.predicate = null;
+  public void unsetColumn() {
+    this.column = null;
   }
 
-  /** Returns true if field predicate is set (has been asigned a value) and false otherwise */
-  public boolean isSetPredicate() {
-    return this.predicate != null;
+  /** Returns true if field column is set (has been asigned a value) and false otherwise */
+  public boolean isSetColumn() {
+    return this.column != null;
   }
 
-  public void setPredicateIsSet(boolean value) {
+  public void setColumnIsSet(boolean value) {
     if (!value) {
-      this.predicate = null;
+      this.column = null;
     }
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
-    case TIMESTAMP:
+    case COLUMN_FAMILY:
       if (value == null) {
-        unsetTimestamp();
+        unsetColumn_family();
       } else {
-        setTimestamp((Long)value);
+        setColumn_family((String)value);
       }
       break;
 
@@ -233,11 +242,11 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
       }
       break;
 
-    case PREDICATE:
+    case COLUMN:
       if (value == null) {
-        unsetPredicate();
+        unsetColumn();
       } else {
-        setPredicate((SlicePredicate)value);
+        setColumn((byte[])value);
       }
       break;
 
@@ -250,14 +259,14 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
-    case TIMESTAMP:
-      return new Long(getTimestamp());
+    case COLUMN_FAMILY:
+      return getColumn_family();
 
     case SUPER_COLUMN:
       return getSuper_column();
 
-    case PREDICATE:
-      return getPredicate();
+    case COLUMN:
+      return getColumn();
 
     }
     throw new IllegalStateException();
@@ -270,12 +279,12 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
   /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
   public boolean isSet(_Fields field) {
     switch (field) {
-    case TIMESTAMP:
-      return isSetTimestamp();
+    case COLUMN_FAMILY:
+      return isSetColumn_family();
     case SUPER_COLUMN:
       return isSetSuper_column();
-    case PREDICATE:
-      return isSetPredicate();
+    case COLUMN:
+      return isSetColumn();
     }
     throw new IllegalStateException();
   }
@@ -288,21 +297,21 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
   public boolean equals(Object that) {
     if (that == null)
       return false;
-    if (that instanceof Deletion)
-      return this.equals((Deletion)that);
+    if (that instanceof ColumnPath)
+      return this.equals((ColumnPath)that);
     return false;
   }
 
-  public boolean equals(Deletion that) {
+  public boolean equals(ColumnPath that) {
     if (that == null)
       return false;
 
-    boolean this_present_timestamp = true;
-    boolean that_present_timestamp = true;
-    if (this_present_timestamp || that_present_timestamp) {
-      if (!(this_present_timestamp && that_present_timestamp))
+    boolean this_present_column_family = true && this.isSetColumn_family();
+    boolean that_present_column_family = true && that.isSetColumn_family();
+    if (this_present_column_family || that_present_column_family) {
+      if (!(this_present_column_family && that_present_column_family))
         return false;
-      if (this.timestamp != that.timestamp)
+      if (!this.column_family.equals(that.column_family))
         return false;
     }
 
@@ -315,12 +324,12 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
         return false;
     }
 
-    boolean this_present_predicate = true && this.isSetPredicate();
-    boolean that_present_predicate = true && that.isSetPredicate();
-    if (this_present_predicate || that_present_predicate) {
-      if (!(this_present_predicate && that_present_predicate))
+    boolean this_present_column = true && this.isSetColumn();
+    boolean that_present_column = true && that.isSetColumn();
+    if (this_present_column || that_present_column) {
+      if (!(this_present_column && that_present_column))
         return false;
-      if (!this.predicate.equals(that.predicate))
+      if (!java.util.Arrays.equals(this.column, that.column))
         return false;
     }
 
@@ -332,19 +341,19 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     return 0;
   }
 
-  public int compareTo(Deletion other) {
+  public int compareTo(ColumnPath other) {
     if (!getClass().equals(other.getClass())) {
       return getClass().getName().compareTo(other.getClass().getName());
     }
 
     int lastComparison = 0;
-    Deletion typedOther = (Deletion)other;
+    ColumnPath typedOther = (ColumnPath)other;
 
-    lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(isSetTimestamp());
+    lastComparison = Boolean.valueOf(isSetColumn_family()).compareTo(isSetColumn_family());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+    lastComparison = TBaseHelper.compareTo(column_family, typedOther.column_family);
     if (lastComparison != 0) {
       return lastComparison;
     }
@@ -356,11 +365,11 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
+    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(isSetColumn());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+    lastComparison = TBaseHelper.compareTo(column, typedOther.column);
     if (lastComparison != 0) {
       return lastComparison;
     }
@@ -381,10 +390,9 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
         TProtocolUtil.skip(iprot, field.type);
       } else {
         switch (fieldId) {
-          case TIMESTAMP:
-            if (field.type == TType.I64) {
-              this.timestamp = iprot.readI64();
-              setTimestampIsSet(true);
+          case COLUMN_FAMILY:
+            if (field.type == TType.STRING) {
+              this.column_family = iprot.readString();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -396,10 +404,9 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
               TProtocolUtil.skip(iprot, field.type);
             }
             break;
-          case PREDICATE:
-            if (field.type == TType.STRUCT) {
-              this.predicate = new SlicePredicate();
-              this.predicate.read(iprot);
+          case COLUMN:
+            if (field.type == TType.STRING) {
+              this.column = iprot.readBinary();
             } else { 
               TProtocolUtil.skip(iprot, field.type);
             }
@@ -411,9 +418,6 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     iprot.readStructEnd();
 
     // check for required fields of primitive type, which can't be checked in the validate method
-    if (!isSetTimestamp()) {
-      throw new TProtocolException("Required field 'timestamp' was not found in serialized data! Struct: " + toString());
-    }
     validate();
   }
 
@@ -421,9 +425,11 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     validate();
 
     oprot.writeStructBegin(STRUCT_DESC);
-    oprot.writeFieldBegin(TIMESTAMP_FIELD_DESC);
-    oprot.writeI64(this.timestamp);
-    oprot.writeFieldEnd();
+    if (this.column_family != null) {
+      oprot.writeFieldBegin(COLUMN_FAMILY_FIELD_DESC);
+      oprot.writeString(this.column_family);
+      oprot.writeFieldEnd();
+    }
     if (this.super_column != null) {
       if (isSetSuper_column()) {
         oprot.writeFieldBegin(SUPER_COLUMN_FIELD_DESC);
@@ -431,10 +437,10 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
         oprot.writeFieldEnd();
       }
     }
-    if (this.predicate != null) {
-      if (isSetPredicate()) {
-        oprot.writeFieldBegin(PREDICATE_FIELD_DESC);
-        this.predicate.write(oprot);
+    if (this.column != null) {
+      if (isSetColumn()) {
+        oprot.writeFieldBegin(COLUMN_FIELD_DESC);
+        oprot.writeBinary(this.column);
         oprot.writeFieldEnd();
       }
     }
@@ -444,11 +450,15 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder("Deletion(");
+    StringBuilder sb = new StringBuilder("ColumnPath(");
     boolean first = true;
 
-    sb.append("timestamp:");
-    sb.append(this.timestamp);
+    sb.append("column_family:");
+    if (this.column_family == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.column_family);
+    }
     first = false;
     if (isSetSuper_column()) {
       if (!first) sb.append(", ");
@@ -465,13 +475,18 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
       }
       first = false;
     }
-    if (isSetPredicate()) {
+    if (isSetColumn()) {
       if (!first) sb.append(", ");
-      sb.append("predicate:");
-      if (this.predicate == null) {
+      sb.append("column:");
+      if (this.column == null) {
         sb.append("null");
       } else {
-        sb.append(this.predicate);
+          int __column_size = Math.min(this.column.length, 128);
+          for (int i = 0; i < __column_size; i++) {
+            if (i != 0) sb.append(" ");
+            sb.append(Integer.toHexString(this.column[i]).length() > 1 ? Integer.toHexString(this.column[i]).substring(Integer.toHexString(this.column[i]).length() - 2).toUpperCase() : "0" + Integer.toHexString(this.column[i]).toUpperCase());
+          }
+          if (this.column.length > 128) sb.append(" ...");
       }
       first = false;
     }
@@ -481,7 +496,9 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
 
   public void validate() throws TException {
     // check for required fields
-    // alas, we cannot check 'timestamp' because it's a primitive and you chose the non-beans generator.
+    if (column_family == null) {
+      throw new TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+    }
   }
 
 }

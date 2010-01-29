@@ -1,6 +1,7 @@
-package org.apache.cassandra.service;
+package org.apache.cassandra.thrift;
 
 import java.util.List;
+
 
 public class ThriftGlue
 {

@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.service.InvalidRequestException;
+import org.apache.cassandra.thrift.InvalidRequestException;
 
 public class ColumnFamilyNotDefinedException extends InvalidRequestException
 {

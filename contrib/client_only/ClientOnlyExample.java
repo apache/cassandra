@@ -20,7 +20,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.*;
-import static org.apache.cassandra.service.ThriftGlue.createColumnPath;
+import org.apache.cassandra.thrift.ColumnPath;
+import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.UnavailableException;
+
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnPath;
 
 import java.io.IOException;
 import java.util.ArrayList;

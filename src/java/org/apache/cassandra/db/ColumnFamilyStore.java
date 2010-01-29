@@ -35,7 +35,6 @@ import org.apache.cassandra.cache.IAggregatableCacheProvider;
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.cache.JMXAggregatingCache;
 import org.apache.cassandra.cache.JMXInstrumentedCache;
-import org.apache.cassandra.service.SliceRange;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,6 +46,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;

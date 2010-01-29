@@ -23,7 +23,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.service.ColumnParent;
+import org.apache.cassandra.thrift.ColumnParent;
 
 public class SliceFromReadCommand extends ReadCommand
 {
