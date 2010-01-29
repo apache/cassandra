@@ -99,21 +99,6 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
         return key != null && key.isEmpty();
     }
 
-    /** not efficient.  call rarely. */
-    public int serializedSize()
-    {
-        DataOutputBuffer dos = new DataOutputBuffer();
-        try
-        {
-            serializer.serialize(this, dos);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return dos.getLength();
-    }
-
     @Override
     public String toString()
     {
