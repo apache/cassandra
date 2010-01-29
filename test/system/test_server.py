@@ -472,18 +472,6 @@ class TestMutations(CassandraTester):
         assert columns == [Column(_i64(5), 'value5', 6)], columns
 
 
-    def test_super_cf_resurrect_subcolumn(self):
-        key = 'vijay'
-        client.insert('Keyspace1', key, ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 0, ConsistencyLevel.ONE)
-
-        client.remove('Keyspace1', key, ColumnPath('Super1', 'sc1'), 1, ConsistencyLevel.ONE)
-
-        client.insert('Keyspace1', key, ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 2, ConsistencyLevel.ONE)
-
-        result = client.get('Keyspace1', key, ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE)
-        assert result.super_column.columns is not None, result.super_column
-
-
     def test_empty_range(self):
         assert client.get_key_range('Keyspace1', 'Standard1', '', '', 1000, ConsistencyLevel.ONE) == []
         _insert_simple()
@@ -666,14 +654,3 @@ class TestMutations(CassandraTester):
         ks1 = client.describe_keyspace("Keyspace1")
         assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
         sysks = client.describe_keyspace("system")
-
-    def test_vijay(self):
-        key = 'vijay'
-        client.insert('Keyspace1', key, ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 0, ConsistencyLevel.ONE)
-
-        client.remove('Keyspace1', 'key1', ColumnPath('Super1', 'sc1'), 1, ConsistencyLevel.ONE)
-
-        client.insert('Keyspace1', key, ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 0, ConsistencyLevel.ONE)
-
-        result = client.get('Keyspace1', key, ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE)
-        assert result.super_column.columns != None
