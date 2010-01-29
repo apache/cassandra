@@ -33,8 +33,8 @@
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
-    <property name="interface.src.dir" value="${interface.dir}/gen-java"/>
-    <property name="interface.avro.dir" value="${interface.dir}/avro/java"/>
+    <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
+    <property name="interface.avro.dir" value="${interface.dir}/avro/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -159,19 +159,25 @@
     <target name="gen-thrift-java">
       <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
-        <arg line="--gen java cassandra.thrift" />
+        <arg line="--gen java" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="cassandra.thrift" />
       </exec>
     </target>
     <target name="gen-thrift-py">
       <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
-        <arg line="--gen py cassandra.thrift" />
+        <arg line="--gen py" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="cassandra.thrift" />
       </exec>
     </target>
     <target name="gen-thrift-perl">
       <echo>Generating Thrift Perl code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
-        <arg line="--gen perl cassandra.thrift" />
+        <arg line="--gen perl" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="cassandra.thrift" />
       </exec>
     </target>
 
@@ -188,7 +194,7 @@
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${interface.src.dir}"/>
+            <src path="${interface.thrift.dir}"/>
             <src path="${interface.avro.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
@@ -364,7 +370,7 @@
       <fileset dir="${build.src}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
-      <fileset dir="${interface.src.dir}" defaultexcludes="yes">
+      <fileset dir="${interface.thrift.dir}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
     </javadoc>
