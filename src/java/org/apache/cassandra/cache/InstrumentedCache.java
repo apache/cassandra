@@ -1,19 +1,21 @@
 package org.apache.cassandra.cache;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
-import org.apache.cassandra.utils.TimedStatsDeque;
 
 public class InstrumentedCache<K, V>
 {
     private int capacity;
     private final ConcurrentLinkedHashMap<K, V> map;
-    private final TimedStatsDeque stats;
+    private final AtomicLong requests = new AtomicLong(0);
+    private final AtomicLong hits = new AtomicLong(0);
+    long lastRequests, lastHits;
 
     public InstrumentedCache(int capacity)
     {
         this.capacity = capacity;
         map = ConcurrentLinkedHashMap.create(ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE, capacity);
-        stats = new TimedStatsDeque(60000);
     }
 
     public void put(K key, V value)
@@ -24,7 +26,9 @@ public class InstrumentedCache<K, V>
     public V get(K key)
     {
         V v = map.get(key);
-        stats.add(v == null ? 0 : 1);
+        requests.incrementAndGet();
+        if (v != null)
+            hits.incrementAndGet();
         return v;
     }
 
@@ -49,8 +53,28 @@ public class InstrumentedCache<K, V>
         return map.size();
     }
 
-    public double getHitRate()
+    public long getHits()
     {
-        return stats.mean();
+        return hits.get();
+    }
+
+    public long getRequests()
+    {
+        return requests.get();
+    }
+
+    public double getRecentHitRate()
+    {
+        long r = requests.get();
+        long h = hits.get();
+        try
+        {
+            return ((double)(h - lastHits)) / (r - lastRequests);
+        }
+        finally
+        {
+            lastRequests = r;
+            lastHits = h;
+        }
     }
 }

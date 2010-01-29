@@ -1,9 +1,5 @@
 package org.apache.cassandra.cache;
 
-import java.util.Iterator;
-
-import com.google.common.collect.AbstractIterator;
-
 public class JMXAggregatingCache implements JMXAggregatingCacheMBean
 {
     private final Iterable<IAggregatableCacheProvider> cacheProviders;
@@ -48,13 +44,33 @@ public class JMXAggregatingCache implements JMXAggregatingCacheMBean
         return size;
     }
 
-    public double getHitRate()
+    public long getRequests()
+    {
+        long requests = 0;
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
+        {
+            requests += cacheProvider.getCache().getRequests();
+        }
+        return requests;
+    }
+
+    public long getHits()
+    {
+        long hits = 0;
+        for (IAggregatableCacheProvider cacheProvider : cacheProviders)
+        {
+            hits += cacheProvider.getCache().getHits();
+        }
+        return hits;
+    }
+
+    public double getRecentHitRate()
     {
         int n = 0;
         double rate = 0;
         for (IAggregatableCacheProvider cacheProvider : cacheProviders)
         {
-            rate += cacheProvider.getCache().getHitRate();
+            rate += cacheProvider.getCache().getRecentHitRate();
             n++;
         }
         return rate / n;

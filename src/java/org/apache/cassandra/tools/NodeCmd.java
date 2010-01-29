@@ -258,7 +258,7 @@ public class NodeCmd {
                 {
                     outs.println("\t\tKey cache capacity: " + keyCacheMBean.getCapacity());
                     outs.println("\t\tKey cache size: " + keyCacheMBean.getSize());
-                    outs.println("\t\tKey cache hit rate: " + keyCacheMBean.getHitRate());
+                    outs.println("\t\tKey cache hit rate: " + keyCacheMBean.getRecentHitRate());
                 }
                 else
                 {
@@ -270,7 +270,7 @@ public class NodeCmd {
                 {
                     outs.println("\t\tRow cache capacity: " + rowCacheMBean.getCapacity());
                     outs.println("\t\tRow cache size: " + rowCacheMBean.getSize());
-                    outs.println("\t\tRow cache hit rate: " + rowCacheMBean.getHitRate());
+                    outs.println("\t\tRow cache hit rate: " + rowCacheMBean.getRecentHitRate());
                 }
                 else
                 {

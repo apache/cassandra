@@ -5,5 +5,8 @@ public interface JMXAggregatingCacheMBean
     public int getCapacity();
     public void setCapacity(int capacity);
     public int getSize();
-    public double getHitRate();
+
+    public long getRequests();
+    public long getHits();
+    public double getRecentHitRate();
 }
