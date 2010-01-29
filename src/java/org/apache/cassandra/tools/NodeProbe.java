@@ -37,7 +37,6 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
-import org.apache.cassandra.cache.JMXAggregatingCache;
 import org.apache.cassandra.cache.JMXAggregatingCacheMBean;
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;

@@ -53,7 +53,6 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.collections.IteratorUtils;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -118,8 +117,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /* SSTables on disk for this column family */
     private SSTableTracker ssTables_;
 
-    private TimedStatsDeque readStats_ = new TimedStatsDeque(60000);
-    private TimedStatsDeque writeStats_ = new TimedStatsDeque(60000);
+    private LatencyTracker readStats_ = new LatencyTracker();
+    private LatencyTracker writeStats_ = new LatencyTracker();
     
     ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
     {
@@ -739,34 +738,40 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ssTables_.getSSTables();
     }
 
-    public int getReadCount()
+    public long getReadCount()
     {
-        return readStats_.size();
+        return readStats_.getOpCount();
     }
 
-    public double getReadLatency()
+    public double getRecentReadLatency()
     {
-        return readStats_.mean();
+        return readStats_.getRecentLatency();
     }
 
-    // TODO this actually isn't a good meature of pending tasks
+    public long getTotalReadLatency()
+    {
+        return readStats_.getTotalLatency();
+    }
+
+// TODO this actually isn't a good meature of pending tasks
     public int getPendingTasks()
     {
         return Table.flusherLock.getQueueLength();
     }
 
-    /**
-     * @return the number of write operations on this column family in the last minute
-     */
-    public int getWriteCount() {
-        return writeStats_.size();
+    public long getWriteCount()
+    {
+        return writeStats_.getOpCount();
     }
 
-    /**
-     * @return average latency per write operation in the last minute
-     */
-    public double getWriteLatency() {
-        return writeStats_.mean();
+    public long getTotalWriteLatency()
+    {
+        return writeStats_.getTotalLatency();
+    }
+
+    public double getRecentWriteLatency()
+    {
+        return writeStats_.getRecentLatency();
     }
 
     public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit) throws IOException

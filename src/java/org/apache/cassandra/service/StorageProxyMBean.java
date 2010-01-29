@@ -20,10 +20,15 @@ package org.apache.cassandra.service;
 
 public interface StorageProxyMBean
 {
-    public double getReadLatency();
-    public int getReadOperations();
-    public double getRangeLatency();
-    public int getRangeOperations();
-    public double getWriteLatency();
-    public int getWriteOperations();
+    public long getReadOperations();
+    public long getTotalReadLatency();
+    public double getRecentReadLatency();
+
+    public long getRangeOperations();
+    public long getTotalRangeLatency();
+    public double getRecentRangeLatency();
+
+    public long getWriteOperations();
+    public long getTotalWriteLatency();
+    public double getRecentWriteLatency();
 }

@@ -36,7 +36,7 @@ import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.TimedStatsDeque;
+import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -58,9 +58,9 @@ public class StorageProxy implements StorageProxyMBean
     private static final Logger logger = Logger.getLogger(StorageProxy.class);
 
     // mbean stuff
-    private static final TimedStatsDeque readStats = new TimedStatsDeque(60000);
-    private static final TimedStatsDeque rangeStats = new TimedStatsDeque(60000);
-    private static final TimedStatsDeque writeStats = new TimedStatsDeque(60000);
+    private static final LatencyTracker readStats = new LatencyTracker();
+    private static final LatencyTracker rangeStats = new LatencyTracker();
+    private static final LatencyTracker writeStats = new LatencyTracker();
 
     private StorageProxy() {}
     static
@@ -608,34 +608,49 @@ public class StorageProxy implements StorageProxyMBean
         return results;
     }
 
-    public double getReadLatency()
+    public long getReadOperations()
     {
-        return readStats.mean();
+        return readStats.getOpCount();
     }
 
-    public double getRangeLatency()
+    public long getTotalReadLatency()
     {
-        return rangeStats.mean();
+        return readStats.getTotalLatency();
     }
 
-    public double getWriteLatency()
+    public double getRecentReadLatency()
     {
-        return writeStats.mean();
+        return readStats.getRecentLatency();
     }
 
-    public int getReadOperations()
+    public long getRangeOperations()
     {
-        return readStats.size();
+        return rangeStats.getOpCount();
     }
 
-    public int getRangeOperations()
+    public long getTotalRangeLatency()
     {
-        return rangeStats.size();
+        return rangeStats.getTotalLatency();
     }
 
-    public int getWriteOperations()
+    public double getRecentRangeLatency()
     {
-        return writeStats.size();
+        return rangeStats.getRecentLatency();
+    }
+
+    public long getWriteOperations()
+    {
+        return writeStats.getOpCount();
+    }
+
+    public long getTotalWriteLatency()
+    {
+        return writeStats.getTotalLatency();
+    }
+
+    public double getRecentWriteLatency()
+    {
+        return writeStats.getRecentLatency();
     }
 
     static class weakReadLocalCallable implements Callable<Object>

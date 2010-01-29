@@ -60,25 +60,35 @@ public interface ColumnFamilyStoreMBean
     public Object forceFlush() throws IOException;
 
     /**
-     * @return the number of read operations on this column family in the last minute
+     * @return the number of read operations on this column family
      */
-    public int getReadCount();
+    public long getReadCount();
 
     /**
-     * @return average latency per read operation in the last minute
+     * @return total read latency (divide by getReadCount() for average)
      */
-    public double getReadLatency();
+    public long getTotalReadLatency();
+
+    /**
+     * @return average latency per read operation since the last call
+     */
+    public double getRecentReadLatency();
+
+    /**
+     * @return the number of write operations on this column family
+     */
+    public long getWriteCount();
     
     /**
-     * @return the number of write operations on this column family in the last minute
+     * @return total write latency (divide by getReadCount() for average)
      */
-    public int getWriteCount();
-    
+    public long getTotalWriteLatency();
+
     /**
-     * @return average latency per write operation in the last minute
+     * @return average latency per write operation since the last call
      */
-    public double getWriteLatency();
-    
+    public double getRecentWriteLatency();
+
     /**
      * @return the estimated number of tasks pending for this column family
      */

@@ -212,18 +212,18 @@ public class NodeCmd {
             outs.println("Keyspace: " + tableName);
             for (ColumnFamilyStoreMBean cfstore : columnFamilies)
             {
-                int writeCount = cfstore.getWriteCount();
-                int readCount = cfstore.getReadCount();
+                long writeCount = cfstore.getWriteCount();
+                long readCount = cfstore.getReadCount();
 
                 if (readCount > 0)
                 {
                     tableReadCount += readCount;
-                    tableTotalReadTime += cfstore.getReadLatency() * readCount;
+                    tableTotalReadTime += cfstore.getTotalReadLatency();
                 }
                 if (writeCount > 0)
                 {
                     tableWriteCount += writeCount;
-                    tableTotalWriteTime += cfstore.getWriteLatency() * writeCount;
+                    tableTotalWriteTime += cfstore.getTotalWriteLatency();
                 }
                 tablePendingTasks += cfstore.getPendingTasks();
             }
@@ -232,9 +232,9 @@ public class NodeCmd {
             double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount : Double.NaN;
 
             outs.println("\tRead Count: " + tableReadCount);
-            outs.println("\tRead Latency: " + String.format("%01.3f", tableReadLatency) + " ms.");
+            outs.println("\tRead Latency: " + String.format("%s", tableReadLatency) + " ms.");
             outs.println("\tWrite Count: " + tableWriteCount);
-            outs.println("\tWrite Latency: " + String.format("%01.3f", tableWriteLatency) + " ms.");
+            outs.println("\tWrite Latency: " + String.format("%s", tableWriteLatency) + " ms.");
             outs.println("\tPending Tasks: " + tablePendingTasks);
 
             // print out column family statistics for this table
@@ -248,9 +248,9 @@ public class NodeCmd {
                 outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
                 outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
                 outs.println("\t\tRead Count: " + cfstore.getReadCount());
-                outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getReadLatency()) + " ms.");
+                outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getRecentReadLatency()) + " ms.");
                 outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
-                outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getWriteLatency()) + " ms.");
+                outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getRecentWriteLatency()) + " ms.");
                 outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
 
                 JMXAggregatingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
