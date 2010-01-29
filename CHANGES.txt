@@ -18,6 +18,7 @@ dev
  * add ability to set cache sizes at runtime (CASSANDRA-708)
  * report latency and cache hit rate statistics with lifetime totals
    instead of average over the last minute (CASSANDRA-702)
+ * support get_range_slice for RandomPartitioner (CASSANDRA-745)
 
 
 0.5.1
