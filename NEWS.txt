@@ -1,14 +1,38 @@
 0.6.0
 =====
-0. Configuraton:
-     - MemtableSizeInMB has been replaced by MemtableThroughputInMB which
-       triggers a memtable flush when the specified amount of data has 
-       been written, including overwrites.
-     - MemtableObjectCountInMillions has been replaced by the
-       MemtableOperationsInMillions directive which causes a memtable flush
-       to occur after the specified number of operations.
-     - Like MemtableSizeInMB, BinaryMemtableSizeInMB has been replaced by
-       BinaryMemtableThroughputInMB.
+
+Features
+--------
+    - row caching added; configure with the RowsCached attribute
+      in ColumnFamily definition
+
+Configuraton
+------------
+    - MemtableSizeInMB has been replaced by MemtableThroughputInMB which
+      triggers a memtable flush when the specified amount of data has 
+      been written, including overwrites.
+    - MemtableObjectCountInMillions has been replaced by the
+      MemtableOperationsInMillions directive which causes a memtable flush
+      to occur after the specified number of operations.
+    - Like MemtableSizeInMB, BinaryMemtableSizeInMB has been replaced by
+      BinaryMemtableThroughputInMB.
+
+Thrift API
+----------
+    - removed deprecated get_key_range Thrift method
+
+JMX metrics
+-----------
+    - read and write statistics are reported as lifetime totals,
+      instead of averages over the last minute.
+    - compaction JMX metrics are moved to
+      org.apache.cassandra.db.CompactionManager.  PendingTasks is now
+      a much better estimate of compactions remaining, and the
+      progress of the current compaction has been added.
+    - cache hit rate statistics are now available from JMX under
+      org.apache.cassandra.db.Caches
+
+
 
 0.5.0
 =====
