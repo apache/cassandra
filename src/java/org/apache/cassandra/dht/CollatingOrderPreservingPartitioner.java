@@ -25,6 +25,8 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Random;
 
+import org.apache.commons.lang.ArrayUtils;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -33,7 +35,7 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
 {
     static final Collator collator = Collator.getInstance(new Locale("en", "US"));
 
-    public static final BytesToken MINIMUM = new BytesToken(new byte[0]);
+    public static final BytesToken MINIMUM = new BytesToken(ArrayUtils.EMPTY_BYTE_ARRAY);
     
     public static final BigInteger BYTE_MASK = new BigInteger("255");
 
@@ -146,6 +148,8 @@ public class CollatingOrderPreservingPartitioner implements IPartitioner<BytesTo
 
     public BytesToken getToken(String key)
     {
+        if (key.isEmpty())
+            return MINIMUM;
         return new BytesToken(collator.getCollationKey(key).toByteArray());
     }
 }

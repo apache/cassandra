@@ -113,6 +113,8 @@ public class RandomPartitioner implements IPartitioner<BigIntegerToken>
 
     public BigIntegerToken getToken(String key)
     {
+        if (key.isEmpty())
+            return MINIMUM;
         return new BigIntegerToken(FBUtilities.hash(key));
     }
 }

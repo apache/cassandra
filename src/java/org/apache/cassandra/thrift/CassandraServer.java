@@ -633,10 +633,6 @@ public class CassandraServer implements Cassandra.Iface
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
-        if (!StorageService.getPartitioner().preservesOrder())
-        {
-            throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
-        }
         if (maxRows <= 0)
         {
             throw new InvalidRequestException("maxRows must be positive");

@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Collection;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
@@ -52,6 +53,7 @@ public class CompactionsTest extends CleanupHelper
         Table table = Table.open(TABLE1);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
         DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
+        assert emptyKey.token.equals(StorageService.getPartitioner().getMinimumToken());
 
         final int ROWS_PER_SSTABLE = 10;
         Set<String> inserted = new HashSet<String>();
