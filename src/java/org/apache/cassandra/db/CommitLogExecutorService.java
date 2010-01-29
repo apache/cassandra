@@ -75,7 +75,7 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.concurrent:type=COMMITLOG"));
+            mbs.registerMBean(this, new ObjectName("org.apache.cassandra.db:type=Commitlog"));
         }
         catch (Exception e)
         {

@@ -25,13 +25,13 @@ JMX metrics
 -----------
     - read and write statistics are reported as lifetime totals,
       instead of averages over the last minute.
+    - cache hit rate statistics are now available from JMX under
+      org.apache.cassandra.db.Caches
     - compaction JMX metrics are moved to
       org.apache.cassandra.db.CompactionManager.  PendingTasks is now
       a much better estimate of compactions remaining, and the
       progress of the current compaction has been added.
-    - cache hit rate statistics are now available from JMX under
-      org.apache.cassandra.db.Caches
-
+    - commitlog JMX metrics are moved to org.apache.cassandra.db.Commitlog
 
 
 0.5.0
