@@ -34,6 +34,7 @@
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
     <property name="interface.src.dir" value="${interface.dir}/gen-java"/>
+    <property name="interface.avro.dir" value="${interface.dir}/avro/java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -86,6 +87,7 @@
     <target name="clean">
         <delete dir="${build.dir}" />
         <delete dir="${build.src.gen-java}" />
+        <delete dir="${interface.avro.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -109,7 +111,7 @@
       </java> 
     </target>
 
-    <target name="ivy-download" unless="ivy.jar.exists">
+    <target name="ivy-download" unless="ivy.jar.exists" depends="init">
       <echo>Downloading Ivy...</echo>
       <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
            dest="${build.dir}/lib/ivy-${ivy.version}.jar" usetimestamp="true" />
@@ -125,6 +127,33 @@
     <target name="ivy-retrieve" depends="ivy-download,ivy-init">
       <ivy:retrieve type="jar" conf="default" sync="true"
                     pattern="${build.dir.lib}/[artifact]-[revision].[ext]" />
+    </target>
+
+    <!-- Generate -->
+    <target name="generate" depends="init">
+      <taskdef name="protocol"
+               classname="org.apache.avro.specific.ProtocolTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+      <taskdef name="schema" classname="org.apache.avro.specific.SchemaTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+      <taskdef name="paranamer" 
+          classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
+        <classpath refid="cassandra.classpath" />
+      </taskdef>
+  
+      <protocol destdir="${interface.avro.dir}">
+        <fileset dir="${interface.dir}">
+          <include name="**/*.avpr" />
+        </fileset>
+      </protocol>
+  
+      <schema destdir="${interface.avro.dir}">
+        <fileset dir="${interface.dir}">
+          <include name="**/*.avsc" />
+        </fileset>
+      </schema>
     </target>
 
     <target name="gen-thrift-java">
@@ -150,7 +179,7 @@
 	The build target builds all the .class files
     -->
     <target name="build"
-            depends="build-subprojects,build-project,ivy-retrieve"/>
+            depends="ivy-retrieve,generate,build-subprojects,build-project"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	
@@ -162,6 +191,9 @@
             <src path="${interface.src.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
+
+        <paranamer sourceDirectory="${interface.avro.dir}"
+               outputDirectory="${build.classes}"/>
     </target>
 
     <!--
