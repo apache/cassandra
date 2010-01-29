@@ -17,7 +17,8 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="apache-cassandra-incubating">
+<project basedir="." default="build" name="apache-cassandra-incubating"
+         xmlns:ivy="antlib:org.apache.ivy.ant">
     <property environment="env"/>
     <property file="build.properties" />
     <property name="debuglevel" value="source,lines,vars"/>
@@ -27,6 +28,7 @@
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
+    <property name="build.dir.lib" value="${basedir}/build/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
@@ -41,6 +43,9 @@
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="version" value="0.5.0"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
+    <property name="ivy.version" value="2.1.0" />
+    <property name="ivy.url"
+              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
@@ -49,7 +54,11 @@
     <property name="cobertura.report.dir" value="${cobertura.build.dir}/report"/>
     <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
     <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
-	
+
+    <condition property="ivy.jar.exists">
+      <available file="${build.lib}/ivy-${ivy.version}.jar" />
+    </condition>
+
     <!-- 
 	 Add all the dependencies.
     -->
@@ -59,6 +68,9 @@
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
+        <fileset dir="${build.dir.lib}">
+          <include name="**/*.jar" />
+        </fileset>
     </path>
 
     <!--
@@ -66,6 +78,7 @@
     -->
     <target name="init">
         <mkdir dir="${build.classes}"/>
+        <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
     </target>
@@ -96,6 +109,24 @@
       </java> 
     </target>
 
+    <target name="ivy-download" unless="ivy.jar.exists">
+      <echo>Downloading Ivy...</echo>
+      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
+           dest="${build.dir}/lib/ivy-${ivy.version}.jar" usetimestamp="true" />
+    </target>
+
+    <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
+      <taskdef resource="org/apache/ivy/ant/antlib.xml"
+               uri="antlib:org.apache.ivy.ant"
+               classpathref="cassandra.classpath"/>
+      <property name="ivy.initialized" value="true"/>
+    </target>
+
+    <target name="ivy-retrieve" depends="ivy-download,ivy-init">
+      <ivy:retrieve type="jar" conf="default" sync="true"
+                    pattern="${build.dir.lib}/[artifact]-[revision].[ext]" />
+    </target>
+
     <target name="gen-thrift-java">
       <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
@@ -118,7 +149,8 @@
     <!--
 	The build target builds all the .class files
     -->
-    <target name="build" depends="build-subprojects,build-project"/>
+    <target name="build"
+            depends="build-subprojects,build-project,ivy-retrieve"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	
