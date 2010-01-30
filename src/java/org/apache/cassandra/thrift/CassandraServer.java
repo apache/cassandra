@@ -276,41 +276,6 @@ public class CassandraServer implements Cassandra.Iface
         return column;
     }
 
-    /** no values will be mapped to keys with no data */
-    private Map<String, Collection<IColumn>> multigetColumns(List<ReadCommand> commands, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
-        Map<String, Collection<IColumn>> columnFamiliesMap = new HashMap<String, Collection<IColumn>>();
-
-        for (ReadCommand command: commands)
-        {
-            ColumnFamily cfamily = cfamilies.get(command.key);
-            if (cfamily == null)
-                continue;
-
-            Collection<IColumn> columns = null;
-            if (command.queryPath.superColumnName != null)
-            {
-                IColumn column = cfamily.getColumn(command.queryPath.superColumnName);
-                if (column != null)
-                {
-                    columns = column.getSubColumns();
-                }
-            }
-            else
-            {
-                columns = cfamily.getSortedColumns();
-            }
-
-            if (columns != null && columns.size() != 0)
-            {
-                columnFamiliesMap.put(command.key, columns);
-            }
-        }
-        return columnFamiliesMap;
-    }
-
     /** always returns a ColumnOrSuperColumn for each key, even if there is no data for it */
     public Map<String, ColumnOrSuperColumn> multiget(String table, List<String> keys, ColumnPath column_path, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
@@ -338,36 +303,20 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         Map<String, ColumnOrSuperColumn> columnFamiliesMap = new HashMap<String, ColumnOrSuperColumn>();
-        Map<String, Collection<IColumn>> columnsMap = multigetColumns(commands, consistency_level);
+        Map<String, ColumnFamily> cfamilies = readColumnFamily(commands, consistency_level);
 
         for (ReadCommand command: commands)
         {
-            ColumnOrSuperColumn columnorsupercolumn;
-
-            Collection<IColumn> columns = columnsMap.get(command.key);
-            if (columns == null)
+            ColumnFamily cf = cfamilies.get(command.key);
+            if (cf == null)
             {
-               columnorsupercolumn = new ColumnOrSuperColumn();
+                columnFamiliesMap.put(command.key, new ColumnOrSuperColumn());
             }
             else
             {
-                assert columns.size() == 1;
-                IColumn column = columns.iterator().next();
-
-
-                if (column.isMarkedForDelete())
-                {
-                    columnorsupercolumn = new ColumnOrSuperColumn();
-                }
-                else
-                {
-                    columnorsupercolumn = column instanceof org.apache.cassandra.db.Column
-                                          ? createColumnOrSuperColumn_Column(new Column(column.name(), column.value(), column.timestamp()))
-                                          : createColumnOrSuperColumn_SuperColumn(new SuperColumn(column.name(), thriftifySubColumns(column.getSubColumns())));
-                }
-
+                List<ColumnOrSuperColumn> tcolumns = thriftifyColumnFamily(cf, command.queryPath.superColumnName != null, false);
+                columnFamiliesMap.put(command.key, tcolumns.size() > 0 ? tcolumns.iterator().next() : new ColumnOrSuperColumn());
             }
-            columnFamiliesMap.put(command.key, columnorsupercolumn);
         }
 
         return columnFamiliesMap;
@@ -381,44 +330,9 @@ public class CassandraServer implements Cassandra.Iface
 
         checkLoginDone();
 
-        return multigetCountInternal(table, Arrays.asList(key), column_parent, consistency_level).get(key);
-    }
-
-    private Map<String, Integer> multigetCountInternal(String table, List<String> keys, ColumnParent column_parent, ConsistencyLevel consistency_level)
-    throws InvalidRequestException, UnavailableException, TimedOutException
-    {
-        // validateColumnParent assumes we require simple columns; g_c_c is the only
-        // one of the columnParent-taking apis that can also work at the SC level.
-        // so we roll a one-off validator here.
-        String cfType = ThriftValidation.validateColumnFamily(table, column_parent.column_family);
-        if (cfType.equals("Standard") && column_parent.super_column != null)
-        {
-            throw new InvalidRequestException("columnfamily alone is required for standard CF " + column_parent.column_family);
-        }
-
-        List<ReadCommand> commands = new ArrayList<ReadCommand>();
-        for (String key: keys)
-        {
-            ThriftValidation.validateKey(key);
-            commands.add(new SliceFromReadCommand(table, key, column_parent, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, true, Integer.MAX_VALUE));
-        }
-
-        Map<String, Integer> columnFamiliesMap = new HashMap<String, Integer>();
-        Map<String, Collection<IColumn>> columnsMap = multigetColumns(commands, consistency_level);
-
-        for (ReadCommand command: commands)
-        {
-            Collection<IColumn> columns = columnsMap.get(command.key);
-            if(columns == null)
-            {
-               columnFamiliesMap.put(command.key, 0);
-            }
-            else
-            {
-               columnFamiliesMap.put(command.key, columns.size());
-            }
-        }
-        return columnFamiliesMap;
+        SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
+        SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
+        return get_slice(table, key, column_parent, predicate, consistency_level).size();
     }
 
     public void insert(String table, String key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level)

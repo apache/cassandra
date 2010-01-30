@@ -675,6 +675,18 @@ class TestMutations(CassandraTester):
         assert columns == [Column(_i64(5), 'value5', 6)], columns
 
 
+    def test_super_cf_resurrect_subcolumn(self):
+        key = 'vijay'
+        client.insert('Keyspace1', key, ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 0, ConsistencyLevel.ONE)
+
+        client.remove('Keyspace1', key, ColumnPath('Super1', 'sc1'), 1, ConsistencyLevel.ONE)
+
+        client.insert('Keyspace1', key, ColumnPath('Super1', 'sc1', _i64(4)), 'value4', 2, ConsistencyLevel.ONE)
+
+        result = client.get('Keyspace1', key, ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE)
+        assert result.super_column.columns is not None, result.super_column
+
+
     def test_empty_range(self):
         assert client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['c1', 'c1']), '', '', 1000, ConsistencyLevel.ONE) == []
         _insert_simple()

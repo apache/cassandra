@@ -173,11 +173,12 @@ public class Streaming
                 StreamInitiateMessage biMsg = StreamInitiateMessage.serializer().deserialize(new DataInputStream(bufIn));
                 StreamContextManager.StreamContext[] streamContexts = biMsg.getStreamContext();
 
-                if (streamContexts.length == 0 && StorageService.instance.isBootstrapMode())
+                if (streamContexts.length == 0)
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("no data needed from " + message.getFrom());
-                    StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(Streaming.TABLE_NAME)));
+                    if (StorageService.instance.isBootstrapMode())
+                        StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(Streaming.TABLE_NAME)));
                     return;
                 }
 

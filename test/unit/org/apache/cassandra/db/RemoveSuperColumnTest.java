@@ -158,4 +158,33 @@ public class RemoveSuperColumnTest extends CleanupHelper
         assert subColumns.iterator().next().timestamp() == 2;
     }
 
+    @Test
+    public void testRemoveSuperColumnResurrection() throws IOException, ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore store = Table.open("Keyspace1").getColumnFamilyStore("Super2");
+        RowMutation rm;
+        String key = "keyC";
+
+        // add data
+        rm = new RowMutation("Keyspace1", key);
+        addMutation(rm, "Super2", "SC1", 1, "val1", 0);
+        rm.apply();
+
+        // remove
+        rm = new RowMutation("Keyspace1", key);
+        rm.delete(new QueryPath("Super2", "SC1".getBytes()), 1);
+        rm.apply();
+        assertNull(store.getColumnFamily(new NamesQueryFilter(key, new QueryPath("Super2"), "SC1".getBytes()), Integer.MAX_VALUE));
+
+        // resurrect
+        rm = new RowMutation("Keyspace1", key);
+        addMutation(rm, "Super2", "SC1", 1, "val2", 2);
+        rm.apply();
+
+        // validate
+        ColumnFamily resolved = store.getColumnFamily(new NamesQueryFilter(key, new QueryPath("Super2"), "SC1".getBytes()), Integer.MAX_VALUE);
+        Collection<IColumn> subColumns = resolved.getSortedColumns().iterator().next().getSubColumns();
+        assert subColumns.size() == 1;
+        assert subColumns.iterator().next().timestamp() == 2;
+    }
 }
