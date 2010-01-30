@@ -43,15 +43,6 @@ package org.apache.cassandra.dht;
  import com.google.common.collect.ArrayListMultimap;
 
 
- /**
-  * This class handles the bootstrapping responsibilities for the local endpoint.
-  *
-  *  - bootstrapTokenVerb asks the most-loaded node what Token to use to split its Range in two.
-  *  - streamRequestVerb tells source nodes to send us the necessary Ranges
-  *  - source nodes send streamInitiateVerb to us to say "get ready to receive data" [if there is data to send]
-  *  - when we have everything set up to receive the data, we send streamInitiateDoneVerb back to the source nodes and they start streaming
-  *  - when streaming is complete, we send streamFinishedVerb to the source so it can clean up on its end
-  */
 public class BootStrapper
 {
     private static final Logger logger = Logger.getLogger(BootStrapper.class);
@@ -89,8 +80,6 @@ public class BootStrapper
                     InetAddress source = entry.getKey();
                     for (String table : DatabaseDescriptor.getNonSystemTables())
                         StorageService.instance.addBootstrapSource(source, table);
-                    if (logger.isDebugEnabled())
-                        logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
                     Streaming.requestRanges(source, entry.getValue());
                 }
             }

@@ -48,6 +48,19 @@ import org.apache.cassandra.service.StreamManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * This class handles streaming data from one node to another.
+ *
+ * For bootstrap,
+ *  1. BOOTSTRAP_TOKEN asks the most-loaded node what Token to use to split its Range in two.
+ *  2. STREAM_REQUEST tells source nodes to send us the necessary Ranges
+ *  3. source nodes send STREAM_INITIATE to us to say "get ready to receive data" [if there is data to send]
+ *  4. when we have everything set up to receive the data, we send STREAM_INITIATE_DONE back to the source nodes and they start streaming
+ *  5. when streaming is complete, we send STREAM_FINISHED to the source so it can clean up on its end
+ *
+ * For unbootstrap, the leaving node starts with step 3 (1 and 2 are skipped entirely).  This is why
+ * STREAM_INITIATE is a separate verb, rather than just a reply to STREAM_REQUEST; the REQUEST is optional.
+ */
 public class Streaming
 {
     private static Logger logger = Logger.getLogger(Streaming.class);
@@ -147,6 +160,8 @@ public class Streaming
      */
     public static void requestRanges(InetAddress source, Collection<Range> ranges)
     {
+        if (logger.isDebugEnabled())
+            logger.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
         StreamRequestMetadata streamRequestMetadata = new StreamRequestMetadata(FBUtilities.getLocalAddress(), ranges);
         Message message = StreamRequestMessage.makeStreamRequestMessage(new StreamRequestMessage(streamRequestMetadata));
         MessagingService.instance.sendOneWay(message, source);
@@ -216,7 +231,7 @@ public class Streaming
 
         public String getNewFileNameFromOldContextAndNames(Map<String, String> fileNames,
                                                            Map<String, String> pathNames,
-                StreamContextManager.StreamContext streamContext)
+                                                           StreamContextManager.StreamContext streamContext)
         {
             File sourceFile = new File( streamContext.getTargetFile() );
             String[] piece = FBUtilities.strip(sourceFile.getName(), "-");

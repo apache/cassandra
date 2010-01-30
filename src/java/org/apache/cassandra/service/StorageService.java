@@ -707,14 +707,9 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 }
             }
 
-            // Finally we have a list of addresses and ranges to
-            // stream. Proceed to stream
+            // Finally we have a list of addresses and ranges to stream. Proceed to stream
             for (Map.Entry<InetAddress, Collection<Range>> entry : sourceRanges.asMap().entrySet())
-            {
-                if (logger_.isDebugEnabled())
-                    logger_.debug("Requesting from " + entry.getKey() + " ranges " + StringUtils.join(entry.getValue(), ", "));
                 Streaming.requestRanges(entry.getKey(), entry.getValue());
-            }
         }
     }
 
