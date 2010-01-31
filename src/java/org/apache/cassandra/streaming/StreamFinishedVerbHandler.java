@@ -29,13 +29,13 @@ public class StreamFinishedVerbHandler implements IVerbHandler
             switch (streamStatus.getAction())
             {
                 case DELETE:
-                    StreamManager.instance(message.getFrom()).finish(streamStatus.getFile());
+                    StreamManager.get(message.getFrom()).finishAndStartNext(streamStatus.getFile());
                     break;
 
                 case STREAM:
                     if (logger.isDebugEnabled())
                         logger.debug("Need to re-stream file " + streamStatus.getFile());
-                    StreamManager.instance(message.getFrom()).repeat();
+                    StreamManager.get(message.getFrom()).startNext();
                     break;
 
                 default:

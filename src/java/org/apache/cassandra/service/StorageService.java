@@ -316,10 +316,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
         Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_BOOTSTRAPPING + Delimiter + partitioner_.getTokenFactory().toString(token)));
-        logger_.info("bootstrap sleeping " + Streaming.RING_DELAY);
+        logger_.info("bootstrap sleeping " + StreamOut.RING_DELAY);
         try
         {
-            Thread.sleep(Streaming.RING_DELAY);
+            Thread.sleep(StreamOut.RING_DELAY);
         }
         catch (InterruptedException e)
         {
@@ -708,7 +708,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
             // Finally we have a list of addresses and ranges to stream. Proceed to stream
             for (Map.Entry<InetAddress, Collection<Range>> entry : sourceRanges.asMap().entrySet())
-                Streaming.requestRanges(entry.getKey(), entry.getValue());
+                StreamIn.requestRanges(entry.getKey(), entry.getValue());
         }
     }
 
@@ -1265,8 +1265,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         logger_.info("DECOMMISSIONING");
         startLeaving();
-        logger_.info("decommission sleeping " + Streaming.RING_DELAY);
-        Thread.sleep(Streaming.RING_DELAY);
+        logger_.info("decommission sleeping " + StreamOut.RING_DELAY);
+        Thread.sleep(StreamOut.RING_DELAY);
 
         Runnable finishLeaving = new Runnable()
         {
@@ -1336,7 +1336,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 public void run()
                 {
                     // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                    Streaming.transferRanges(newEndpoint, Arrays.asList(range), callback);
+                    StreamOut.transferRanges(newEndpoint, Arrays.asList(range), callback);
                 }
             });
         }
@@ -1364,8 +1364,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         logger_.info("starting move. leaving token " + getLocalToken());
         startLeaving();
-        logger_.info("move sleeping " + Streaming.RING_DELAY);
-        Thread.sleep(Streaming.RING_DELAY);
+        logger_.info("move sleeping " + StreamOut.RING_DELAY);
+        Thread.sleep(StreamOut.RING_DELAY);
 
         Runnable finishMoving = new WrappedRunnable()
         {

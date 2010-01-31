@@ -31,7 +31,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTableUtils;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.Streaming;
+import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.Test;
@@ -54,7 +54,7 @@ public class StreamingTest extends CleanupHelper
         String cfname = sstable.getColumnFamilyName();
 
         // transfer
-        Streaming.transferSSTables(LOCAL, Arrays.asList(sstable), tablename);
+        StreamOut.transferSSTables(LOCAL, Arrays.asList(sstable), tablename);
 
         // confirm that the SSTable was transferred and registered
         ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);

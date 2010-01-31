@@ -35,7 +35,7 @@ import org.apache.cassandra.io.CompactionIterator.CompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.streaming.Streaming;
+import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -628,7 +628,7 @@ public class AntiEntropyService
             {
                 List<Range> ranges = new ArrayList<Range>(differences);
                 List<SSTableReader> sstables = CompactionManager.instance.submitAnticompaction(cfstore, ranges, remote).get();
-                Streaming.transferSSTables(remote, sstables, cf.left);
+                StreamOut.transferSSTables(remote, sstables, cf.left);
             }
             catch(Exception e)
             {

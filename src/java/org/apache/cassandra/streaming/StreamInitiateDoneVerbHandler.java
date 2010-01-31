@@ -14,6 +14,6 @@ public class StreamInitiateDoneVerbHandler implements IVerbHandler
     {
         if (logger.isDebugEnabled())
           logger.debug("Received a stream initiate done message ...");
-        StreamManager.instance(message.getFrom()).start();
+        StreamManager.get(message.getFrom()).startNext();
     }
 }

@@ -32,7 +32,7 @@ package org.apache.cassandra.dht;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;
  import org.apache.cassandra.service.StorageService;
- import org.apache.cassandra.streaming.Streaming;
+ import org.apache.cassandra.streaming.StreamIn;
  import org.apache.cassandra.utils.SimpleCondition;
  import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.config.DatabaseDescriptor;
@@ -79,7 +79,7 @@ public class BootStrapper
                     InetAddress source = entry.getKey();
                     for (String table : DatabaseDescriptor.getNonSystemTables())
                         StorageService.instance.addBootstrapSource(source, table);
-                    Streaming.requestRanges(source, entry.getValue());
+                    StreamIn.requestRanges(source, entry.getValue());
                 }
             }
         }, "Boostrap requester").start();

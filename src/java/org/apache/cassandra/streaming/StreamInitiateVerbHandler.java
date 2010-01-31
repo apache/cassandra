@@ -48,7 +48,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                 if (logger.isDebugEnabled())
                     logger.debug("no data needed from " + message.getFrom());
                 if (StorageService.instance.isBootstrapMode())
-                    StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(Streaming.TABLE_NAME)));
+                    StorageService.instance.removeBootstrapSource(message.getFrom(), new String(message.getHeader(StreamOut.TABLE_NAME)));
                 return;
             }
 

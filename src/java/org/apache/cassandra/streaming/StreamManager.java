@@ -31,6 +31,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamContextManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.SimpleCondition;
 
 import org.apache.log4j.Logger;
 
@@ -39,88 +40,82 @@ import org.apache.log4j.Logger;
 */
 public class StreamManager
 {   
-    private static Logger logger_ = Logger.getLogger( StreamManager.class );
+    private static Logger logger = Logger.getLogger( StreamManager.class );
         
-    private static ConcurrentMap<InetAddress, StreamManager> streamManagers_ = new ConcurrentHashMap<InetAddress, StreamManager>();
-    
-    public static StreamManager instance(InetAddress to)
+    private static ConcurrentMap<InetAddress, StreamManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamManager>();
+
+    public static StreamManager get(InetAddress to)
     {
-        StreamManager streamManager = streamManagers_.get(to);
-        if ( streamManager == null )
+        StreamManager streamManager = streamManagers.get(to);
+        if (streamManager == null)
         {
             StreamManager possibleNew = new StreamManager(to);
-            if ((streamManager = streamManagers_.putIfAbsent(to, possibleNew)) == null)
+            if ((streamManager = streamManagers.putIfAbsent(to, possibleNew)) == null)
                 streamManager = possibleNew;
         }
         return streamManager;
     }
     
-    private List<File> filesToStream_ = new ArrayList<File>();
-    private InetAddress to_;
-    private long totalBytesToStream_ = 0L;
+    private final List<File> files = new ArrayList<File>();
+    private final InetAddress to;
+    private long totalBytes = 0L;
+    private final SimpleCondition condition = new SimpleCondition();
     
     private StreamManager(InetAddress to)
     {
-        to_ = to;
+        this.to = to;
     }
     
     public void addFilesToStream(StreamContextManager.StreamContext[] streamContexts)
     {
-        for ( StreamContextManager.StreamContext streamContext : streamContexts )
+        for (StreamContextManager.StreamContext streamContext : streamContexts)
         {
-            if (logger_.isDebugEnabled())
-              logger_.debug("Adding file " + streamContext.getTargetFile() + " to be streamed.");
-            filesToStream_.add( new File( streamContext.getTargetFile() ) );
-            totalBytesToStream_ += streamContext.getExpectedBytes();
+            if (logger.isDebugEnabled())
+              logger.debug("Adding file " + streamContext.getTargetFile() + " to be streamed.");
+            files.add( new File( streamContext.getTargetFile() ) );
+            totalBytes += streamContext.getExpectedBytes();
         }
     }
     
-    public void start()
+    public void startNext()
     {
-        if ( filesToStream_.size() > 0 )
+        if (files.size() > 0)
         {
-            File file = filesToStream_.get(0);
-            if (logger_.isDebugEnabled())
-              logger_.debug("Streaming " + file.length() + " length file " + file + " ...");
-            MessagingService.instance.stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to_);
+            File file = files.get(0);
+            if (logger.isDebugEnabled())
+              logger.debug("Streaming " + file.length() + " length file " + file + " ...");
+            MessagingService.instance.stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to);
         }
     }
-    
-    public void repeat()
-    {
-        if ( filesToStream_.size() > 0 )
-            start();
-    }
-    
-    public void finish(String file) throws IOException
+
+    public void finishAndStartNext(String file) throws IOException
     {
         File f = new File(file);
-        if (logger_.isDebugEnabled())
-          logger_.debug("Deleting file " + file + " after streaming " + f.length() + "/" + totalBytesToStream_ + " bytes.");
+        if (logger.isDebugEnabled())
+          logger.debug("Deleting file " + file + " after streaming " + f.length() + "/" + totalBytes + " bytes.");
         FileUtils.delete(file);
-        filesToStream_.remove(0);
-        if ( filesToStream_.size() > 0 )
-            start();
+        files.remove(0);
+        if (files.size() > 0)
+        {
+            startNext();
+        }
         else
         {
-            synchronized(this)
-            {
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Signalling that streaming is done for " + to_);
-                notifyAll();
-            }
+            if (logger.isDebugEnabled())
+              logger.debug("Signalling that streaming is done for " + to);
+            condition.signalAll();
         }
     }
     
-    public synchronized void waitForStreamCompletion()
+    public void waitForStreamCompletion()
     {
         try
         {
-            wait();
+            condition.await();
         }
-        catch (InterruptedException ex)
+        catch (InterruptedException e)
         {
-            throw new AssertionError(ex);
+            throw new AssertionError(e);
         }
     }
 }

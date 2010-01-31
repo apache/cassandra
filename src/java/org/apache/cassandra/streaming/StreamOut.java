@@ -42,7 +42,6 @@ import org.apache.cassandra.streaming.StreamContextManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamManager;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class handles streaming data from one node to another.
@@ -57,9 +56,10 @@ import org.apache.cassandra.utils.FBUtilities;
  * For unbootstrap, the leaving node starts with step 3 (1 and 2 are skipped entirely).  This is why
  * STREAM_INITIATE is a separate verb, rather than just a reply to STREAM_REQUEST; the REQUEST is optional.
  */
-public class Streaming
+public class StreamOut
 {
-    private static Logger logger = Logger.getLogger(Streaming.class);
+    private static Logger logger = Logger.getLogger(StreamOut.class);
+
     static String TABLE_NAME = "STREAMING-TABLE-NAME";
     public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
@@ -134,10 +134,10 @@ public class Streaming
         if (logger.isDebugEnabled())
           logger.debug("Stream context metadata " + StringUtils.join(streamContexts, ", "));
 
-        StreamManager.instance(target).addFilesToStream(streamContexts);
+        StreamManager.get(target).addFilesToStream(streamContexts);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(streamContexts);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
-        message.addHeader(Streaming.TABLE_NAME, table.getBytes());
+        message.addHeader(StreamOut.TABLE_NAME, table.getBytes());
         if (logger.isDebugEnabled())
           logger.debug("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance.sendOneWay(message, target);
@@ -145,22 +145,10 @@ public class Streaming
         if (streamContexts.length > 0)
         {
             logger.info("Waiting for transfer to " + target + " to complete");
-            StreamManager.instance(target).waitForStreamCompletion();
+            StreamManager.get(target).waitForStreamCompletion();
             // (StreamManager will delete the streamed file on completion.)
             logger.info("Done with transfer to " + target);
         }
-    }
-
-    /**
-     * Request ranges to be transferred
-     */
-    public static void requestRanges(InetAddress source, Collection<Range> ranges)
-    {
-        if (logger.isDebugEnabled())
-            logger.debug("Requesting from " + source + " ranges " + StringUtils.join(ranges, ", "));
-        StreamRequestMetadata streamRequestMetadata = new StreamRequestMetadata(FBUtilities.getLocalAddress(), ranges);
-        Message message = StreamRequestMessage.makeStreamRequestMessage(new StreamRequestMessage(streamRequestMetadata));
-        MessagingService.instance.sendOneWay(message, source);
     }
 
 }
