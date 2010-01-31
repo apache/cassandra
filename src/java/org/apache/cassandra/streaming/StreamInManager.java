@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -26,110 +25,18 @@ import java.util.*;
 import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.streaming.IStreamComplete;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.log4j.Logger;
 
 public class StreamInManager
 {
     private static final Logger logger = Logger.getLogger(StreamInManager.class);
-    
-    public static enum StreamCompletionAction
-    {
-        DELETE,
-        STREAM
-    }
-    
-    public static class StreamStatus
-    {
-        private static ICompactSerializer<StreamStatus> serializer_;
-        
-        static 
-        {
-            serializer_ = new StreamStatusSerializer();
-        }
-        
-        public static ICompactSerializer<StreamStatus> serializer()
-        {
-            return serializer_;
-        }
-            
-        private String file_;               
-        private long expectedBytes_;                
-        private StreamCompletionAction action_;
-                
-        public StreamStatus(String file, long expectedBytes)
-        {
-            file_ = file;
-            expectedBytes_ = expectedBytes;
-            action_ = StreamInManager.StreamCompletionAction.DELETE;
-        }
-        
-        public String getFile()
-        {
-            return file_;
-        }
-        
-        public long getExpectedBytes()
-        {
-            return expectedBytes_;
-        }
-        
-        public void setAction(StreamInManager.StreamCompletionAction action)
-        {
-            action_ = action;
-        }
-        
-        public StreamInManager.StreamCompletionAction getAction()
-        {
-            return action_;
-        }
 
-        public Message makeStreamStatusMessage() throws IOException
-        {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream( bos );
-            StreamStatus.serializer().serialize(this, dos);
-            return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
-        }
-    }
-    
-    public static class StreamStatusSerializer implements ICompactSerializer<StreamStatus>
-    {
-        public void serialize(StreamStatus streamStatus, DataOutputStream dos) throws IOException
-        {
-            dos.writeUTF(streamStatus.getFile());
-            dos.writeLong(streamStatus.getExpectedBytes());
-            dos.writeInt(streamStatus.getAction().ordinal());
-        }
-        
-        public StreamStatus deserialize(DataInputStream dis) throws IOException
-        {
-            String targetFile = dis.readUTF();
-            long expectedBytes = dis.readLong();
-            StreamStatus streamStatus = new StreamStatus(targetFile, expectedBytes);
-            
-            int ordinal = dis.readInt();                        
-            if ( ordinal == StreamCompletionAction.DELETE.ordinal() )
-            {
-                streamStatus.setAction(StreamCompletionAction.DELETE);
-            }
-            else if ( ordinal == StreamCompletionAction.STREAM.ordinal() )
-            {
-                streamStatus.setAction(StreamCompletionAction.STREAM);
-            }
-            
-            return streamStatus;
-        }
-    }
-                
     /* Maintain a stream context per host that is the source of the stream */
     public static final Map<InetAddress, List<InitiatedFile>> ctxBag_ = new Hashtable<InetAddress, List<InitiatedFile>>();
     /* Maintain in this map the status of the streams that need to be sent back to the source */
-    public static final Map<InetAddress, List<StreamStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<StreamStatus>>();
+    public static final Map<InetAddress, List<CompletedFileStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<CompletedFileStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
     public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
     
@@ -144,12 +51,12 @@ public class StreamInManager
         return initiatedFile;
     }
     
-    public synchronized static StreamStatus getStreamStatus(InetAddress key)
+    public synchronized static CompletedFileStatus getStreamStatus(InetAddress key)
     {
-        List<StreamStatus> status = streamStatusBag_.get(key);
+        List<CompletedFileStatus> status = streamStatusBag_.get(key);
         if ( status == null )
             throw new IllegalStateException("Streaming status has not been set for " + key);
-        StreamStatus streamStatus = status.remove(0);        
+        CompletedFileStatus streamStatus = status.remove(0);
         if ( status.isEmpty() )
             streamStatusBag_.remove(key);
         return streamStatus;
@@ -179,7 +86,7 @@ public class StreamInManager
         streamNotificationHandlers_.put(key, streamComplete);
     }
     
-    public synchronized static void addStreamContext(InetAddress key, InitiatedFile initiatedFile, StreamStatus streamStatus)
+    public synchronized static void addStreamContext(InetAddress key, InitiatedFile initiatedFile, CompletedFileStatus streamStatus)
     {
         /* Record the stream context */
         List<InitiatedFile> context = ctxBag_.get(key);
@@ -191,10 +98,10 @@ public class StreamInManager
         context.add(initiatedFile);
         
         /* Record the stream status for this stream context */
-        List<StreamStatus> status = streamStatusBag_.get(key);
+        List<CompletedFileStatus> status = streamStatusBag_.get(key);
         if ( status == null )
         {
-            status = new ArrayList<StreamStatus>();
+            status = new ArrayList<CompletedFileStatus>();
             streamStatusBag_.put(key, status);
         }
         status.add( streamStatus );

@@ -9,7 +9,6 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.IStreamComplete;
 import org.apache.cassandra.streaming.StreamInManager;
@@ -25,7 +24,7 @@ class StreamCompletionHandler implements IStreamComplete
 {
     private static Logger logger = Logger.getLogger(StreamCompletionHandler.class);
 
-    public void onStreamCompletion(InetAddress host, InitiatedFile initiatedFile, StreamInManager.StreamStatus streamStatus) throws IOException
+    public void onStreamCompletion(InetAddress host, InitiatedFile initiatedFile, CompletedFileStatus streamStatus) throws IOException
     {
         /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
         if (initiatedFile.getTargetFile().contains("-Data.db"))

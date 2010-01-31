@@ -9,7 +9,6 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.streaming.StreamInManager;
 import org.apache.cassandra.streaming.StreamOutManager;
 
 public class StreamFinishedVerbHandler implements IVerbHandler
@@ -23,7 +22,7 @@ public class StreamFinishedVerbHandler implements IVerbHandler
 
         try
         {
-            StreamInManager.StreamStatus streamStatus = StreamInManager.StreamStatus.serializer().deserialize(new DataInputStream(bufIn));
+            CompletedFileStatus streamStatus = CompletedFileStatus.serializer().deserialize(new DataInputStream(bufIn));
 
             switch (streamStatus.getAction())
             {

@@ -22,13 +22,11 @@ import java.io.IOException;
 
 import java.net.InetAddress;
 
-import org.apache.cassandra.streaming.StreamInManager;
-
 public interface IStreamComplete
 {
     /*
      * This callback if registered with the StreamContextManager is 
      * called when the stream from a host is completely handled. 
     */
-    public void onStreamCompletion(InetAddress from, InitiatedFile initiatedFile, StreamInManager.StreamStatus streamStatus) throws IOException;
+    public void onStreamCompletion(InetAddress from, InitiatedFile initiatedFile, CompletedFileStatus streamStatus) throws IOException;
 }

@@ -63,7 +63,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
             */
             for (InitiatedFile initiatedFile : initiatedFiles)
             {
-                StreamInManager.StreamStatus streamStatus = new StreamInManager.StreamStatus(initiatedFile.getTargetFile(), initiatedFile.getExpectedBytes() );
+                CompletedFileStatus streamStatus = new CompletedFileStatus(initiatedFile.getTargetFile(), initiatedFile.getExpectedBytes() );
                 String file = getNewFileNameFromOldContextAndNames(fileNames, pathNames, initiatedFile);
 
                 if (logger.isDebugEnabled())
@@ -136,7 +136,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
         return fileNames;
     }
 
-    private void addStreamContext(InetAddress host, InitiatedFile initiatedFile, StreamInManager.StreamStatus streamStatus)
+    private void addStreamContext(InetAddress host, InitiatedFile initiatedFile, CompletedFileStatus streamStatus)
     {
         if (logger.isDebugEnabled())
           logger.debug("Adding stream context " + initiatedFile + " for " + host + " ...");

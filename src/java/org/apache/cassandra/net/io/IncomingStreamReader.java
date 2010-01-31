@@ -27,6 +27,7 @@ import java.io.*;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.FileStreamTask;
+import org.apache.cassandra.streaming.CompletedFileStatus;
 import org.apache.cassandra.streaming.IStreamComplete;
 import org.apache.cassandra.streaming.InitiatedFile;
 import org.apache.cassandra.streaming.StreamInManager;
@@ -35,7 +36,7 @@ public class IncomingStreamReader
 {
     private static Logger logger = Logger.getLogger(IncomingStreamReader.class);
     private InitiatedFile initiatedFile;
-    private StreamInManager.StreamStatus streamStatus;
+    private CompletedFileStatus streamStatus;
     private SocketChannel socketChannel;
 
     public IncomingStreamReader(SocketChannel socketChannel)
@@ -65,7 +66,7 @@ public class IncomingStreamReader
         catch (IOException ex)
         {
             /* Ask the source node to re-stream this file. */
-            streamStatus.setAction(StreamInManager.StreamCompletionAction.STREAM);
+            streamStatus.setAction(CompletedFileStatus.StreamCompletionAction.STREAM);
             handleStreamCompletion(remoteAddress.getAddress());
             /* Delete the orphaned file. */
             File file = new File(initiatedFile.getTargetFile());
