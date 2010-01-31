@@ -16,7 +16,7 @@ import org.apache.cassandra.dht.StreamInitiateMessage;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.StreamContextManager;
+import org.apache.cassandra.streaming.StreamInManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -41,9 +41,9 @@ public class StreamInitiateVerbHandler implements IVerbHandler
         try
         {
             StreamInitiateMessage biMsg = StreamInitiateMessage.serializer().deserialize(new DataInputStream(bufIn));
-            StreamContextManager.StreamContext[] streamContexts = biMsg.getStreamContext();
+            InitiatedFile[] initiatedFiles = biMsg.getStreamContext();
 
-            if (streamContexts.length == 0)
+            if (initiatedFiles.length == 0)
             {
                 if (logger.isDebugEnabled())
                     logger.debug("no data needed from " + message.getFrom());
@@ -52,7 +52,7 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                 return;
             }
 
-            Map<String, String> fileNames = getNewNames(streamContexts);
+            Map<String, String> fileNames = getNewNames(initiatedFiles);
             Map<String, String> pathNames = new HashMap<String, String>();
             for (String ssName : fileNames.keySet())
                 pathNames.put(ssName, DatabaseDescriptor.getNextAvailableDataLocation());
@@ -61,18 +61,18 @@ public class StreamInitiateVerbHandler implements IVerbHandler
              * generate the new file names and store the new file names
              * in the StreamContextManager.
             */
-            for (StreamContextManager.StreamContext streamContext : streamContexts )
+            for (InitiatedFile initiatedFile : initiatedFiles)
             {
-                StreamContextManager.StreamStatus streamStatus = new StreamContextManager.StreamStatus(streamContext.getTargetFile(), streamContext.getExpectedBytes() );
-                String file = getNewFileNameFromOldContextAndNames(fileNames, pathNames, streamContext);
+                StreamInManager.StreamStatus streamStatus = new StreamInManager.StreamStatus(initiatedFile.getTargetFile(), initiatedFile.getExpectedBytes() );
+                String file = getNewFileNameFromOldContextAndNames(fileNames, pathNames, initiatedFile);
 
                 if (logger.isDebugEnabled())
-                  logger.debug("Received Data from  : " + message.getFrom() + " " + streamContext.getTargetFile() + " " + file);
-                streamContext.setTargetFile(file);
-                addStreamContext(message.getFrom(), streamContext, streamStatus);
+                  logger.debug("Received Data from  : " + message.getFrom() + " " + initiatedFile.getTargetFile() + " " + file);
+                initiatedFile.setTargetFile(file);
+                addStreamContext(message.getFrom(), initiatedFile, streamStatus);
             }
 
-            StreamContextManager.registerStreamCompletionHandler(message.getFrom(), new StreamCompletionHandler());
+            StreamInManager.registerStreamCompletionHandler(message.getFrom(), new StreamCompletionHandler());
             if (logger.isDebugEnabled())
               logger.debug("Sending a stream initiate done message ...");
             Message doneMessage = new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_INITIATE_DONE, new byte[0] );
@@ -86,23 +86,23 @@ public class StreamInitiateVerbHandler implements IVerbHandler
 
     public String getNewFileNameFromOldContextAndNames(Map<String, String> fileNames,
                                                        Map<String, String> pathNames,
-                                                       StreamContextManager.StreamContext streamContext)
+                                                       InitiatedFile initiatedFile)
     {
-        File sourceFile = new File( streamContext.getTargetFile() );
+        File sourceFile = new File( initiatedFile.getTargetFile() );
         String[] piece = FBUtilities.strip(sourceFile.getName(), "-");
         String cfName = piece[0];
         String ssTableNum = piece[1];
         String typeOfFile = piece[2];
 
-        String newFileNameExpanded = fileNames.get(streamContext.getTable() + "-" + cfName + "-" + ssTableNum);
-        String path = pathNames.get(streamContext.getTable() + "-" + cfName + "-" + ssTableNum);
+        String newFileNameExpanded = fileNames.get(initiatedFile.getTable() + "-" + cfName + "-" + ssTableNum);
+        String path = pathNames.get(initiatedFile.getTable() + "-" + cfName + "-" + ssTableNum);
         //Drop type (Data.db) from new FileName
         String newFileName = newFileNameExpanded.replace("Data.db", typeOfFile);
-        return path + File.separator + streamContext.getTable() + File.separator + newFileName;
+        return path + File.separator + initiatedFile.getTable() + File.separator + newFileName;
     }
 
     // todo: this method needs to be private, or package at the very least for easy unit testing.
-    public Map<String, String> getNewNames(StreamContextManager.StreamContext[] streamContexts) throws IOException
+    public Map<String, String> getNewNames(InitiatedFile[] initiatedFiles) throws IOException
     {
         /*
          * Mapping for each file with unique CF-i ---> new file name. For eg.
@@ -113,10 +113,10 @@ public class StreamInitiateVerbHandler implements IVerbHandler
         Map<String, String> fileNames = new HashMap<String, String>();
         /* Get the distinct entries from StreamContexts i.e have one entry per Data/Index/Filter file set */
         Set<String> distinctEntries = new HashSet<String>();
-        for ( StreamContextManager.StreamContext streamContext : streamContexts )
+        for ( InitiatedFile initiatedFile : initiatedFiles)
         {
-            String[] pieces = FBUtilities.strip(new File(streamContext.getTargetFile()).getName(), "-");
-            distinctEntries.add(streamContext.getTable() + "-" + pieces[0] + "-" + pieces[1] );
+            String[] pieces = FBUtilities.strip(new File(initiatedFile.getTargetFile()).getName(), "-");
+            distinctEntries.add(initiatedFile.getTable() + "-" + pieces[0] + "-" + pieces[1] );
         }
 
         /* Generate unique file names per entry */
@@ -136,10 +136,10 @@ public class StreamInitiateVerbHandler implements IVerbHandler
         return fileNames;
     }
 
-    private void addStreamContext(InetAddress host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus)
+    private void addStreamContext(InetAddress host, InitiatedFile initiatedFile, StreamInManager.StreamStatus streamStatus)
     {
         if (logger.isDebugEnabled())
-          logger.debug("Adding stream context " + streamContext + " for " + host + " ...");
-        StreamContextManager.addStreamContext(host, streamContext, streamStatus);
+          logger.debug("Adding stream context " + initiatedFile + " for " + host + " ...");
+        StreamInManager.addStreamContext(host, initiatedFile, streamStatus);
     }
 }

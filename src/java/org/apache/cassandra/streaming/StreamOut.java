@@ -38,10 +38,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.streaming.StreamContextManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.streaming.StreamOutManager;
 
 /**
  * This class handles streaming data from one node to another.
@@ -121,31 +120,31 @@ public class StreamOut
      */
     public static void transferSSTables(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
-        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[SSTable.FILES_ON_DISK * sstables.size()];
+        InitiatedFile[] initiatedFiles = new InitiatedFile[SSTable.FILES_ON_DISK * sstables.size()];
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
             for (String filename : sstable.getAllFilenames())
             {
                 File file = new File(filename);
-                streamContexts[i++] = new StreamContextManager.StreamContext(file.getAbsolutePath(), file.length(), table);
+                initiatedFiles[i++] = new InitiatedFile(file.getAbsolutePath(), file.length(), table);
             }
         }
         if (logger.isDebugEnabled())
-          logger.debug("Stream context metadata " + StringUtils.join(streamContexts, ", "));
+          logger.debug("Stream context metadata " + StringUtils.join(initiatedFiles, ", "));
 
-        StreamManager.get(target).addFilesToStream(streamContexts);
-        StreamInitiateMessage biMessage = new StreamInitiateMessage(streamContexts);
+        StreamOutManager.get(target).addFilesToStream(initiatedFiles);
+        StreamInitiateMessage biMessage = new StreamInitiateMessage(initiatedFiles);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
         message.addHeader(StreamOut.TABLE_NAME, table.getBytes());
         if (logger.isDebugEnabled())
           logger.debug("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance.sendOneWay(message, target);
 
-        if (streamContexts.length > 0)
+        if (initiatedFiles.length > 0)
         {
             logger.info("Waiting for transfer to " + target + " to complete");
-            StreamManager.get(target).waitForStreamCompletion();
+            StreamOutManager.get(target).waitForStreamCompletion();
             // (StreamManager will delete the streamed file on completion.)
             logger.info("Done with transfer to " + target);
         }

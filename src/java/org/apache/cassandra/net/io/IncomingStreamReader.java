@@ -28,22 +28,23 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.FileStreamTask;
 import org.apache.cassandra.streaming.IStreamComplete;
-import org.apache.cassandra.streaming.StreamContextManager;
+import org.apache.cassandra.streaming.InitiatedFile;
+import org.apache.cassandra.streaming.StreamInManager;
 
 public class IncomingStreamReader
 {
     private static Logger logger = Logger.getLogger(IncomingStreamReader.class);
-    private StreamContextManager.StreamContext streamContext;
-    private StreamContextManager.StreamStatus streamStatus;
+    private InitiatedFile initiatedFile;
+    private StreamInManager.StreamStatus streamStatus;
     private SocketChannel socketChannel;
 
     public IncomingStreamReader(SocketChannel socketChannel)
     {
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        streamContext = StreamContextManager.getStreamContext(remoteAddress.getAddress());
-        assert streamContext != null;
-        streamStatus = StreamContextManager.getStreamStatus(remoteAddress.getAddress());
+        initiatedFile = StreamInManager.getStreamContext(remoteAddress.getAddress());
+        assert initiatedFile != null;
+        streamStatus = StreamInManager.getStreamStatus(remoteAddress.getAddress());
         assert streamStatus != null;
     }
 
@@ -51,32 +52,32 @@ public class IncomingStreamReader
     {
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
         if (logger.isDebugEnabled())
-          logger.debug("Creating file for " + streamContext.getTargetFile());
-        FileOutputStream fos = new FileOutputStream(streamContext.getTargetFile(), true);
+          logger.debug("Creating file for " + initiatedFile.getTargetFile());
+        FileOutputStream fos = new FileOutputStream(initiatedFile.getTargetFile(), true);
         FileChannel fc = fos.getChannel();
 
         long bytesRead = 0;
         try
         {
-            while (bytesRead < streamContext.getExpectedBytes())
+            while (bytesRead < initiatedFile.getExpectedBytes())
                 bytesRead += fc.transferFrom(socketChannel, bytesRead, FileStreamTask.CHUNK_SIZE);
         }
         catch (IOException ex)
         {
             /* Ask the source node to re-stream this file. */
-            streamStatus.setAction(StreamContextManager.StreamCompletionAction.STREAM);
+            streamStatus.setAction(StreamInManager.StreamCompletionAction.STREAM);
             handleStreamCompletion(remoteAddress.getAddress());
             /* Delete the orphaned file. */
-            File file = new File(streamContext.getTargetFile());
+            File file = new File(initiatedFile.getTargetFile());
             file.delete();
             throw ex;
         }
 
-        if (bytesRead == streamContext.getExpectedBytes())
+        if (bytesRead == initiatedFile.getExpectedBytes())
         {
             if (logger.isDebugEnabled())
             {
-                logger.debug("Removing stream context " + streamContext);
+                logger.debug("Removing stream context " + initiatedFile);
             }
             fc.close();
             handleStreamCompletion(remoteAddress.getAddress());
@@ -89,8 +90,8 @@ public class IncomingStreamReader
          * Streaming is complete. If all the data that has to be received inform the sender via
          * the stream completion callback so that the source may perform the requisite cleanup.
         */
-        IStreamComplete streamComplete = StreamContextManager.getStreamCompletionHandler(remoteHost);
+        IStreamComplete streamComplete = StreamInManager.getStreamCompletionHandler(remoteHost);
         if (streamComplete != null)
-            streamComplete.onStreamCompletion(remoteHost, streamContext, streamStatus);
+            streamComplete.onStreamCompletion(remoteHost, initiatedFile, streamStatus);
     }
 }

@@ -33,97 +33,14 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.log4j.Logger;
 
-public class StreamContextManager
+public class StreamInManager
 {
-    private static Logger logger = Logger.getLogger(StreamContextManager.class);
+    private static final Logger logger = Logger.getLogger(StreamInManager.class);
     
     public static enum StreamCompletionAction
     {
         DELETE,
         STREAM
-    }
-    
-    public static class StreamContext
-    {
-        private static ICompactSerializer<StreamContext> serializer_;
-        
-        static
-        {
-            serializer_ = new StreamContextSerializer();
-        }
-        
-        public static ICompactSerializer<StreamContext> serializer()
-        {
-            return serializer_;
-        }
-                
-        private String targetFile_;        
-        private long expectedBytes_;                     
-        private String table_;
-        
-        public StreamContext(String targetFile, long expectedBytes, String table)
-        {
-            targetFile_ = targetFile;
-            expectedBytes_ = expectedBytes;         
-            table_ = table;
-        }
-
-        public String getTable()
-        {
-            return table_;
-        }                
-                
-        public String getTargetFile()
-        {
-            return targetFile_;
-        }
-        
-        public void setTargetFile(String file)
-        {
-            targetFile_ = file;
-        }
-        
-        public long getExpectedBytes()
-        {
-            return expectedBytes_;
-        }
-                
-        public boolean equals(Object o)
-        {
-            if ( !(o instanceof StreamContext) )
-                return false;
-            
-            StreamContext rhs = (StreamContext)o;
-            return targetFile_.equals(rhs.targetFile_);
-        }
-        
-        public int hashCode()
-        {
-            return toString().hashCode();
-        }
-        
-        public String toString()
-        {
-            return targetFile_ + ":" + expectedBytes_;
-        }
-    }
-    
-    public static class StreamContextSerializer implements ICompactSerializer<StreamContext>
-    {
-        public void serialize(StreamContextManager.StreamContext sc, DataOutputStream dos) throws IOException
-        {
-            dos.writeUTF(sc.targetFile_);
-            dos.writeLong(sc.expectedBytes_);            
-            dos.writeUTF(sc.table_);
-        }
-        
-        public StreamContextManager.StreamContext deserialize(DataInputStream dis) throws IOException
-        {
-            String targetFile = dis.readUTF();
-            long expectedBytes = dis.readLong();           
-            String table = dis.readUTF();
-            return new StreamContext(targetFile, expectedBytes, table);
-        }
     }
     
     public static class StreamStatus
@@ -148,7 +65,7 @@ public class StreamContextManager
         {
             file_ = file;
             expectedBytes_ = expectedBytes;
-            action_ = StreamContextManager.StreamCompletionAction.DELETE;
+            action_ = StreamInManager.StreamCompletionAction.DELETE;
         }
         
         public String getFile()
@@ -161,12 +78,12 @@ public class StreamContextManager
             return expectedBytes_;
         }
         
-        public void setAction(StreamContextManager.StreamCompletionAction action)
+        public void setAction(StreamInManager.StreamCompletionAction action)
         {
             action_ = action;
         }
         
-        public StreamContextManager.StreamCompletionAction getAction()
+        public StreamInManager.StreamCompletionAction getAction()
         {
             return action_;
         }
@@ -223,14 +140,14 @@ public class StreamContextManager
             return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
         }
         
-        protected StreamContextManager.StreamStatus streamStatus_;
+        protected StreamInManager.StreamStatus streamStatus_;
         
-        public StreamStatusMessage(StreamContextManager.StreamStatus streamStatus)
+        public StreamStatusMessage(StreamInManager.StreamStatus streamStatus)
         {
             streamStatus_ = streamStatus;
         }
         
-        public StreamContextManager.StreamStatus getStreamStatus()
+        public StreamInManager.StreamStatus getStreamStatus()
         {
             return streamStatus_;
         }
@@ -245,27 +162,27 @@ public class StreamContextManager
         
         public StreamStatusMessage deserialize(DataInputStream dis) throws IOException
         {            
-            StreamContextManager.StreamStatus streamStatus = StreamStatus.serializer().deserialize(dis);         
+            StreamInManager.StreamStatus streamStatus = StreamStatus.serializer().deserialize(dis);
             return new StreamStatusMessage(streamStatus);
         }
     }
         
     /* Maintain a stream context per host that is the source of the stream */
-    public static final Map<InetAddress, List<StreamContext>> ctxBag_ = new Hashtable<InetAddress, List<StreamContext>>();
+    public static final Map<InetAddress, List<InitiatedFile>> ctxBag_ = new Hashtable<InetAddress, List<InitiatedFile>>();
     /* Maintain in this map the status of the streams that need to be sent back to the source */
     public static final Map<InetAddress, List<StreamStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<StreamStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
     public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
     
-    public synchronized static StreamContext getStreamContext(InetAddress key)
+    public synchronized static InitiatedFile getStreamContext(InetAddress key)
     {        
-        List<StreamContext> context = ctxBag_.get(key);
+        List<InitiatedFile> context = ctxBag_.get(key);
         if ( context == null )
             throw new IllegalStateException("Streaming context has not been set for " + key);
-        StreamContext streamContext = context.remove(0);        
+        InitiatedFile initiatedFile = context.remove(0);
         if ( context.isEmpty() )
             ctxBag_.remove(key);
-        return streamContext;
+        return initiatedFile;
     }
     
     public synchronized static StreamStatus getStreamStatus(InetAddress key)
@@ -303,16 +220,16 @@ public class StreamContextManager
         streamNotificationHandlers_.put(key, streamComplete);
     }
     
-    public synchronized static void addStreamContext(InetAddress key, StreamContext streamContext, StreamStatus streamStatus)
+    public synchronized static void addStreamContext(InetAddress key, InitiatedFile initiatedFile, StreamStatus streamStatus)
     {
         /* Record the stream context */
-        List<StreamContext> context = ctxBag_.get(key);        
+        List<InitiatedFile> context = ctxBag_.get(key);
         if ( context == null )
         {
-            context = new ArrayList<StreamContext>();
+            context = new ArrayList<InitiatedFile>();
             ctxBag_.put(key, context);
         }
-        context.add(streamContext);
+        context.add(initiatedFile);
         
         /* Record the stream status for this stream context */
         List<StreamStatus> status = streamStatusBag_.get(key);

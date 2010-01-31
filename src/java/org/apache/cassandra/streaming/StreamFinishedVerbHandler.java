@@ -9,8 +9,8 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.streaming.StreamContextManager;
-import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.streaming.StreamInManager;
+import org.apache.cassandra.streaming.StreamOutManager;
 
 public class StreamFinishedVerbHandler implements IVerbHandler
 {
@@ -23,19 +23,19 @@ public class StreamFinishedVerbHandler implements IVerbHandler
 
         try
         {
-            StreamContextManager.StreamStatusMessage streamStatusMessage = StreamContextManager.StreamStatusMessage.serializer().deserialize(new DataInputStream(bufIn));
-            StreamContextManager.StreamStatus streamStatus = streamStatusMessage.getStreamStatus();
+            StreamInManager.StreamStatusMessage streamStatusMessage = StreamInManager.StreamStatusMessage.serializer().deserialize(new DataInputStream(bufIn));
+            StreamInManager.StreamStatus streamStatus = streamStatusMessage.getStreamStatus();
 
             switch (streamStatus.getAction())
             {
                 case DELETE:
-                    StreamManager.get(message.getFrom()).finishAndStartNext(streamStatus.getFile());
+                    StreamOutManager.get(message.getFrom()).finishAndStartNext(streamStatus.getFile());
                     break;
 
                 case STREAM:
                     if (logger.isDebugEnabled())
                         logger.debug("Need to re-stream file " + streamStatus.getFile());
-                    StreamManager.get(message.getFrom()).startNext();
+                    StreamOutManager.get(message.getFrom()).startNext();
                     break;
 
                 default:

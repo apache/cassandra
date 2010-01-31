@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.net.InetAddress;
 
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.StreamContextManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.SimpleCondition;
@@ -38,22 +37,22 @@ import org.apache.log4j.Logger;
 /**
  * This class manages the streaming of multiple files one after the other.
 */
-public class StreamManager
+public class StreamOutManager
 {   
-    private static Logger logger = Logger.getLogger( StreamManager.class );
+    private static Logger logger = Logger.getLogger( StreamOutManager.class );
         
-    private static ConcurrentMap<InetAddress, StreamManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamManager>();
+    private static ConcurrentMap<InetAddress, StreamOutManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamOutManager>();
 
-    public static StreamManager get(InetAddress to)
+    public static StreamOutManager get(InetAddress to)
     {
-        StreamManager streamManager = streamManagers.get(to);
-        if (streamManager == null)
+        StreamOutManager manager = streamManagers.get(to);
+        if (manager == null)
         {
-            StreamManager possibleNew = new StreamManager(to);
-            if ((streamManager = streamManagers.putIfAbsent(to, possibleNew)) == null)
-                streamManager = possibleNew;
+            StreamOutManager possibleNew = new StreamOutManager(to);
+            if ((manager = streamManagers.putIfAbsent(to, possibleNew)) == null)
+                manager = possibleNew;
         }
-        return streamManager;
+        return manager;
     }
     
     private final List<File> files = new ArrayList<File>();
@@ -61,19 +60,19 @@ public class StreamManager
     private long totalBytes = 0L;
     private final SimpleCondition condition = new SimpleCondition();
     
-    private StreamManager(InetAddress to)
+    private StreamOutManager(InetAddress to)
     {
         this.to = to;
     }
     
-    public void addFilesToStream(StreamContextManager.StreamContext[] streamContexts)
+    public void addFilesToStream(InitiatedFile[] initiatedFiles)
     {
-        for (StreamContextManager.StreamContext streamContext : streamContexts)
+        for (InitiatedFile initiatedFile : initiatedFiles)
         {
             if (logger.isDebugEnabled())
-              logger.debug("Adding file " + streamContext.getTargetFile() + " to be streamed.");
-            files.add( new File( streamContext.getTargetFile() ) );
-            totalBytes += streamContext.getExpectedBytes();
+              logger.debug("Adding file " + initiatedFile.getTargetFile() + " to be streamed.");
+            files.add( new File( initiatedFile.getTargetFile() ) );
+            totalBytes += initiatedFile.getExpectedBytes();
         }
     }
     

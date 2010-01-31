@@ -4,7 +4,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.streaming.StreamOutManager;
 
 public class StreamInitiateDoneVerbHandler implements IVerbHandler
 {
@@ -14,6 +14,6 @@ public class StreamInitiateDoneVerbHandler implements IVerbHandler
     {
         if (logger.isDebugEnabled())
           logger.debug("Received a stream initiate done message ...");
-        StreamManager.get(message.getFrom()).startNext();
+        StreamOutManager.get(message.getFrom()).startNext();
     }
 }

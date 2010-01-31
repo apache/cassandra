@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.streaming.StreamContextManager;
+import org.apache.cassandra.streaming.InitiatedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -51,14 +51,14 @@ public class StreamInitiateMessage
         return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_INITIATE, bos.toByteArray() );
     }
     
-    protected StreamContextManager.StreamContext[] streamContexts_ = new StreamContextManager.StreamContext[0];
+    protected InitiatedFile[] streamContexts_ = new InitiatedFile[0];
    
-    public StreamInitiateMessage(StreamContextManager.StreamContext[] streamContexts)
+    public StreamInitiateMessage(InitiatedFile[] initiatedFiles)
     {
-        streamContexts_ = streamContexts;
+        streamContexts_ = initiatedFiles;
     }
     
-    public StreamContextManager.StreamContext[] getStreamContext()
+    public InitiatedFile[] getStreamContext()
     {
         return streamContexts_;
     }
@@ -69,25 +69,25 @@ class StreamInitiateMessageSerializer implements ICompactSerializer<StreamInitia
     public void serialize(StreamInitiateMessage bim, DataOutputStream dos) throws IOException
     {
         dos.writeInt(bim.streamContexts_.length);
-        for ( StreamContextManager.StreamContext streamContext : bim.streamContexts_ )
+        for ( InitiatedFile initiatedFile : bim.streamContexts_ )
         {
-            StreamContextManager.StreamContext.serializer().serialize(streamContext, dos);
+            InitiatedFile.serializer().serialize(initiatedFile, dos);
         }
     }
     
     public StreamInitiateMessage deserialize(DataInputStream dis) throws IOException
     {
         int size = dis.readInt();
-        StreamContextManager.StreamContext[] streamContexts = new StreamContextManager.StreamContext[0];
+        InitiatedFile[] initiatedFiles = new InitiatedFile[0];
         if ( size > 0 )
         {
-            streamContexts = new StreamContextManager.StreamContext[size];
+            initiatedFiles = new InitiatedFile[size];
             for ( int i = 0; i < size; ++i )
             {
-                streamContexts[i] = StreamContextManager.StreamContext.serializer().deserialize(dis);
+                initiatedFiles[i] = InitiatedFile.serializer().deserialize(dis);
             }
         }
-        return new StreamInitiateMessage(streamContexts);
+        return new StreamInitiateMessage(initiatedFiles);
     }
 }
 

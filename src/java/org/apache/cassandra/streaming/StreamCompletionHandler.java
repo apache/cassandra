@@ -12,7 +12,7 @@ import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.IStreamComplete;
-import org.apache.cassandra.streaming.StreamContextManager;
+import org.apache.cassandra.streaming.StreamInManager;
 import org.apache.cassandra.service.StorageService;
 
 /**
@@ -25,41 +25,41 @@ class StreamCompletionHandler implements IStreamComplete
 {
     private static Logger logger = Logger.getLogger(StreamCompletionHandler.class);
 
-    public void onStreamCompletion(InetAddress host, StreamContextManager.StreamContext streamContext, StreamContextManager.StreamStatus streamStatus) throws IOException
+    public void onStreamCompletion(InetAddress host, InitiatedFile initiatedFile, StreamInManager.StreamStatus streamStatus) throws IOException
     {
         /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
-        if (streamContext.getTargetFile().contains("-Data.db"))
+        if (initiatedFile.getTargetFile().contains("-Data.db"))
         {
-            String tableName = streamContext.getTable();
-            File file = new File( streamContext.getTargetFile() );
+            String tableName = initiatedFile.getTable();
+            File file = new File( initiatedFile.getTargetFile() );
             String fileName = file.getName();
             String [] temp = fileName.split("-");
 
             //Open the file to see if all parts are now here
             try
             {
-                SSTableReader sstable = SSTableWriter.renameAndOpen(streamContext.getTargetFile());
+                SSTableReader sstable = SSTableWriter.renameAndOpen(initiatedFile.getTargetFile());
                 //TODO add a sanity check that this sstable has all its parts and is ok
                 Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
                 logger.info("Streaming added " + sstable.getFilename());
             }
             catch (IOException e)
             {
-                throw new RuntimeException("Not able to add streamed file " + streamContext.getTargetFile(), e);
+                throw new RuntimeException("Not able to add streamed file " + initiatedFile.getTargetFile(), e);
             }
         }
 
         if (logger.isDebugEnabled())
           logger.debug("Sending a streaming finished message with " + streamStatus + " to " + host);
         /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
-        StreamContextManager.StreamStatusMessage streamStatusMessage = new StreamContextManager.StreamStatusMessage(streamStatus);
-        Message message = StreamContextManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
+        StreamInManager.StreamStatusMessage streamStatusMessage = new StreamInManager.StreamStatusMessage(streamStatus);
+        Message message = StreamInManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
         MessagingService.instance.sendOneWay(message, host);
 
         /* If we're done with everything for this host, remove from bootstrap sources */
-        if (StreamContextManager.isDone(host) && StorageService.instance.isBootstrapMode())
+        if (StreamInManager.isDone(host) && StorageService.instance.isBootstrapMode())
         {
-            StorageService.instance.removeBootstrapSource(host, streamContext.getTable());
+            StorageService.instance.removeBootstrapSource(host, initiatedFile.getTable());
         }
     }
 }
