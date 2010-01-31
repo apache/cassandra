@@ -18,13 +18,9 @@
 
 package org.apache.cassandra.streaming;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.util.*;
 import java.net.InetAddress;
 
-import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.streaming.IStreamComplete;
 
 import org.apache.log4j.Logger;
@@ -34,21 +30,21 @@ class StreamInManager
     private static final Logger logger = Logger.getLogger(StreamInManager.class);
 
     /* Maintain a stream context per host that is the source of the stream */
-    public static final Map<InetAddress, List<InitiatedFile>> ctxBag_ = new Hashtable<InetAddress, List<InitiatedFile>>();
+    public static final Map<InetAddress, List<PendingFile>> ctxBag_ = new Hashtable<InetAddress, List<PendingFile>>();
     /* Maintain in this map the status of the streams that need to be sent back to the source */
     public static final Map<InetAddress, List<CompletedFileStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<CompletedFileStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
     public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
     
-    public synchronized static InitiatedFile getStreamContext(InetAddress key)
+    public synchronized static PendingFile getStreamContext(InetAddress key)
     {        
-        List<InitiatedFile> context = ctxBag_.get(key);
+        List<PendingFile> context = ctxBag_.get(key);
         if ( context == null )
             throw new IllegalStateException("Streaming context has not been set for " + key);
-        InitiatedFile initiatedFile = context.remove(0);
+        PendingFile pendingFile = context.remove(0);
         if ( context.isEmpty() )
             ctxBag_.remove(key);
-        return initiatedFile;
+        return pendingFile;
     }
     
     public synchronized static CompletedFileStatus getStreamStatus(InetAddress key)
@@ -86,16 +82,16 @@ class StreamInManager
         streamNotificationHandlers_.put(key, streamComplete);
     }
     
-    public synchronized static void addStreamContext(InetAddress key, InitiatedFile initiatedFile, CompletedFileStatus streamStatus)
+    public synchronized static void addStreamContext(InetAddress key, PendingFile pendingFile, CompletedFileStatus streamStatus)
     {
         /* Record the stream context */
-        List<InitiatedFile> context = ctxBag_.get(key);
+        List<PendingFile> context = ctxBag_.get(key);
         if ( context == null )
         {
-            context = new ArrayList<InitiatedFile>();
+            context = new ArrayList<PendingFile>();
             ctxBag_.put(key, context);
         }
-        context.add(initiatedFile);
+        context.add(pendingFile);
         
         /* Record the stream status for this stream context */
         List<CompletedFileStatus> status = streamStatusBag_.get(key);

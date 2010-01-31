@@ -65,14 +65,14 @@ class StreamOutManager
         this.to = to;
     }
     
-    public void addFilesToStream(InitiatedFile[] initiatedFiles)
+    public void addFilesToStream(PendingFile[] pendingFiles)
     {
-        for (InitiatedFile initiatedFile : initiatedFiles)
+        for (PendingFile pendingFile : pendingFiles)
         {
             if (logger.isDebugEnabled())
-              logger.debug("Adding file " + initiatedFile.getTargetFile() + " to be streamed.");
-            files.add( new File( initiatedFile.getTargetFile() ) );
-            totalBytes += initiatedFile.getExpectedBytes();
+              logger.debug("Adding file " + pendingFile.getTargetFile() + " to be streamed.");
+            files.add( new File( pendingFile.getTargetFile() ) );
+            totalBytes += pendingFile.getExpectedBytes();
         }
     }
     

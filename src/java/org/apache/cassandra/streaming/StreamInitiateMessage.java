@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.streaming.InitiatedFile;
+import org.apache.cassandra.streaming.PendingFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -51,14 +51,14 @@ class StreamInitiateMessage
         return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_INITIATE, bos.toByteArray() );
     }
     
-    protected InitiatedFile[] streamContexts_ = new InitiatedFile[0];
+    protected PendingFile[] streamContexts_ = new PendingFile[0];
    
-    public StreamInitiateMessage(InitiatedFile[] initiatedFiles)
+    public StreamInitiateMessage(PendingFile[] pendingFiles)
     {
-        streamContexts_ = initiatedFiles;
+        streamContexts_ = pendingFiles;
     }
     
-    public InitiatedFile[] getStreamContext()
+    public PendingFile[] getStreamContext()
     {
         return streamContexts_;
     }
@@ -68,25 +68,25 @@ class StreamInitiateMessage
         public void serialize(StreamInitiateMessage bim, DataOutputStream dos) throws IOException
         {
             dos.writeInt(bim.streamContexts_.length);
-            for ( InitiatedFile initiatedFile : bim.streamContexts_ )
+            for ( PendingFile pendingFile : bim.streamContexts_ )
             {
-                InitiatedFile.serializer().serialize(initiatedFile, dos);
+                PendingFile.serializer().serialize(pendingFile, dos);
             }
         }
 
         public StreamInitiateMessage deserialize(DataInputStream dis) throws IOException
         {
             int size = dis.readInt();
-            InitiatedFile[] initiatedFiles = new InitiatedFile[0];
+            PendingFile[] pendingFiles = new PendingFile[0];
             if ( size > 0 )
             {
-                initiatedFiles = new InitiatedFile[size];
+                pendingFiles = new PendingFile[size];
                 for ( int i = 0; i < size; ++i )
                 {
-                    initiatedFiles[i] = InitiatedFile.serializer().deserialize(dis);
+                    pendingFiles[i] = PendingFile.serializer().deserialize(dis);
                 }
             }
-            return new StreamInitiateMessage(initiatedFiles);
+            return new StreamInitiateMessage(pendingFiles);
         }
     }
 }

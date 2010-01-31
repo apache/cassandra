@@ -31,7 +31,7 @@ import org.apache.cassandra.net.FileStreamTask;
 public class IncomingStreamReader
 {
     private static Logger logger = Logger.getLogger(IncomingStreamReader.class);
-    private InitiatedFile initiatedFile;
+    private PendingFile pendingFile;
     private CompletedFileStatus streamStatus;
     private SocketChannel socketChannel;
 
@@ -39,8 +39,8 @@ public class IncomingStreamReader
     {
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
-        initiatedFile = StreamInManager.getStreamContext(remoteAddress.getAddress());
-        assert initiatedFile != null;
+        pendingFile = StreamInManager.getStreamContext(remoteAddress.getAddress());
+        assert pendingFile != null;
         streamStatus = StreamInManager.getStreamStatus(remoteAddress.getAddress());
         assert streamStatus != null;
     }
@@ -49,14 +49,14 @@ public class IncomingStreamReader
     {
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
         if (logger.isDebugEnabled())
-          logger.debug("Creating file for " + initiatedFile.getTargetFile());
-        FileOutputStream fos = new FileOutputStream(initiatedFile.getTargetFile(), true);
+          logger.debug("Creating file for " + pendingFile.getTargetFile());
+        FileOutputStream fos = new FileOutputStream(pendingFile.getTargetFile(), true);
         FileChannel fc = fos.getChannel();
 
         long bytesRead = 0;
         try
         {
-            while (bytesRead < initiatedFile.getExpectedBytes())
+            while (bytesRead < pendingFile.getExpectedBytes())
                 bytesRead += fc.transferFrom(socketChannel, bytesRead, FileStreamTask.CHUNK_SIZE);
         }
         catch (IOException ex)
@@ -65,16 +65,16 @@ public class IncomingStreamReader
             streamStatus.setAction(CompletedFileStatus.StreamCompletionAction.STREAM);
             handleStreamCompletion(remoteAddress.getAddress());
             /* Delete the orphaned file. */
-            File file = new File(initiatedFile.getTargetFile());
+            File file = new File(pendingFile.getTargetFile());
             file.delete();
             throw ex;
         }
 
-        if (bytesRead == initiatedFile.getExpectedBytes())
+        if (bytesRead == pendingFile.getExpectedBytes())
         {
             if (logger.isDebugEnabled())
             {
-                logger.debug("Removing stream context " + initiatedFile);
+                logger.debug("Removing stream context " + pendingFile);
             }
             fc.close();
             handleStreamCompletion(remoteAddress.getAddress());
@@ -89,6 +89,6 @@ public class IncomingStreamReader
         */
         IStreamComplete streamComplete = StreamInManager.getStreamCompletionHandler(remoteHost);
         if (streamComplete != null)
-            streamComplete.onStreamCompletion(remoteHost, initiatedFile, streamStatus);
+            streamComplete.onStreamCompletion(remoteHost, pendingFile, streamStatus);
     }
 }

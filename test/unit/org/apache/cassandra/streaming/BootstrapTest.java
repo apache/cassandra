@@ -35,12 +35,12 @@ public class BootstrapTest
     @Test
     public void testGetNewNames() throws IOException
     {
-        InitiatedFile[] initiatedFiles = new InitiatedFile[3];
-        initiatedFiles[0] = new InitiatedFile("/baz/foo/Standard1-500-Data.db", 100, "Keyspace1");
-        initiatedFiles[1] = new InitiatedFile("/bar/foo/Standard1-500-Index.db", 100, "Keyspace1");
-        initiatedFiles[2] = new InitiatedFile("/bad/foo/Standard1-500-Filter.db", 100, "Keyspace1");
+        PendingFile[] pendingFiles = new PendingFile[3];
+        pendingFiles[0] = new PendingFile("/baz/foo/Standard1-500-Data.db", 100, "Keyspace1");
+        pendingFiles[1] = new PendingFile("/bar/foo/Standard1-500-Index.db", 100, "Keyspace1");
+        pendingFiles[2] = new PendingFile("/bad/foo/Standard1-500-Filter.db", 100, "Keyspace1");
         StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
-        Map<String, String> fileNames = bivh.getNewNames(initiatedFiles);
+        Map<String, String> fileNames = bivh.getNewNames(pendingFiles);
         Map<String, String> paths = new HashMap<String, String>();
         for (String ssName : fileNames.keySet())
             paths.put(ssName, DatabaseDescriptor.getNextAvailableDataLocation());
@@ -50,8 +50,8 @@ public class BootstrapTest
         assertEquals(true, result.contains("Data.db"));
         assertEquals(1, fileNames.entrySet().size());
 
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, initiatedFiles[0])).getName().matches("Standard1-tmp-\\d+-Data.db"));
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, initiatedFiles[1])).getName().matches("Standard1-tmp-\\d+-Index.db"));
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, initiatedFiles[2])).getName().matches("Standard1-tmp-\\d+-Filter.db"));
+        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, pendingFiles[0])).getName().matches("Standard1-tmp-\\d+-Data.db"));
+        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, pendingFiles[1])).getName().matches("Standard1-tmp-\\d+-Index.db"));
+        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, pendingFiles[2])).getName().matches("Standard1-tmp-\\d+-Filter.db"));
     }
 }

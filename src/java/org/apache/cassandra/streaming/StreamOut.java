@@ -119,28 +119,28 @@ public class StreamOut
      */
     public static void transferSSTables(InetAddress target, List<SSTableReader> sstables, String table) throws IOException
     {
-        InitiatedFile[] initiatedFiles = new InitiatedFile[SSTable.FILES_ON_DISK * sstables.size()];
+        PendingFile[] pendingFiles = new PendingFile[SSTable.FILES_ON_DISK * sstables.size()];
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
             for (String filename : sstable.getAllFilenames())
             {
                 File file = new File(filename);
-                initiatedFiles[i++] = new InitiatedFile(file.getAbsolutePath(), file.length(), table);
+                pendingFiles[i++] = new PendingFile(file.getAbsolutePath(), file.length(), table);
             }
         }
         if (logger.isDebugEnabled())
-          logger.debug("Stream context metadata " + StringUtils.join(initiatedFiles, ", "));
+          logger.debug("Stream context metadata " + StringUtils.join(pendingFiles, ", "));
 
-        StreamOutManager.get(target).addFilesToStream(initiatedFiles);
-        StreamInitiateMessage biMessage = new StreamInitiateMessage(initiatedFiles);
+        StreamOutManager.get(target).addFilesToStream(pendingFiles);
+        StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
         message.addHeader(StreamOut.TABLE_NAME, table.getBytes());
         if (logger.isDebugEnabled())
           logger.debug("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance.sendOneWay(message, target);
 
-        if (initiatedFiles.length > 0)
+        if (pendingFiles.length > 0)
         {
             logger.info("Waiting for transfer to " + target + " to complete");
             StreamOutManager.get(target).waitForStreamCompletion();
