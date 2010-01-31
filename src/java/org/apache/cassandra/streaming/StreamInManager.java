@@ -87,6 +87,14 @@ public class StreamInManager
         {
             return action_;
         }
+
+        public Message makeStreamStatusMessage() throws IOException
+        {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream( bos );
+            StreamStatus.serializer().serialize(this, dos);
+            return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
+        }
     }
     
     public static class StreamStatusSerializer implements ICompactSerializer<StreamStatus>
@@ -117,56 +125,7 @@ public class StreamInManager
             return streamStatus;
         }
     }
-    
-    public static class StreamStatusMessage
-    {
-        private static ICompactSerializer<StreamStatusMessage> serializer_;
-        
-        static 
-        {
-            serializer_ = new StreamStatusMessageSerializer();
-        }
-        
-        public static ICompactSerializer<StreamStatusMessage> serializer()
-        {
-            return serializer_;
-        }
-        
-        public static Message makeStreamStatusMessage(StreamStatusMessage streamStatusMessage) throws IOException
-        {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream( bos );
-            StreamStatusMessage.serializer().serialize(streamStatusMessage, dos);
-            return new Message(FBUtilities.getLocalAddress(), "", StorageService.Verb.STREAM_FINISHED, bos.toByteArray());
-        }
-        
-        protected StreamInManager.StreamStatus streamStatus_;
-        
-        public StreamStatusMessage(StreamInManager.StreamStatus streamStatus)
-        {
-            streamStatus_ = streamStatus;
-        }
-        
-        public StreamInManager.StreamStatus getStreamStatus()
-        {
-            return streamStatus_;
-        }
-    }
-    
-    public static class StreamStatusMessageSerializer implements ICompactSerializer<StreamStatusMessage>
-    {
-        public void serialize(StreamStatusMessage streamStatusMessage, DataOutputStream dos) throws IOException
-        {
-            StreamStatus.serializer().serialize(streamStatusMessage.streamStatus_, dos);            
-        }
-        
-        public StreamStatusMessage deserialize(DataInputStream dis) throws IOException
-        {            
-            StreamInManager.StreamStatus streamStatus = StreamStatus.serializer().deserialize(dis);
-            return new StreamStatusMessage(streamStatus);
-        }
-    }
-        
+                
     /* Maintain a stream context per host that is the source of the stream */
     public static final Map<InetAddress, List<InitiatedFile>> ctxBag_ = new Hashtable<InetAddress, List<InitiatedFile>>();
     /* Maintain in this map the status of the streams that need to be sent back to the source */

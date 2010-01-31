@@ -51,10 +51,8 @@ class StreamCompletionHandler implements IStreamComplete
 
         if (logger.isDebugEnabled())
           logger.debug("Sending a streaming finished message with " + streamStatus + " to " + host);
-        /* Send a StreamStatusMessage object which may require the source node to re-stream certain files. */
-        StreamInManager.StreamStatusMessage streamStatusMessage = new StreamInManager.StreamStatusMessage(streamStatus);
-        Message message = StreamInManager.StreamStatusMessage.makeStreamStatusMessage(streamStatusMessage);
-        MessagingService.instance.sendOneWay(message, host);
+        /* Send a StreamStatus message which may require the source node to re-stream certain files. */
+        MessagingService.instance.sendOneWay(streamStatus.makeStreamStatusMessage(), host);
 
         /* If we're done with everything for this host, remove from bootstrap sources */
         if (StreamInManager.isDone(host) && StorageService.instance.isBootstrapMode())

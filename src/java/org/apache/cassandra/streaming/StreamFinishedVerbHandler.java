@@ -23,8 +23,7 @@ public class StreamFinishedVerbHandler implements IVerbHandler
 
         try
         {
-            StreamInManager.StreamStatusMessage streamStatusMessage = StreamInManager.StreamStatusMessage.serializer().deserialize(new DataInputStream(bufIn));
-            StreamInManager.StreamStatus streamStatus = streamStatusMessage.getStreamStatus();
+            StreamInManager.StreamStatus streamStatus = StreamInManager.StreamStatus.serializer().deserialize(new DataInputStream(bufIn));
 
             switch (streamStatus.getAction())
             {
