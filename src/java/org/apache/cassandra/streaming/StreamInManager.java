@@ -29,7 +29,7 @@ import org.apache.cassandra.streaming.IStreamComplete;
 
 import org.apache.log4j.Logger;
 
-public class StreamInManager
+class StreamInManager
 {
     private static final Logger logger = Logger.getLogger(StreamInManager.class);
 

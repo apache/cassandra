@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net.io;
+package org.apache.cassandra.streaming;
 
 import java.net.InetSocketAddress;
 import java.net.InetAddress;
@@ -27,10 +27,6 @@ import java.io.*;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.FileStreamTask;
-import org.apache.cassandra.streaming.CompletedFileStatus;
-import org.apache.cassandra.streaming.IStreamComplete;
-import org.apache.cassandra.streaming.InitiatedFile;
-import org.apache.cassandra.streaming.StreamInManager;
 
 public class IncomingStreamReader
 {

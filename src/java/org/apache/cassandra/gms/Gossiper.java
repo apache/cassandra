@@ -28,7 +28,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.StreamOut;
 
 import org.apache.log4j.Logger;
 
@@ -415,10 +414,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 Hashtable<InetAddress, Long> copy = new Hashtable<InetAddress, Long>(justRemovedEndPoints_);
                 for (Map.Entry<InetAddress, Long> entry : copy.entrySet())
                 {
-                    if ((now - entry.getValue()) > StreamOut.RING_DELAY)
+                    if ((now - entry.getValue()) > StorageService.RING_DELAY)
                     {
                         if (logger_.isDebugEnabled())
-                            logger_.debug(StreamOut.RING_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
+                            logger_.debug(StorageService.RING_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
                         justRemovedEndPoints_.remove(entry.getKey());
                     }
                 }

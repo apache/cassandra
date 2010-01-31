@@ -33,7 +33,7 @@ import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.StreamInitiateMessage;
+import org.apache.cassandra.streaming.StreamInitiateMessage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTable;
@@ -60,7 +60,6 @@ public class StreamOut
     private static Logger logger = Logger.getLogger(StreamOut.class);
 
     static String TABLE_NAME = "STREAMING-TABLE-NAME";
-    public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.dht;
+package org.apache.cassandra.streaming;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -29,7 +29,7 @@ import org.apache.cassandra.streaming.InitiatedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class StreamInitiateMessage
+class StreamInitiateMessage
 {
     private static ICompactSerializer<StreamInitiateMessage> serializer_;
 
@@ -62,32 +62,31 @@ public class StreamInitiateMessage
     {
         return streamContexts_;
     }
-}
 
-class StreamInitiateMessageSerializer implements ICompactSerializer<StreamInitiateMessage>
-{
-    public void serialize(StreamInitiateMessage bim, DataOutputStream dos) throws IOException
+    private static class StreamInitiateMessageSerializer implements ICompactSerializer<StreamInitiateMessage>
     {
-        dos.writeInt(bim.streamContexts_.length);
-        for ( InitiatedFile initiatedFile : bim.streamContexts_ )
+        public void serialize(StreamInitiateMessage bim, DataOutputStream dos) throws IOException
         {
-            InitiatedFile.serializer().serialize(initiatedFile, dos);
-        }
-    }
-    
-    public StreamInitiateMessage deserialize(DataInputStream dis) throws IOException
-    {
-        int size = dis.readInt();
-        InitiatedFile[] initiatedFiles = new InitiatedFile[0];
-        if ( size > 0 )
-        {
-            initiatedFiles = new InitiatedFile[size];
-            for ( int i = 0; i < size; ++i )
+            dos.writeInt(bim.streamContexts_.length);
+            for ( InitiatedFile initiatedFile : bim.streamContexts_ )
             {
-                initiatedFiles[i] = InitiatedFile.serializer().deserialize(dis);
+                InitiatedFile.serializer().serialize(initiatedFile, dos);
             }
         }
-        return new StreamInitiateMessage(initiatedFiles);
+
+        public StreamInitiateMessage deserialize(DataInputStream dis) throws IOException
+        {
+            int size = dis.readInt();
+            InitiatedFile[] initiatedFiles = new InitiatedFile[0];
+            if ( size > 0 )
+            {
+                initiatedFiles = new InitiatedFile[size];
+                for ( int i = 0; i < size; ++i )
+                {
+                    initiatedFiles[i] = InitiatedFile.serializer().deserialize(dis);
+                }
+            }
+            return new StreamInitiateMessage(initiatedFiles);
+        }
     }
 }
-

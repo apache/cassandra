@@ -6,7 +6,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
-public class InitiatedFile
+class InitiatedFile
 {
     private static ICompactSerializer<InitiatedFile> serializer_;
 

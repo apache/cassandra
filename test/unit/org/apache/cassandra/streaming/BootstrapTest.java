@@ -16,7 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.dht;
+package org.apache.cassandra.streaming;
 
 import static junit.framework.Assert.assertEquals;
 import static org.junit.Assert.*;
@@ -27,8 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.streaming.InitiatedFile;
-import org.apache.cassandra.streaming.StreamInitiateVerbHandler;
 
 import org.junit.Test;
 

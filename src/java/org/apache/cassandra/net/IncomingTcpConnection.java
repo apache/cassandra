@@ -2,12 +2,10 @@ package org.apache.cassandra.net;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.net.io.IncomingStreamReader;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.streaming.IncomingStreamReader;
 
 public class IncomingTcpConnection extends Thread
 {

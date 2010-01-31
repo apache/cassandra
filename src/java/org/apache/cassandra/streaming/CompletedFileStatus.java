@@ -10,7 +10,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class CompletedFileStatus
+class CompletedFileStatus
 {
     private static ICompactSerializer<CompletedFileStatus> serializer_;
 

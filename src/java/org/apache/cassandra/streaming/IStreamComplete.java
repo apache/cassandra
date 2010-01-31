@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import java.net.InetAddress;
 
-public interface IStreamComplete
+interface IStreamComplete
 {
     /*
      * This callback if registered with the StreamContextManager is 

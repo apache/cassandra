@@ -62,6 +62,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
 
+    public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
+
     public final static String MOVE_STATE = "MOVE";
 
     // this must be a char that cannot be present in any token
@@ -316,10 +318,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
         Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_BOOTSTRAPPING + Delimiter + partitioner_.getTokenFactory().toString(token)));
-        logger_.info("bootstrap sleeping " + StreamOut.RING_DELAY);
+        logger_.info("bootstrap sleeping " + RING_DELAY);
         try
         {
-            Thread.sleep(StreamOut.RING_DELAY);
+            Thread.sleep(RING_DELAY);
         }
         catch (InterruptedException e)
         {
@@ -1265,8 +1267,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         logger_.info("DECOMMISSIONING");
         startLeaving();
-        logger_.info("decommission sleeping " + StreamOut.RING_DELAY);
-        Thread.sleep(StreamOut.RING_DELAY);
+        logger_.info("decommission sleeping " + RING_DELAY);
+        Thread.sleep(RING_DELAY);
 
         Runnable finishLeaving = new Runnable()
         {
@@ -1364,8 +1366,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         logger_.info("starting move. leaving token " + getLocalToken());
         startLeaving();
-        logger_.info("move sleeping " + StreamOut.RING_DELAY);
-        Thread.sleep(StreamOut.RING_DELAY);
+        logger_.info("move sleeping " + RING_DELAY);
+        Thread.sleep(RING_DELAY);
 
         Runnable finishMoving = new WrappedRunnable()
         {

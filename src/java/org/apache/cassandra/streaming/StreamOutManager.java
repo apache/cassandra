@@ -37,7 +37,7 @@ import org.apache.log4j.Logger;
 /**
  * This class manages the streaming of multiple files one after the other.
 */
-public class StreamOutManager
+class StreamOutManager
 {   
     private static Logger logger = Logger.getLogger( StreamOutManager.class );
         

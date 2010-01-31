@@ -35,7 +35,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.streaming.StreamOut;
 
 /*
  * The load balancing algorithm here is an implementation of
@@ -365,7 +364,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                 Thread.sleep(100);
             }
             // one more sleep in case there are some stragglers
-            Thread.sleep(StreamOut.RING_DELAY);
+            Thread.sleep(StorageService.RING_DELAY);
         }
         catch (InterruptedException e)
         {
