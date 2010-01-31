@@ -35,7 +35,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.io.Streaming;
+import org.apache.cassandra.streaming.Streaming;
 
 /*
  * The load balancing algorithm here is an implementation of

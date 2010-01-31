@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.io.StreamContextManager;
+import org.apache.cassandra.streaming.StreamContextManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 

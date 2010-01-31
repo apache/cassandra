@@ -31,6 +31,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTableUtils;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.Streaming;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.Test;

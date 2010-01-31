@@ -27,8 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.io.StreamContextManager;
-import org.apache.cassandra.io.Streaming;
+import org.apache.cassandra.streaming.StreamContextManager;
+import org.apache.cassandra.streaming.StreamInitiateVerbHandler;
 
 import org.junit.Test;
 
@@ -41,7 +41,7 @@ public class BootstrapTest
         streamContexts[0] = new StreamContextManager.StreamContext("/baz/foo/Standard1-500-Data.db", 100, "Keyspace1");
         streamContexts[1] = new StreamContextManager.StreamContext("/bar/foo/Standard1-500-Index.db", 100, "Keyspace1");
         streamContexts[2] = new StreamContextManager.StreamContext("/bad/foo/Standard1-500-Filter.db", 100, "Keyspace1");
-        Streaming.StreamInitiateVerbHandler bivh = new Streaming.StreamInitiateVerbHandler();
+        StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
         Map<String, String> fileNames = bivh.getNewNames(streamContexts);
         Map<String, String> paths = new HashMap<String, String>();
         for (String ssName : fileNames.keySet())

@@ -27,6 +27,8 @@ import java.io.*;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.FileStreamTask;
+import org.apache.cassandra.streaming.IStreamComplete;
+import org.apache.cassandra.streaming.StreamContextManager;
 
 public class IncomingStreamReader
 {

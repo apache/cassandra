@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net.io;
+package org.apache.cassandra.streaming;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -27,6 +27,7 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.streaming.IStreamComplete;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -34,7 +35,7 @@ import org.apache.log4j.Logger;
 
 public class StreamContextManager
 {
-    private static Logger logger_ = Logger.getLogger(StreamContextManager.class);
+    private static Logger logger = Logger.getLogger(StreamContextManager.class);
     
     public static enum StreamCompletionAction
     {
@@ -160,7 +161,7 @@ public class StreamContextManager
             return expectedBytes_;
         }
         
-        void setAction(StreamContextManager.StreamCompletionAction action)
+        public void setAction(StreamContextManager.StreamCompletionAction action)
         {
             action_ = action;
         }

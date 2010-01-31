@@ -16,11 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net.io;
+package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 
 import java.net.InetAddress;
+
+import org.apache.cassandra.streaming.StreamContextManager;
 
 public interface IStreamComplete
 {

@@ -28,7 +28,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.io.Streaming;
+import org.apache.cassandra.streaming.Streaming;
 
 import org.apache.log4j.Logger;
 

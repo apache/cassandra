@@ -16,30 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.io;
+ package org.apache.cassandra.streaming;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.IOError;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Collection;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Table;
-
-import java.net.InetAddress;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.io.StreamContextManager;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.StreamManager;
 
 import org.apache.log4j.Logger;
-import org.apache.commons.lang.StringUtils;
 
  /**
  * This verb handler handles the StreamRequestMessage that is sent by

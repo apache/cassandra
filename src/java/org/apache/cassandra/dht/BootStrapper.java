@@ -27,18 +27,17 @@ package org.apache.cassandra.dht;
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
- import org.apache.commons.lang.StringUtils;
 
  import org.apache.cassandra.locator.TokenMetadata;
  import org.apache.cassandra.locator.AbstractReplicationStrategy;
  import org.apache.cassandra.net.*;
  import org.apache.cassandra.service.StorageService;
+ import org.apache.cassandra.streaming.Streaming;
  import org.apache.cassandra.utils.SimpleCondition;
  import org.apache.cassandra.utils.FBUtilities;
  import org.apache.cassandra.config.DatabaseDescriptor;
  import org.apache.cassandra.gms.FailureDetector;
  import org.apache.cassandra.gms.IFailureDetector;
- import org.apache.cassandra.io.Streaming;
  import com.google.common.collect.Multimap;
  import com.google.common.collect.ArrayListMultimap;
 

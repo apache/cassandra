@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.streaming;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,15 +28,14 @@ import java.util.concurrent.ConcurrentMap;
 import java.net.InetAddress;
 
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.io.StreamContextManager;
+import org.apache.cassandra.streaming.StreamContextManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.util.FileUtils;
 
 import org.apache.log4j.Logger;
 
-/*
- * This class manages the streaming of multiple files 
- * one after the other. 
+/**
+ * This class manages the streaming of multiple files one after the other.
 */
 public class StreamManager
 {   

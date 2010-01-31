@@ -37,13 +37,12 @@ import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
+import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.Streaming;
-import org.apache.cassandra.io.StreamRequestVerbHandler;
 import org.apache.cassandra.io.util.FileUtils;
 
 import org.apache.log4j.Logger;
@@ -210,9 +209,9 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // see BootStrapper for a summary of how the bootstrap verbs interact
         MessagingService.instance.registerVerbHandlers(Verb.BOOTSTRAP_TOKEN, new BootStrapper.BootstrapTokenVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.STREAM_REQUEST, new StreamRequestVerbHandler() );
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_INITIATE, new Streaming.StreamInitiateVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_INITIATE_DONE, new Streaming.StreamInitiateDoneVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.STREAM_FINISHED, new Streaming.StreamFinishedVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.STREAM_INITIATE, new StreamInitiateVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.STREAM_INITIATE_DONE, new StreamInitiateDoneVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.STREAM_FINISHED, new StreamFinishedVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ_RESPONSE, new ResponseVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_REQUEST, new TreeRequestVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.TREE_RESPONSE, new AntiEntropyService.TreeResponseVerbHandler());
