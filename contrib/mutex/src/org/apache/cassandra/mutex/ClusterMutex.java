@@ -70,7 +70,7 @@ public class ClusterMutex implements Watcher
     private long lastConnect = 0;
 
     private ZooKeeper zk = null;
-    private String root = null;
+    private String root = "";
     private Integer mutex = null;
 
     private String hostString = new String();
@@ -78,7 +78,8 @@ public class ClusterMutex implements Watcher
     private ClusterMutex()
     {
         String zooKeeperRoot = DatabaseDescriptor.getZooKeeperRoot();
-        this.root = "/" + ((zooKeeperRoot != null) ? zooKeeperRoot : "");
+        if (zooKeeperRoot != null && !zooKeeperRoot.isEmpty())
+            root = "/" + zooKeeperRoot;
         mutex = new Integer(1);
 
         String zooKeeperPort = DatabaseDescriptor.getZooKeeperPort();
@@ -94,7 +95,7 @@ public class ClusterMutex implements Watcher
         try
         {
             connectZooKeeper();
-            if (zk.exists(root, false) == null)
+            if (!root.isEmpty() && zk.exists(root, false) == null)
             {
                 logger.info("Mutex root " + root + " does not exists, creating");
                 zk.create(root, new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
