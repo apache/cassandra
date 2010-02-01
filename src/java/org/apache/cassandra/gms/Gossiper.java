@@ -851,8 +851,9 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         gossipTimer_.schedule( new GossipTimerTask(), Gossiper.intervalInMillis_, Gossiper.intervalInMillis_);
     }
 
-    public synchronized void addApplicationState(String key, ApplicationState appState)
+    public synchronized void addLocalApplicationState(String key, ApplicationState appState)
     {
+        assert !StorageService.instance.isClientMode();
         EndPointState epState = endPointStateMap_.get(localEndPoint_);
         assert epState != null;
         epState.addApplicationState(key, appState);

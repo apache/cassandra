@@ -174,7 +174,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isBootstrapMode = false;
         SystemTable.setBootstrapped(true);
         setToken(getLocalToken());
-        Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken())));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken())));
         logger_.info("Bootstrap/move completed! Now serving reads.");
     }
 
@@ -307,7 +307,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             SystemTable.setBootstrapped(true);
             Token token = storageMetadata_.getToken();
             tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
-            Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(token)));
+            Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(token)));
         }
 
         assert tokenMetadata_.sortedTokens().size() > 0;
@@ -317,7 +317,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     {
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
-        Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_BOOTSTRAPPING + Delimiter + partitioner_.getTokenFactory().toString(token)));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_BOOTSTRAPPING + Delimiter + partitioner_.getTokenFactory().toString(token)));
         logger_.info("bootstrap sleeping " + RING_DELAY);
         try
         {
@@ -1251,7 +1251,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      */
     private void startLeaving()
     {
-        Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_LEAVING + Delimiter + getLocalToken().toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEAVING + Delimiter + getLocalToken().toString()));
         tokenMetadata_.addLeavingEndPoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
     }
@@ -1291,7 +1291,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         if (logger_.isDebugEnabled())
             logger_.debug("");
-        Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + LEFT_NORMALLY + Delimiter + getLocalToken().toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + LEFT_NORMALLY + Delimiter + getLocalToken().toString()));
         try
         {
             Thread.sleep(2 * Gossiper.intervalInMillis_);
@@ -1413,7 +1413,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // not good. REMOVE_TOKEN|LEFT_NORMALLY is used to distinguish
         // between removetoken command and normal state left, so it is
         // not so bad.
-        Gossiper.instance.addApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + token.toString()));
+        Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + REMOVE_TOKEN + Delimiter + token.toString()));
     }
 
     public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level)
