@@ -131,8 +131,8 @@
     </target>
 
     <target name="ivy-retrieve" depends="ivy-download,ivy-init">
-      <ivy:retrieve type="jar" conf="default" sync="true"
-                    pattern="${build.dir.lib}/[artifact]-[revision].[ext]" />
+      <ivy:retrieve type="jar,source" conf="default" sync="true"
+             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
     </target>
 
     <!--
