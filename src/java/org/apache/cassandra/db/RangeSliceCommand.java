@@ -48,7 +48,6 @@ import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
-import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
@@ -124,17 +123,7 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
             dos.write(sliceCommand.super_column);
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
-        try
-        {
-            byte[] serPred = ser.serialize(sliceCommand.predicate);
-            dos.writeInt(serPred.length);
-            dos.write(serPred);
-        }
-        catch (TException ex)
-        {
-            throw new IOException(ex);
-        }
-
+        FBUtilities.serialize(ser, sliceCommand.predicate, dos);
         DecoratedKey.serializer().serialize(sliceCommand.startKey, dos);
         DecoratedKey.serializer().serialize(sliceCommand.finishKey, dos);
         dos.writeInt(sliceCommand.max_keys);
@@ -150,18 +139,9 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
         if (scLength > 0)
             super_column = readBuf(scLength, dis);
 
-        byte[] predBytes = new byte[dis.readInt()];
-        dis.readFully(predBytes);
         TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
-        SlicePredicate pred =  new SlicePredicate();
-        try
-        {
-            dser.deserialize(pred, predBytes);
-        }
-        catch (TException ex)
-        {
-            throw new IOException(ex);
-        }
+        SlicePredicate pred = new SlicePredicate();
+        FBUtilities.deserialize(dser, pred, dis);
 
         DecoratedKey startKey = DecoratedKey.serializer().deserialize(dis);
         DecoratedKey finishKey = DecoratedKey.serializer().deserialize(dis);
