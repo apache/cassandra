@@ -127,7 +127,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         isSuper_ = isSuper;
         fileIndexGenerator_.set(indexValue);
         memtable_ = new Memtable(table_, columnFamily_);
-        binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(table_, columnFamily_));
+        binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
 
         if (logger_.isDebugEnabled())
             logger_.debug("Starting CFS " + columnFamily_);
@@ -396,7 +396,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void switchBinaryMemtable(String key, byte[] buffer) throws IOException
     {
-        binaryMemtable_.set(new BinaryMemtable(table_, columnFamily_));
+        binaryMemtable_.set(new BinaryMemtable(this));
         binaryMemtable_.get().put(key, buffer);
     }
 

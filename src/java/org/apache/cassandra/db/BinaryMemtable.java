@@ -39,46 +39,28 @@ import org.apache.cassandra.dht.IPartitioner;
 
 public class BinaryMemtable implements IFlushable<DecoratedKey>
 {
-    private static Logger logger_ = Logger.getLogger(BinaryMemtable.class);
-    private int threshold_ = DatabaseDescriptor.getBMTThreshold() * 1024 * 1024;
-    private AtomicInteger currentSize_ = new AtomicInteger(0);
+    private static final Logger logger = Logger.getLogger(BinaryMemtable.class);
+    private final int threshold = DatabaseDescriptor.getBMTThreshold() * 1024 * 1024;
+    private final AtomicInteger currentSize = new AtomicInteger(0);
 
     /* Table and ColumnFamily name are used to determine the ColumnFamilyStore */
-    private String table_;
-    private String cfName_;
-    private boolean isFrozen_ = false;
-    private Map<DecoratedKey, byte[]> columnFamilies_ = new NonBlockingHashMap<DecoratedKey, byte[]>();
+    private boolean isFrozen = false;
+    private final Map<DecoratedKey, byte[]> columnFamilies = new NonBlockingHashMap<DecoratedKey, byte[]>();
     /* Lock and Condition for notifying new clients about Memtable switches */
-    Lock lock_ = new ReentrantLock();
-    Condition condition_;
-    private final IPartitioner partitioner_ = StorageService.getPartitioner();
+    private final Lock lock = new ReentrantLock();
+    Condition condition;
+    private final IPartitioner partitioner = StorageService.getPartitioner();
+    private final ColumnFamilyStore cfs;
 
-    BinaryMemtable(String table, String cfName) throws IOException
+    public BinaryMemtable(ColumnFamilyStore cfs)
     {
-        condition_ = lock_.newCondition();
-        table_ = table;
-        cfName_ = cfName;
+        this.cfs = cfs;
+        condition = lock.newCondition();
     }
-
-    public int getMemtableThreshold()
-    {
-        return currentSize_.get();
-    }
-
-    void resolveSize(int oldSize, int newSize)
-    {
-        currentSize_.addAndGet(newSize - oldSize);
-    }
-
 
     boolean isThresholdViolated()
     {
-        return currentSize_.get() >= threshold_;
-    }
-
-    String getColumnFamily()
-    {
-    	return cfName_;
+        return currentSize.get() >= threshold;
     }
 
     /*
@@ -90,24 +72,23 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
     {
         if (isThresholdViolated())
         {
-            lock_.lock();
+            lock.lock();
             try
             {
-                ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-                if (!isFrozen_)
+                if (!isFrozen)
                 {
-                    isFrozen_ = true;
-                    cfStore.submitFlush(this);
-                    cfStore.switchBinaryMemtable(key, buffer);
+                    isFrozen = true;
+                    cfs.submitFlush(this);
+                    cfs.switchBinaryMemtable(key, buffer);
                 }
                 else
                 {
-                    cfStore.applyBinary(key, buffer);
+                    cfs.applyBinary(key, buffer);
                 }
             }
             finally
             {
-                lock_.unlock();
+                lock.unlock();
             }
         }
         else
@@ -118,39 +99,38 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
 
     public boolean isClean()
     {
-        return columnFamilies_.isEmpty();
+        return columnFamilies.isEmpty();
     }
 
     private void resolve(String key, byte[] buffer)
     {
-        columnFamilies_.put(partitioner_.decorateKey(key), buffer);
-        currentSize_.addAndGet(buffer.length + key.length());
+        columnFamilies.put(partitioner.decorateKey(key), buffer);
+        currentSize.addAndGet(buffer.length + key.length());
     }
 
     public List<DecoratedKey> getSortedKeys()
     {
-        assert !columnFamilies_.isEmpty();
-        logger_.info("Sorting " + this);
-        List<DecoratedKey> keys = new ArrayList<DecoratedKey>(columnFamilies_.keySet());
+        assert !columnFamilies.isEmpty();
+        logger.info("Sorting " + this);
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>(columnFamilies.keySet());
         Collections.sort(keys);
         return keys;
     }
 
     public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
-        logger_.info("Writing " + this);
-        ColumnFamilyStore cfStore = Table.open(table_).getColumnFamilyStore(cfName_);
-        String path = cfStore.getTempSSTablePath();
+        logger.info("Writing " + this);
+        String path = cfs.getTempSSTablePath();
         SSTableWriter writer = new SSTableWriter(path, sortedKeys.size(), StorageService.getPartitioner());
 
         for (DecoratedKey key : sortedKeys)
         {
-            byte[] bytes = columnFamilies_.get(key);
+            byte[] bytes = columnFamilies.get(key);
             assert bytes.length > 0;
             writer.append(key, bytes);
         }
-        SSTableReader sstable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table_, cfName_));
-        logger_.info("Completed flushing " + writer.getFilename());
+        SSTableReader sstable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(cfs.getTable().name, cfs.getColumnFamilyName()));
+        logger.info("Completed flushing " + writer.getFilename());
         return sstable;
     }
 }
