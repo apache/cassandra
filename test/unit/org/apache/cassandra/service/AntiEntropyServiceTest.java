@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.MerkleTree;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.DatabaseDescriptorTest;
+import org.apache.cassandra.Util;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -111,7 +112,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         rm = new RowMutation(tablename, "key1");
         rm.add(new QueryPath(cfname, null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
-        ColumnFamilyStoreUtils.writeColumnFamily(rms);
+        Util.writeColumnFamily(rms);
 
         // sample
         validator = new Validator(new CFPair(tablename, cfname));
@@ -170,8 +171,8 @@ public class AntiEntropyServiceTest extends CleanupHelper
         rm.add(new QueryPath(cfname, null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         // with two SSTables
-        ColumnFamilyStoreUtils.writeColumnFamily(rms);
-        ColumnFamilyStore store = ColumnFamilyStoreUtils.writeColumnFamily(rms);
+        Util.writeColumnFamily(rms);
+        ColumnFamilyStore store = Util.writeColumnFamily(rms);
         
         TreePair old = aes.getRendezvousPair(tablename, cfname, REMOTE);
         // force a readonly compaction, and wait for it to finish

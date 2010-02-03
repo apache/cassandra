@@ -28,6 +28,9 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import java.net.InetAddress;
@@ -62,7 +65,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rm.add(new QueryPath("Standard1", null, "Column2".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
-        ColumnFamilyStore store = ColumnFamilyStoreUtils.writeColumnFamily(rms);
+        ColumnFamilyStore store = Util.writeColumnFamily(rms);
 
         Table table = Table.open("Keyspace1");
         List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
@@ -111,7 +114,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
             rm.add(new QueryPath(columnFamilyName, null, "0".getBytes()), new byte[0], j);
             rms.add(rm);
         }
-        ColumnFamilyStore store = ColumnFamilyStoreUtils.writeColumnFamily(rms);
+        ColumnFamilyStore store = Util.writeColumnFamily(rms);
 
         List<Range> ranges  = new ArrayList<Range>();
         IPartitioner partitioner = new CollatingOrderPreservingPartitioner();
@@ -126,5 +129,25 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     public void testAntiCompaction1() throws IOException, ExecutionException, InterruptedException
     {
         testAntiCompaction("Standard1", 100);
-    }    
+    }
+
+    @Test
+    public void testWrappedRangeQuery() throws IOException, ExecutionException, InterruptedException
+    {
+        List<RowMutation> rms = new LinkedList<RowMutation>();
+        RowMutation rm;
+        rm = new RowMutation("Keyspace2", "key1");
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rms.add(rm);
+        Util.writeColumnFamily(rms);
+
+        rm = new RowMutation("Keyspace2", "key2");
+        rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
+        rms.add(rm);
+        ColumnFamilyStore cfs = Util.writeColumnFamily(rms);
+
+        IPartitioner p = StorageService.getPartitioner();
+        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY, p.decorateKey("key2"), p.decorateKey("key1"), 10, null, Arrays.asList("asdf".getBytes()));
+        assertEquals(2, result.rows.size());
+    }
 }

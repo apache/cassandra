@@ -415,7 +415,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return switchMemtable(memtable_, true);
     }
 
-    void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
+    public void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
     {
         Future<?> future = forceFlush();
         if (future != null)
@@ -937,9 +937,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    private RangeReply getKeyRange(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
+    private boolean getKeyRange(List<String> keys, final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
+        // getKeyRange requires start <= stop.  getRangeSlice handles range wrapping if necessary.
+        assert stopAt.isEmpty() || startWith.compareTo(stopAt) <= 0;
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
         List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
@@ -1009,23 +1011,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             // pull keys out of the CollatedIterator
-            List<String> keys = new ArrayList<String>();
             boolean rangeCompletedLocally = false;
             for (DecoratedKey current : reduced)
             {
                 if (!stopAt.isEmpty() && stopAt.compareTo(current) < 0)
                 {
-                    rangeCompletedLocally = true;
-                    break;
+                    return true;
                 }
                 keys.add(current.key);
                 if (keys.size() >= maxResults)
                 {
-                    rangeCompletedLocally = true;
-                    break;
+                    return true;
                 }
             }
-            return new RangeReply(keys, rangeCompletedLocally);
+            return false;
         }
         finally
         {
@@ -1054,19 +1053,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public RangeSliceReply getRangeSlice(byte[] super_column, final DecoratedKey startKey, final DecoratedKey finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
     throws IOException, ExecutionException, InterruptedException
     {
-        RangeReply rr = getKeyRange(startKey, finishKey, keyMax);
-        List<Row> rows = new ArrayList<Row>(rr.keys.size());
+        List<String> keys = new ArrayList<String>();
+        boolean completed;
+        if (finishKey.isEmpty() || startKey.compareTo(finishKey) <= 0)
+        {
+            completed = getKeyRange(keys, startKey, finishKey, keyMax);
+        }
+        else
+        {
+            // wrapped range
+            DecoratedKey emptyKey = new DecoratedKey(StorageService.getPartitioner().getMinimumToken(), null);
+            completed = getKeyRange(keys, startKey, emptyKey, keyMax);
+            if (!completed)
+            {
+                completed = getKeyRange(keys, emptyKey, finishKey, keyMax);
+            }
+        }
+        List<Row> rows = new ArrayList<Row>(keys.size());
         final QueryPath queryPath =  new QueryPath(columnFamily_, super_column, null);
         final SortedSet<byte[]> columnNameSet = new TreeSet<byte[]>(getComparator());
         if (columnNames != null)
             columnNameSet.addAll(columnNames);
-        for (String key : rr.keys)
+        for (String key : keys)
         {
             QueryFilter filter = sliceRange == null ? new NamesQueryFilter(key, queryPath, columnNameSet) : new SliceQueryFilter(key, queryPath, sliceRange.start, sliceRange.finish, sliceRange.reversed, sliceRange.count);
             rows.add(new Row(key, getColumnFamily(filter)));
         }
 
-        return new RangeSliceReply(rows, rr.rangeCompletedLocally);
+        return new RangeSliceReply(rows, completed);
     }
 
     public AbstractType getComparator()

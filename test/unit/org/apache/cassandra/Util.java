@@ -71,4 +71,26 @@ public class Util
                                  new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10000),
                                  null);
     }
+
+    /**
+     * Writes out a bunch of rows for a single column family.
+     *
+     * @param rows A group of RowMutations for the same table and column family.
+     * @return The ColumnFamilyStore that was used.
+     */
+    public static ColumnFamilyStore writeColumnFamily(List<RowMutation> rms) throws IOException, ExecutionException, InterruptedException
+    {
+        RowMutation first = rms.get(0);
+        String tablename = first.getTable();
+        String cfname = first.columnFamilyNames().iterator().next();
+
+        Table table = Table.open(tablename);
+        ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
+
+        for (RowMutation rm : rms)
+            rm.apply();
+
+        store.forceBlockingFlush();
+        return store;
+    }
 }
