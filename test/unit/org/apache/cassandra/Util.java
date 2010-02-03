@@ -24,10 +24,15 @@ package org.apache.cassandra;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.commons.lang.ArrayUtils;
+
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.thrift.SliceRange;
 
 public class Util
 {
@@ -54,5 +59,16 @@ public class Util
         File tmpDir = new File(System.getProperty("java.io.tmpdir") + File.separator + keyspace);
         tmpDir.mkdirs();    // Create the per-keyspace temp directory
         return File.createTempFile(colFam + "-", "-Data.db", tmpDir);
+    }
+
+    public static RangeSliceReply getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
+    {
+        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
+        return cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                 emptyKey,
+                                 emptyKey,
+                                 10000,
+                                 new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10000),
+                                 null);
     }
 }

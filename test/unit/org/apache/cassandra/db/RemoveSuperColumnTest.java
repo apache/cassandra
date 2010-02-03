@@ -20,19 +20,19 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.Collection;
 
 import org.junit.Test;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import static org.apache.cassandra.Util.addMutation;
 import static org.apache.cassandra.Util.getBytes;
-import org.apache.cassandra.Util;
+
 import org.apache.cassandra.CleanupHelper;
 import static junit.framework.Assert.assertNotNull;
 

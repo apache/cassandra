@@ -29,7 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.CleanupHelper;
 import static org.apache.cassandra.Util.addMutation;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
+
 import static junit.framework.Assert.assertEquals;
 
 public class NameSortTest extends CleanupHelper

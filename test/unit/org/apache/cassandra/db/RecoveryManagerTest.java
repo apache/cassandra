@@ -20,9 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.HashSet;
 
 import org.junit.Test;
 

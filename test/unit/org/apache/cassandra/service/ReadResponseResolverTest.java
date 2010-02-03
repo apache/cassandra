@@ -26,7 +26,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.Row;
+
 import static org.apache.cassandra.db.TableTest.assertColumns;
 import static org.apache.cassandra.Util.column;
 import static junit.framework.Assert.assertNull;

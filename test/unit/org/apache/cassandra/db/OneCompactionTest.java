@@ -23,7 +23,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.Set;
 import java.util.HashSet;
 
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.Util;
+
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
@@ -38,7 +39,6 @@ public class OneCompactionTest extends CleanupHelper
 
         Table table = Table.open("Keyspace1");
         ColumnFamilyStore store = table.getColumnFamilyStore(columnFamilyName);
-        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
 
         Set<String> inserted = new HashSet<String>();
         for (int j = 0; j < insertsPerTable; j++) {
@@ -48,7 +48,7 @@ public class OneCompactionTest extends CleanupHelper
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), table.getColumnFamilyStore(columnFamilyName).getKeyRange(emptyKey, emptyKey, 10000).keys.size());
+            assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
         }
         CompactionManager.instance.submitMajor(store).get();
         assertEquals(1, store.getSSTables().size());

@@ -22,7 +22,6 @@ import org.junit.Test;
 
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
-import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.db.marshal.LongType;
 

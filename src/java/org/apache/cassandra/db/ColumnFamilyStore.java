@@ -937,7 +937,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    public RangeReply getKeyRange(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
+    private RangeReply getKeyRange(final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
         // create a CollatedIterator that will return unique keys from different sources

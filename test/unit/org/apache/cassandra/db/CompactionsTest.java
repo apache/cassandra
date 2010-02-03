@@ -25,16 +25,14 @@ import java.util.concurrent.Future;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.Collection;
 
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.Util;
+
 import org.junit.Test;
 
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
 import static junit.framework.Assert.assertEquals;
 
@@ -52,8 +50,6 @@ public class CompactionsTest extends CleanupHelper
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(TABLE1);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
-        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
-        assert emptyKey.token.equals(StorageService.getPartitioner().getMinimumToken());
 
         final int ROWS_PER_SSTABLE = 10;
         Set<String> inserted = new HashSet<String>();
@@ -66,7 +62,7 @@ public class CompactionsTest extends CleanupHelper
                 inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), table.getColumnFamilyStore("Standard1").getKeyRange(emptyKey, emptyKey, 10000).keys.size());
+            assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
         }
         while (true)
         {
@@ -78,7 +74,7 @@ public class CompactionsTest extends CleanupHelper
         {
             CompactionManager.instance.submitMajor(store).get();
         }
-        assertEquals(inserted.size(), table.getColumnFamilyStore("Standard1").getKeyRange(emptyKey, emptyKey, 10000).keys.size());
+        assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
     }
 
     @Test
@@ -88,7 +84,6 @@ public class CompactionsTest extends CleanupHelper
 
         Table table = Table.open(TABLE2);
         ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
-        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
 
         final int ROWS_PER_SSTABLE = 10;
         Set<String> inserted = new HashSet<String>();
@@ -101,13 +96,13 @@ public class CompactionsTest extends CleanupHelper
                 inserted.add(key);
             }
             store.forceBlockingFlush();
-            assertEquals(inserted.size(), table.getColumnFamilyStore("Standard1").getKeyRange(emptyKey, emptyKey, 10000).keys.size());
+            assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
         }
 
         // perform readonly compaction and confirm that no sstables changed
         ArrayList<SSTableReader> oldsstables = new ArrayList<SSTableReader>(store.getSSTables());
         CompactionManager.instance.submitReadonly(store, LOCAL).get();
         assertEquals(oldsstables, new ArrayList<SSTableReader>(store.getSSTables()));
-        assertEquals(inserted.size(), table.getColumnFamilyStore("Standard1").getKeyRange(emptyKey, emptyKey, 10000).keys.size());
+        assertEquals(inserted.size(), Util.getRangeSlice(store).rows.size());
     }
 }
