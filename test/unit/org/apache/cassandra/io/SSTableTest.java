@@ -45,7 +45,7 @@ public class SSTableTest extends CleanupHelper
 
         // verify
         verifySingle(ssTable, bytes, key);
-        SSTableReader.reopenUnsafe(); // force reloading the index
+        ssTable = SSTableReader.open(ssTable.path); // read the index from disk
         verifySingle(ssTable, bytes, key);
     }
 
@@ -73,7 +73,7 @@ public class SSTableTest extends CleanupHelper
 
         // verify
         verifyMany(ssTable, map);
-        SSTableReader.reopenUnsafe(); // force reloading the index
+        ssTable = SSTableReader.open(ssTable.path); // read the index from disk
         verifyMany(ssTable, map);
     }
 
@@ -91,35 +91,5 @@ public class SSTableTest extends CleanupHelper
             file.readFully(bytes2);
             assert Arrays.equals(bytes2, map.get(key));
         }
-    }
-
-    @Test
-    public void testGetIndexedDecoratedKeysFor() throws IOException {
-        final String ssname = "indexedkeys";
-
-        int numkeys = 1000;
-        TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
-        for ( int i = 0; i < numkeys; i++ )
-        {
-            map.put(Integer.toString(i), "blah".getBytes());
-        }
-
-        // write
-        SSTableReader ssTable = SSTableUtils.writeRawSSTable("table", ssname, map);
-
-        // verify
-        Predicate<SSTable> cfpred;
-        Predicate<DecoratedKey> dkpred;
-
-        cfpred = new Predicate<SSTable>() {
-            public boolean apply(SSTable ss)
-            {
-                return ss.getColumnFamilyName().equals(ssname);
-            }
-            };
-        dkpred = Predicates.alwaysTrue();
-        int actual = SSTableReader.getIndexedDecoratedKeysFor(cfpred, dkpred).size();
-        assert 0 < actual;
-        assert actual <= Math.ceil((double)numkeys/SSTableReader.indexInterval());
     }
 }

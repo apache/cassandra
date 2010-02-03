@@ -320,7 +320,7 @@ public class AntiEntropyService
      */
     public static class Validator implements IValidator, Callable<Object>
     {
-        public final CFPair cf;
+        public final CFPair cf; // TODO keep a CFS reference as a field instead of its string representation
         public final MerkleTree tree;
 
         // the minimum token sorts first, but falls into the last range
@@ -331,7 +331,6 @@ public class AntiEntropyService
         private transient MerkleTree.TreeRange range;
         private transient MerkleTree.TreeRangeIterator ranges;
 
-        public final static Predicate<DecoratedKey> DKPRED = Predicates.alwaysTrue();
         public final static MerkleTree.RowHash EMPTY_ROW = new MerkleTree.RowHash(null, new byte[0]);
         
         Validator(CFPair cf)
@@ -356,14 +355,21 @@ public class AntiEntropyService
         
         public void prepare()
         {
-            Predicate<SSTable> cfpred = new Predicate<SSTable>()
+            List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+            ColumnFamilyStore cfs;
+            try
             {
-                public boolean apply(SSTable ss)
-                {
-                    return cf.left.equals(ss.getTableName()) && cf.right.equals(ss.getColumnFamilyName());
-                }
-            };
-            List<DecoratedKey> keys = SSTableReader.getIndexedDecoratedKeysFor(cfpred, DKPRED);
+                cfs = Table.open(cf.left).getColumnFamilyStore(cf.right);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+            if (cfs != null) // TODO test w/ valid CF definitions, this if{} shouldn't be necessary
+            {
+                for (SSTable.KeyPosition info: cfs.allIndexPositions())
+                    keys.add(info.key);
+            }
 
             if (keys.isEmpty())
             {
@@ -737,8 +743,7 @@ public class AntiEntropyService
             ObjectInputStream ois = new ObjectInputStream(dis);
             try
             {
-                Validator v = new Validator(cf, (MerkleTree)ois.readObject());
-                return v;
+                return new Validator(cf, (MerkleTree)ois.readObject());
             }
             catch(Exception e)
             {

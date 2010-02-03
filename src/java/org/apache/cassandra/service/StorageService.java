@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
@@ -1211,8 +1212,18 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         List<String> tokens = new ArrayList<String>();
         tokens.add(range.left().toString());
 
-        List<DecoratedKey> decoratedKeys = SSTableReader.getIndexedDecoratedKeys();
-        if (decoratedKeys.size() < splits)
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            for (SSTable.KeyPosition info: cfs.allIndexPositions())
+            {
+                if (range.contains(info.key.token))
+                    keys.add(info.key);
+            }
+        }
+        Collections.sort(keys);
+
+        if (keys.size() < splits)
         {
             // not enough keys to generate good splits -- generate random ones instead
             // (since this only happens when we don't have many keys, it doesn't really matter that the splits are poor)
@@ -1225,8 +1236,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         {
             for (int i = 1; i < splits; i++)
             {
-                int index = i * (decoratedKeys.size() / splits);
-                tokens.add(decoratedKeys.get(index).token.toString());
+                int index = i * (keys.size() / splits);
+                tokens.add(keys.get(index).token.toString());
             }
         }
 

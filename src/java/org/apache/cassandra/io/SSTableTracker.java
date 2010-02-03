@@ -92,4 +92,14 @@ public class SSTableTracker implements Iterable<SSTableReader>
     {
         sstables = Collections.emptySet();
     }
+
+    public long estimatedKeys()
+    {
+        long n = 0;
+        for (SSTableReader sstable : this)
+        {
+            n += sstable.getIndexPositions().size() * SSTableReader.INDEX_INTERVAL;
+        }
+        return n;
+    }
 }

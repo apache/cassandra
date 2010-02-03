@@ -190,7 +190,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
         int cacheSize;
         if (0 < v && v < 1)
-            cacheSize = Math.max(1, (int)(v * SSTableReader.estimatedKeys(columnFamilyName)));
+            cacheSize = Math.max(1, (int)(v * ssTables_.estimatedKeys()));
         else
             cacheSize = (int)v;
         if (logger_.isDebugEnabled())
@@ -1164,13 +1164,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static Iterable<ColumnFamilyStore> all()
     {
-        Iterable<ColumnFamilyStore>[] stores = (Iterable<ColumnFamilyStore>[])new Object[0];
+        Iterable<ColumnFamilyStore>[] stores = new Iterable[DatabaseDescriptor.getTables().size()];
         int i = 0;
         for (Table table : Table.all())
         {
             stores[i++] = table.getColumnFamilyStores();
         }
         return Iterables.concat(stores);
+    }
+
+    public Iterable<SSTable.KeyPosition> allIndexPositions()
+    {
+        Collection<SSTableReader> sstables = getSSTables();
+        Iterable<SSTable.KeyPosition>[] positions = new Iterable[sstables.size()];
+        int i = 0;
+        for (SSTableReader sstable: sstables)
+        {
+            positions[i++] = sstable.getIndexPositions();
+        }
+        return Iterables.concat(positions);
     }
 
     /**

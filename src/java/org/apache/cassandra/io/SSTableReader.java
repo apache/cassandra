@@ -53,8 +53,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 {
     private static final Logger logger = Logger.getLogger(SSTableReader.class);
 
-    private static final FileSSTableMap openedFiles = new FileSSTableMap();
-
     // `finalizers` is required to keep the PhantomReferences alive after the enclosing SSTR is itself
     // unreferenced.  otherwise they will never get enqueued.
     private static final Set<Reference<SSTableReader>> finalizers = new HashSet<Reference<SSTableReader>>();
@@ -96,11 +94,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return INDEX_INTERVAL;
     }
 
-    public static long getApproximateKeyCount()
-    {
-        return getApproximateKeyCount(openedFiles.values());
-    }
-
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
     {
         long count = 0;
@@ -116,60 +109,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return count;
     }
 
-    public static int estimatedKeys(String columnFamilyName)
-    {
-        int n = 0;
-        for (SSTableReader sstable : openedFiles.values())
-        {
-            if (sstable.getColumnFamilyName().equals(columnFamilyName))
-                n += sstable.getIndexPositions().size() * INDEX_INTERVAL;
-        }
-        return n;
-    }
-
-    /**
-     * Get all indexed keys defined by the two predicates.
-     * @param cfpred A Predicate defining matching column families.
-     * @param dkpred A Predicate defining matching DecoratedKeys.
-     */
-    public static List<DecoratedKey> getIndexedDecoratedKeysFor(Predicate<SSTable> cfpred, Predicate<DecoratedKey> dkpred)
-    {
-        List<DecoratedKey> indexedKeys = new ArrayList<DecoratedKey>();
-        
-        for (SSTableReader sstable : openedFiles.values())
-        {
-            if (!cfpred.apply(sstable))
-                continue;
-            for (KeyPosition kp : sstable.getIndexPositions())
-            {
-                if (dkpred.apply(kp.key))
-                {
-                    indexedKeys.add(kp.key);
-                }
-            }
-        }
-        Collections.sort(indexedKeys);
-
-        return indexedKeys;
-    }
-
-    /**
-     * Get all indexed keys in any SSTable for our primary range.
-     */
-    public static List<DecoratedKey> getIndexedDecoratedKeys()
-    {
-        final Range range = StorageService.instance.getLocalPrimaryRange();
-
-        Predicate<SSTable> cfpred = Predicates.alwaysTrue();
-        return getIndexedDecoratedKeysFor(cfpred, new Predicate<DecoratedKey>()
-        {
-            public boolean apply(DecoratedKey dk)
-            {
-               return range.contains(dk.token);
-            }
-        });
-    }
-
     public static SSTableReader open(String dataFileName) throws IOException
     {
         return open(dataFileName,
@@ -180,7 +119,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public static SSTableReader open(String dataFileName, IPartitioner partitioner, double keysCacheFraction) throws IOException
     {
         assert partitioner != null;
-        assert openedFiles.get(dataFileName) == null;
 
         long start = System.currentTimeMillis();
         SSTableReader sstable = new SSTableReader(dataFileName, partitioner);
@@ -260,7 +198,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.bf = bloomFilter;
         phantomReference = new SSTableDeletingReference(this, finalizerQueue);
         finalizers.add(phantomReference);
-        openedFiles.put(filename, this);
         this.keyCache = keyCache;
     }
 
@@ -512,7 +449,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking " + path + " compacted");
-        openedFiles.remove(path);
         if (!new File(compactedFilename()).createNewFile())
         {
             throw new IOException("Unable to create compaction marker");
@@ -524,16 +460,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public void forceBloomFilterFailures()
     {
         bf = BloomFilter.alwaysMatchingBloomFilter();
-    }
-
-    static void reopenUnsafe() throws IOException // testing only
-    {
-        Collection<SSTableReader> sstables = new ArrayList<SSTableReader>(openedFiles.values());
-        openedFiles.clear();
-        for (SSTableReader sstable : sstables)
-        {
-            SSTableReader.open(sstable.path, sstable.partitioner, 0.01);
-        }
     }
 
     public IPartitioner getPartitioner()
