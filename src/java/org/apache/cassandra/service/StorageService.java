@@ -43,7 +43,6 @@ import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 
 import org.apache.log4j.Logger;
@@ -379,7 +378,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right()));
+            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right));
         }
         return rangeToEndPointMap;
     }
@@ -626,8 +625,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            List<InetAddress> currentEndPoints = strategy.getNaturalEndpoints(range.right(), tm);
-            List<InetAddress> newEndPoints = strategy.getNaturalEndpoints(range.right(), allLeftMetadata);
+            List<InetAddress> currentEndPoints = strategy.getNaturalEndpoints(range.right, tm);
+            List<InetAddress> newEndPoints = strategy.getNaturalEndpoints(range.right, allLeftMetadata);
             newEndPoints.removeAll(currentEndPoints);
             pendingRanges.putAll(range, newEndPoints);
         }
@@ -727,7 +726,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         for (Range range : ranges)
-            currentReplicaEndpoints.put(range, replicationStrategy_.getNaturalEndpoints(range.right(), tokenMetadata_));
+            currentReplicaEndpoints.put(range, replicationStrategy_.getNaturalEndpoints(range.right, tokenMetadata_));
 
         TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
 
@@ -745,7 +744,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // range.
         for (Range range : ranges)
         {
-            ArrayList<InetAddress> newReplicaEndpoints = replicationStrategy_.getNaturalEndpoints(range.right(), temp);
+            ArrayList<InetAddress> newReplicaEndpoints = replicationStrategy_.getNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
@@ -1210,7 +1209,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // (we're only operating on 1/128 of the keys remember)
         Range range = getLocalPrimaryRange();
         List<String> tokens = new ArrayList<String>();
-        tokens.add(range.left().toString());
+        tokens.add(range.left.toString());
 
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
@@ -1241,7 +1240,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             }
         }
 
-        tokens.add(range.right().toString());
+        tokens.add(range.right.toString());
         return tokens;
     }
 

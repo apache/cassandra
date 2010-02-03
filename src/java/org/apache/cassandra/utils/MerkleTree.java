@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.dht.*;
@@ -186,9 +185,9 @@ public class MerkleTree implements Serializable
      */
     static int differenceHelper(MerkleTree ltree, MerkleTree rtree, List<TreeRange> diff, TreeRange active)
     {
-        Token midpoint = ltree.partitioner().midpoint(active.left(), active.right());
-        TreeRange left = new TreeRange(null, active.left(), midpoint, inc(active.depth), null);
-        TreeRange right = new TreeRange(null, midpoint, active.right(), inc(active.depth), null);
+        Token midpoint = ltree.partitioner().midpoint(active.left, active.right);
+        TreeRange left = new TreeRange(null, active.left, midpoint, inc(active.depth), null);
+        TreeRange right = new TreeRange(null, midpoint, active.right, inc(active.depth), null);
         byte[] lhash;
         byte[] rhash;
         
@@ -320,8 +319,8 @@ public class MerkleTree implements Serializable
         // else: node.
         
         Inner node = (Inner)hashable;
-        Range leftactive = new Range(active.left(), node.token);
-        Range rightactive = new Range(node.token, active.right());
+        Range leftactive = new Range(active.left, node.token);
+        Range rightactive = new Range(node.token, active.right);
 
         if (range.contains(active))
         {
@@ -558,8 +557,8 @@ public class MerkleTree implements Serializable
 
                 Inner node = (Inner)active.hashable;
                 // push intersecting children onto the stack
-                TreeRange left = new TreeRange(tree, active.left(), node.token, inc(active.depth), node.lchild);
-                TreeRange right = new TreeRange(tree, node.token, active.right(), inc(active.depth), node.rchild);
+                TreeRange left = new TreeRange(tree, active.left, node.token, inc(active.depth), node.lchild);
+                TreeRange right = new TreeRange(tree, node.token, active.right, inc(active.depth), node.rchild);
                 if (right.intersects(range))
                     tovisit.push(right);
                 if (left.intersects(range))

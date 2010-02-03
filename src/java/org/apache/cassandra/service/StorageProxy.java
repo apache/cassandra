@@ -46,7 +46,6 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.concurrent.StageManager;
 
 import org.apache.log4j.Logger;
@@ -546,24 +545,24 @@ public class StorageProxy implements StorageProxyMBean
         do
         {
             Range primaryRange = StorageService.instance.getPrimaryRangeForEndPoint(endPoint);
-            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(primaryRange.right());
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(primaryRange.right);
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
 
             // to make comparing the results from each node easy, we restrict each command to the data in the primary range for this iteration
             DecoratedKey<?> startKey;
             DecoratedKey<?> finishKey;
-            if (primaryRange.left().equals(primaryRange.right()))
+            if (primaryRange.left.equals(primaryRange.right))
             {
                 startKey = command.startKey;
                 finishKey = command.finishKey;
             }
             else
             {
-                startKey = (DecoratedKey<?>) ObjectUtils.max(command.startKey, new DecoratedKey<Token<?>>(primaryRange.left(), null));
+                startKey = (DecoratedKey<?>) ObjectUtils.max(command.startKey, new DecoratedKey<Token<?>>(primaryRange.left, null));
                 finishKey = command.finishKey.isEmpty()
-                          ? new DecoratedKey<Token<?>>(primaryRange.right(), null)
-                          : (DecoratedKey<?>) ObjectUtils.min(command.finishKey, new DecoratedKey<Token<?>>(primaryRange.right(), null));
+                          ? new DecoratedKey<Token<?>>(primaryRange.right, null)
+                          : (DecoratedKey<?>) ObjectUtils.min(command.finishKey, new DecoratedKey<Token<?>>(primaryRange.right, null));
             }
             RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys);
             Message message = c2.getMessage();

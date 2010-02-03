@@ -10,8 +10,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import javax.management.JMX;
-import javax.management.ObjectName;
 
 import org.apache.cassandra.cache.JMXAggregatingCacheMBean;
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
@@ -19,6 +17,7 @@ import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Range;
+
 import org.apache.commons.cli.*;
 
 public class NodeCmd {
@@ -84,7 +83,7 @@ public class NodeCmd {
         // emphasize that we're showing the right part of each range
         if (ranges.size() > 1)
         {
-            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left()));
+            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left));
         }
         // normal range & node info
         for (Range range : ranges) {
@@ -103,7 +102,7 @@ public class NodeCmd {
             String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
             outs.print(String.format("%-14s", load));
 
-            outs.print(String.format("%-43s", range.right()));
+            outs.print(String.format("%-43s", range.right));
 
             String asciiRingArt;
             if (counter == 0)

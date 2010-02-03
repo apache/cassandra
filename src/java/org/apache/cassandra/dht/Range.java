@@ -22,7 +22,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.List;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
@@ -37,6 +36,7 @@ public class Range implements Comparable<Range>, Serializable
     public static final long serialVersionUID = 1L;
     
     private static ICompactSerializer<Range> serializer_;
+
     static
     {
         serializer_ = new RangeSerializer();
@@ -47,36 +47,18 @@ public class Range implements Comparable<Range>, Serializable
         return serializer_;
     }
 
-    private final Token left_;
-    private final Token right_;
+    public final Token left;
+    public final Token right;
 
     public Range(Token left, Token right)
     {
-        left_ = left;
-        right_ = right;
-    }
-
-    /**
-     * Returns the left endpoint of a range.
-     * @return left endpoint
-     */
-    public Token left()
-    {
-        return left_;
-    }
-    
-    /**
-     * Returns the right endpoint of a range.
-     * @return right endpoint
-     */
-    public Token right()
-    {
-        return right_;
+        this.left = left;
+        this.right = right;
     }
 
     public static boolean contains(Token left, Token right, Token bi)
     {
-        if ( isWrapAround(left, right) )
+        if (isWrapAround(left, right))
         {
             /* 
              * We are wrapping around, so the interval is (a,b] where a >= b,
@@ -85,7 +67,7 @@ public class Range implements Comparable<Range>, Serializable
              * (2) k <= b -- return true
              * (3) b < k <= a -- return false
              */
-            if ( bi.compareTo(left) > 0 )
+            if (bi.compareTo(left) > 0)
                 return true;
             else
                 return right.compareTo(bi) >= 0;
@@ -95,21 +77,21 @@ public class Range implements Comparable<Range>, Serializable
             /*
              * This is the range (a, b] where a < b. 
              */
-            return ( bi.compareTo(left) > 0 && right.compareTo(bi) >= 0 );
-        }        
+            return (bi.compareTo(left) > 0 && right.compareTo(bi) >= 0);
+        }
     }
 
     public boolean contains(Range that)
     {
-        boolean thiswraps = isWrapAround(this.left(), this.right());
-        boolean thatwraps = isWrapAround(that.left(), that.right());
+        boolean thiswraps = isWrapAround(left, right);
+        boolean thatwraps = isWrapAround(that.left, that.right);
         if (thiswraps == thatwraps)
-            return this.left().compareTo(that.left()) <= 0 &&
-                that.right().compareTo(this.right()) <= 0;
+            return left.compareTo(that.left) <= 0 &&
+                that.right.compareTo(right) <= 0;
         else if (thiswraps)
             // wrapping might contain non-wrapping
-            return this.left().compareTo(that.left()) <= 0 ||
-                that.right().compareTo(this.right()) <= 0;
+            return left.compareTo(that.left) <= 0 ||
+                that.right.compareTo(right) <= 0;
         else // (thatwraps)
             // non-wrapping cannot contain wrapping
             return false;
@@ -123,7 +105,7 @@ public class Range implements Comparable<Range>, Serializable
      */
     public boolean contains(Token bi)
     {
-        return contains(left_, right_, bi);
+        return contains(left, right, bi);
     }
 
     /**
@@ -132,19 +114,19 @@ public class Range implements Comparable<Range>, Serializable
      */
     public boolean intersects(Range that)
     {
-        boolean thiswraps = isWrapAround(this.left(), this.right());
-        boolean thatwraps = isWrapAround(that.left(), that.right());
+        boolean thiswraps = isWrapAround(left, right);
+        boolean thatwraps = isWrapAround(that.left, that.right);
         if (thiswraps && thatwraps)
             // both (must contain the minimum token)
             return true;
         else if (!thiswraps && !thatwraps)
             // neither
-            return this.left().compareTo(that.right()) < 0 &&
-                that.left().compareTo(this.right()) < 0;
+            return left.compareTo(that.right) < 0 &&
+                that.left.compareTo(right) < 0;
         else
             // either
-            return this.left().compareTo(that.right()) < 0 ||
-                that.left().compareTo(this.right()) < 0;
+            return left.compareTo(that.right) < 0 ||
+                that.left.compareTo(right) < 0;
     }
 
     /**
@@ -163,13 +145,13 @@ public class Range implements Comparable<Range>, Serializable
          * If the range represented by the "this" pointer
          * is a wrap around then it is the smaller one.
          */
-        if ( isWrapAround(left(), right()) )
+        if ( isWrapAround(left, right) )
             return -1;
-        
-        if ( isWrapAround(rhs.left(), rhs.right()) )
+
+        if ( isWrapAround(rhs.left, rhs.right) )
             return 1;
         
-        return right_.compareTo(rhs.right_);
+        return right.compareTo(rhs.right);
     }
     
 
@@ -189,10 +171,10 @@ public class Range implements Comparable<Range>, Serializable
 
     public boolean equals(Object o)
     {
-        if ( !(o instanceof Range) )
+        if (!(o instanceof Range))
             return false;
         Range rhs = (Range)o;
-        return left_.equals(rhs.left_) && right_.equals(rhs.right_);
+        return left.equals(rhs.left) && right.equals(rhs.right);
     }
     
     @Override
@@ -203,7 +185,7 @@ public class Range implements Comparable<Range>, Serializable
     
     public String toString()
     {
-        return "(" + left_ + "," + right_ + "]";
+        return "(" + left + "," + right + "]";
     }
 }
 
@@ -211,8 +193,8 @@ class RangeSerializer implements ICompactSerializer<Range>
 {
     public void serialize(Range range, DataOutputStream dos) throws IOException
     {
-        Token.serializer().serialize(range.left(), dos);
-        Token.serializer().serialize(range.right(), dos);
+        Token.serializer().serialize(range.left, dos);
+        Token.serializer().serialize(range.right, dos);
     }
 
     public Range deserialize(DataInputStream dis) throws IOException

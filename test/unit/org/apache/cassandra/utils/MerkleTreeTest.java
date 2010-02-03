@@ -28,7 +28,6 @@ import static org.apache.cassandra.utils.MerkleTree.*;
 import org.apache.log4j.Logger;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.PeekingIterator;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -405,7 +404,7 @@ public class MerkleTreeTest
         // validate the tree
         TreeRangeIterator ranges = mt.invalids(new Range(tok(0), tok(0)));
         for (TreeRange range : ranges)
-            range.addHash(new RowHash(range.right(), new byte[0]));
+            range.addHash(new RowHash(range.right, new byte[0]));
 
         assert null != mt.hash(new Range(tok(0), tok(0))) :
             "Could not hash tree " + mt;
@@ -475,7 +474,7 @@ public class MerkleTreeTest
         mt.maxsize(256);
         mt.init();
         for (TreeRange range : mt.invalids(full))
-            range.addAll(new HIterator(range.right()));
+            range.addAll(new HIterator(range.right));
 
         byte[] initialhash = mt.hash(full);
         oout.writeObject(mt);
@@ -511,26 +510,26 @@ public class MerkleTreeTest
         rightmost = null;
         while (ranges.hasNext())
             rightmost = ranges.next();
-        mt.compact(leftmost.right());
-        leftmost = mt.get(leftmost.right()); // leftmost is now a larger range
-        mt.split(rightmost.right());
+        mt.compact(leftmost.right);
+        leftmost = mt.get(leftmost.right); // leftmost is now a larger range
+        mt.split(rightmost.right);
         
         // set the hash for the left neighbor of rightmost
-        middle = mt.get(rightmost.left());
+        middle = mt.get(rightmost.left);
         middle.hash("arbitrary!".getBytes());
         byte depth = middle.depth;
 
         // add dummy hashes to the rest of both trees
         for (TreeRange range : mt.invalids(full))
-            range.addAll(new HIterator(range.right()));
+            range.addAll(new HIterator(range.right));
         for (TreeRange range : mt2.invalids(full))
-            range.addAll(new HIterator(range.right()));
+            range.addAll(new HIterator(range.right));
         
         // trees should disagree for leftmost, (middle.left, rightmost.right]
         List<TreeRange> diffs = MerkleTree.difference(mt, mt2);
         assertEquals(diffs + " contains wrong number of differences:", 2, diffs.size());
         assertTrue(diffs.contains(leftmost));
-        assertTrue(diffs.contains(new Range(middle.left(), rightmost.right())));
+        assertTrue(diffs.contains(new Range(middle.left, rightmost.right)));
     }
 
     /**
