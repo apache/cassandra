@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+
 import org.apache.avro.ipc.SocketServer;
 import org.apache.avro.specific.SpecificResponder;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -72,7 +73,7 @@ public class CassandraDaemon {
         });
 
         // initialize keyspaces
-        for (String table : Table.getAllTableNames())
+        for (String table : DatabaseDescriptor.getTables())
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);

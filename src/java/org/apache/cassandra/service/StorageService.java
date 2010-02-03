@@ -777,7 +777,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public double getLoad()
     {
         double bytes = 0;
-        for (String tableName : Table.getAllTableNames())
+        for (String tableName : DatabaseDescriptor.getTables())
         {
             Table table;
             try
@@ -872,24 +872,18 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
     public void forceTableCleanup() throws IOException
     {
-        List<String> tables = DatabaseDescriptor.getTables();
-        for (String tName : tables)
+        for (Table table : Table.all())
         {
-            if (tName.equals(Table.SYSTEM_TABLE))
+            if (table.name.equals(Table.SYSTEM_TABLE))
                 continue;
-            Table table = Table.open(tName);
             table.forceCleanup();
         }
     }
     
     public void forceTableCompaction() throws IOException
     {
-        List<String> tables = DatabaseDescriptor.getTables();
-        for ( String tName : tables )
-        {
-            Table table = Table.open(tName);
+        for (Table table : Table.all())
             table.forceCompaction();
-        }        
     }
 
     /**
@@ -906,7 +900,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
     private Table getValidTable(String tableName) throws IOException
     {
-        if (DatabaseDescriptor.getTable(tableName) == null)
+        if (!DatabaseDescriptor.getTables().contains(tableName))
         {
             throw new IOException("Table " + tableName + "does not exist");
         }
@@ -920,11 +914,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      */
     public void takeAllSnapshot(String tag) throws IOException
     {
-        for (String tableName: DatabaseDescriptor.getTables())
-        {
-            Table tableInstance = Table.open(tableName);
-            tableInstance.snapshot(tag);
-        }
+        for (Table table : Table.all())
+            table.snapshot(tag);
     }
 
     /**
@@ -932,11 +923,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      */
     public void clearSnapshot() throws IOException
     {
-        for (String tableName: DatabaseDescriptor.getTables())
-        {
-            Table tableInstance = Table.open(tableName);
-            tableInstance.clearSnapshot();
-        }
+        for (Table table : Table.all())
+            table.clearSnapshot();
         if (logger_.isDebugEnabled())
             logger_.debug("Cleared out all snapshot directories");
     }

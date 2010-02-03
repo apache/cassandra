@@ -26,6 +26,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
 
+import com.google.common.base.Function;
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableReader;
@@ -465,8 +468,22 @@ public class Table
         return dataDirPath + File.separator + tableName + File.separator + SNAPSHOT_SUBDIR_NAME + File.separator + snapshotName;
     }
 
-    public static Set<String> getAllTableNames()
+    public static Iterable<Table> all()
     {
-        return DatabaseDescriptor.getTableToColumnFamilyMap().keySet();
+        Function<String, Table> transformer = new Function<String, Table>()
+        {
+            public Table apply(String tableName)
+            {
+                try
+                {
+                    return Table.open(tableName);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+        return Iterables.transform(DatabaseDescriptor.getTables(), transformer);
     }
 }

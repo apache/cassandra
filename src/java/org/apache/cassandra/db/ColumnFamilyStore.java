@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 import org.apache.cassandra.cache.IAggregatableCacheProvider;
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.cache.JMXAggregatingCache;
@@ -1159,6 +1160,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void forceMajorCompaction()
     {
         CompactionManager.instance.submitMajor(this);
+    }
+
+    public static Iterable<ColumnFamilyStore> all()
+    {
+        Iterable<ColumnFamilyStore>[] stores = (Iterable<ColumnFamilyStore>[])new Object[0];
+        int i = 0;
+        for (Table table : Table.all())
+        {
+            stores[i++] = table.getColumnFamilyStores();
+        }
+        return Iterables.concat(stores);
     }
 
     /**

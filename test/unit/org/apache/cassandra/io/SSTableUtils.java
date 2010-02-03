@@ -46,7 +46,7 @@ public class SSTableUtils
     {
         try
         {
-            TABLENAME = DatabaseDescriptor.getTables().get(0);
+            TABLENAME = DatabaseDescriptor.getTables().iterator().next();
             CFNAME = Table.open(TABLENAME).getColumnFamilies().iterator().next();
         }
         catch(IOException e)

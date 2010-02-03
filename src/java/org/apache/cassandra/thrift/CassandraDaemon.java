@@ -36,7 +36,6 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.Cassandra.Processor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.RecoveryManager;
@@ -85,7 +84,7 @@ public class CassandraDaemon
         });
 
         // initialize keyspaces
-        for (String table : Table.getAllTableNames())
+        for (String table : DatabaseDescriptor.getTables())
         {
             if (logger.isDebugEnabled())
                 logger.debug("opening keyspace " + table);

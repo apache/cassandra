@@ -71,7 +71,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
             tmd.updateNormalToken(part.getMinimumToken(), REMOTE);
             assert tmd.isMember(REMOTE);
 
-            tablename = DatabaseDescriptor.getTables().get(0);
+            tablename = DatabaseDescriptor.getTables().iterator().next();
             cfname = Table.open(tablename).getColumnFamilies().iterator().next();
             initialized = true;
         }

@@ -504,7 +504,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (propertyName.equals("keyspaces"))
         {
-            return DatabaseDescriptor.getTables();        
+            return new ArrayList<String>(DatabaseDescriptor.getTables());        
         }
         return Collections.emptyList();
     }

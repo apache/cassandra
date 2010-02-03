@@ -34,7 +34,6 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.streaming.StreamInitiateMessage;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.io.SSTableReader;
@@ -76,12 +75,10 @@ public class StreamOut
          * (2) anticompaction -- split out the keys in the range specified
          * (3) transfer the data.
         */
-        List<String> tables = DatabaseDescriptor.getTables();
-        for (String tName : tables)
+        for (Table table : Table.all())
         {
             try
             {
-                Table table = Table.open(tName);
                 if (logger.isDebugEnabled())
                   logger.debug("Flushing memtables ...");
                 for (Future f : table.flush())
@@ -102,7 +99,7 @@ public class StreamOut
                 if (logger.isDebugEnabled())
                   logger.debug("Performing anticompaction ...");
                 /* Get the list of files that need to be streamed */
-                transferSSTables(target, table.forceAntiCompaction(ranges, target), tName); // SSTR GC deletes the file when done
+                transferSSTables(target, table.forceAntiCompaction(ranges, target), table.name); // SSTR GC deletes the file when done
             }
             catch (IOException e)
             {

@@ -562,31 +562,25 @@ public class CompactionManager implements CompactionManagerMBean
     public void checkAllColumnFamilies() throws IOException
     {
         // perform estimates
-        for (String tableName : DatabaseDescriptor.getTables())
+        for (final ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores())
+            Runnable runnable = new Runnable()
             {
-                Runnable runnable = new Runnable()
+                public void run ()
                 {
-                    public void run ()
-                    {
-                        logger.debug("Estimating compactions for " + cfs.columnFamily_);
-                        final Set<List<SSTableReader>> buckets = getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
-                        updateEstimateFor(cfs, buckets);
-                    }
-                };
-                executor.submit(runnable);
-            }
+                    logger.debug("Estimating compactions for " + cfs.columnFamily_);
+                    final Set<List<SSTableReader>> buckets = getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+                    updateEstimateFor(cfs, buckets);
+                }
+            };
+            executor.submit(runnable);
         }
-        
+
         // actually schedule compactions.  done in a second pass so all the estimates occur before we
         // bog down the executor in actual compactions.
-        for (String tableName : DatabaseDescriptor.getTables())
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            for (final ColumnFamilyStore cfs : Table.open(tableName).getColumnFamilyStores())
-            {
-                submitMinorIfNeeded(cfs);
-            }
+            submitMinorIfNeeded(cfs);
         }
     }
 

@@ -84,7 +84,7 @@ public class DatabaseDescriptor
     private static double flushDataBufferSizeInMB_ = 32;
     private static double flushIndexBufferSizeInMB_ = 8;
     private static int slicedReadBufferSizeInKB_ = 64;
-    private static List<String> tables_ = new ArrayList<String>();
+    private static Set<String> tables_ = new HashSet<String>();
     private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
     private static int bmtThreshold_ = 256;
 
@@ -824,7 +824,7 @@ public class DatabaseDescriptor
         return cfMetaData.columnType;
     }
 
-    public static List<String> getTables()
+    public static Set<String> getTables()
     {
         return tables_;
     }
@@ -834,13 +834,6 @@ public class DatabaseDescriptor
         List<String> tables = new ArrayList<String>(tables_);
         tables.remove(Table.SYSTEM_TABLE);
         return Collections.unmodifiableList(tables);
-    }
-
-    public static String getTable(String tableName)
-    {
-        assert tableName != null;
-        int index = getTables().indexOf(tableName);
-        return index >= 0 ? getTables().get(index) : null;
     }
 
     public static int getStoragePort()
