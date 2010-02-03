@@ -69,7 +69,8 @@ public class Util
                                  emptyKey,
                                  10000,
                                  new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10000),
-                                 null);
+                                 null,
+                                 true);
     }
 
     /**

@@ -564,7 +564,7 @@ public class StorageProxy implements StorageProxyMBean
                           ? new DecoratedKey<Token<?>>(primaryRange.right, null)
                           : (DecoratedKey<?>) ObjectUtils.min(command.finishKey, new DecoratedKey<Token<?>>(primaryRange.right, null));
             }
-            RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys);
+            RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys, command.includeStartKey);
             Message message = c2.getMessage();
 
             // collect replies and resolve according to consistency level

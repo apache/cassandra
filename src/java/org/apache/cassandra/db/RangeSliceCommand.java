@@ -38,8 +38,6 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.concurrent.StageManager;
 
-import static org.apache.cassandra.thrift.ThriftGlue.createColumnParent;
-
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -71,19 +69,14 @@ public class RangeSliceCommand
     public final DecoratedKey startKey;
     public final DecoratedKey finishKey;
     public final int max_keys;
+    public final boolean includeStartKey;
 
     public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys)
     {
-        this.keyspace = keyspace;
-        column_family = column_parent.getColumn_family();
-        super_column = column_parent.getSuper_column();
-        this.predicate = predicate;
-        this.startKey = startKey;
-        this.finishKey = finishKey;
-        this.max_keys = max_keys;
+        this(keyspace, column_parent.getColumn_family(), column_parent.getSuper_column(), predicate, startKey, finishKey, max_keys, true);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, byte[] super_column, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys)
+    public RangeSliceCommand(String keyspace, String column_family, byte[] super_column, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys, boolean includeStartKey)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
@@ -92,6 +85,7 @@ public class RangeSliceCommand
         this.startKey = startKey;
         this.finishKey = finishKey;
         this.max_keys = max_keys;
+        this.includeStartKey = includeStartKey;
     }
 
     public Message getMessage() throws IOException
@@ -127,6 +121,7 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
         DecoratedKey.serializer().serialize(sliceCommand.startKey, dos);
         DecoratedKey.serializer().serialize(sliceCommand.finishKey, dos);
         dos.writeInt(sliceCommand.max_keys);
+        dos.writeBoolean(sliceCommand.includeStartKey);
     }
 
     public RangeSliceCommand deserialize(DataInputStream dis) throws IOException
@@ -146,13 +141,8 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
         DecoratedKey startKey = DecoratedKey.serializer().deserialize(dis);
         DecoratedKey finishKey = DecoratedKey.serializer().deserialize(dis);
         int max_keys = dis.readInt();
-        return new RangeSliceCommand(keyspace,
-                                     createColumnParent(column_family, super_column),
-                                     pred,
-                                     startKey,
-                                     finishKey,
-                                     max_keys);
-
+        boolean includeStartKey = dis.readBoolean();
+        return new RangeSliceCommand(keyspace, column_family, super_column, pred, startKey, finishKey, max_keys, includeStartKey);
     }
 
     static byte[] readBuf(int len, DataInputStream dis) throws IOException

@@ -30,7 +30,6 @@ import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import java.net.InetAddress;
@@ -134,6 +133,38 @@ public class ColumnFamilyStoreTest extends CleanupHelper
     @Test
     public void testWrappedRangeQuery() throws IOException, ExecutionException, InterruptedException
     {
+        ColumnFamilyStore cfs = insertKey1Key2();
+
+        IPartitioner p = StorageService.getPartitioner();
+        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                   p.decorateKey("key2"),
+                                                   p.decorateKey("key1"),
+                                                   10,
+                                                   null,
+                                                   Arrays.asList("asdf".getBytes()),
+                                                   true);
+        assertEquals(2, result.rows.size());
+    }
+
+    @Test
+    public void testSkipStartKey() throws IOException, ExecutionException, InterruptedException
+    {
+        ColumnFamilyStore cfs = insertKey1Key2();
+
+        IPartitioner p = StorageService.getPartitioner();
+        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
+                                                   p.decorateKey("key1"),
+                                                   p.decorateKey("key2"),
+                                                   10,
+                                                   null,
+                                                   Arrays.asList("asdf".getBytes()),
+                                                   false);
+        assertEquals(1, result.rows.size());
+        assert result.rows.get(0).key.equals("key2");
+    }
+
+    private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
+    {
         List<RowMutation> rms = new LinkedList<RowMutation>();
         RowMutation rm;
         rm = new RowMutation("Keyspace2", "key1");
@@ -145,9 +176,6 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
         ColumnFamilyStore cfs = Util.writeColumnFamily(rms);
-
-        IPartitioner p = StorageService.getPartitioner();
-        RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY, p.decorateKey("key2"), p.decorateKey("key1"), 10, null, Arrays.asList("asdf".getBytes()));
-        assertEquals(2, result.rows.size());
+        return cfs;
     }
 }

@@ -39,7 +39,6 @@ import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -931,13 +930,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param startWith key to start with, inclusive.  empty string = start at beginning.
      * @param stopAt key to stop at, inclusive.  empty string = stop only when keys are exhausted.
      * @param maxResults
+     * @param includeStartKey
      * @return list of keys between startWith and stopAt
 
        TODO refactor better.  this is just getKeyRange w/o the deletion check, for the benefit of
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    private boolean getKeyRange(List<String> keys, final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults)
+    private boolean getKeyRange(List<String> keys, final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults, boolean includeStartKey)
     throws IOException, ExecutionException, InterruptedException
     {
         // getKeyRange requires start <= stop.  getRangeSlice handles range wrapping if necessary.
@@ -1011,14 +1011,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             // pull keys out of the CollatedIterator
-            boolean rangeCompletedLocally = false;
+            boolean first = true;
             for (DecoratedKey current : reduced)
             {
                 if (!stopAt.isEmpty() && stopAt.compareTo(current) < 0)
                 {
                     return true;
                 }
-                keys.add(current.key);
+
+                if (includeStartKey || !first || !current.equals(startWith))
+                {
+                    keys.add(current.key);
+                }
+                first = false;
+
                 if (keys.size() >= maxResults)
                 {
                     return true;
@@ -1046,27 +1052,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param keyMax maximum number of keys to process, regardless of startKey/finishKey
      * @param sliceRange may be null if columnNames is specified. specifies contiguous columns to return in what order.
      * @param columnNames may be null if sliceRange is specified. specifies which columns to return in what order.      @return list of key->list<column> tuples.
+     * @param includeStartKey
      * @throws IOException
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public RangeSliceReply getRangeSlice(byte[] super_column, final DecoratedKey startKey, final DecoratedKey finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
+    public RangeSliceReply getRangeSlice(byte[] super_column, final DecoratedKey startKey, final DecoratedKey finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames, boolean includeStartKey)
     throws IOException, ExecutionException, InterruptedException
     {
         List<String> keys = new ArrayList<String>();
         boolean completed;
         if (finishKey.isEmpty() || startKey.compareTo(finishKey) <= 0)
         {
-            completed = getKeyRange(keys, startKey, finishKey, keyMax);
+            completed = getKeyRange(keys, startKey, finishKey, keyMax, includeStartKey);
         }
         else
         {
             // wrapped range
             DecoratedKey emptyKey = new DecoratedKey(StorageService.getPartitioner().getMinimumToken(), null);
-            completed = getKeyRange(keys, startKey, emptyKey, keyMax);
+            completed = getKeyRange(keys, startKey, emptyKey, keyMax, includeStartKey);
             if (!completed)
             {
-                completed = getKeyRange(keys, emptyKey, finishKey, keyMax);
+                completed = getKeyRange(keys, emptyKey, finishKey, keyMax, true);
             }
         }
         List<Row> rows = new ArrayList<Row>(keys.size());
