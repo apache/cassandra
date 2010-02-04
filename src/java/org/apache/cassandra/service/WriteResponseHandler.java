@@ -41,11 +41,11 @@ public class WriteResponseHandler implements IAsyncCallback
     protected int localResponses;
     private final long startTime;
 
-    public WriteResponseHandler(int responseCount)
+    public WriteResponseHandler(int responseCount, String table)
     {
         // at most one node per range can bootstrap at a time, and these will be added to the write until
         // bootstrap finishes (at which point we no longer need to write to the old ones).
-        assert 1 <= responseCount && responseCount <= 2 * DatabaseDescriptor.getReplicationFactor()
+        assert 1 <= responseCount && responseCount <= 2 * DatabaseDescriptor.getReplicationFactor(table)
             : "invalid response count " + responseCount;
 
         this.responseCount = responseCount;

@@ -49,7 +49,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
 
     public ReadResponseResolver(String table, int responseCount)
     {
-        assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor()
+        assert 1 <= responseCount && responseCount <= DatabaseDescriptor.getReplicationFactor(table)
             : "invalid response count " + responseCount;
 
         this.responseCount = responseCount;

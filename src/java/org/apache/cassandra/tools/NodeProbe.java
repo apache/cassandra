@@ -26,6 +26,8 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -139,14 +141,83 @@ public class NodeProbe
         ssProxy.forceTableRepair(tableName, columnFamilies);
     }
     
-    public Map<Range, List<String>> getRangeToEndPointMap()
+    public Map<Range, List<String>> getRangeToEndPointMap(String tableName)
     {
-        return ssProxy.getRangeToEndPointMap();
+        return ssProxy.getRangeToEndPointMap(tableName);
     }
     
     public Set<String> getLiveNodes()
     {
         return ssProxy.getLiveNodes();
+    }
+
+    /**
+     * Write a textual representation of the Cassandra ring.
+     * 
+     * @param outs the stream to write to
+     */
+    public void printRing(PrintStream outs)
+    {
+        Map<Range, List<String>> rangeMap = ssProxy.getRangeToEndPointMap(null);
+        List<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
+        Collections.sort(ranges);
+        Set<String> liveNodes = ssProxy.getLiveNodes();
+        Set<String> deadNodes = ssProxy.getUnreachableNodes();
+        Map<String, String> loadMap = ssProxy.getLoadMap();
+
+        // Print range-to-endpoint mapping
+        int counter = 0;
+        outs.print(String.format("%-14s", "Address"));
+        outs.print(String.format("%-11s", "Status"));
+        outs.print(String.format("%-14s", "Load"));
+        outs.print(String.format("%-43s", "Range"));
+        outs.println("Ring");
+        // emphasize that we're showing the right part of each range
+        if (ranges.size() > 1)
+        {
+            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left));
+        }
+        // normal range & node info
+        for (Range range : ranges) {
+            List<String> endpoints = rangeMap.get(range);
+            String primaryEndpoint = endpoints.get(0);
+
+            outs.print(String.format("%-14s", primaryEndpoint));
+
+            String status = liveNodes.contains(primaryEndpoint)
+                          ? "Up"
+                          : deadNodes.contains(primaryEndpoint)
+                            ? "Down"
+                            : "?";
+            outs.print(String.format("%-11s", status));
+
+            String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
+            outs.print(String.format("%-14s", load));
+
+            outs.print(String.format("%-43s", range.right));
+
+            String asciiRingArt;
+            if (counter == 0)
+            {
+                asciiRingArt = "|<--|";
+            }
+            else if (counter == (rangeMap.size() - 1))
+            {
+                asciiRingArt = "|-->|";
+            }
+            else
+            {
+                if ((rangeMap.size() > 4) && ((counter % 2) == 0))
+                    asciiRingArt = "v   |";
+                else if ((rangeMap.size() > 4) && ((counter % 2) != 0))
+                    asciiRingArt = "|   ^";
+                else
+                    asciiRingArt = "|   |";
+            }
+            outs.println(asciiRingArt);
+            
+            counter++;
+        }
     }
     
     public Set<String> getUnreachableNodes()
@@ -325,9 +396,9 @@ public class NodeProbe
         }
     }
 
-    public List<InetAddress> getEndPoints(String key)
+    public List<InetAddress> getEndPoints(String key, String table)
     {
-        return ssProxy.getNaturalEndpoints(key);
+        return ssProxy.getNaturalEndpoints(key, table);
     }
 }
 

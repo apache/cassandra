@@ -48,9 +48,9 @@ public class RingCache
     final private static Logger logger_ = Logger.getLogger(RingCache.class);
 
     private Set<String> seeds_ = new HashSet<String>();
-    final private int port_=DatabaseDescriptor.getThriftPort();
-    private volatile AbstractReplicationStrategy nodePicker_;
+    final private int port_= DatabaseDescriptor.getThriftPort();
     final private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
+    private TokenMetadata tokenMetadata;
 
     public RingCache()
     {
@@ -89,8 +89,7 @@ public class RingCache
                     }
                 }
 
-                TokenMetadata tokenMetadata = new TokenMetadata(tokenEndpointMap);
-                nodePicker_ = StorageService.getReplicationStrategy(tokenMetadata);
+                tokenMetadata = new TokenMetadata(tokenEndpointMap);
 
                 break;
             }
@@ -102,8 +101,11 @@ public class RingCache
         }
     }
 
-    public List<InetAddress> getEndPoint(String key)
+    public List<InetAddress> getEndPoint(String table, String key)
     {
-        return nodePicker_.getNaturalEndpoints(partitioner_.getToken(key));
+        if (tokenMetadata == null)
+            throw new RuntimeException("Must refresh endpoints before looking up a key.");
+        AbstractReplicationStrategy strat = StorageService.getReplicationStrategy(tokenMetadata, table);
+        return strat.getNaturalEndpoints(partitioner_.getToken(key), table);
     }
 }

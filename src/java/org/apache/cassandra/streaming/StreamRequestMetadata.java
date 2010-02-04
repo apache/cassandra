@@ -33,16 +33,20 @@ class StreamRequestMetadata
 
     protected InetAddress target_;
     protected Collection<Range> ranges_;
+    protected String table_;
 
-    StreamRequestMetadata(InetAddress target, Collection<Range> ranges)
+    StreamRequestMetadata(InetAddress target, Collection<Range> ranges, String table)
     {
         target_ = target;
         ranges_ = ranges;
+        table_ = table;
     }
 
     public String toString()
     {
         StringBuilder sb = new StringBuilder("");
+        sb.append(table_);
+        sb.append("@");
         sb.append(target_);
         sb.append("------->");
         for ( Range range : ranges_ )
@@ -52,29 +56,31 @@ class StreamRequestMetadata
         }
         return sb.toString();
     }
+}
 
-    private static class StreamRequestMetadataSerializer implements ICompactSerializer<StreamRequestMetadata>
+class StreamRequestMetadataSerializer implements ICompactSerializer<StreamRequestMetadata>
+{
+    public void serialize(StreamRequestMetadata srMetadata, DataOutputStream dos) throws IOException
     {
-        public void serialize(StreamRequestMetadata srMetadata, DataOutputStream dos) throws IOException
+        CompactEndPointSerializationHelper.serialize(srMetadata.target_, dos);
+        dos.writeUTF(srMetadata.table_);
+        dos.writeInt(srMetadata.ranges_.size());
+        for (Range range : srMetadata.ranges_)
         {
-            CompactEndPointSerializationHelper.serialize(srMetadata.target_, dos);
-            dos.writeInt(srMetadata.ranges_.size());
-            for (Range range : srMetadata.ranges_)
-            {
-                Range.serializer().serialize(range, dos);
-            }
+            Range.serializer().serialize(range, dos);
         }
+    }
 
-        public StreamRequestMetadata deserialize(DataInputStream dis) throws IOException
+    public StreamRequestMetadata deserialize(DataInputStream dis) throws IOException
+    {
+        InetAddress target = CompactEndPointSerializationHelper.deserialize(dis);
+        String table = dis.readUTF();
+        int size = dis.readInt();
+        List<Range> ranges = (size == 0) ? null : new ArrayList<Range>();
+        for( int i = 0; i < size; ++i )
         {
-            InetAddress target = CompactEndPointSerializationHelper.deserialize(dis);
-            int size = dis.readInt();
-            List<Range> ranges = (size == 0) ? null : new ArrayList<Range>();
-            for( int i = 0; i < size; ++i )
-            {
-                ranges.add(Range.serializer().deserialize(dis));
-            }
-            return new StreamRequestMetadata( target, ranges );
+            ranges.add(Range.serializer().deserialize(dis));
         }
+        return new StreamRequestMetadata(target, ranges, table);
     }
 }

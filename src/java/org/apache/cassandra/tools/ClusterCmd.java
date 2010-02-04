@@ -144,9 +144,9 @@ public class ClusterCmd {
         hf.printHelp(usage, "", options, header);
     }
     
-    public void printEndPoints(String key)
+    public void printEndPoints(String key, String table)
     {
-        List<InetAddress> endpoints = probe.getEndPoints(key);
+        List<InetAddress> endpoints = probe.getEndPoints(key, table);
         System.out.println(String.format("%-17s: %s", "Key", key));
         System.out.println(String.format("%-17s: %s", "Endpoints", endpoints));
     }
@@ -254,21 +254,21 @@ public class ClusterCmd {
         String cmdName = arguments[0];
         if (cmdName.equals("get_endpoints"))
         {
-            if (arguments.length <= 1)
+            if (arguments.length <= 2)
             {
-                System.err.println("missing key argument");
+                System.err.println("missing key and/or table argument");
             }
-            clusterCmd.printEndPoints(arguments[1]);
+            clusterCmd.printEndPoints(arguments[1], arguments[2]);
         }
-	else if (cmdName.equals("global_snapshot"))
-	{
+        else if (cmdName.equals("global_snapshot"))
+        {
             String snapshotName = "";
             if (arguments.length > 1)
             {
                 snapshotName = arguments[1];
             }
-	    clusterCmd.takeGlobalSnapshot(snapshotName);
-	}
+            clusterCmd.takeGlobalSnapshot(snapshotName);
+        }
         else if (cmdName.equals("clear_global_snapshot"))
         {
             clusterCmd.clearGlobalSnapshot();

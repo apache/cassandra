@@ -23,9 +23,6 @@
    <CommitLogSync>batch</CommitLogSync>
    <CommitLogSyncBatchWindowInMS>1.0</CommitLogSyncBatchWindowInMS>
    <Partitioner>org.apache.cassandra.dht.CollatingOrderPreservingPartitioner</Partitioner>
-   <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
-   <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
-   <ReplicationFactor>1</ReplicationFactor>
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <ListenAddress>127.0.0.1</ListenAddress>
    <StoragePort>7010</StoragePort>
@@ -51,12 +48,33 @@
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super2"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super3"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="UTF8Type" Name="Super4"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>1</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
      </Keyspace>
      <Keyspace Name = "Keyspace2">
        <ColumnFamily Name="Standard1"/>
        <ColumnFamily Name="Standard3"/>
        <ColumnFamily ColumnType="Super" Name="Super3"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>1</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+     </Keyspace>
+     <Keyspace Name = "Keyspace3">
+       <ColumnFamily Name="Standard1"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>5</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+     </Keyspace>
+     <Keyspace Name = "Keyspace4">
+       <ColumnFamily Name="Standard1"/>
+       <ColumnFamily Name="Standard3"/>
+       <ColumnFamily ColumnType="Super" Name="Super3"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="TimeUUIDType" Name="Super4"/>
+       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+       <ReplicationFactor>3</ReplicationFactor>
+       <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
      </Keyspace>
    </Keyspaces>
    <Seeds>

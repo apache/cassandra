@@ -111,6 +111,30 @@
                     RowsCached="1000"
                     KeysCachedFraction="0"
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
+
+      <!--
+       ~ Strategy: Setting this to the class that implements
+       ~ IReplicaPlacementStrategy will change the way the node picker works.
+       ~ Out of the box, Cassandra provides
+       ~ org.apache.cassandra.locator.RackUnawareStrategy and
+       ~ org.apache.cassandra.locator.RackAwareStrategy (place one replica in
+       ~ a different datacenter, and the others on different racks in the same
+       ~ one.)
+      -->
+      <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
+
+      <!-- Number of replicas of the data -->
+      <ReplicationFactor>1</ReplicationFactor>
+
+      <!--
+       ~ EndPointSnitch: Setting this to the class that implements
+       ~ AbstractEndpointSnitch, which lets Cassandra know enough
+       ~ about your network topology to route requests efficiently.
+       ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
+       ~ and PropertyFileEndPointSnitch is available in contrib/.
+      -->
+      <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
+        
     </Keyspace>
   </Keyspaces>
 
@@ -155,29 +179,6 @@
    ~ number of nodes.
   -->
   <InitialToken></InitialToken>
-
-  <!--
-   ~ EndPointSnitch: Setting this to the class that implements
-   ~ AbstractEndpointSnitch, which lets Cassandra know enough
-   ~ about your network topology to route requests efficiently.
-   ~ Out of the box, Cassandra provides org.apache.cassandra.locator.EndPointSnitch,
-   ~ and PropertyFileEndPointSnitch is available in contrib/.
-  -->
-  <EndPointSnitch>org.apache.cassandra.locator.EndPointSnitch</EndPointSnitch>
-
-  <!--
-   ~ Strategy: Setting this to the class that implements
-   ~ IReplicaPlacementStrategy will change the way the node picker works.
-   ~ Out of the box, Cassandra provides
-   ~ org.apache.cassandra.locator.RackUnawareStrategy and
-   ~ org.apache.cassandra.locator.RackAwareStrategy (place one replica in
-   ~ a different datacenter, and the others on different racks in the same
-   ~ one.)
-  -->
-  <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
-
-  <!-- Number of replicas of the data -->
-  <ReplicationFactor>1</ReplicationFactor>
 
   <!--
    ~ Directories: Specify where Cassandra should store different data on

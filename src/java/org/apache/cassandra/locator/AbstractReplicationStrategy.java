@@ -21,6 +21,7 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.log4j.Logger;
 
 import com.google.common.collect.HashMultimap;
@@ -43,25 +44,25 @@ public abstract class AbstractReplicationStrategy
 {
     protected static final Logger logger_ = Logger.getLogger(AbstractReplicationStrategy.class);
 
-    protected TokenMetadata tokenMetadata_;
-    protected int replicas_;
+    private TokenMetadata tokenMetadata_;
+    protected final IEndPointSnitch snitch_;
 
-    AbstractReplicationStrategy(TokenMetadata tokenMetadata, int replicas)
+    AbstractReplicationStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
     {
         tokenMetadata_ = tokenMetadata;
-        replicas_ = replicas;
+        snitch_ = snitch;
     }
 
-    public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata);
+    public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table);
     
-    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
     {
-        return new WriteResponseHandler(blockFor);
+        return new WriteResponseHandler(blockFor, table);
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, String table)
     {
-        return getNaturalEndpoints(token, tokenMetadata_);
+        return getNaturalEndpoints(token, tokenMetadata_, table);
     }
     
     /*
@@ -69,9 +70,9 @@ public abstract class AbstractReplicationStrategy
      * on which the data is being placed and the value is the
      * endpoint to which it should be forwarded.
      */
-    public Map<InetAddress, InetAddress> getHintedEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
+    public Map<InetAddress, InetAddress> getHintedEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
-        return getHintedMapForEndpoints(getWriteEndpoints(token, naturalEndpoints));
+        return getHintedMapForEndpoints(table, getWriteEndpoints(token, table, naturalEndpoints));
     }
 
     /**
@@ -81,15 +82,16 @@ public abstract class AbstractReplicationStrategy
      * Thus, this method may return more nodes than the Replication Factor.
      *
      * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
+     * todo: this method should be moved into TokenMetadata.
      */
-    public Collection<InetAddress> getWriteEndpoints(Token token, Collection<InetAddress> naturalEndpoints)
+    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
-        if (tokenMetadata_.getPendingRanges().isEmpty())
+        if (tokenMetadata_.getPendingRanges(table).isEmpty())
             return naturalEndpoints;
 
         List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
 
-        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges().entrySet())
+        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(table).entrySet())
         {
             if (entry.getKey().contains(token))
             {
@@ -107,12 +109,12 @@ public abstract class AbstractReplicationStrategy
      *
      * A destination node may be the destination for multiple targets.
      */
-    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(Collection<InetAddress> targets)
+    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(String table, Collection<InetAddress> targets)
     {
         Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
         Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
 
-        IEndPointSnitch endPointSnitch = StorageService.instance.getEndPointSnitch();
+        IEndPointSnitch endPointSnitch = DatabaseDescriptor.getEndPointSnitch(table);
         Set<InetAddress> liveNodes = Gossiper.instance.getLiveMembers();
 
         for (InetAddress ep : targets)
@@ -160,14 +162,14 @@ public abstract class AbstractReplicationStrategy
      this is fine as long as we don't use this on any critical path.
      (fixing this would probably require merging tokenmetadata into replicationstrategy, so we could cache/invalidate cleanly.)
      */
-    public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata)
+    public Multimap<InetAddress, Range> getAddressRanges(TokenMetadata metadata, String table)
     {
         Multimap<InetAddress, Range> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
             Range range = metadata.getPrimaryRangeFor(token);
-            for (InetAddress ep : getNaturalEndpoints(token, metadata))
+            for (InetAddress ep : getNaturalEndpoints(token, metadata, table))
             {
                 map.put(ep, range);
             }
@@ -176,14 +178,14 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<Range, InetAddress> getRangeAddresses(TokenMetadata metadata)
+    public Multimap<Range, InetAddress> getRangeAddresses(TokenMetadata metadata, String table)
     {
         Multimap<Range, InetAddress> map = HashMultimap.create();
 
         for (Token token : metadata.sortedTokens())
         {
             Range range = metadata.getPrimaryRangeFor(token);
-            for (InetAddress ep : getNaturalEndpoints(token, metadata))
+            for (InetAddress ep : getNaturalEndpoints(token, metadata, table))
             {
                 map.put(range, ep);
             }
@@ -192,16 +194,16 @@ public abstract class AbstractReplicationStrategy
         return map;
     }
 
-    public Multimap<InetAddress, Range> getAddressRanges()
+    public Multimap<InetAddress, Range> getAddressRanges(String table)
     {
-        return getAddressRanges(tokenMetadata_);
+        return getAddressRanges(tokenMetadata_, table);
     }
 
-    public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress)
+    public Collection<Range> getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddress pendingAddress, String table)
     {
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalToken(pendingToken, pendingAddress);
-        return getAddressRanges(temp).get(pendingAddress);
+        return getAddressRanges(temp, table).get(pendingAddress);
     }
 
 }

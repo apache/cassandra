@@ -69,7 +69,6 @@ public class DatabaseDescriptor
     private static InetAddress listenAddress_; // leave null so we can fall through to getLocalHost
     private static InetAddress thriftAddress_;
     private static String clusterName_ = "Test";
-    private static int replicationFactor_ = 3;
     private static long rpcTimeoutInMillis_ = 2000;
     private static Set<InetAddress> seeds_ = new HashSet<InetAddress>();
     /* Keeps the list of data file directories */
@@ -96,12 +95,17 @@ public class DatabaseDescriptor
      * corresponding meta data for that column family.
     */
     private static Map<String, Map<String, CFMetaData>> tableToCFMetaDataMap_;
+
+    // map tables to replication strategies.
+    private static Map<String, Class<AbstractReplicationStrategy>> replicationStrategyClasses_;
+
+    // map tables to replication factors.
+    private static Map<String, Integer> replicationFactors_;
+
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner_;
 
-    private static IEndPointSnitch endPointSnitch_;
-
-    private static Class<AbstractReplicationStrategy> replicaPlacementStrategyClass_;
+    private static Map<String, IEndPointSnitch> endPointSnitches_;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     private static int columnIndexSizeInKB_;
@@ -256,22 +260,6 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Invalid partitioner class " + partitionerClassName);
             }
 
-            /* end point snitch */
-            String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/EndPointSnitch");
-            if (endPointSnitchClassName == null)
-            {
-                throw new ConfigurationException("Missing endpointsnitch directive /Storage/EndPointSnitch");
-            }
-            try
-            {
-                Class cls = Class.forName(endPointSnitchClassName);
-                endPointSnitch_ = (IEndPointSnitch) cls.getConstructor().newInstance();
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName);
-            }
-            
             /* JobTracker address */
             jobTrackerHost_ = xmlUtils.getNodeValue("/Storage/JobTrackerHost");
 
@@ -283,11 +271,6 @@ public class DatabaseDescriptor
                 gcGraceInSeconds_ = Integer.parseInt(gcGrace);
 
             initialToken_ = xmlUtils.getNodeValue("/Storage/InitialToken");
-
-            /* Data replication factor */
-            String replicationFactor = xmlUtils.getNodeValue("/Storage/ReplicationFactor");
-            if ( replicationFactor != null )
-                replicationFactor_ = Integer.parseInt(replicationFactor);
 
             /* RPC Timeout */
             String rpcTimeoutInMillis = xmlUtils.getNodeValue("/Storage/RpcTimeoutInMillis");
@@ -457,21 +440,9 @@ public class DatabaseDescriptor
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
             tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
-
-            /* See which replica placement strategy to use */
-            String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/ReplicaPlacementStrategy");
-            if (replicaPlacementStrategyClassName == null)
-            {
-                throw new ConfigurationException("Missing replicaplacementstrategy directive /Storage/ReplicaPlacementStrategy");
-            }
-            try
-            {
-                replicaPlacementStrategyClass_ = (Class<AbstractReplicationStrategy>) Class.forName(replicaPlacementStrategyClassName);
-            }
-            catch (ClassNotFoundException e)
-            {
-                throw new ConfigurationException("Invalid replicaplacementstrategy class " + replicaPlacementStrategyClassName);
-            }
+            replicationFactors_ = new HashMap<String, Integer>();
+            replicationStrategyClasses_ = new HashMap<String, Class<AbstractReplicationStrategy>>();
+            endPointSnitches_ = new HashMap<String, IEndPointSnitch>();
 
             /* Read the table related stuff from config */
             NodeList tables = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
@@ -492,6 +463,45 @@ public class DatabaseDescriptor
                 }
                 tables_.add(tName);
                 tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
+
+                /* See which replica placement strategy to use */
+                String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/ReplicaPlacementStrategy");
+                if (replicaPlacementStrategyClassName == null)
+                {
+                    throw new ConfigurationException("Missing replicaplacementstrategy directive for " + tName);
+                }
+                try
+                {
+                    Class cls = (Class<AbstractReplicationStrategy>) Class.forName(replicaPlacementStrategyClassName);
+                    replicationStrategyClasses_.put(tName, cls);
+                }
+                catch (ClassNotFoundException e)
+                {
+                    throw new ConfigurationException("Invalid replicaplacementstrategy class " + replicaPlacementStrategyClassName);
+                }
+
+                /* Data replication factor */
+                String replicationFactor = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/ReplicationFactor");
+                if (replicationFactor == null)
+                    throw new ConfigurationException("Missing replicationfactor directory for keyspace " + tName);
+                else
+                    replicationFactors_.put(tName, Integer.parseInt(replicationFactor));
+
+                /* end point snitch */
+                String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/EndPointSnitch");
+                if (endPointSnitchClassName == null)
+                {
+                    throw new ConfigurationException("Missing endpointsnitch directive for keyspace " + tName);
+                }
+                try
+                {
+                    Class cls = Class.forName(endPointSnitchClassName);
+                    endPointSnitches_.put(tName, (IEndPointSnitch)cls.getConstructor().newInstance());
+                }
+                catch (ClassNotFoundException e)
+                {
+                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName);
+                }
 
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
@@ -729,14 +739,14 @@ public class DatabaseDescriptor
         return partitioner_;
     }
     
-    public static IEndPointSnitch getEndPointSnitch()
+    public static IEndPointSnitch getEndPointSnitch(String table)
     {
-        return endPointSnitch_;
+        return endPointSnitches_.get(table);
     }
 
-    public static Class<AbstractReplicationStrategy> getReplicaPlacementStrategyClass()
+    public static Class<AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)
     {
-        return replicaPlacementStrategyClass_;
+        return replicationStrategyClasses_.get(table);
     }
     
     public static String getJobTrackerAddress()
@@ -851,14 +861,14 @@ public class DatabaseDescriptor
         return thriftPort_;
     }
 
-    public static int getReplicationFactor()
+    public static int getReplicationFactor(String table)
     {
-        return replicationFactor_;
+        return replicationFactors_.get(table);
     }
 
-    public static int getQuorum()
+    public static int getQuorum(String table)
     {
-        return (replicationFactor_ / 2) + 1;
+        return (replicationFactors_.get(table) / 2) + 1;
     }
 
     public static long getRpcTimeout()
@@ -1079,8 +1089,9 @@ public class DatabaseDescriptor
     /**
      * For testing purposes.
      */
-    static void setReplicationFactorUnsafe(int factor)
+    static void setReplicationFactorUnsafe(String table, int factor)
     {
-        replicationFactor_ = factor;
+        replicationFactors_.remove(table);
+        replicationFactors_.put(table, factor);
     }
 }

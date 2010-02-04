@@ -44,12 +44,12 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
     private final Map<String, Integer> responseCounts;
     private final DatacenterEndPointSnitch endPointSnitch;
 
-    public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts)
+    public DatacenterSyncWriteResponseHandler(Map<String, Integer> responseCounts, String table)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(1);
+        super(1, table);
         this.responseCounts = responseCounts;
-        endPointSnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch();
+        endPointSnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch(table);
     }
 
     @Override

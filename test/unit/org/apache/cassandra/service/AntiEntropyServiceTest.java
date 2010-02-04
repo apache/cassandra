@@ -61,8 +61,9 @@ public class AntiEntropyServiceTest extends CleanupHelper
         if (!initialized)
         {
             LOCAL = FBUtilities.getLocalAddress();
+            tablename = DatabaseDescriptor.getTables().iterator().next();
             // bump the replication factor so that local overlaps with REMOTE below
-            DatabaseDescriptorTest.setReplicationFactor(2);
+            DatabaseDescriptorTest.setReplicationFactor(tablename, 2);
 
             StorageService.instance.initServer();
             // generate a fake endpoint for which we can spoof receiving/sending trees
@@ -72,7 +73,6 @@ public class AntiEntropyServiceTest extends CleanupHelper
             tmd.updateNormalToken(part.getMinimumToken(), REMOTE);
             assert tmd.isMember(REMOTE);
 
-            tablename = DatabaseDescriptor.getTables().iterator().next();
             cfname = Table.open(tablename).getColumnFamilies().iterator().next();
             initialized = true;
         }
@@ -89,7 +89,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
     @Test
     public void testGetValidator() throws Throwable
     {
-        aes.clearNaturalRepairs();
+        aes.clearNaturalRepairs_TestsOnly();
 
         // not major
         assert aes.getValidator(tablename, cfname, null, false) instanceof NoopValidator;
@@ -174,13 +174,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
         Util.writeColumnFamily(rms);
         ColumnFamilyStore store = Util.writeColumnFamily(rms);
         
-        TreePair old = aes.getRendezvousPair(tablename, cfname, REMOTE);
+        TreePair old = aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE);
         // force a readonly compaction, and wait for it to finish
         CompactionManager.instance.submitReadonly(store, REMOTE).get(5000, TimeUnit.MILLISECONDS);
 
         // check that a tree was created and stored
         flushAES().get(5000, TimeUnit.MILLISECONDS);
-        assert old != aes.getRendezvousPair(tablename, cfname, REMOTE);
+        assert old != aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE);
     }
 
     @Test
@@ -200,7 +200,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         
         // confirm that our reference is not equal to the original due
         // to (de)serialization
-        assert tree != aes.getRendezvousPair(tablename, cfname, REMOTE).left;
+        assert tree != aes.getRendezvousPair_TestsOnly(tablename, cfname, REMOTE).left;
     }
 
     @Test

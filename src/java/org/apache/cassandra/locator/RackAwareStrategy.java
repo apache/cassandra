@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import java.net.InetAddress;
 import org.apache.cassandra.service.StorageService;
@@ -36,12 +37,14 @@ import org.apache.cassandra.service.StorageService;
  */
 public class RackAwareStrategy extends AbstractReplicationStrategy
 {
-    public RackAwareStrategy(TokenMetadata tokenMetadata, int replicas)
+    public RackAwareStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
     {
-        super(tokenMetadata, replicas);
+        super(tokenMetadata, snitch);
+        if (!(snitch instanceof EndPointSnitch))
+            throw new IllegalArgumentException(("RackAwareStrategy requires EndPointSnitch."));
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
         int startIndex;
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
@@ -65,20 +68,20 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         Token primaryToken = (Token) tokens.get(index);
         endpoints.add(metadata.getEndPoint(primaryToken));
         foundCount++;
-        if (replicas_ == 1)
+        final int replicas = DatabaseDescriptor.getReplicationFactor(table);
+        if (replicas == 1)
         {
             return endpoints;
         }
         startIndex = (index + 1)%totalNodes;
-        EndPointSnitch endPointSnitch = (EndPointSnitch) StorageService.instance.getEndPointSnitch();
 
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i + 1) % totalNodes)
+        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas; ++count, i = (i + 1) % totalNodes)
         {
             try
             {
                 // First try to find one in a different data center
                 Token t = (Token) tokens.get(i);
-                if (!endPointSnitch.isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
+                if (!((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
                 {
                     // If we have already found something in a diff datacenter no need to find another
                     if (!bDataCenter)
@@ -90,8 +93,8 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     continue;
                 }
                 // Now  try to find one on a different rack
-                if (!endPointSnitch.isOnSameRack(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)) &&
-                    endPointSnitch.isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
+                if (!((EndPointSnitch)snitch_).isOnSameRack(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)) &&
+                    ((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
                 {
                     // If we have already found something in a diff rack no need to find another
                     if (!bOtherRack)
@@ -110,7 +113,7 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
         }
         // If we found N number of nodes we are good. This loop wil just exit. Otherwise just
         // loop through the list and add until we have N nodes.
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i+1)%totalNodes)
+        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas; ++count, i = (i+1)%totalNodes)
         {
             Token t = (Token) tokens.get(i);
             if (!endpoints.contains(metadata.getEndPoint(t)))

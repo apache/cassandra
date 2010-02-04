@@ -25,6 +25,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.service.StorageServiceAccessor;
 import org.junit.Test;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -40,10 +43,26 @@ import java.net.UnknownHostException;
 public class RackUnawareStrategyTest
 {
     @Test
+    public void tryBogusTable()
+    {
+        AbstractReplicationStrategy rs = StorageService.instance.getReplicationStrategy("Keyspace1");
+        assertNotNull(rs);
+        try
+        {
+            rs = StorageService.instance.getReplicationStrategy("SomeBogusTableThatDoesntExist");
+            throw new AssertionError("SS.getReplicationStrategy() should have thrown a RuntimeException.");
+        }
+        catch (RuntimeException ex)
+        {
+            // This exception should be thrown.
+        }
+    }
+
+    @Test
     public void testBigIntegerEndpoints() throws UnknownHostException
     {
         TokenMetadata tmd = new TokenMetadata();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, 3);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, null);
 
         List<Token> endPointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -51,7 +70,8 @@ public class RackUnawareStrategyTest
             endPointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
         }
-        testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
+        for (String table : DatabaseDescriptor.getNonSystemTables())
+            testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]), table);
     }
 
     @Test
@@ -59,7 +79,7 @@ public class RackUnawareStrategyTest
     {
         TokenMetadata tmd = new TokenMetadata();
         IPartitioner partitioner = new OrderPreservingPartitioner();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, 3);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, null);
 
         List<Token> endPointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -67,12 +87,13 @@ public class RackUnawareStrategyTest
             endPointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
             keyTokens.add(partitioner.getToken(String.valueOf((char)('a' + i * 2 + 1))));
         }
-        testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
+        for (String table : DatabaseDescriptor.getNonSystemTables())
+            testGetEndpoints(tmd, strategy, endPointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]), table);
     }
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void testGetEndpoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens) throws UnknownHostException
+    private void testGetEndpoints(TokenMetadata tmd, AbstractReplicationStrategy strategy, Token[] endPointTokens, Token[] keyTokens, String table) throws UnknownHostException
     {
         List<InetAddress> hosts = new ArrayList<InetAddress>();
         for (int i = 0; i < endPointTokens.length; i++)
@@ -84,8 +105,8 @@ public class RackUnawareStrategyTest
 
         for (int i = 0; i < keyTokens.length; i++)
         {
-            List<InetAddress> endPoints = strategy.getNaturalEndpoints(keyTokens[i]);
-            assertEquals(3, endPoints.size());
+            List<InetAddress> endPoints = strategy.getNaturalEndpoints(keyTokens[i], table);
+            assertEquals(DatabaseDescriptor.getReplicationFactor(table), endPoints.size());
             for (int j = 0; j < endPoints.size(); j++)
             {
                 assertEquals(endPoints.get(j), hosts.get((i + j + 1) % hosts.size()));
@@ -96,16 +117,19 @@ public class RackUnawareStrategyTest
     @Test
     public void testGetEndpointsDuringBootstrap() throws UnknownHostException
     {
+        // the token difference will be RING_SIZE * 2.
+        final int RING_SIZE = 10;
         TokenMetadata tmd = new TokenMetadata();
-        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, 3);
+        TokenMetadata oldTmd = StorageServiceAccessor.setTokenMetadata(tmd);
+        AbstractReplicationStrategy strategy = new RackUnawareStrategy(tmd, null);
 
-        Token[] endPointTokens = new Token[5]; 
-        Token[] keyTokens = new Token[5];
+        Token[] endPointTokens = new Token[RING_SIZE];
+        Token[] keyTokens = new Token[RING_SIZE];
         
-        for (int i = 0; i < 5; i++) 
+        for (int i = 0; i < RING_SIZE; i++)
         {
-            endPointTokens[i] = new BigIntegerToken(String.valueOf(10 * i));
-            keyTokens[i] = new BigIntegerToken(String.valueOf(10 * i + 5));
+            endPointTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i));
+            keyTokens[i] = new BigIntegerToken(String.valueOf(RING_SIZE * 2 * i + RING_SIZE));
         }
         
         List<InetAddress> hosts = new ArrayList<InetAddress>();
@@ -115,28 +139,36 @@ public class RackUnawareStrategyTest
             tmd.updateNormalToken(endPointTokens[i], ep);
             hosts.add(ep);
         }
-        
-        //Add bootstrap node id=6
-        Token bsToken = new BigIntegerToken(String.valueOf(25));
-        InetAddress bootstrapEndPoint = InetAddress.getByName("127.0.0.6");
+
+        // bootstrap at the end of the ring
+        Token bsToken = new BigIntegerToken(String.valueOf(210));
+        InetAddress bootstrapEndPoint = InetAddress.getByName("127.0.0.11");
         tmd.addBootstrapToken(bsToken, bootstrapEndPoint);
-        StorageService.calculatePendingRanges(tmd, strategy);
 
-        for (int i = 0; i < keyTokens.length; i++)
+        for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            Collection<InetAddress> endPoints = strategy.getWriteEndpoints(keyTokens[i], strategy.getNaturalEndpoints(keyTokens[i]));
-            assertTrue(endPoints.size() >= 3);
+            StorageService.calculatePendingRanges(strategy, table);
+            int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
 
-            for (int j = 0; j < 3; j++)
+            for (int i = 0; i < keyTokens.length; i++)
             {
-                //Check that the old nodes are definitely included
-                assertTrue(endPoints.contains(hosts.get((i + j + 1) % hosts.size())));
+                Collection<InetAddress> endPoints = strategy.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i], table));
+                assertTrue(endPoints.size() >= replicationFactor);
+
+                for (int j = 0; j < replicationFactor; j++)
+                {
+                    //Check that the old nodes are definitely included
+                    assertTrue(endPoints.contains(hosts.get((i + j + 1) % hosts.size())));
+                }
+
+                // bootstrapEndPoint should be in the endPoints for i in MAX-RF to MAX, but not in any earlier ep.
+                if (i < RING_SIZE - replicationFactor)
+                    assertFalse(endPoints.contains(bootstrapEndPoint));
+                else
+                    assertTrue(endPoints.contains(bootstrapEndPoint));
             }
-            // for 5, 15, 25 this should include bootstrap node
-            if (i < 3)
-                assertTrue(endPoints.contains(bootstrapEndPoint));
-            else
-                assertFalse(endPoints.contains(bootstrapEndPoint));
         }
+
+        StorageServiceAccessor.setTokenMetadata(oldTmd);
     }
 }

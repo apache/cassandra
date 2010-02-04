@@ -60,7 +60,7 @@ public interface StorageServiceMBean
      *
      * @return mapping of ranges to end points
      */
-    public Map<Range, List<String>> getRangeToEndPointMap();
+    public Map<Range, List<String>> getRangeToEndPointMap(String keyspace);
 
     /** Human-readable load value */
     public String getLoadString();
@@ -82,7 +82,7 @@ public interface StorageServiceMBean
      * @param key - key for which we need to find the endpoint return value -
      * the endpoint responsible for this key
      */
-    public List<InetAddress> getNaturalEndpoints(String key);
+    public List<InetAddress> getNaturalEndpoints(String key, String table);
 
     /**
      * Forces major compaction (all sstable files compacted)

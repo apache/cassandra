@@ -44,12 +44,12 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     private DatacenterEndPointSnitch endpointsnitch;
     private InetAddress localEndpoint;
 
-    public DatacenterWriteResponseHandler(int blockFor)
+    public DatacenterWriteResponseHandler(int blockFor, String table)
     {
         // Response is been managed by the map so the waitlist size really doesnt matter.
-        super(blockFor);
+        super(blockFor, table);
         this.blockFor = blockFor;
-        endpointsnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch();
+        endpointsnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch(table);
         localEndpoint = FBUtilities.getLocalAddress();
     }
 

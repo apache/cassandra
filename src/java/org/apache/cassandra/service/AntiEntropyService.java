@@ -142,11 +142,11 @@ public class AntiEntropyService
     /**
      * Return all of the neighbors with whom we share data.
      */
-    private static Collection<InetAddress> getNeighbors()
+    private static Collection<InetAddress> getNeighbors(String table)
     {
         InetAddress local = FBUtilities.getLocalAddress();
         StorageService ss = StorageService.instance;
-        return Collections2.filter(ss.getNaturalEndpoints(ss.getLocalToken()),
+        return Collections2.filter(ss.getNaturalEndpoints(table, ss.getLocalToken()),
                                    Predicates.not(Predicates.equalTo(local)));
     }
 
@@ -158,7 +158,7 @@ public class AntiEntropyService
      * @param endpoint The endpoint which owns the given tree.
      * @param tree The tree for the endpoint.
      */
-    void rendezvous(CFPair cf, InetAddress endpoint, MerkleTree tree)
+    private void rendezvous(CFPair cf, InetAddress endpoint, MerkleTree tree)
     {
         InetAddress LOCAL = FBUtilities.getLocalAddress();
 
@@ -169,7 +169,7 @@ public class AntiEntropyService
         if (LOCAL.equals(endpoint))
         {
             // we're registering a local tree: rendezvous with all remote trees
-            for (InetAddress neighbor : getNeighbors())
+            for (InetAddress neighbor : getNeighbors(cf.left))
             {
                 TreePair waiting = ctrees.remove(neighbor);
                 if (waiting != null && waiting.right != null)
@@ -243,7 +243,7 @@ public class AntiEntropyService
      * @param remote The remote endpoint for the rendezvous.
      * @return The tree pair for the given rendezvous if it exists, else  null.
      */
-    TreePair getRendezvousPair(String table, String cf, InetAddress remote)
+    TreePair getRendezvousPair_TestsOnly(String table, String cf, InetAddress remote)
     {
         return rendezvousPairs(new CFPair(table, cf)).get(remote);
     }
@@ -251,7 +251,7 @@ public class AntiEntropyService
     /**
      * Should only be used for testing.
      */
-    void clearNaturalRepairs()
+    void clearNaturalRepairs_TestsOnly()
     {
         naturalRepairs.clear();
     }
@@ -484,7 +484,7 @@ public class AntiEntropyService
             AntiEntropyService aes = AntiEntropyService.instance;
             InetAddress local = FBUtilities.getLocalAddress();
 
-            Collection<InetAddress> neighbors = getNeighbors();
+            Collection<InetAddress> neighbors = getNeighbors(cf.left);
 
             // store the local tree and then broadcast it to our neighbors
             aes.rendezvous(cf, local, tree);
@@ -562,8 +562,8 @@ public class AntiEntropyService
                 rtree.partitioner(ss.getPartitioner());
 
             // determine the ranges where responsibility overlaps
-            Set<Range> interesting = new HashSet(ss.getRangesForEndPoint(local));
-            interesting.retainAll(ss.getRangesForEndPoint(remote));
+            Set<Range> interesting = new HashSet(ss.getRangesForEndPoint(cf.left, local));
+            interesting.retainAll(ss.getRangesForEndPoint(cf.left, remote));
 
             // compare trees, and filter out uninteresting differences
             for (MerkleTree.TreeRange diff : MerkleTree.difference(ltree, rtree))

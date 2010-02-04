@@ -19,6 +19,8 @@
 package org.apache.cassandra.locator;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -55,7 +57,7 @@ public class TokenMetadata
     // (See CASSANDRA-603 for more detail + examples).
     private Set<InetAddress> leavingEndPoints;
 
-    private Multimap<Range, InetAddress> pendingRanges;
+    private ConcurrentMap<String, Multimap<Range, InetAddress>> pendingRanges;
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
@@ -73,7 +75,7 @@ public class TokenMetadata
         this.tokenToEndPointMap = tokenToEndPointMap;
         bootstrapTokens = HashBiMap.create();
         leavingEndPoints = new HashSet<InetAddress>();
-        pendingRanges = HashMultimap.create();
+        pendingRanges = new ConcurrentHashMap<String, Multimap<Range, InetAddress>>();
         sortedTokens = sortTokens();
     }
 
@@ -335,16 +337,27 @@ public class TokenMetadata
         }
     }
 
-    /** a mutable map may be returned but caller should not modify it */
-    public Map<Range, Collection<InetAddress>> getPendingRanges()
+    private synchronized Multimap<Range, InetAddress> getPendingRangesMM(String table)
     {
-        return pendingRanges.asMap();
+        Multimap<Range, InetAddress> map = pendingRanges.get(table);
+        if (map == null)
+        {
+             map = HashMultimap.create();
+            pendingRanges.put(table, map);
+        }
+        return map;
     }
 
-    public List<Range> getPendingRanges(InetAddress endpoint)
+    /** a mutable map may be returned but caller should not modify it */
+    public Map<Range, Collection<InetAddress>> getPendingRanges(String table)
+    {
+        return getPendingRangesMM(table).asMap();
+    }
+
+    public List<Range> getPendingRanges(String table, InetAddress endpoint)
     {
         List<Range> ranges = new ArrayList<Range>();
-        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entries())
+        for (Map.Entry<Range, InetAddress> entry : getPendingRangesMM(table).entries())
         {
             if (entry.getValue().equals(endpoint))
             {
@@ -354,9 +367,9 @@ public class TokenMetadata
         return ranges;
     }
 
-    public void setPendingRanges(Multimap<Range, InetAddress> pendingRanges)
+    public void setPendingRanges(String table, Multimap<Range, InetAddress> rangeMap)
     {
-        this.pendingRanges = pendingRanges;
+        pendingRanges.put(table, rangeMap);
     }
 
     public Token getPredecessor(Token token)
@@ -463,10 +476,13 @@ public class TokenMetadata
     {
         StringBuilder sb = new StringBuilder();
 
-        for (Map.Entry<Range, InetAddress> entry : pendingRanges.entries())
+        for (Map.Entry<String, Multimap<Range, InetAddress>> entry : pendingRanges.entrySet())
         {
-            sb.append(entry.getValue() + ":" + entry.getKey());
-            sb.append(System.getProperty("line.separator"));
+            for (Map.Entry<Range, InetAddress> rmap : entry.getValue().entries())
+            {
+                sb.append(rmap.getValue() + ":" + rmap.getKey());
+                sb.append(System.getProperty("line.separator"));
+            }
         }
 
         return sb.toString();

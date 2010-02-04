@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import java.net.InetAddress;
 
@@ -33,12 +34,12 @@ import java.net.InetAddress;
  */
 public class RackUnawareStrategy extends AbstractReplicationStrategy
 {
-    public RackUnawareStrategy(TokenMetadata tokenMetadata, int replicas)
+    public RackUnawareStrategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
     {
-        super(tokenMetadata, replicas);
+        super(tokenMetadata, snitch);
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
         int startIndex;
         List<Token> tokenList = new ArrayList<Token>();
@@ -61,7 +62,8 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
         startIndex = (index + 1) % totalNodes;
         // If we found N number of nodes we are good. This loop will just exit. Otherwise just
         // loop through the list and add until we have N nodes.
-        for (int i = startIndex, count = 1; count < totalNodes && tokenList.size() < replicas_; ++count, i = (i + 1) % totalNodes)
+        final int replicas = DatabaseDescriptor.getReplicationFactor(table);
+        for (int i = startIndex, count = 1; count < totalNodes && tokenList.size() < replicas; ++count, i = (i + 1) % totalNodes)
         {
             assert !tokenList.contains(tokens.get(i));
             tokenList.add((Token) tokens.get(i));

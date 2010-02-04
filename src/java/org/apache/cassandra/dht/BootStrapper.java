@@ -24,6 +24,7 @@ package org.apache.cassandra.dht;
  import java.io.UnsupportedEncodingException;
  import java.net.InetAddress;
 
+ import org.apache.commons.lang.StringUtils;
  import org.apache.log4j.Logger;
 
  import org.apache.commons.lang.ArrayUtils;
@@ -51,14 +52,12 @@ public class BootStrapper
     /* tokens of the nodes being bootstrapped. */
     protected final Token token;
     protected final TokenMetadata tokenMetadata;
-    private final AbstractReplicationStrategy replicationStrategy;
 
-    public BootStrapper(AbstractReplicationStrategy rs, InetAddress address, Token token, TokenMetadata tmd)
+    public BootStrapper(InetAddress address, Token token, TokenMetadata tmd)
     {
         assert address != null;
         assert token != null;
 
-        replicationStrategy = rs;
         this.address = address;
         this.token = token;
         tokenMetadata = tmd;
@@ -70,16 +69,20 @@ public class BootStrapper
         {
             public void run()
             {
-                Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources();
                 if (logger.isDebugEnabled())
                     logger.debug("Beginning bootstrap process");
-                /* Send messages to respective folks to stream data over to me */
-                for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
+                for (String table : DatabaseDescriptor.getNonSystemTables())
                 {
-                    InetAddress source = entry.getKey();
-                    for (String table : DatabaseDescriptor.getNonSystemTables())
+                    Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources(table);
+                    /* Send messages to respective folks to stream data over to me */
+                    for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
+                    {   
+                        InetAddress source = entry.getKey();
                         StorageService.instance.addBootstrapSource(source, table);
-                    StreamIn.requestRanges(source, entry.getValue());
+                        if (logger.isDebugEnabled())
+                            logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
+                        StreamIn.requestRanges(source, table, entry.getValue());
+                    }
                 }
             }
         }, "Boostrap requester").start();
@@ -144,20 +147,21 @@ public class BootStrapper
     }
 
     /** get potential sources for each range, ordered by proximity (as determined by EndPointSnitch) */
-    Multimap<Range, InetAddress> getRangesWithSources()
+    Multimap<Range, InetAddress> getRangesWithSources(String table)
     {
         assert tokenMetadata.sortedTokens().size() > 0;
-        Collection<Range> myRanges = replicationStrategy.getPendingAddressRanges(tokenMetadata, token, address);
+        final AbstractReplicationStrategy strat = StorageService.instance.getReplicationStrategy(table);
+        Collection<Range> myRanges = strat.getPendingAddressRanges(tokenMetadata, token, address, table);
 
         Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();
-        Multimap<Range, InetAddress> rangeAddresses = replicationStrategy.getRangeAddresses(tokenMetadata);
+        Multimap<Range, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata, table);
         for (Range range : rangeAddresses.keySet())
         {
             for (Range myRange : myRanges)
             {
                 if (range.contains(myRange))
                 {
-                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch().getSortedListByProximity(address, rangeAddresses.get(range));
+                    List<InetAddress> preferred = DatabaseDescriptor.getEndPointSnitch(table).getSortedListByProximity(address, rangeAddresses.get(range));
                     myRangeAddresses.putAll(myRange, preferred);
                     break;
                 }

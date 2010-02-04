@@ -873,7 +873,7 @@ class TestMutations(CassandraTester):
     def test_describe_keyspace(self):
         """ Test keyspace description """
         kspaces = client.get_string_list_property("keyspaces")
-        assert len(kspaces) == 3, kspaces
+        assert len(kspaces) == 5, kspaces # ['Keyspace1', 'Keyspace2', 'Keyspace3', 'Keyspace4', 'system']
         ks1 = client.describe_keyspace("Keyspace1")
         assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
         sysks = client.describe_keyspace("system")

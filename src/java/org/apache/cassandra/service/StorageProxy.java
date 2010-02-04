@@ -105,8 +105,8 @@ public class StorageProxy implements StorageProxyMBean
             {
                 try
                 {
-                    List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.key());
-                    Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.key(), naturalEndpoints);
+                    List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.getTable(), rm.key());
+                    Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.getTable(), rm.key(), naturalEndpoints);
                     Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
 
                     // 3 cases:
@@ -174,15 +174,15 @@ public class StorageProxy implements StorageProxyMBean
             for (RowMutation rm: mutations)
             {
                 mostRecentRowMutation = rm;
-                List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.key());
-                Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.key(), naturalEndpoints);
+                List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.getTable(), rm.key());
+                Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.getTable(), rm.key(), naturalEndpoints);
                 int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
                 
                 // avoid starting a write we know can't achieve the required consistency
                 assureSufficientLiveNodes(endpointMap, blockFor, consistency_level);
                 
                 // send out the writes, as in insert() above, but this time with a callback that tracks responses
-                final WriteResponseHandler responseHandler = StorageService.instance.getWriteResponseHandler(blockFor, consistency_level);
+                final WriteResponseHandler responseHandler = StorageService.instance.getWriteResponseHandler(blockFor, consistency_level, rm.getTable());
                 responseHandlers.add(responseHandler);
                 Message unhintedMessage = null;
                 for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
@@ -337,7 +337,7 @@ public class StorageProxy implements StorageProxyMBean
 
         for (ReadCommand command: commands)
         {
-            InetAddress endPoint = StorageService.instance.findSuitableEndPoint(command.key);
+            InetAddress endPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
             Message message = command.makeReadMessage();
 
             if (logger.isDebugEnabled())
@@ -376,7 +376,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (ReadCommand command: commands)
             {
-                List<InetAddress> endpoints = StorageService.instance.getNaturalEndpoints(command.key);
+                List<InetAddress> endpoints = StorageService.instance.getNaturalEndpoints(command.table, command.key);
                 boolean foundLocal = endpoints.contains(FBUtilities.getLocalAddress());
                 //TODO: Throw InvalidRequest if we're in bootstrap mode?
                 if (foundLocal && !StorageService.instance.isBootstrapMode())
@@ -423,7 +423,6 @@ public class StorageProxy implements StorageProxyMBean
         List<InetAddress[]> commandEndPoints = new ArrayList<InetAddress[]>();
         List<Row> rows = new ArrayList<Row>();
 
-        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getReplicationFactor(), consistency_level);
         int commandIndex = 0;
 
         for (ReadCommand command: commands)
@@ -434,8 +433,10 @@ public class StorageProxy implements StorageProxyMBean
             Message message = command.makeReadMessage();
             Message messageDigestOnly = readMessageDigestOnly.makeReadMessage();
 
-            InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.key);
-            List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.key);
+            InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
+            List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
+            final String table = command.table;
+            int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
             if (endpointList.size() < responseCount)
                 throw new UnavailableException();
 
@@ -452,7 +453,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (logger.isDebugEnabled())
                     logger.debug("strongread reading " + (m == message ? "data" : "digest") + " for " + command + " from " + m.getMessageId() + "@" + endpoint);
             }
-            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(), new ReadResponseResolver(command.table, responseCount));
+            QuorumResponseHandler<Row> quorumResponseHandler = new QuorumResponseHandler<Row>(DatabaseDescriptor.getQuorum(command.table), new ReadResponseResolver(command.table, responseCount));
             MessagingService.instance.sendRR(messages, endPoints, quorumResponseHandler);
             quorumResponseHandlers.add(quorumResponseHandler);
             commandEndPoints.add(endPoints);
@@ -476,9 +477,9 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (DatabaseDescriptor.getConsistencyCheck())
                 {
-                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, DatabaseDescriptor.getQuorum());
+                    IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, DatabaseDescriptor.getQuorum(command.table));
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
-                            DatabaseDescriptor.getQuorum(),
+                            DatabaseDescriptor.getQuorum(command.table),
                             readResponseResolverRepair);
                     logger.info("DigestMismatchException: " + ex.getMessage());
                     Message messageRepair = command.makeReadMessage();
@@ -539,13 +540,14 @@ public class StorageProxy implements StorageProxyMBean
 
         InetAddress endPoint = StorageService.instance.getPrimary(command.startKey.token);
         InetAddress startEndpoint = endPoint;
-        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getReplicationFactor(), consistency_level);
+        final String table = command.keyspace;
+        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
 
         Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
         do
         {
             Range primaryRange = StorageService.instance.getPrimaryRangeForEndPoint(endPoint);
-            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(primaryRange.right);
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, primaryRange.right);
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
 
@@ -666,7 +668,7 @@ public class StorageProxy implements StorageProxyMBean
 
         public Object call() throws IOException
         {
-            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.key);
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
             /* Remove the local storage endpoint from the list. */
             endpoints.remove(FBUtilities.getLocalAddress());
 

@@ -48,7 +48,6 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
     private static Map<String, Integer> dcReplicationFactor = new HashMap<String, Integer>();
     private static Map<String, Integer> quorumRepFactor = new HashMap<String, Integer>();
     private static int locQFactor = 0;
-    private static DatacenterEndPointSnitch endPointSnitch;
     ArrayList<Token> tokens;
 
     private List<InetAddress> localEndPoints = new ArrayList<InetAddress>();
@@ -69,14 +68,13 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      */
     private synchronized void loadEndPoints(TokenMetadata metadata) throws IOException
     {
-        endPointSnitch = (DatacenterEndPointSnitch) StorageService.instance.getEndPointSnitch();
         this.tokens = new ArrayList<Token>(tokens);
-        String localDC = endPointSnitch.getLocation(InetAddress.getLocalHost());
+        String localDC = ((DatacenterEndPointSnitch)snitch_).getLocation(InetAddress.getLocalHost());
         dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
         {
             InetAddress endPoint = metadata.getEndPoint(token);
-            String dataCenter = endPointSnitch.getLocation(endPoint);
+            String dataCenter = ((DatacenterEndPointSnitch)snitch_).getLocation(endPoint);
             if (dataCenter.equals(localDC))
             {
                 localEndPoints.add(endPoint);
@@ -95,7 +93,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             Collections.sort(valueList);
             dcMap.put(entry.getKey(), valueList);
         }
-        dcReplicationFactor = endPointSnitch.getMapReplicationFactor();
+        dcReplicationFactor = ((DatacenterEndPointSnitch)snitch_).getMapReplicationFactor();
         for (Entry<String, Integer> entry : dcReplicationFactor.entrySet())
         {
             String datacenter = entry.getKey();
@@ -108,17 +106,17 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
         }
     }
 
-    public DatacenterShardStategy(TokenMetadata tokenMetadata, int replicas)
+    public DatacenterShardStategy(TokenMetadata tokenMetadata, IEndPointSnitch snitch)
     throws UnknownHostException
     {
-        super(tokenMetadata, replicas);
-        if ((!(DatabaseDescriptor.getEndPointSnitch() instanceof DatacenterEndPointSnitch)))
+        super(tokenMetadata, snitch);
+        if ((!(snitch instanceof DatacenterEndPointSnitch)))
         {
             throw new IllegalArgumentException("DatacenterShardStrategy requires DatacenterEndpointSnitch");
         }
     }
 
-    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata)
+    public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
         try
         {
@@ -187,7 +185,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    if (!endPointSnitch.isOnSameRack(primaryHost, endPointOfIntrest))
+                    if (!((DatacenterEndPointSnitch)snitch_).isOnSameRack(primaryHost, endPointOfIntrest))
                     {
                         forloopReturn.add(metadata.getEndPoint((Token) tokens.get(i)));
                         bOtherRack = true;
@@ -228,16 +226,16 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      * return a DCQRH with a map of all the DC rep facor.
      */
     @Override
-    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level)
+    public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
     {
         if (consistency_level == ConsistencyLevel.DCQUORUM)
         {
-            return new DatacenterWriteResponseHandler(locQFactor);
+            return new DatacenterWriteResponseHandler(locQFactor, table);
         }
         else if (consistency_level == ConsistencyLevel.DCQUORUMSYNC)
         {
-            return new DatacenterSyncWriteResponseHandler(getQuorumRepFactor());
+            return new DatacenterSyncWriteResponseHandler(getQuorumRepFactor(), table);
         }
-        return super.getWriteResponseHandler(blockFor, consistency_level);
+        return super.getWriteResponseHandler(blockFor, consistency_level, table);
     }
 }

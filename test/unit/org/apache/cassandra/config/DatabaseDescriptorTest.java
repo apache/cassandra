@@ -34,8 +34,8 @@ public class DatabaseDescriptorTest
      * TODO: A more general method of property modification would be useful, but
      *       will probably have to wait for a refactor away from all the static fields.
      */
-    public static void setReplicationFactor(int factor)
+    public static void setReplicationFactor(String table, int factor)
     {
-        DatabaseDescriptor.setReplicationFactorUnsafe(factor);
+        DatabaseDescriptor.setReplicationFactorUnsafe(table, factor);
     }
 }

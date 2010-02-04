@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang.StringUtils;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
@@ -71,12 +72,17 @@ public class BootStrapperTest
     @Test
     public void testSourceTargetComputation() throws UnknownHostException
     {
-        testSourceTargetComputation(1);
-        testSourceTargetComputation(3);
-        testSourceTargetComputation(100);
+        final int[] clusterSizes = new int[] { 1, 3, 5, 10, 100};
+        for (String table : DatabaseDescriptor.getNonSystemTables())
+        {
+            int replicationFactor = DatabaseDescriptor.getReplicationFactor(table);
+            for (int clusterSize : clusterSizes)
+                if (clusterSize >= replicationFactor)
+                    testSourceTargetComputation(table, clusterSize, replicationFactor);
+        }
     }
 
-    private void testSourceTargetComputation(int numOldNodes) throws UnknownHostException
+    private void testSourceTargetComputation(String table, int numOldNodes, int replicationFactor) throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
 
@@ -86,8 +92,8 @@ public class BootStrapperTest
 
         TokenMetadata tmd = ss.getTokenMetadata();
         assertEquals(numOldNodes, tmd.sortedTokens().size());
-        BootStrapper b = new BootStrapper(ss.getReplicationStrategy(), myEndpoint, myToken, tmd);
-        Multimap<Range, InetAddress> res = b.getRangesWithSources();
+        BootStrapper b = new BootStrapper(myEndpoint, myToken, tmd);
+        Multimap<Range, InetAddress> res = b.getRangesWithSources(table);
         
         int transferCount = 0;
         for (Map.Entry<Range, Collection<InetAddress>> e : res.asMap().entrySet())
@@ -96,8 +102,7 @@ public class BootStrapperTest
             transferCount++;
         }
 
-        /* Only 1 transfer from old node to new node */
-        assertEquals(1, transferCount);
+        assertEquals(replicationFactor, transferCount);
         IFailureDetector mockFailureDetector = new IFailureDetector()
         {
             public boolean isAlive(InetAddress ep)
@@ -112,8 +117,10 @@ public class BootStrapperTest
             public void remove(InetAddress ep) { throw new UnsupportedOperationException(); }
         };
         Multimap<InetAddress, Range> temp = BootStrapper.getWorkMap(res, mockFailureDetector);
-        assertEquals(1, temp.keySet().size());
-        assertEquals(1, temp.asMap().values().iterator().next().size());
+        // there isn't any point in testing the size of these collections for any specific size.  When a random partitioner
+        // is used, they will vary.
+        assert temp.keySet().size() > 0;
+        assert temp.asMap().values().iterator().next().size() > 0;
         assert !temp.keySet().iterator().next().equals(myEndpoint);
     }
 

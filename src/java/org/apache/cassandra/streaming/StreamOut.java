@@ -63,7 +63,7 @@ public class StreamOut
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
     */
-    public static void transferRanges(InetAddress target, Collection<Range> ranges, Runnable callback)
+    public static void transferRanges(InetAddress target, String tableName, Collection<Range> ranges, Runnable callback)
     {
         assert ranges.size() > 0;
 
@@ -75,36 +75,34 @@ public class StreamOut
          * (2) anticompaction -- split out the keys in the range specified
          * (3) transfer the data.
         */
-        for (Table table : Table.all())
+        try
         {
-            try
+            Table table = Table.open(tableName);
+            if (logger.isDebugEnabled())
+                logger.debug("Flushing memtables ...");
+            for (Future f : table.flush())
             {
-                if (logger.isDebugEnabled())
-                  logger.debug("Flushing memtables ...");
-                for (Future f : table.flush())
+                try
                 {
-                    try
-                    {
-                        f.get();
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    catch (ExecutionException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
+                    f.get();
                 }
-                if (logger.isDebugEnabled())
-                  logger.debug("Performing anticompaction ...");
-                /* Get the list of files that need to be streamed */
-                transferSSTables(target, table.forceAntiCompaction(ranges, target), table.name); // SSTR GC deletes the file when done
+                catch (InterruptedException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                catch (ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            if (logger.isDebugEnabled())
+                logger.debug("Performing anticompaction ...");
+            /* Get the list of files that need to be streamed */
+            transferSSTables(target, table.forceAntiCompaction(ranges, target), tableName); // SSTR GC deletes the file when done
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
         }
         if (callback != null)
             callback.run();
@@ -127,7 +125,7 @@ public class StreamOut
             }
         }
         if (logger.isDebugEnabled())
-          logger.debug("Stream context metadata " + StringUtils.join(pendingFiles, ", "));
+          logger.debug("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
 
         StreamOutManager.get(target).addFilesToStream(pendingFiles);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);

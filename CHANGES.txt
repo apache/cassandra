@@ -19,6 +19,7 @@ dev
  * report latency and cache hit rate statistics with lifetime totals
    instead of average over the last minute (CASSANDRA-702)
  * support get_range_slice for RandomPartitioner (CASSANDRA-745)
+ * per-keyspace replication factory and replication strategy (CASSANDRA-620)
 
 
 0.5.1

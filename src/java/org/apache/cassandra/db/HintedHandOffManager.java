@@ -124,7 +124,7 @@ public class HintedHandOffManager
                 rm.add(cf);
         }
         Message message = rm.makeRowMutationMessage();
-        WriteResponseHandler responseHandler = new WriteResponseHandler(1);
+        WriteResponseHandler responseHandler = new WriteResponseHandler(1, tableName);
         MessagingService.instance.sendRR(message, new InetAddress[] { endPoint }, responseHandler);
 
         try
