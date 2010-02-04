@@ -51,8 +51,6 @@ public class CompactionManager implements CompactionManagerMBean
     private static final Logger logger = Logger.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
 
-    private static volatile boolean gcRequested;
-
     private int minimumCompactionThreshold = 4; // compact this many sstables min at a time
     private int maximumCompactionThreshold = 32; // compact this many sstables max at a time
 
@@ -68,36 +66,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             throw new RuntimeException(e);
         }
-
-        /**
-         * thread that requests GCs to clean out obsolete sstables, sleeping rpc timeout first so that most in-progress ops can complete
-         * (thus, no longer reference the sstables in question)
-         */
-        new Thread(new Runnable()
-        {
-            final long gcDelay = DatabaseDescriptor.getRpcTimeout();
-
-            public void run()
-            {
-                while (true)
-                {
-                    try
-                    {
-                        Thread.sleep(gcDelay * 10);
-                        if (gcRequested)
-                        {
-                            Thread.sleep(gcDelay);
-                            System.gc();
-                            gcRequested = false;
-                        }
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new AssertionError(e);
-                    }
-                }
-            }
-        }, "COMPACTION-GC-INVOKER").start();
     }
 
     private CompactionExecutor executor = new CompactionExecutor();
@@ -337,7 +305,6 @@ public class CompactionManager implements CompactionManagerMBean
 
         SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name, cfs.getColumnFamilyName()));
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
-        gcRequested = true;
         submitMinorIfNeeded(cfs);
 
         String format = "Compacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
@@ -364,7 +331,7 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info("AntiCompacting [" + StringUtils.join(sstables, ",") + "]");
         // Calculate the expected compacted filesize
         long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(sstables) / 2;
-        String compactionFileLocation = DatabaseDescriptor.getDataFileLocationForTable(table.name, expectedRangeFileSize);
+        String compactionFileLocation = table.getDataFileLocation(expectedRangeFileSize);
         if (compactionFileLocation == null)
         {
             throw new UnsupportedOperationException("disk full");
@@ -438,7 +405,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             cfs.replaceCompactedSSTables(originalSSTables, sstables);
         }
-        gcRequested = true;
     }
 
     /**

@@ -21,9 +21,6 @@ package org.apache.cassandra.db;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
 
@@ -32,11 +29,13 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.SSTableDeletingReference;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 
 import java.net.InetAddress;
 
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -476,7 +475,22 @@ public class Table
 
     public String getDataFileLocation(long expectedCompactedFileSize)
     {
-        return DatabaseDescriptor.getDataFileLocationForTable(name, expectedCompactedFileSize);
+        String path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedCompactedFileSize);
+        if (path == null)
+        {
+            // retry after GCing to force unmap of compacted SSTables so they can be deleted
+            StorageService.requestGC();
+            try
+            {
+                Thread.sleep(SSTableDeletingReference.RETRY_DELAY * 2);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            path = DatabaseDescriptor.getDataFileLocationForTable(name, expectedCompactedFileSize);
+        }
+        return path;
     }
 
     public static String getSnapshotPath(String dataDirPath, String tableName, String snapshotName)

@@ -120,7 +120,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
     public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
         logger.info("Writing " + this);
-        String path = cfs.getTempSSTablePath();
+        String path = cfs.getFlushPath();
         SSTableWriter writer = new SSTableWriter(path, sortedKeys.size(), StorageService.getPartitioner());
 
         for (DecoratedKey key : sortedKeys)

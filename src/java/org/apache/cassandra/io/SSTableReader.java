@@ -564,4 +564,3 @@ class FileSSTableMap
         return "FileSSTableMap {" + StringUtils.join(map.keySet(), ", ") + "}";
     }
 }
-

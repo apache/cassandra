@@ -9,12 +9,12 @@ import java.util.TimerTask;
 
 import org.apache.log4j.Logger;
 
-class SSTableDeletingReference extends PhantomReference<SSTableReader>
+public class SSTableDeletingReference extends PhantomReference<SSTableReader>
 {
     private static final Logger logger = Logger.getLogger(SSTableDeletingReference.class);
 
     private static final Timer timer = new Timer("SSTABLE-CLEANUP-TIMER");
-    private static final int RETRY_DELAY = 10000;
+    public static final int RETRY_DELAY = 10000;
 
     public final String path;
     private boolean deleteOnCleanup;
@@ -54,7 +54,7 @@ class SSTableDeletingReference extends PhantomReference<SSTableReader>
             {
                 if (attempts++ < DeletionService.MAX_RETRIES)
                 {
-                    timer.schedule(this, 10000);
+                    timer.schedule(this, RETRY_DELAY);
                     return;
                 }
                 else

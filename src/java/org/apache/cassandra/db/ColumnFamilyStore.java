@@ -335,10 +335,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * When the sstable object is closed, it will be renamed to a non-temporary
      * format, so incomplete sstables can be recognized and removed on startup.
      */
-    synchronized String getTempSSTablePath()
+    public String getFlushPath()
     {
-        String fname = getTempSSTableFileName();
-        return new File(DatabaseDescriptor.getNextAvailableDataLocation() + File.separator + table_, fname).getAbsolutePath();
+        long guessedSize = 2 * DatabaseDescriptor.getMemtableThroughput() * 1024*1024; // 2* adds room for keys, column indexes
+        String location = DatabaseDescriptor.getDataFileLocationForTable(table_, guessedSize);
+        if (location == null)
+            throw new RuntimeException("Insufficient disk space to flush");
+        return new File(location, getTempSSTableFileName()).getAbsolutePath();
     }
 
     public String getTempSSTableFileName()

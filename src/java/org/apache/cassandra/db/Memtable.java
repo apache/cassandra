@@ -154,7 +154,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
     {
         logger.info("Writing " + this);
         ColumnFamilyStore cfStore = Table.open(table).getColumnFamilyStore(columnfamilyName);
-        SSTableWriter writer = new SSTableWriter(cfStore.getTempSSTablePath(), columnFamilies.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(cfStore.getFlushPath(), columnFamilies.size(), StorageService.getPartitioner());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
         for (DecoratedKey key : sortedKeys)

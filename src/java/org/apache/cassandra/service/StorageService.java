@@ -1472,6 +1472,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         return isClientMode;
     }
 
+    public static void requestGC()
+    {
+        logger_.info("requesting GC to free disk space");
+        System.gc();
+    }
+
     // Never ever do this at home. Used by tests.
     Map<String, AbstractReplicationStrategy> setReplicationStrategyUnsafe(Map<String, AbstractReplicationStrategy> replacement)
     {
@@ -1494,5 +1500,4 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         tokenMetadata_ = tmd;
         return old;
     }
-
 }
