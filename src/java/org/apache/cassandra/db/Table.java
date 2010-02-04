@@ -208,7 +208,7 @@ public class Table
         return tableMetadata.getColumnFamilies();
     }
 
-    Collection<ColumnFamilyStore> getColumnFamilyStores()
+    public Collection<ColumnFamilyStore> getColumnFamilyStores()
     {
         return Collections.unmodifiableCollection(columnFamilyStores.values());
     }
@@ -479,7 +479,7 @@ public class Table
         if (path == null)
         {
             // retry after GCing to force unmap of compacted SSTables so they can be deleted
-            StorageService.requestGC();
+            StorageService.instance.requestGC();
             try
             {
                 Thread.sleep(SSTableDeletingReference.RETRY_DELAY * 2);

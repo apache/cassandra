@@ -1144,24 +1144,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    public boolean hasUnreclaimedSpace()
+    {
+        return ssTables_.getLiveSize() < ssTables_.getTotalSize();
+    }
+
     public long getTotalDiskSpaceUsed()
     {
-        long n = 0;
-        for (File file : files())
-        {
-            n += file.length();
-        }
-        return n;
+        return ssTables_.getTotalSize();
     }
 
     public long getLiveDiskSpaceUsed()
     {
-        long n = 0;
-        for (SSTableReader sstable : ssTables_)
-        {
-            n += sstable.bytesOnDisk();
-        }
-        return n;
+        return ssTables_.getLiveSize();
     }
 
     public int getLiveSSTableCount()

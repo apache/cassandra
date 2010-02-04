@@ -135,7 +135,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return sstable;
     }
 
-    SSTableDeletingReference phantomReference;
+    private volatile SSTableDeletingReference phantomReference;
     // jvm can only map up to 2GB at a time, so we split index/data into segments of that size when using mmap i/o
     private final MappedByteBuffer[] indexBuffers;
     private final MappedByteBuffer[] buffers;
@@ -196,9 +196,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.indexPositions = indexPositions;
         this.spannedIndexDataPositions = spannedIndexDataPositions;
         this.bf = bloomFilter;
-        phantomReference = new SSTableDeletingReference(this, finalizerQueue);
-        finalizers.add(phantomReference);
         this.keyCache = keyCache;
+    }
+
+    public void addFinalizingReference(SSTableTracker tracker)
+    {
+        phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
+        finalizers.add(phantomReference);
     }
 
     private static MappedByteBuffer mmap(String filename, long start, int size) throws IOException

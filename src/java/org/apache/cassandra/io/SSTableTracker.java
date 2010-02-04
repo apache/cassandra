@@ -23,11 +23,14 @@ package org.apache.cassandra.io;
 
 import java.util.*;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {
     private volatile Set<SSTableReader> sstables;
+    private final AtomicLong liveSize = new AtomicLong();
+    private final AtomicLong totalSize = new AtomicLong();
 
     public SSTableTracker(Collection<SSTableReader> sstables)
     {
@@ -42,12 +45,17 @@ public class SSTableTracker implements Iterable<SSTableReader>
         {
             assert sstable.getIndexPositions() != null;
             sstablesNew.add(sstable);
+            long size = sstable.bytesOnDisk();
+            liveSize.addAndGet(size);
+            totalSize.addAndGet(size);
+            sstable.addFinalizingReference(this);
         }
 
         for (SSTableReader sstable : oldSSTables)
         {
             sstablesNew.remove(sstable);
             sstable.markCompacted();
+            liveSize.addAndGet(-sstable.bytesOnDisk());
         }
 
         sstables = Collections.unmodifiableSet(sstablesNew);
@@ -102,4 +110,20 @@ public class SSTableTracker implements Iterable<SSTableReader>
         }
         return n;
     }
+
+    public long getLiveSize()
+    {
+        return liveSize.get();
+    }
+
+    public long getTotalSize()
+    {
+        return totalSize.get();
+    }
+
+    public void spaceReclaimed(long size)
+    {
+        totalSize.addAndGet(-size);
+    }
 }
+

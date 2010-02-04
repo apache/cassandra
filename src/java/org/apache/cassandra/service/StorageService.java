@@ -1472,10 +1472,31 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         return isClientMode;
     }
 
-    public static void requestGC()
+    public synchronized void requestGC()
     {
-        logger_.info("requesting GC to free disk space");
-        System.gc();
+        if (hasUnreclaimedSpace())
+        {
+            logger_.info("requesting GC to free disk space");
+            System.gc();
+            try
+            {
+                Thread.sleep(1000);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private boolean hasUnreclaimedSpace()
+    {
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            if (cfs.hasUnreclaimedSpace())
+                return true;
+        }
+        return false;
     }
 
     // Never ever do this at home. Used by tests.
