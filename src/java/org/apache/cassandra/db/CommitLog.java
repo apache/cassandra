@@ -442,22 +442,10 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    void add(RowMutation rowMutation, Object serializedRow) throws IOException
+    Future<CommitLogContext> add(RowMutation rowMutation, Object serializedRow) throws IOException
     {
         Callable<CommitLogContext> task = new LogRecordAdder(rowMutation, serializedRow);
-
-        try
-        {
-            executor.submit(task).get();
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return executor.submit(task);
     }
 
     /*

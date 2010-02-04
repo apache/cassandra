@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -52,6 +53,7 @@ public class Table
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);
 
     private static Timer flushTimer = new Timer("FLUSH-TIMER");
+    private final boolean waitForCommitLog;
 
     // This is a result of pushing down the point in time when storage directories get created.  It used to happen in
     // CassandraDaemon, but it is possible to call Table.open without a running daemon, so it made sense to ensure
@@ -332,6 +334,7 @@ public class Table
     private Table(String table) throws IOException
     {
         name = table;
+        waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch;
         tableMetadata = Table.TableMetadata.instance(table);
         for (String columnFamily : tableMetadata.getColumnFamilies())
         {
@@ -406,7 +409,20 @@ public class Table
         try
         {
             if (writeCommitLog)
-                CommitLog.open().add(mutation, serializedMutation);
+            {
+                Future<CommitLog.CommitLogContext> future = CommitLog.open().add(mutation, serializedMutation);
+                if (waitForCommitLog)
+                {
+                    try
+                    {
+                        future.get();
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
         
             for (ColumnFamily columnFamily : mutation.getColumnFamilies())
             {
