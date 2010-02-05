@@ -299,6 +299,11 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         Gossiper.instance.start(FBUtilities.getLocalAddress(), storageMetadata_.getGeneration()); // needed for node-ring gathering.
 
         if (DatabaseDescriptor.isAutoBootstrap()
+                && DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress())
+                && !SystemTable.isBootstrapped())
+            logger_.info("This node will not auto bootstrap because it is configured to be a seed node.");
+
+        if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
             logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
