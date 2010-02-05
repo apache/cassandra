@@ -367,13 +367,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system table.
         if (keyspace == null)
-        {
-            for (String ks : DatabaseDescriptor.getNonSystemTables())
-            {
-                keyspace = ks;
-                break;
-            }
-        }
+            keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
 
         /* All the ranges for the tokens */
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());

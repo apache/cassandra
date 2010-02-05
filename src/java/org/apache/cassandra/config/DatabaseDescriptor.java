@@ -583,6 +583,8 @@ public class DatabaseDescriptor
                     tableToCFMetaDataMap_.get(tName).put(cfName, cfMetaData);
                 }
             }
+            if (tables_.isEmpty())
+                throw new ConfigurationException("No keyspaces configured");
 
             // Hardcoded system tables
             tables_.add(Table.SYSTEM_TABLE);
