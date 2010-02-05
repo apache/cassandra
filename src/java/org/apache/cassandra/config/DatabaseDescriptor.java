@@ -84,7 +84,6 @@ public class DatabaseDescriptor
     private static double flushIndexBufferSizeInMB_ = 8;
     private static int slicedReadBufferSizeInKB_ = 64;
     private static Set<String> tables_ = new HashSet<String>();
-    private static Set<String> applicationColumnFamilies_ = new HashSet<String>();
     private static int bmtThreshold_ = 256;
 
     private static Map<Pair<String, String>, Double> tableKeysCachedFractions_ = new HashMap<Pair<String, String>, Double>();
@@ -519,9 +518,6 @@ public class DatabaseDescriptor
                     }
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
 
-                    /* squirrel away the application column families */
-                    applicationColumnFamilies_.add(cfName);
-
                     // Parse out the column type
                     String rawColumnType = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
                     String columnType = ColumnFamily.getColumnType(rawColumnType);
@@ -793,11 +789,6 @@ public class DatabaseDescriptor
 
     public static String getConfigFileName() {
         return configFileName_;
-    }
-    
-    public static boolean isApplicationColumnFamily(String columnFamily)
-    {
-        return applicationColumnFamilies_.contains(columnFamily);
     }
 
     public static String getJobJarLocation()

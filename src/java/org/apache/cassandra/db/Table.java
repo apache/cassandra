@@ -286,9 +286,6 @@ public class Table
         Set<String> columnFamilies = tableMetadata.getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
-            if ( !isApplicationColumnFamily(columnFamily) )
-                continue;
-            
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
             try
             {
@@ -361,19 +358,9 @@ public class Table
         }, checkMs, checkMs);
     }
 
-    boolean isApplicationColumnFamily(String columnFamily)
-    {
-        return DatabaseDescriptor.isApplicationColumnFamily(columnFamily);
-    }
-
     int getColumnFamilyId(String columnFamily)
     {
         return tableMetadata.getColumnFamilyId(columnFamily);
-    }
-
-    boolean isValidColumnFamily(String columnFamily)
-    {
-        return tableMetadata.isValidColumnFamily(columnFamily);
     }
 
     /**
