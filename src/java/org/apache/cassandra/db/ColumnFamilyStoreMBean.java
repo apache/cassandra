@@ -67,12 +67,12 @@ public interface ColumnFamilyStoreMBean
     /**
      * @return total read latency (divide by getReadCount() for average)
      */
-    public long getTotalReadLatency();
+    public long getTotalReadLatencyMicros();
 
     /**
      * @return average latency per read operation since the last call
      */
-    public double getRecentReadLatency();
+    public double getRecentReadLatencyMicros();
 
     /**
      * @return the number of write operations on this column family
@@ -82,12 +82,12 @@ public interface ColumnFamilyStoreMBean
     /**
      * @return total write latency (divide by getReadCount() for average)
      */
-    public long getTotalWriteLatency();
+    public long getTotalWriteLatencyMicros();
 
     /**
      * @return average latency per write operation since the last call
      */
-    public double getRecentWriteLatency();
+    public double getRecentWriteLatencyMicros();
 
     /**
      * @return the estimated number of tasks pending for this column family

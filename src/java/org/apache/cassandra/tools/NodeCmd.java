@@ -217,18 +217,18 @@ public class NodeCmd {
                 if (readCount > 0)
                 {
                     tableReadCount += readCount;
-                    tableTotalReadTime += cfstore.getTotalReadLatency();
+                    tableTotalReadTime += cfstore.getTotalReadLatencyMicros();
                 }
                 if (writeCount > 0)
                 {
                     tableWriteCount += writeCount;
-                    tableTotalWriteTime += cfstore.getTotalWriteLatency();
+                    tableTotalWriteTime += cfstore.getTotalWriteLatencyMicros();
                 }
                 tablePendingTasks += cfstore.getPendingTasks();
             }
 
-            double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount : Double.NaN;
-            double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount : Double.NaN;
+            double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount / 1000 : Double.NaN;
+            double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount / 1000 : Double.NaN;
 
             outs.println("\tRead Count: " + tableReadCount);
             outs.println("\tRead Latency: " + String.format("%s", tableReadLatency) + " ms.");
@@ -247,9 +247,9 @@ public class NodeCmd {
                 outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
                 outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
                 outs.println("\t\tRead Count: " + cfstore.getReadCount());
-                outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getRecentReadLatency()) + " ms.");
+                outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getRecentReadLatencyMicros() / 1000) + " ms.");
                 outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
-                outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getRecentWriteLatency()) + " ms.");
+                outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getRecentWriteLatencyMicros() / 1000) + " ms.");
                 outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
 
                 JMXAggregatingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());

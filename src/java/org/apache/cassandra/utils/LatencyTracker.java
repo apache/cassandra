@@ -9,10 +9,17 @@ public class LatencyTracker
     private long lastLatency = 0;
     private long lastOpCount = 0;
 
-    public void add(long n)
+    /** takes nanoseconds **/
+    public void addNano(long nanos)
+    {
+        // convert to microseconds.  1 millionth
+        addMicro(nanos / 1000);
+    }
+
+    public void addMicro(long micros)
     {
         opCount.incrementAndGet();
-        totalLatency.addAndGet(n);
+        totalLatency.addAndGet(micros);
     }
 
     public long getOpCount()
@@ -20,12 +27,14 @@ public class LatencyTracker
         return opCount.get();
     }
 
-    public long getTotalLatency()
+    /** returns  microseconds */
+    public long getTotalLatencyMicros()
     {
         return totalLatency.get();
     }
 
-    public double getRecentLatency()
+    /** returns microseconds */
+    public double getRecentLatencyMicros()
     {
         long ops = opCount.get();
         long n = totalLatency.get();

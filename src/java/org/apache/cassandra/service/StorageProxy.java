@@ -98,7 +98,7 @@ public class StorageProxy implements StorageProxyMBean
     */
     public static void mutate(List<RowMutation> mutations)
     {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         try
         {
             for (final RowMutation rm: mutations)
@@ -159,13 +159,13 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            writeStats.add(System.currentTimeMillis() - startTime);
+            writeStats.addNano(System.nanoTime() - startTime);
         }
     }
     
     public static void mutateBlocking(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         ArrayList<WriteResponseHandler> responseHandlers = new ArrayList<WriteResponseHandler>();
 
         RowMutation mostRecentRowMutation = null;
@@ -238,7 +238,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            writeStats.add(System.currentTimeMillis() - startTime);
+            writeStats.addNano(System.nanoTime() - startTime);
         }
 
     }
@@ -365,7 +365,7 @@ public class StorageProxy implements StorageProxyMBean
     public static List<Row> readProtocol(List<ReadCommand> commands, ConsistencyLevel consistency_level)
             throws IOException, UnavailableException, TimeoutException
     {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
 
         List<Row> rows = new ArrayList<Row>();
 
@@ -400,7 +400,7 @@ public class StorageProxy implements StorageProxyMBean
             rows = strongRead(commands, consistency_level);
         }
 
-        readStats.add(System.currentTimeMillis() - startTime);
+        readStats.addNano(System.nanoTime() - startTime);
 
         return rows;
     }
@@ -535,7 +535,7 @@ public class StorageProxy implements StorageProxyMBean
     public static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
     throws IOException, UnavailableException, TimeoutException
     {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
 
         InetAddress endPoint = StorageService.instance.getPrimary(command.startKey.token);
@@ -608,7 +608,7 @@ public class StorageProxy implements StorageProxyMBean
                 return keyComparator.compare(o1.left, o2.left);                
             }
         });
-        rangeStats.add(System.currentTimeMillis() - startTime);
+        rangeStats.addNano(System.nanoTime() - startTime);
         return results;
     }
 
@@ -617,14 +617,14 @@ public class StorageProxy implements StorageProxyMBean
         return readStats.getOpCount();
     }
 
-    public long getTotalReadLatency()
+    public long getTotalReadLatencyMicros()
     {
-        return readStats.getTotalLatency();
+        return readStats.getTotalLatencyMicros();
     }
 
-    public double getRecentReadLatency()
+    public double getRecentReadLatencyMicros()
     {
-        return readStats.getRecentLatency();
+        return readStats.getRecentLatencyMicros();
     }
 
     public long getRangeOperations()
@@ -632,14 +632,14 @@ public class StorageProxy implements StorageProxyMBean
         return rangeStats.getOpCount();
     }
 
-    public long getTotalRangeLatency()
+    public long getTotalRangeLatencyMicros()
     {
-        return rangeStats.getTotalLatency();
+        return rangeStats.getTotalLatencyMicros();
     }
 
-    public double getRecentRangeLatency()
+    public double getRecentRangeLatencyMicros()
     {
-        return rangeStats.getRecentLatency();
+        return rangeStats.getRecentLatencyMicros();
     }
 
     public long getWriteOperations()
@@ -647,14 +647,14 @@ public class StorageProxy implements StorageProxyMBean
         return writeStats.getOpCount();
     }
 
-    public long getTotalWriteLatency()
+    public long getTotalWriteLatencyMicros()
     {
-        return writeStats.getTotalLatency();
+        return writeStats.getTotalLatencyMicros();
     }
 
-    public double getRecentWriteLatency()
+    public double getRecentWriteLatencyMicros()
     {
-        return writeStats.getRecentLatency();
+        return writeStats.getRecentLatencyMicros();
     }
 
     static class weakReadLocalCallable implements Callable<Object>

@@ -441,11 +441,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     Memtable apply(String key, ColumnFamily columnFamily) throws IOException
     {
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
 
         boolean flushRequested = memtable_.isThresholdViolated();
         memtable_.put(key, columnFamily);
-        writeStats_.add(System.currentTimeMillis() - start);
+        writeStats_.addNano(System.nanoTime() - start);
         
         return flushRequested ? memtable_ : null;
     }
@@ -457,9 +457,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     void applyBinary(String key, byte[] buffer) throws IOException
     {
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         binaryMemtable_.get().put(key, buffer);
-        writeStats_.add(System.currentTimeMillis() - start);
+        writeStats_.addNano(System.nanoTime() - start);
     }
 
     /*
@@ -746,14 +746,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return readStats_.getOpCount();
     }
 
-    public double getRecentReadLatency()
+    public double getRecentReadLatencyMicros()
     {
-        return readStats_.getRecentLatency();
+        return readStats_.getRecentLatencyMicros();
     }
 
-    public long getTotalReadLatency()
+    public long getTotalReadLatencyMicros()
     {
-        return readStats_.getTotalLatency();
+        return readStats_.getTotalLatencyMicros();
     }
 
 // TODO this actually isn't a good meature of pending tasks
@@ -767,14 +767,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.getOpCount();
     }
 
-    public long getTotalWriteLatency()
+    public long getTotalWriteLatencyMicros()
     {
-        return writeStats_.getTotalLatency();
+        return writeStats_.getTotalLatencyMicros();
     }
 
-    public double getRecentWriteLatency()
+    public double getRecentWriteLatencyMicros()
     {
-        return writeStats_.getRecentLatency();
+        return writeStats_.getRecentLatencyMicros();
     }
 
     public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit) throws IOException
@@ -809,7 +809,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert columnFamily_.equals(filter.getColumnFamilyName());
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         try
         {
             if (filter.path.superColumnName == null)
@@ -855,7 +855,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            readStats_.add(System.currentTimeMillis() - start);
+            readStats_.addNano(System.nanoTime() - start);
         }
     }
 
