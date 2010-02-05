@@ -20,7 +20,7 @@ dev
    instead of average over the last minute (CASSANDRA-702)
  * support get_range_slice for RandomPartitioner (CASSANDRA-745)
  * per-keyspace replication factory and replication strategy (CASSANDRA-620)
- * track latency in nanoseconds (CASSANDRA-733)
+ * track latency in microseconds (CASSANDRA-733)
 
 
 0.5.1
