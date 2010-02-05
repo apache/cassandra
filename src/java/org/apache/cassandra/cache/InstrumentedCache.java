@@ -32,6 +32,11 @@ public class InstrumentedCache<K, V>
         return v;
     }
 
+    public V getInternal(K key)
+    {
+        return map.get(key);
+    }
+
     public void remove(K key)
     {
         map.remove(key);

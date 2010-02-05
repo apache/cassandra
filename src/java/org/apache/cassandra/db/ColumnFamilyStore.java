@@ -1164,10 +1164,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return ssTables_.size();
     }
 
-    /** raw cached row -- does not fetch the row if it is not present */
+    /** raw cached row -- does not fetch the row if it is not present.  not counted in cache statistics.  */
     public ColumnFamily getRawCachedRow(String key)
     {
-        return rowCache.getCapacity() == 0 ? null : rowCache.get(key);
+        return rowCache.getCapacity() == 0 ? null : rowCache.getInternal(key);
     }
 
     void invalidateCachedRow(String key)
