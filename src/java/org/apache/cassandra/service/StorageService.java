@@ -143,6 +143,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     private Multimap<InetAddress, String> bootstrapSet;
     /* when intialized as a client, we shouldn't write to the system table. */
     private boolean isClientMode;
+    private boolean initialized;
 
     public synchronized void addBootstrapSource(InetAddress s, String table)
     {
@@ -257,8 +258,15 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.shutdown();
     }
 
-    public void initClient() throws IOException
+    public synchronized void initClient() throws IOException
     {
+        if (initialized)
+        {
+            if (!isClientMode)
+                throw new UnsupportedOperationException("StorageService does not support switching modes.");
+            return;
+        }
+        initialized = true;
         isClientMode = true;
         logger_.info("Starting up client gossip");
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
@@ -266,8 +274,15 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
     }
 
-    public void initServer() throws IOException
+    public synchronized void initServer() throws IOException
     {
+        if (initialized)
+        {
+            if (isClientMode)
+                throw new UnsupportedOperationException("StorageService does not support switching modes.");
+            return;
+        }
+        initialized = true;
         isClientMode = false;
         storageMetadata_ = SystemTable.initMetadata();
         DatabaseDescriptor.createAllDirectories();
