@@ -20,9 +20,11 @@ package org.apache.cassandra.dht;
 
 import org.junit.Test;
 
-public class RangeTest {
+public class RangeTest
+{
     @Test
-    public void testContains() {
+    public void testContains()
+    {
         Range left = new Range(new BigIntegerToken("0"), new BigIntegerToken("100"));
         assert !left.contains(new BigIntegerToken("0"));
         assert left.contains(new BigIntegerToken("10"));
@@ -31,7 +33,8 @@ public class RangeTest {
     }
 
     @Test
-    public void testContainsWrapping() {
+    public void testContainsWrapping()
+    {
         Range range = new Range(new BigIntegerToken("0"), new BigIntegerToken("0"));
         assert range.contains(new BigIntegerToken("0"));
         assert range.contains(new BigIntegerToken("10"));
@@ -46,7 +49,8 @@ public class RangeTest {
     }
 
     @Test
-    public void testContainsRange() {
+    public void testContainsRange()
+    {
         Range one = new Range(new BigIntegerToken("2"), new BigIntegerToken("10"));
         Range two = new Range(new BigIntegerToken("2"), new BigIntegerToken("5"));
         Range thr = new Range(new BigIntegerToken("5"), new BigIntegerToken("10"));
@@ -70,7 +74,8 @@ public class RangeTest {
     }
 
     @Test
-    public void testContainsRangeWrapping() {
+    public void testContainsRangeWrapping()
+    {
         Range one = new Range(new BigIntegerToken("10"), new BigIntegerToken("2"));
         Range two = new Range(new BigIntegerToken("5"), new BigIntegerToken("3"));
         Range thr = new Range(new BigIntegerToken("10"), new BigIntegerToken("12"));
@@ -94,7 +99,8 @@ public class RangeTest {
     }
 
     @Test
-    public void testIntersects() {
+    public void testIntersects()
+    {
         Range one = new Range(new BigIntegerToken("2"), new BigIntegerToken("10"));
         Range two = new Range(new BigIntegerToken("0"), new BigIntegerToken("8"));
         Range not = new Range(new BigIntegerToken("10"), new BigIntegerToken("12"));
@@ -110,7 +116,8 @@ public class RangeTest {
     }
 
     @Test
-    public void testIntersectsWrapping() {
+    public void testIntersectsWrapping()
+    {
         Range onewrap = new Range(new BigIntegerToken("10"), new BigIntegerToken("2"));
         Range twowrap = new Range(new BigIntegerToken("5"), new BigIntegerToken("3"));
         Range not = new Range(new BigIntegerToken("2"), new BigIntegerToken("6"));
