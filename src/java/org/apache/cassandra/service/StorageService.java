@@ -378,7 +378,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         /* All the ranges for the tokens */
         List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
-        for (Map.Entry<Range,List<InetAddress>> entry : constructRangeToEndPointMap(keyspace, ranges, keyspace).entrySet())
+        for (Map.Entry<Range,List<InetAddress>> entry : constructRangeToEndPointMap(keyspace, ranges).entrySet())
         {
             map.put(entry.getKey(), stringify(entry.getValue()));
         }
@@ -391,12 +391,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      * @param ranges
      * @return mapping of ranges to the replicas responsible for them.
     */
-    private Map<Range, List<InetAddress>> constructRangeToEndPointMap(String keyspace, List<Range> ranges, String table)
+    private Map<Range, List<InetAddress>> constructRangeToEndPointMap(String keyspace, List<Range> ranges)
     {
         Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndPointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right, table));
+            rangeToEndPointMap.put(range, getReplicationStrategy(keyspace).getNaturalEndpoints(range.right, keyspace));
         }
         return rangeToEndPointMap;
     }
