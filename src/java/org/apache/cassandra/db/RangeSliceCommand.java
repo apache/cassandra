@@ -59,7 +59,7 @@ import java.util.Arrays;
 
 public class RangeSliceCommand
 {
-    private static final SliceCommandSerializer serializer = new SliceCommandSerializer();
+    private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
     
     public final String keyspace;
 
@@ -117,7 +117,7 @@ public class RangeSliceCommand
     }
 }
 
-class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
+class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
 {
     public void serialize(RangeSliceCommand sliceCommand, DataOutputStream dos) throws IOException
     {

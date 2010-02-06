@@ -7,17 +7,17 @@ import org.apache.cassandra.io.ICompactSerializer2;
 
 public abstract class AbstractBounds
 {
-    private static BoundsSerializer serializer_ = new BoundsSerializer();
+    private static AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
+
+    public static ICompactSerializer2<AbstractBounds> serializer()
+    {
+        return serializer;
+    }
 
     private enum Type
     {
         RANGE,
         BOUNDS
-    }
-
-    public static ICompactSerializer2<AbstractBounds> serializer()
-    {
-        return serializer_;
     }
 
     public final Token left;
@@ -31,7 +31,7 @@ public abstract class AbstractBounds
 
     public abstract List<AbstractBounds> restrictTo(Range range);
 
-    private static class BoundsSerializer implements ICompactSerializer2<AbstractBounds>
+    private static class AbstractBoundsSerializer implements ICompactSerializer2<AbstractBounds>
     {
         public void serialize(AbstractBounds range, DataOutput out) throws IOException
         {
