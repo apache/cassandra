@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,37 +26,19 @@ import java.util.List;
 
 import org.apache.commons.lang.ObjectUtils;
 
-import org.apache.cassandra.io.ICompactSerializer;
-
 
 /**
  * A representation of the range that a node is responsible for on the DHT ring.
  *
  * A Range is responsible for the tokens between (left, right].
  */
-public class Range implements Comparable<Range>, Serializable
+public class Range extends AbstractBounds implements Comparable<Range>, Serializable
 {
     public static final long serialVersionUID = 1L;
     
-    private static ICompactSerializer<Range> serializer_;
-
-    static
-    {
-        serializer_ = new RangeSerializer();
-    }
-    
-    public static ICompactSerializer<Range> serializer()
-    {
-        return serializer_;
-    }
-
-    public final Token left;
-    public final Token right;
-
     public Range(Token left, Token right)
     {
-        this.left = left;
-        this.right = right;
+        super(left, right);
     }
 
     public static boolean contains(Token left, Token right, Token bi)
@@ -146,6 +125,11 @@ public class Range implements Comparable<Range>, Serializable
         return intersectionOneWrapping(that, this);
     }
 
+    public List<AbstractBounds> restrictTo(Range range)
+    {
+        return (List) intersectionWith(range);
+    }
+
     private static List<Range> intersectionOneWrapping(Range wrapping, Range other)
     {
         List<Range> intersection = new ArrayList<Range>(2);
@@ -211,23 +195,14 @@ public class Range implements Comparable<Range>, Serializable
     {
         return toString().hashCode();
     }
-    
+
     public String toString()
     {
         return "(" + left + "," + right + "]";
     }
-}
 
-class RangeSerializer implements ICompactSerializer<Range>
-{
-    public void serialize(Range range, DataOutputStream dos) throws IOException
+    public boolean isWrapAround()
     {
-        Token.serializer().serialize(range.left, dos);
-        Token.serializer().serialize(range.right, dos);
-    }
-
-    public Range deserialize(DataInputStream dis) throws IOException
-    {
-        return new Range(Token.serializer().deserialize(dis), Token.serializer().deserialize(dis));
+        return isWrapAround(left, right);
     }
 }

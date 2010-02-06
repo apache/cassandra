@@ -27,12 +27,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.lang.management.ManagementFactory;
 
-import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import java.net.InetAddress;
+
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -43,9 +44,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.concurrent.StageManager;
 
 import org.apache.log4j.Logger;
@@ -538,12 +536,15 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
 
-        InetAddress endPoint = StorageService.instance.getPrimary(command.startKey.token);
+        InetAddress endPoint = StorageService.instance.getPrimary(command.range.left);
         InetAddress startEndpoint = endPoint;
         final String table = command.keyspace;
         int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
 
+        // starting with the node that is primary for the start key, scan until either we have enough results,
+        // or the node scan reports that it was done (i.e., encountered a key outside the desired range).
         Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
+        outer:
         do
         {
             Range primaryRange = StorageService.instance.getPrimaryRangeForEndPoint(endPoint);
@@ -551,45 +552,35 @@ public class StorageProxy implements StorageProxyMBean
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
 
-            // to make comparing the results from each node easy, we restrict each command to the data in the primary range for this iteration
-            DecoratedKey<?> startKey;
-            DecoratedKey<?> finishKey;
-            if (primaryRange.left.equals(primaryRange.right))
+            // to make comparing the results from each node easy, we restrict each scan the primary range for the node in question
+            List<AbstractBounds> restricted = command.range.restrictTo(primaryRange);
+            for (AbstractBounds range : restricted)
             {
-                startKey = command.startKey;
-                finishKey = command.finishKey;
-            }
-            else
-            {
-                startKey = (DecoratedKey<?>) ObjectUtils.max(command.startKey, new DecoratedKey<Token<?>>(primaryRange.left, null));
-                finishKey = command.finishKey.isEmpty()
-                          ? new DecoratedKey<Token<?>>(primaryRange.right, null)
-                          : (DecoratedKey<?>) ObjectUtils.min(command.finishKey, new DecoratedKey<Token<?>>(primaryRange.right, null));
-            }
-            RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys, command.includeStartKey);
-            Message message = c2.getMessage();
+                RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
+                Message message = c2.getMessage();
 
-            // collect replies and resolve according to consistency level
-            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, primaryRange, endpoints);
-            QuorumResponseHandler<Map<String, ColumnFamily>> handler = new QuorumResponseHandler<Map<String, ColumnFamily>>(responseCount, resolver);
-            if (logger.isDebugEnabled())
-                logger.debug("reading " + command + " for " + primaryRange + " from " + message.getMessageId() + "@" + endPoint);
-            for (InetAddress replicaEndpoint : endpoints)
-            {
-                MessagingService.instance.sendRR(message, replicaEndpoint, handler);
-            }
+                // collect replies and resolve according to consistency level
+                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, primaryRange, endpoints);
+                QuorumResponseHandler<Map<String, ColumnFamily>> handler = new QuorumResponseHandler<Map<String, ColumnFamily>>(responseCount, resolver);
+                if (logger.isDebugEnabled())
+                    logger.debug("reading " + c2 + " for " + range + " from " + message.getMessageId() + "@" + endPoint);
+                for (InetAddress replicaEndpoint : endpoints)
+                {
+                    MessagingService.instance.sendRR(message, replicaEndpoint, handler);
+                }
 
-            // if we're done, great, otherwise, move to the next range
-            try
-            {
-                rows.putAll(handler.get());
+                // if we're done, great, otherwise, move to the next range
+                try
+                {
+                    rows.putAll(handler.get());
+                }
+                catch (DigestMismatchException e)
+                {
+                    throw new AssertionError(e); // no digests in range slices yet
+                }
+                if (rows.size() >= command.max_keys || resolver.completed())
+                    break outer;
             }
-            catch (DigestMismatchException e)
-            {
-                throw new AssertionError(e); // no digests in range slices yet
-            }
-            if (rows.size() >= command.max_keys || resolver.completed())
-                break;
 
             endPoint = tokenMetadata.getSuccessor(endPoint);
         }

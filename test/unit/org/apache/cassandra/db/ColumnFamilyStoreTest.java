@@ -137,12 +137,10 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         IPartitioner p = StorageService.getPartitioner();
         RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   p.decorateKey("key2"),
-                                                   p.decorateKey("key1"),
+                                                   new Range(p.getToken("key15"), p.getToken("key1")),
                                                    10,
                                                    null,
-                                                   Arrays.asList("asdf".getBytes()),
-                                                   true);
+                                                   Arrays.asList("asdf".getBytes()));
         assertEquals(2, result.rows.size());
     }
 
@@ -153,12 +151,10 @@ public class ColumnFamilyStoreTest extends CleanupHelper
 
         IPartitioner p = StorageService.getPartitioner();
         RangeSliceReply result = cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   p.decorateKey("key1"),
-                                                   p.decorateKey("key2"),
+                                                   new Range(p.getToken("key1"), p.getToken("key2")),
                                                    10,
                                                    null,
-                                                   Arrays.asList("asdf".getBytes()),
-                                                   false);
+                                                   Arrays.asList("asdf".getBytes()));
         assertEquals(1, result.rows.size());
         assert result.rows.get(0).key.equals("key2");
     }
@@ -175,7 +171,6 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         rm = new RowMutation("Keyspace2", "key2");
         rm.add(new QueryPath("Standard1", null, "Column1".getBytes()), "asdf".getBytes(), 0);
         rms.add(rm);
-        ColumnFamilyStore cfs = Util.writeColumnFamily(rms);
-        return cfs;
+        return Util.writeColumnFamily(rms);
     }
 }

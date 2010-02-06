@@ -39,12 +39,10 @@ public class RangeSliceVerbHandler implements IVerbHandler
             RangeSliceCommand command = RangeSliceCommand.read(message);
             ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
             RangeSliceReply reply = cfs.getRangeSlice(command.super_column,
-                                                      command.startKey,
-                                                      command.finishKey,
+                                                      command.range,
                                                       command.max_keys,
                                                       command.predicate.slice_range,
-                                                      command.predicate.column_names,
-                                                      command.includeStartKey);
+                                                      command.predicate.column_names);
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + message.getMessageId() + "@" + message.getFrom());

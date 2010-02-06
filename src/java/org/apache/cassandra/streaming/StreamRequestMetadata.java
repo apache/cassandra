@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
@@ -67,7 +68,7 @@ class StreamRequestMetadataSerializer implements ICompactSerializer<StreamReques
         dos.writeInt(srMetadata.ranges_.size());
         for (Range range : srMetadata.ranges_)
         {
-            Range.serializer().serialize(range, dos);
+            AbstractBounds.serializer().serialize(range, dos);
         }
     }
 
@@ -79,7 +80,7 @@ class StreamRequestMetadataSerializer implements ICompactSerializer<StreamReques
         List<Range> ranges = (size == 0) ? null : new ArrayList<Range>();
         for( int i = 0; i < size; ++i )
         {
-            ranges.add(Range.serializer().deserialize(dis));
+            ranges.add((Range) AbstractBounds.serializer().deserialize(dis));
         }
         return new StreamRequestMetadata(target, ranges, table);
     }

@@ -39,6 +39,9 @@ import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -930,24 +933,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * @param startWith key to start with, inclusive.  empty string = start at beginning.
-     * @param stopAt key to stop at, inclusive.  empty string = stop only when keys are exhausted.
+     * @param range: either a Bounds, which includes start key, or a Range, which does not.
      * @param maxResults
-     * @param includeStartKey
      * @return list of keys between startWith and stopAt
 
        TODO refactor better.  this is just getKeyRange w/o the deletion check, for the benefit of
        range_slice.  still opens one randomaccessfile per key, which sucks.  something like compactioniterator
        would be better.
      */
-    private boolean getKeyRange(List<String> keys, final DecoratedKey startWith, final DecoratedKey stopAt, int maxResults, boolean includeStartKey)
+    private boolean getKeyRange(List<String> keys, final AbstractBounds range, int maxResults)
     throws IOException, ExecutionException, InterruptedException
     {
-        // getKeyRange requires start <= stop.  getRangeSlice handles range wrapping if necessary.
-        assert stopAt.isEmpty() || startWith.compareTo(stopAt) <= 0;
+        final DecoratedKey startWith = new DecoratedKey(range.left, null);
+        final DecoratedKey stopAt = new DecoratedKey(range.right, null);
         // create a CollatedIterator that will return unique keys from different sources
         // (current memtable, historical memtables, and SSTables) in the correct order.
-        List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
+        final List<Iterator<DecoratedKey>> iterators = new ArrayList<Iterator<DecoratedKey>>();
 
         // we iterate through memtables with a priority queue to avoid more sorting than necessary.
         // this predicate throws out the keys before the start of our range.
@@ -1022,7 +1023,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     return true;
                 }
 
-                if (includeStartKey || !first || !current.equals(startWith))
+                if (range instanceof Bounds || !first || !current.equals(startWith))
                 {
                     keys.add(current.key);
                 }
@@ -1050,33 +1051,32 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      *
      * @param super_column
-     * @param startKey key to start at (inclusive). empty string = start at the beginning.
-     * @param finishKey key to stop at (inclusive). empty string = stop at the end.
+     * @param range: either a Bounds, which includes start key, or a Range, which does not.
      * @param keyMax maximum number of keys to process, regardless of startKey/finishKey
      * @param sliceRange may be null if columnNames is specified. specifies contiguous columns to return in what order.
      * @param columnNames may be null if sliceRange is specified. specifies which columns to return in what order.      @return list of key->list<column> tuples.
-     * @param includeStartKey
      * @throws IOException
      * @throws ExecutionException
      * @throws InterruptedException
      */
-    public RangeSliceReply getRangeSlice(byte[] super_column, final DecoratedKey startKey, final DecoratedKey finishKey, int keyMax, SliceRange sliceRange, List<byte[]> columnNames, boolean includeStartKey)
+    public RangeSliceReply getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
     throws IOException, ExecutionException, InterruptedException
     {
         List<String> keys = new ArrayList<String>();
         boolean completed;
-        if (finishKey.isEmpty() || startKey.compareTo(finishKey) <= 0)
+        if ((range instanceof Bounds || !((Range)range).isWrapAround()))
         {
-            completed = getKeyRange(keys, startKey, finishKey, keyMax, includeStartKey);
+            completed = getKeyRange(keys, range, keyMax);
         }
         else
         {
             // wrapped range
-            DecoratedKey emptyKey = new DecoratedKey(StorageService.getPartitioner().getMinimumToken(), null);
-            completed = getKeyRange(keys, startKey, emptyKey, keyMax, includeStartKey);
+            Range first = new Range(range.left, StorageService.getPartitioner().getMinimumToken());
+            completed = getKeyRange(keys, first, keyMax);
             if (!completed)
             {
-                completed = getKeyRange(keys, emptyKey, finishKey, keyMax, true);
+                Range second = new Range(StorageService.getPartitioner().getMinimumToken(), range.right);
+                completed = getKeyRange(keys, second, keyMax);
             }
         }
         List<Row> rows = new ArrayList<Row>(keys.size());

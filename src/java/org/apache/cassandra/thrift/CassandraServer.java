@@ -37,6 +37,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 
 import static org.apache.cassandra.thrift.ThriftGlue.*;
 
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Cassandra.Iface;
@@ -555,9 +556,9 @@ public class CassandraServer implements Cassandra.Iface
         List<Pair<String, ColumnFamily>> rows;
         try
         {
-            DecoratedKey startKey = StorageService.getPartitioner().decorateKey(start_key);
-            DecoratedKey finishKey = StorageService.getPartitioner().decorateKey(finish_key);
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, startKey, finishKey, maxRows), consistency_level);
+            Bounds bounds = new Bounds(StorageService.getPartitioner().decorateKey(start_key).token,
+                                       StorageService.getPartitioner().decorateKey(finish_key).token);
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, maxRows), consistency_level);
             assert rows != null;
         }
         catch (TimeoutException e)

@@ -31,6 +31,9 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
 
@@ -63,14 +66,12 @@ public class Util
 
     public static RangeSliceReply getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
     {
-        DecoratedKey emptyKey = StorageService.getPartitioner().decorateKey("");
+        Token min = StorageService.getPartitioner().getMinimumToken();
         return cfs.getRangeSlice(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                 emptyKey,
-                                 emptyKey,
+                                 new Bounds(min, min),
                                  10000,
                                  new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 10000),
-                                 null,
-                                 true);
+                                 null);
     }
 
     /**
