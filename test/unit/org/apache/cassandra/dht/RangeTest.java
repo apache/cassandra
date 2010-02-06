@@ -101,9 +101,13 @@ public class RangeTest
     @Test
     public void testIntersects()
     {
+        Range all = new Range(new BigIntegerToken("0"), new BigIntegerToken("0")); // technically, this is a wrapping range
         Range one = new Range(new BigIntegerToken("2"), new BigIntegerToken("10"));
         Range two = new Range(new BigIntegerToken("0"), new BigIntegerToken("8"));
         Range not = new Range(new BigIntegerToken("10"), new BigIntegerToken("12"));
+
+        assert all.intersects(one);
+        assert all.intersects(two);
 
         assert one.intersects(two);
         assert two.intersects(one);
@@ -119,8 +123,13 @@ public class RangeTest
     public void testIntersectsWrapping()
     {
         Range onewrap = new Range(new BigIntegerToken("10"), new BigIntegerToken("2"));
+        Range onecomplement = new Range(onewrap.right, onewrap.left);
+        Range oneadjoins = new Range(onewrap.left, new BigIntegerToken("12"));
         Range twowrap = new Range(new BigIntegerToken("5"), new BigIntegerToken("3"));
         Range not = new Range(new BigIntegerToken("2"), new BigIntegerToken("6"));
+
+        assert !onewrap.intersects(onecomplement);
+        assert onewrap.intersects(oneadjoins);
 
         assert onewrap.intersects(twowrap);
         assert twowrap.intersects(onewrap);

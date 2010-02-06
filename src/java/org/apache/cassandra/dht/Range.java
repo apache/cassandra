@@ -22,6 +22,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.commons.lang.ObjectUtils;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
@@ -109,31 +115,54 @@ public class Range implements Comparable<Range>, Serializable
     }
 
     /**
-     * @param range range to check for intersection
+     * @param that range to check for intersection
      * @return true if the given range intersects with this range.
      */
     public boolean intersects(Range that)
     {
+        return intersectionWith(that).size() > 0;
+    }
+
+    public List<Range> intersectionWith(Range that)
+    {
         boolean thiswraps = isWrapAround(left, right);
         boolean thatwraps = isWrapAround(that.left, that.right);
         if (thiswraps && thatwraps)
-            // both (must contain the minimum token)
-            return true;
-        else if (!thiswraps && !thatwraps)
-            // neither
-            return left.compareTo(that.right) < 0 &&
-                that.left.compareTo(right) < 0;
-        else
-            // either
-            return left.compareTo(that.right) < 0 ||
-                that.left.compareTo(right) < 0;
+        {
+            // there is always an intersection when both wrap
+            return Arrays.asList(new Range((Token)ObjectUtils.max(this.left, that.left),
+                                           (Token)ObjectUtils.min(this.right, that.right)));
+        }
+        if (!thiswraps && !thatwraps)
+        {
+            if (!(left.compareTo(that.right) < 0 && that.left.compareTo(right) < 0))
+                return Collections.emptyList();
+            return Arrays.asList(new Range((Token)ObjectUtils.max(this.left, that.left),
+                                           (Token)ObjectUtils.min(this.right, that.right)));
+        }
+        if (thiswraps && !thatwraps)
+            return intersectionOneWrapping(this, that);
+        assert (!thiswraps && thatwraps);
+        return intersectionOneWrapping(that, this);
+    }
+
+    private static List<Range> intersectionOneWrapping(Range wrapping, Range other)
+    {
+        List<Range> intersection = new ArrayList<Range>(2);
+        if (wrapping.contains(other))
+        {
+            return Arrays.asList(other);
+        }
+        if (other.contains(wrapping.right) || other.left.equals(wrapping.left))
+            intersection.add(new Range(other.left, wrapping.right));
+        if (other.contains(wrapping.left) && wrapping.left.compareTo(other.right) < 0)
+            intersection.add(new Range(wrapping.left, other.right));
+        return Collections.unmodifiableList(intersection);
     }
 
     /**
      * Tells if the given range is a wrap around.
-     * @param range
-     * @return
-     */
+         */
     public static boolean isWrapAround(Token left, Token right)
     {
         return left.compareTo(right) >= 0;
