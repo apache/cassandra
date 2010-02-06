@@ -32,9 +32,9 @@ public class SSTableTracker implements Iterable<SSTableReader>
     private final AtomicLong liveSize = new AtomicLong();
     private final AtomicLong totalSize = new AtomicLong();
 
-    public SSTableTracker(Collection<SSTableReader> sstables)
+    public SSTableTracker()
     {
-        this.sstables = Collections.unmodifiableSet(new HashSet<SSTableReader>(sstables));
+        this.sstables = Collections.<SSTableReader>emptySet();
     }
 
     public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements) throws IOException
@@ -53,7 +53,8 @@ public class SSTableTracker implements Iterable<SSTableReader>
 
         for (SSTableReader sstable : oldSSTables)
         {
-            sstablesNew.remove(sstable);
+            boolean removed = sstablesNew.remove(sstable);
+            assert removed;
             sstable.markCompacted();
             liveSize.addAndGet(-sstable.bytesOnDisk());
         }
@@ -61,12 +62,12 @@ public class SSTableTracker implements Iterable<SSTableReader>
         sstables = Collections.unmodifiableSet(sstablesNew);
     }
 
-    public synchronized void add(SSTableReader sstable)
+    public synchronized void add(Iterable<SSTableReader> sstables)
     {
-        assert sstable != null;
+        assert sstables != null;
         try
         {
-            replace(Collections.<SSTableReader>emptyList(), Arrays.asList(sstable));
+            replace(Collections.<SSTableReader>emptyList(), sstables);
         }
         catch (IOException e)
         {

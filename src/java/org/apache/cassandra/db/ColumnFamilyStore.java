@@ -187,7 +187,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             sstables.add(sstable);
         }
-        ssTables_ = new SSTableTracker(sstables);
+        ssTables_ = new SSTableTracker();
+        ssTables_.add(sstables);
 
         double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
         int cacheSize;
@@ -554,7 +555,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void addSSTable(SSTableReader sstable)
     {
-        ssTables_.add(sstable);
+        ssTables_.add(Arrays.asList(sstable));
         CompactionManager.instance.submitMinorIfNeeded(this);
     }
 
