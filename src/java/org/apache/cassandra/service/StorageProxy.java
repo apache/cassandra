@@ -535,39 +535,47 @@ public class StorageProxy implements StorageProxyMBean
     {
         long startTime = System.nanoTime();
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+        Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), command.range.left);
 
-        InetAddress endPoint = StorageService.instance.getPrimary(command.range.left);
-        InetAddress startEndpoint = endPoint;
         final String table = command.keyspace;
         int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
 
-        // starting with the node that is primary for the start key, scan until either we have enough results,
+        // starting with the range containing the start key, scan until either we have enough results,
         // or the node scan reports that it was done (i.e., encountered a key outside the desired range).
         Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
         outer:
-        do
+        while (iter.hasNext())
         {
-            Range primaryRange = StorageService.instance.getPrimaryRangeForEndPoint(endPoint);
-            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, primaryRange.right);
+            Token currentToken = iter.next();
+            Range currentRange = new Range(tokenMetadata.getPredecessor(currentToken), currentToken);
+            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.keyspace, currentToken);
             if (endpoints.size() < responseCount)
                 throw new UnavailableException();
+            DatabaseDescriptor.getEndPointSnitch(command.keyspace).sortByProximity(FBUtilities.getLocalAddress(), endpoints);
 
-            // to make comparing the results from each node easy, we restrict each scan the primary range for the node in question
-            List<AbstractBounds> restricted = command.range.restrictTo(primaryRange);
+            // make sure we only get keys from the current range (and not other replicas that might be on the nodes).
+            // usually this will be only one range, but sometimes the intersection of a wrapping Range with a non-wrapping
+            // is two disjoint, non-wrapping Ranges separated by a gap.
+            List<AbstractBounds> restricted = command.range.restrictTo(currentRange);
+
             for (AbstractBounds range : restricted)
             {
                 RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
                 Message message = c2.getMessage();
 
                 // collect replies and resolve according to consistency level
-                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, primaryRange, endpoints);
+                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, currentRange, endpoints);
                 QuorumResponseHandler<Map<String, ColumnFamily>> handler = new QuorumResponseHandler<Map<String, ColumnFamily>>(responseCount, resolver);
-                if (logger.isDebugEnabled())
-                    logger.debug("reading " + c2 + " for " + range + " from " + message.getMessageId() + "@" + endPoint);
-                for (InetAddress replicaEndpoint : endpoints)
+
+                Iterator<InetAddress> endpointIter = endpoints.iterator();
+                for (int i = 0; i < responseCount; i++)
                 {
-                    MessagingService.instance.sendRR(message, replicaEndpoint, handler);
+                    InetAddress endpoint = endpointIter.next();
+                    MessagingService.instance.sendRR(message, endpoint, handler);
+                    if (logger.isDebugEnabled())
+                        logger.debug("reading " + c2 + " for " + range + " from " + message.getMessageId() + "@" + endpoint);
                 }
+                // TODO read repair on remaining replicas?
 
                 // if we're done, great, otherwise, move to the next range
                 try
@@ -581,10 +589,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (rows.size() >= command.max_keys || resolver.completed())
                     break outer;
             }
-
-            endPoint = tokenMetadata.getSuccessor(endPoint);
         }
-        while (!endPoint.equals(startEndpoint));
 
         List<Pair<String, ColumnFamily>> results = new ArrayList<Pair<String, ColumnFamily>>(rows.size());
         for (Map.Entry<String, ColumnFamily> entry : rows.entrySet())

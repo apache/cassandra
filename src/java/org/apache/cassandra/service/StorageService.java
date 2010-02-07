@@ -1095,40 +1095,6 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * This method returns the endpoint that is responsible for storing the
-     * specified key.
-     *
-     * @param key - key for which we need to find the endpoint
-     * @return value - the endpoint responsible for this key
-     */
-    public InetAddress getPrimary(String key)
-    {
-        return getPrimary(partitioner_.getToken(key));
-    }
-
-    public InetAddress getPrimary(Token token)
-    {
-        List tokens = tokenMetadata_.sortedTokens();
-        if (tokens.size() > 0)
-        {
-            return tokenMetadata_.getEndPoint(TokenMetadata.ringIterator(tokens, token).next());
-        }
-        return FBUtilities.getLocalAddress();
-    }
-
-    /**
-     * This method determines whether the local endpoint is the
-     * primary for the given key.
-     * @param key
-     * @return true if the local endpoint is the primary replica.
-    */
-    public boolean isPrimary(String key)
-    {
-        InetAddress endpoint = getPrimary(key);
-        return FBUtilities.getLocalAddress().equals(endpoint);
-    }
-
-    /**
      * This method returns the N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *

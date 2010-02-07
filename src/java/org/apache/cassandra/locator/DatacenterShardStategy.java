@@ -155,10 +155,10 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             while (forloopReturn.size() < replicas_ && iter.hasNext())
             {
                 Token t = iter.next();
-                InetAddress endPointOfIntrest = metadata.getEndPoint(t);
+                InetAddress endPointOfInterest = metadata.getEndPoint(t);
                 if (forloopReturn.size() < replicas_ - 1)
                 {
-                    forloopReturn.add(endPointOfIntrest);
+                    forloopReturn.add(endPointOfInterest);
                     continue;
                 }
                 else
@@ -169,7 +169,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
-                    if (!((DatacenterEndPointSnitch)snitch_).isOnSameRack(primaryHost, endPointOfIntrest))
+                    if (!((DatacenterEndPointSnitch)snitch_).isOnSameRack(primaryHost, endPointOfInterest))
                     {
                         forloopReturn.add(metadata.getEndPoint(t));
                         bOtherRack = true;
