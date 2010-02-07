@@ -24,17 +24,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.common.collect.*;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Range;
 
 import java.net.InetAddress;
 
 import org.apache.commons.lang.StringUtils;
-
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.HashMultimap;
 
 public class TokenMetadata
 {
@@ -405,6 +401,44 @@ public class TokenMetadata
         return leavingEndPoints;
     }
 
+    /**
+     * iterator over the Tokens in the given ring, starting with the token for the node owning start
+     * (which does not have to be a Token in the ring)
+     */
+    public static Iterator<Token> ringIterator(final List ring, Token start)
+    {
+        assert ring.size() > 0;
+        int i = Collections.binarySearch(ring, start);
+        if (i < 0)
+        {
+            i = (i + 1) * (-1);
+            if (i >= ring.size())
+            {
+                i = 0;
+            }
+        }
+        final int startIndex = i;
+        return new AbstractIterator<Token>()
+        {
+            int j = startIndex;
+            protected Token computeNext()
+            {
+                if (j < 0)
+                    return endOfData();
+                try
+                {
+                    return (Token) ring.get(j);
+                }
+                finally
+                {
+                    j = (j + 1) % ring.size();
+                    if (j == startIndex)
+                        j = -1;
+                }
+            }
+        };
+    }
+
     /** used by tests */
     public void clearUnsafe()
     {
@@ -487,5 +521,4 @@ public class TokenMetadata
 
         return sb.toString();
     }
-
 }

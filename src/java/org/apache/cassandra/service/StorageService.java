@@ -1108,29 +1108,12 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
     public InetAddress getPrimary(Token token)
     {
-        InetAddress endpoint = FBUtilities.getLocalAddress();
-        List tokens = new ArrayList<Token>(tokenMetadata_.sortedTokens());
+        List tokens = tokenMetadata_.sortedTokens();
         if (tokens.size() > 0)
         {
-            int index = Collections.binarySearch(tokens, token);
-            if (index >= 0)
-            {
-                /*
-                 * retrieve the endpoint based on the token at this index in the
-                 * tokens list
-                 */
-                endpoint = tokenMetadata_.getEndPoint((Token) tokens.get(index));
-            }
-            else
-            {
-                index = (index + 1) * (-1);
-                if (index < tokens.size())
-                    endpoint = tokenMetadata_.getEndPoint((Token) tokens.get(index));
-                else
-                    endpoint = tokenMetadata_.getEndPoint((Token) tokens.get(0));
-            }
+            return tokenMetadata_.getEndPoint(TokenMetadata.ringIterator(tokens, token).next());
         }
-        return endpoint;
+        return FBUtilities.getLocalAddress();
     }
 
     /**

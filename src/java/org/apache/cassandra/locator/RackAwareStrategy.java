@@ -21,6 +21,7 @@ package org.apache.cassandra.locator;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,41 +47,25 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
-        int startIndex;
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
-        boolean bDataCenter = false;
-        boolean bOtherRack = false;
-        int foundCount = 0;
-        List tokens = metadata.sortedTokens();
+        int replicas = DatabaseDescriptor.getReplicationFactor(table);
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
+        List<Token> tokens = metadata.sortedTokens();
 
         if (tokens.isEmpty())
             return endpoints;
 
-        int index = Collections.binarySearch(tokens, token);
-        if(index < 0)
-        {
-            index = (index + 1) * (-1);
-            if (index >= tokens.size())
-                index = 0;
-        }
-        int totalNodes = tokens.size();
-        // Add the node at the index by default
-        Token primaryToken = (Token) tokens.get(index);
+        Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token);
+        Token primaryToken = iter.next();
         endpoints.add(metadata.getEndPoint(primaryToken));
-        foundCount++;
-        final int replicas = DatabaseDescriptor.getReplicationFactor(table);
-        if (replicas == 1)
-        {
-            return endpoints;
-        }
-        startIndex = (index + 1)%totalNodes;
 
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas; ++count, i = (i + 1) % totalNodes)
+        boolean bDataCenter = false;
+        boolean bOtherRack = false;
+        while (endpoints.size() < replicas && iter.hasNext())
         {
             try
             {
                 // First try to find one in a different data center
-                Token t = (Token) tokens.get(i);
+                Token t = iter.next();
                 if (!((EndPointSnitch)snitch_).isInSameDataCenter(metadata.getEndPoint(primaryToken), metadata.getEndPoint(t)))
                 {
                     // If we have already found something in a diff datacenter no need to find another
@@ -88,7 +73,6 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     {
                         endpoints.add(metadata.getEndPoint(t));
                         bDataCenter = true;
-                        foundCount++;
                     }
                     continue;
                 }
@@ -101,7 +85,6 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
                     {
                         endpoints.add(metadata.getEndPoint(t));
                         bOtherRack = true;
-                        foundCount++;
                     }
                 }
             }
@@ -111,17 +94,20 @@ public class RackAwareStrategy extends AbstractReplicationStrategy
             }
 
         }
+
         // If we found N number of nodes we are good. This loop wil just exit. Otherwise just
         // loop through the list and add until we have N nodes.
-        for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas; ++count, i = (i+1)%totalNodes)
+        if (endpoints.size() < replicas)
         {
-            Token t = (Token) tokens.get(i);
-            if (!endpoints.contains(metadata.getEndPoint(t)))
+            iter = TokenMetadata.ringIterator(tokens, token);
+            while (endpoints.size() < replicas && iter.hasNext())
             {
-                endpoints.add(metadata.getEndPoint(t));
-                foundCount++;
+                Token t = iter.next();
+                if (!endpoints.contains(metadata.getEndPoint(t)))
+                    endpoints.add(metadata.getEndPoint(t));
             }
         }
+
         return endpoints;
     }
 }

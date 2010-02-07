@@ -142,54 +142,37 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
 
         for (String dc : dcMap.keySet())
         {
-            int foundCount = 0;
-            ArrayList<InetAddress> forloopReturn = new ArrayList<InetAddress>();
             int replicas_ = dcReplicationFactor.get(dc);
-            List tokens = dcMap.get(dc);
+            ArrayList<InetAddress> forloopReturn = new ArrayList<InetAddress>(replicas_);
+            List<Token> tokens = dcMap.get(dc);
             boolean bOtherRack = false;
             boolean doneDataCenterItr;
-            int index = Collections.binarySearch(tokens, searchToken);
-            if (index < 0)
-            {
-                index = (index + 1) * (-1);
-                if (index >= tokens.size())
-                {
-                    index = 0;
-                }
-            }
-            int totalNodes = tokens.size();
             // Add the node at the index by default
-            InetAddress primaryHost = metadata.getEndPoint((Token) tokens.get(index));
+            Iterator<Token> iter = TokenMetadata.ringIterator(tokens, searchToken);
+            InetAddress primaryHost = metadata.getEndPoint(iter.next());
             forloopReturn.add(primaryHost);
-            foundCount++;
-            if (replicas_ == 1)
-            {
-                continue;
-            }
 
-            int startIndex = (index + 1) % totalNodes;
-            for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i + 1) % totalNodes)
+            while (forloopReturn.size() < replicas_ && iter.hasNext())
             {
-                InetAddress endPointOfIntrest = metadata.getEndPoint((Token) tokens.get(i));
-                if ((replicas_ - 1) > foundCount)
+                Token t = iter.next();
+                InetAddress endPointOfIntrest = metadata.getEndPoint(t);
+                if (forloopReturn.size() < replicas_ - 1)
                 {
                     forloopReturn.add(endPointOfIntrest);
-                    foundCount++;
                     continue;
                 }
                 else
                 {
                     doneDataCenterItr = true;
                 }
-                
+
                 // Now try to find one on a different rack
                 if (!bOtherRack)
                 {
                     if (!((DatacenterEndPointSnitch)snitch_).isOnSameRack(primaryHost, endPointOfIntrest))
                     {
-                        forloopReturn.add(metadata.getEndPoint((Token) tokens.get(i)));
+                        forloopReturn.add(metadata.getEndPoint(t));
                         bOtherRack = true;
-                        foundCount++;
                     }
                 }
                 // If both already found exit loop.
@@ -204,13 +187,16 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
             * exit. Otherwise just loop through the list and add until we
             * have N nodes.
             */
-            for (int i = startIndex, count = 1; count < totalNodes && foundCount < replicas_; ++count, i = (i + 1) % totalNodes)
+            if (forloopReturn.size() < replicas_)
             {
-                Token t = (Token) tokens.get(i);
-                if (!forloopReturn.contains(metadata.getEndPoint(t)))
+                iter = TokenMetadata.ringIterator(tokens, searchToken);
+                while (forloopReturn.size() < replicas_ && iter.hasNext())
                 {
-                    forloopReturn.add(metadata.getEndPoint(t));
-                    foundCount++;
+                    Token t = iter.next();
+                    if (!forloopReturn.contains(metadata.getEndPoint(t)))
+                    {
+                        forloopReturn.add(metadata.getEndPoint(t));
+                    }
                 }
             }
             endpoints.addAll(forloopReturn);

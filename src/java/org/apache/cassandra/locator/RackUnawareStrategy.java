@@ -20,6 +20,7 @@ package org.apache.cassandra.locator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,35 +42,20 @@ public class RackUnawareStrategy extends AbstractReplicationStrategy
 
     public ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table)
     {
-        int startIndex;
-        List<Token> tokenList = new ArrayList<Token>();
-        List tokens = new ArrayList<Token>(metadata.sortedTokens());
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(tokenList.size());
+        int replicas = DatabaseDescriptor.getReplicationFactor(table);
+        List<Token> tokens = metadata.sortedTokens();
+        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>(replicas);
 
         if (tokens.isEmpty())
             return endpoints;
 
-        int index = Collections.binarySearch(tokens, token);
-        if (index < 0)
-        {
-            index = (index + 1) * (-1);
-            if (index >= tokens.size())
-                index = 0;
-        }
-        int totalNodes = tokens.size();
         // Add the token at the index by default
-        tokenList.add((Token) tokens.get(index));
-        startIndex = (index + 1) % totalNodes;
-        // If we found N number of nodes we are good. This loop will just exit. Otherwise just
-        // loop through the list and add until we have N nodes.
-        final int replicas = DatabaseDescriptor.getReplicationFactor(table);
-        for (int i = startIndex, count = 1; count < totalNodes && tokenList.size() < replicas; ++count, i = (i + 1) % totalNodes)
+        Iterator<Token> iter = TokenMetadata.ringIterator(tokens, token);
+        while (endpoints.size() < replicas && iter.hasNext())
         {
-            assert !tokenList.contains(tokens.get(i));
-            tokenList.add((Token) tokens.get(i));
+            endpoints.add(metadata.getEndPoint(iter.next()));
         }
-        for (Token t : tokenList)
-            endpoints.add(metadata.getEndPoint(t));
+
         return endpoints;
     }
 }
