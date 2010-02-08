@@ -136,7 +136,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                                                                                    new NamedThreadFactory("CONSISTENCY-MANAGER"));
 
     /* We use this interface to determine where replicas need to be placed */
-    private Map<String, AbstractReplicationStrategy> replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
+    private Map<String, AbstractReplicationStrategy> replicationStrategies;
 
     /* Are we starting this node in bootstrap mode? */
     private boolean isBootstrapMode;
@@ -219,17 +219,23 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_SYN, new Gossiper.GossipDigestSynVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK, new Gossiper.GossipDigestAckVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.GOSSIP_DIGEST_ACK2, new Gossiper.GossipDigestAck2VerbHandler());
-    }
 
-    public synchronized AbstractReplicationStrategy getReplicationStrategy(String table)
-    {
-        AbstractReplicationStrategy strat = replicationStrategies.get(table);
-        if (strat == null)
+        replicationStrategies = new HashMap<String, AbstractReplicationStrategy>();
+        for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            strat = StorageService.getReplicationStrategy(tokenMetadata_, table);
+            AbstractReplicationStrategy strat = getReplicationStrategy(tokenMetadata_, table);
             replicationStrategies.put(table, strat);
         }
-        return strat;
+        replicationStrategies = Collections.unmodifiableMap(replicationStrategies);
+    }
+
+    public AbstractReplicationStrategy getReplicationStrategy(String table)
+    {
+        AbstractReplicationStrategy ars = replicationStrategies.get(table);
+        if (ars == null)
+            throw new RuntimeException(String.format("No replica strategy configured for %s", table));
+        else
+            return ars;
     }
 
     public static AbstractReplicationStrategy getReplicationStrategy(TokenMetadata tokenMetadata, String table)
