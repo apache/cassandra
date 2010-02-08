@@ -23,7 +23,7 @@ from . import client, root, CassandraTester
 
 from thrift.Thrift import TApplicationException
 from ttypes import *
-from Constants import VERSION
+from constants import VERSION
 
 
 def _i64(n):
