@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.net.InetAddress;
 import javax.management.*;
 
+import com.google.common.collect.Multimaps;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -145,14 +146,14 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     private boolean isClientMode;
     private boolean initialized;
 
-    public synchronized void addBootstrapSource(InetAddress s, String table)
+    public void addBootstrapSource(InetAddress s, String table)
     {
         if (logger_.isDebugEnabled())
             logger_.debug(String.format("Added %s/%s as a bootstrap source", s, table));
         bootstrapSet.put(s, table);
     }
 
-    public synchronized void removeBootstrapSource(InetAddress s, String table)
+    public void removeBootstrapSource(InetAddress s, String table)
     {
         if (table == null)
             bootstrapSet.removeAll(s);
@@ -197,7 +198,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             throw new RuntimeException(e);
         }
 
-        bootstrapSet = HashMultimap.create();
+        bootstrapSet = Multimaps.synchronizedSetMultimap(HashMultimap.<InetAddress, String>create());
 
         /* register the verb handlers */
         MessagingService.instance.registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
