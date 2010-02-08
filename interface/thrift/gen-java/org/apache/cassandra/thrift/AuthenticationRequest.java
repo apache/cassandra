@@ -266,15 +266,15 @@ public class AuthenticationRequest implements TBase<AuthenticationRequest._Field
           case CREDENTIALS:
             if (field.type == TType.MAP) {
               {
-                TMap _map12 = iprot.readMapBegin();
-                this.credentials = new HashMap<String,String>(2*_map12.size);
-                for (int _i13 = 0; _i13 < _map12.size; ++_i13)
+                TMap _map16 = iprot.readMapBegin();
+                this.credentials = new HashMap<String,String>(2*_map16.size);
+                for (int _i17 = 0; _i17 < _map16.size; ++_i17)
                 {
-                  String _key14;
-                  String _val15;
-                  _key14 = iprot.readString();
-                  _val15 = iprot.readString();
-                  this.credentials.put(_key14, _val15);
+                  String _key18;
+                  String _val19;
+                  _key18 = iprot.readString();
+                  _val19 = iprot.readString();
+                  this.credentials.put(_key18, _val19);
                 }
                 iprot.readMapEnd();
               }
@@ -300,10 +300,10 @@ public class AuthenticationRequest implements TBase<AuthenticationRequest._Field
       oprot.writeFieldBegin(CREDENTIALS_FIELD_DESC);
       {
         oprot.writeMapBegin(new TMap(TType.STRING, TType.STRING, this.credentials.size()));
-        for (Map.Entry<String, String> _iter16 : this.credentials.entrySet())
+        for (Map.Entry<String, String> _iter20 : this.credentials.entrySet())
         {
-          oprot.writeString(_iter16.getKey());
-          oprot.writeString(_iter16.getValue());
+          oprot.writeString(_iter20.getKey());
+          oprot.writeString(_iter20.getValue());
         }
         oprot.writeMapEnd();
       }

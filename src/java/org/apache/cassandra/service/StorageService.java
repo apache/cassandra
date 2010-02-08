@@ -390,13 +390,18 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             keyspace = DatabaseDescriptor.getNonSystemTables().get(0);
 
         /* All the ranges for the tokens */
-        List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
         Map<Range, List<String>> map = new HashMap<Range, List<String>>();
-        for (Map.Entry<Range,List<InetAddress>> entry : constructRangeToEndPointMap(keyspace, ranges).entrySet())
+        for (Map.Entry<Range,List<InetAddress>> entry : getRangeToAddressMap(keyspace).entrySet())
         {
             map.put(entry.getKey(), stringify(entry.getValue()));
         }
         return map;
+    }
+
+    public Map<Range, List<InetAddress>> getRangeToAddressMap(String keyspace)
+    {
+        List<Range> ranges = getAllRanges(tokenMetadata_.sortedTokens());
+        return constructRangeToEndPointMap(keyspace, ranges);
     }
 
     /**

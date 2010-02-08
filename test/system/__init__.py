@@ -26,7 +26,7 @@ from thrift.protocol import TBinaryProtocol
 # add cassandra directory to sys.path
 L = os.path.abspath(__file__).split(os.path.sep)[:-3]
 root = os.path.sep.join(L)
-_ipath = os.path.join(root, 'interface', 'gen-py')
+_ipath = os.path.join(root, 'interface', 'thrift', 'gen-py')
 sys.path.append(os.path.join(_ipath, 'cassandra'))
 import Cassandra
 

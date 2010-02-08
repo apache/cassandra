@@ -25,25 +25,24 @@ import java.util.*;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
-
 import org.apache.commons.lang.ArrayUtils;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
-
-import static org.apache.cassandra.thrift.ThriftGlue.*;
-
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.Cassandra.Iface;
 import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
 import org.json.simple.JSONValue;
+
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnOrSuperColumn_Column;
+import static org.apache.cassandra.thrift.ThriftGlue.createColumnOrSuperColumn_SuperColumn;
 
 public class CassandraServer implements Cassandra.Iface
 {
@@ -579,6 +578,33 @@ public class CassandraServer implements Cassandra.Iface
         }
 
         return keySlices;
+    }
+
+    public Set<String> describe_keyspaces() throws TException
+    {
+        return DatabaseDescriptor.getTables();
+    }
+
+    public String describe_cluster_name() throws TException
+    {
+        return DatabaseDescriptor.getClusterName();
+    }
+
+    public String describe_version() throws TException
+    {
+        return Constants.VERSION;
+    }
+
+    public List<TokenRange> describe_ring(String keyspace)
+    {
+        List<TokenRange> ranges = new ArrayList<TokenRange>();
+        for (Map.Entry<Range, List<String>> entry : StorageService.instance.getRangeToEndPointMap(keyspace).entrySet())
+        {
+            Range range = entry.getKey();
+            List<String> endpoints = entry.getValue();
+            ranges.add(new TokenRange(range.left.toString(), range.right.toString(), endpoints));
+        }
+        return ranges;
     }
 
     public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException

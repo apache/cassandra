@@ -21,6 +21,8 @@ dev
  * support get_range_slice for RandomPartitioner (CASSANDRA-745)
  * per-keyspace replication factory and replication strategy (CASSANDRA-620)
  * track latency in microseconds (CASSANDRA-733)
+ * add describe_ Thrift methods, deprecating get_string_property and 
+   get_string_list_property
 
 
 0.5.1

@@ -23,6 +23,7 @@ from . import client, root, CassandraTester
 
 from thrift.Thrift import TApplicationException
 from ttypes import *
+from Constants import VERSION
 
 
 def _i64(n):
@@ -872,8 +873,16 @@ class TestMutations(CassandraTester):
 
     def test_describe_keyspace(self):
         """ Test keyspace description """
-        kspaces = client.get_string_list_property("keyspaces")
+        kspaces = client.describe_keyspaces()
         assert len(kspaces) == 5, kspaces # ['Keyspace1', 'Keyspace2', 'Keyspace3', 'Keyspace4', 'system']
         ks1 = client.describe_keyspace("Keyspace1")
         assert set(ks1.keys()) == set(['Super1', 'Standard1', 'Standard2', 'StandardLong1', 'StandardLong2', 'Super3', 'Super2', 'Super4'])
         sysks = client.describe_keyspace("system")
+
+    def test_describe(self):
+        server_version = client.describe_version()
+        assert server_version == VERSION, (server_version, VERSION)
+        assert client.describe_cluster_name() == 'Test Cluster'
+
+    def test_describe_ring(self):
+        assert list(client.describe_ring('Keyspace1'))[0].endpoints == ['127.0.0.1']

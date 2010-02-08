@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "2.0.0"
+const string VERSION = "2.1.0"
 
 #
 # data structures
@@ -257,13 +257,19 @@ struct Mutation {
     2: optional Deletion deletion,
 }
 
+struct TokenRange {
+    1: required string start_token,
+    2: required string end_token,
+    3: required list<string> endpoints,
+}
+
 /**
     Authentication requests can contain any data, dependent on the AuthenticationBackend used
 */
-
 struct AuthenticationRequest {
     1: required map<string, string> credentials,
 }
+
 
 service Cassandra {
   # auth methods
@@ -381,14 +387,31 @@ service Cassandra {
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
 
-  /** get property whose value is of type string. */
+  /** get property whose value is of type string. @Deprecated */
   string get_string_property(1:required string property),
 
-  /** get property whose value is list of strings. */
+  /** get property whose value is list of strings. @Deprecated */
   list<string> get_string_list_property(1:required string property),
+
+  /** list the defined keyspaces in this cluster */
+  set<string> describe_keyspaces(),
+
+  /** get the cluster name */
+  string describe_cluster_name(),
+
+  /** get the thrift api version */
+  string describe_version(),
+
+  /** get the token ring: a map of ranges to host addresses,
+      represented as a set of TokenRange instead of a map from range
+      to list of endpoints, because you can't use Thrift structs as
+      map keys:
+      https://issues.apache.org/jira/browse/THRIFT-162 
+      for the same reason, we can't return a set here, even though
+      order is neither important nor predictable. */
+  list<TokenRange> describe_ring(1:required string keyspace),
 
   /** describe specified keyspace */
   map<string, map<string, string>> describe_keyspace(1:required string keyspace)
                                    throws (1:NotFoundException nfe),
 }
-
