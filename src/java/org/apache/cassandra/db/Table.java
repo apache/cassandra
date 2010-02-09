@@ -429,7 +429,7 @@ public class Table
 
         // flush memtables that got filled up.  usually mTF will be empty and this will be a no-op
         for (Map.Entry<ColumnFamilyStore, Memtable> entry : memtablesToFlush.entrySet())
-            entry.getKey().switchMemtable(entry.getValue(), writeCommitLog);
+            entry.getKey().maybeSwitchMemtable(entry.getValue(), writeCommitLog);
     }
 
     public List<Future<?>> flush() throws IOException

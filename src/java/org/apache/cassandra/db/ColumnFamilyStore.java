@@ -355,7 +355,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                              columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
     }
 
-    Future<?> switchMemtable(Memtable oldMemtable, final boolean writeCommitLog) throws IOException
+    /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
+    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog) throws IOException
     {
         /**
          *  If we can get the writelock, that means no new updates can come in and 
@@ -419,7 +420,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (memtable_.isClean())
             return null;
 
-        return switchMemtable(memtable_, true);
+        return maybeSwitchMemtable(memtable_, true);
     }
 
     public void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
