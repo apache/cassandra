@@ -167,7 +167,7 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
     }
 
-    private static final long BROADCAST_INTERVAL = 5 * 60 * 1000L;
+    private static final int BROADCAST_INTERVAL = 5 * 60 * 1000;
 
     private static StorageLoadBalancer instance_;
 
@@ -367,18 +367,17 @@ public final class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         loadTimer_.schedule(new LoadDisseminator(), 2 * Gossiper.intervalInMillis_, BROADCAST_INTERVAL);
     }
 
-    /** wait for node information to be available.  if the rest of the cluster just came up,
-        this could be up to threshold_ ms (currently 5 minutes). */
+    /**
+     * Wait for at least BROADCAST_INTERVAL ms, to give all nodes enough time to
+     * report in.
+     */
     public void waitForLoadInfo()
     {
+        int duration = BROADCAST_INTERVAL + Streaming.RING_DELAY;
         try
         {
-            while (loadInfo_.isEmpty())
-            {
-                Thread.sleep(100);
-            }
-            // one more sleep in case there are some stragglers
-            Thread.sleep(Streaming.RING_DELAY);
+            logger_.info("Sleeping " + duration + " ms to wait for load information...");
+            Thread.sleep(duration);
         }
         catch (InterruptedException e)
         {

@@ -3,6 +3,7 @@
    (CASSANDRA-716)
  * don't omit live subcolumns of deleted supercolumns in thrift result.
    (CASSANDRA-703)
+ * more accurate load estimate for bootstrapping (CASSANDRA-762)
 
 
 0.5.0 final

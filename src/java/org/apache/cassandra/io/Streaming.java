@@ -51,7 +51,7 @@ public class Streaming
 {
     private static Logger logger = Logger.getLogger(Streaming.class);
     private static String TABLE_NAME = "STREAMING-TABLE-NAME";
-    public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
+    public static final int RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
