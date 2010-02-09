@@ -55,7 +55,7 @@ public class RowMutation
         serializer_ = new RowMutationSerializer();
     }   
 
-    static ICompactSerializer<RowMutation> serializer()
+    public static ICompactSerializer<RowMutation> serializer()
     {
         return serializer_;
     }

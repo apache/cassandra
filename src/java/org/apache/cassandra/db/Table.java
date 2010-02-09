@@ -25,9 +25,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
-import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableDeletingReference;
 import org.apache.cassandra.io.SSTableReader;
@@ -358,7 +358,7 @@ public class Table
         }, checkMs, checkMs);
     }
 
-    int getColumnFamilyId(String columnFamily)
+    public int getColumnFamilyId(String columnFamily)
     {
         return tableMetadata.getColumnFamilyId(columnFamily);
     }
@@ -386,7 +386,7 @@ public class Table
      * Once this happens the data associated with the individual column families
      * is also written to the column family store's memtable.
     */
-    void apply(RowMutation mutation, Object serializedMutation, boolean writeCommitLog) throws IOException
+    public void apply(RowMutation mutation, Object serializedMutation, boolean writeCommitLog) throws IOException
     {
         HashMap<ColumnFamilyStore,Memtable> memtablesToFlush = new HashMap<ColumnFamilyStore, Memtable>(2);
 

@@ -16,9 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.DeletionService;
@@ -92,7 +95,7 @@ public class CommitLog
             this.position = position;
         }
 
-        boolean isValidContext()
+        public boolean isValidContext()
         {
             return (position != -1L);
         }
@@ -120,7 +123,7 @@ public class CommitLog
         SEGMENT_SIZE = size;
     }
 
-    static int getSegmentCount()
+    public static int getSegmentCount()
     {
         return clHeaders_.size();
     }
@@ -136,7 +139,7 @@ public class CommitLog
         return new BufferedRandomAccessFile(file, "rw");
     }
 
-    static CommitLog open() throws IOException
+    public static CommitLog open() throws IOException
     {
         if ( instance_ == null )
         {
@@ -277,7 +280,7 @@ public class CommitLog
         logWriter.sync();
     }
 
-    void recover(File[] clogs) throws IOException
+    public void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
         assert StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTaskCount() == 0;
@@ -413,7 +416,7 @@ public class CommitLog
         }
     }
     
-    CommitLogContext getContext() throws IOException
+    public CommitLogContext getContext() throws IOException
     {
         Callable<CommitLogContext> task = new Callable<CommitLogContext>()
         {
@@ -442,7 +445,7 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    Future<CommitLogContext> add(RowMutation rowMutation, Object serializedRow) throws IOException
+    public Future<CommitLogContext> add(RowMutation rowMutation, Object serializedRow) throws IOException
     {
         Callable<CommitLogContext> task = new LogRecordAdder(rowMutation, serializedRow);
         return executor.submit(task);
@@ -454,7 +457,7 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    void onMemtableFlush(final String tableName, final String cf, final CommitLog.CommitLogContext cLogCtx) throws IOException
+    public void onMemtableFlush(final String tableName, final String cf, final CommitLog.CommitLogContext cLogCtx) throws IOException
     {
         Callable task = new Callable()
         {

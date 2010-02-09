@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
 import java.util.BitSet;
 import java.util.Arrays;
 
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.BitSetSerializer;
 

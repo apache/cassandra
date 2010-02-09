@@ -22,6 +22,7 @@ import java.util.*;
 import java.io.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;

@@ -21,6 +21,7 @@ package org.apache.cassandra.config;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;

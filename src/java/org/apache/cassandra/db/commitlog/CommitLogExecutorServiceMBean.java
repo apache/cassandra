@@ -16,7 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.concurrent.IExecutorMBean;
 
