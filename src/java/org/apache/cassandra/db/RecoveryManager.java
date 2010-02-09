@@ -53,7 +53,7 @@ public class RecoveryManager
 
         Arrays.sort(files, new FileUtils.FileComparator());
         logger_.info("Replaying " + StringUtils.join(files, ", "));
-        CommitLog.open().recover(files);
+        CommitLog.instance().recover(files);
         FileUtils.delete(files);
         logger_.info("Log replay complete");
     }

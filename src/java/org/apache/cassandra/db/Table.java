@@ -396,7 +396,7 @@ public class Table
         {
             if (writeCommitLog)
             {
-                Future<CommitLog.CommitLogContext> future = CommitLog.open().add(mutation, serializedMutation);
+                Future<CommitLog.CommitLogContext> future = CommitLog.instance().add(mutation, serializedMutation);
                 if (waitForCommitLog)
                 {
                     try

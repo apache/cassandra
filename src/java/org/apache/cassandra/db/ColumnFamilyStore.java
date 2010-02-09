@@ -366,7 +366,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Table.flusherLock.writeLock().lock();
         try
         {
-            final CommitLog.CommitLogContext ctx = CommitLog.open().getContext(); // this is harmless if !writeCommitLog
+            final CommitLog.CommitLogContext ctx = CommitLog.instance().getContext(); // this is harmless if !writeCommitLog
 
             if (oldMemtable.isFrozen())
             {
@@ -541,7 +541,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         if (cLogCtx.isValidContext())
         {
-            CommitLog.open().onMemtableFlush(table_, columnFamily_, cLogCtx);
+            CommitLog.instance().onMemtableFlush(table_, columnFamily_, cLogCtx);
         }
     }
 

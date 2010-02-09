@@ -77,10 +77,18 @@ import java.util.concurrent.locks.ReentrantLock;
 public class CommitLog
 {
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
-    private static volatile CommitLog instance_;
-    private static final Lock lock_ = new ReentrantLock();
     private static final Logger logger_ = Logger.getLogger(CommitLog.class);
     private static final Map<String, CommitLogHeader> clHeaders_ = new HashMap<String, CommitLogHeader>();
+
+    public static CommitLog instance()
+    {
+        return CLHandle.instance;
+    }
+
+    private static class CLHandle
+    {
+        public static final CommitLog instance = new CommitLog();
+    }
 
     public static class CommitLogContext
     {
@@ -139,27 +147,6 @@ public class CommitLog
         return new BufferedRandomAccessFile(file, "rw");
     }
 
-    public static CommitLog open() throws IOException
-    {
-        if ( instance_ == null )
-        {
-            CommitLog.lock_.lock();
-            try
-            {
-
-                if ( instance_ == null )
-                {
-                    instance_ = new CommitLog();
-                }
-            }
-            finally
-            {
-                CommitLog.lock_.unlock();
-            }
-        }
-        return instance_;
-    }
-
     /* Current commit log file */
     private String logFile_;
     /* header for current commit log */
@@ -183,11 +170,18 @@ public class CommitLog
      * param @ recoverymode - is commit log being instantiated in
      *                        in recovery mode.
     */
-    private CommitLog() throws IOException
+    private CommitLog()
     {
         setNextFileName();
-        logWriter_ = CommitLog.createWriter(logFile_);
-        writeCommitLogHeader();
+        try
+        {
+            logWriter_ = CommitLog.createWriter(logFile_);
+            writeCommitLogHeader();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
 
         if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
         {
@@ -222,19 +216,6 @@ public class CommitLog
                 }
             }, "PERIODIC-COMMIT-LOG-SYNCER").start();
         }
-    }
-
-    /*
-     * This ctor is currently used only for debugging. We
-     * are now using it to modify the header so that recovery
-     * can be tested in as many scenarios as we could imagine.
-     *
-     * param @ logFile - logfile which we wish to modify.
-    */
-    CommitLog(File logFile) throws IOException
-    {
-        logFile_ = logFile.getAbsolutePath();
-        logWriter_ = CommitLog.createWriter(logFile_);
     }
 
     String getLogFile()

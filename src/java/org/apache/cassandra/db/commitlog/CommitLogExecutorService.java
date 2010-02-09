@@ -126,7 +126,7 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
         // now sync and set the tasks' values (which allows thread calling get() to proceed)
         try
         {
-            CommitLog.open().sync();
+            CommitLog.instance().sync();
         }
         catch (IOException e)
         {
