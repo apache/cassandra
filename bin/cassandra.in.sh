@@ -43,7 +43,6 @@ JVM_OPTS=" \
         -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n \
         -Xms128M \
         -Xmx1G \
-        -XX:SurvivorRatio=8 \
         -XX:TargetSurvivorRatio=90 \
         -XX:+AggressiveOpts \
         -XX:+UseParNewGC \
