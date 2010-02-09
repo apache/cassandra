@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 
-public abstract class AbstractBounds
+public abstract class AbstractBounds implements Serializable
 {
     private static AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
 
