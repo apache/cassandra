@@ -67,7 +67,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 {
     private static Logger logger_ = Logger.getLogger(StorageService.class);     
 
-    public static final long RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
+    public static final int RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
     public final static String MOVE_STATE = "MOVE";
 
@@ -313,7 +313,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
-            logger_.info("Starting in bootstrap mode (first, sleeping to get load information)");
+            logger_.info("Starting in bootstrap mode");
             StorageLoadBalancer.instance.waitForLoadInfo();
             logger_.info("... got load info");
             if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
@@ -1271,6 +1271,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
         }
 
+        // leave the ring
         logger_.info("DECOMMISSIONING");
         startLeaving();
         logger_.info("decommission sleeping " + RING_DELAY);
@@ -1362,7 +1363,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         onFinish.run();
     }
 
-    public void move(String newToken) throws InterruptedException
+    public void move(String newToken) throws IOException, InterruptedException
     {
         move(partitioner_.getTokenFactory().fromString(newToken));
     }
@@ -1377,14 +1378,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      *
      * @param token new token to boot to, or if null, find balanced token to boot to
      */
-    private void move(final Token token) throws InterruptedException
+    private void move(final Token token) throws IOException, InterruptedException
     {
         for (String table : DatabaseDescriptor.getTables())
         {
             if (tokenMetadata_.getPendingRanges(table, FBUtilities.getLocalAddress()).size() > 0)
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
         }
+        if (token != null && tokenMetadata_.sortedTokens().contains(token))
+            throw new IOException("target token " + token + " is already owned by another node");
 
+        // leave the ring
         logger_.info("starting move. leaving token " + getLocalToken());
         startLeaving();
         logger_.info("move sleeping " + RING_DELAY);
@@ -1395,8 +1399,11 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             public void runMayThrow() throws IOException
             {
                 Token bootstrapToken = token;
-                if (bootstrapToken == null)
-                    bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
+		if (bootstrapToken == null)
+		{
+		    StorageLoadBalancer.instance.waitForLoadInfo();
+		    bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
+		}
                 logger_.info("re-bootstrapping to new token " + bootstrapToken);
                 startBootstrap(bootstrapToken);
             }
