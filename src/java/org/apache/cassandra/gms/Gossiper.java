@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 
 import java.io.*;
 import java.util.*;
+import java.util.Map.Entry;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.StageManager;
@@ -186,10 +187,9 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         versions.add( epState.getHeartBeatState().getHeartBeatVersion() );
         Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
 
-        Set<String> keys = appStateMap.keySet();
-        for ( String key : keys )
+        for (ApplicationState value : appStateMap.values())
         {
-            int stateVersion = appStateMap.get(key).getStateVersion();
+            int stateVersion = value.getStateVersion();
             versions.add( stateVersion );
         }
 
@@ -454,16 +454,16 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             }
             Map<String, ApplicationState> appStateMap = epState.getApplicationStateMap();
             /* Accumulate all application states whose versions are greater than "version" variable */
-            Set<String> keys = appStateMap.keySet();
-            for ( String key : keys )
+            for (Entry<String, ApplicationState> entry : appStateMap.entrySet())
             {
-                ApplicationState appState = appStateMap.get(key);
+                ApplicationState appState = entry.getValue();
                 if ( appState.getStateVersion() > version )
                 {
                     if ( reqdEndPointState == null )
                     {
                         reqdEndPointState = new EndPointState(epState.getHeartBeatState());
                     }
+                    final String key = entry.getKey();
                     if (logger_.isTraceEnabled())
                         logger_.trace("Adding state " + key + ": " + appState.getValue());
                     reqdEndPointState.addApplicationState(key, appState);
@@ -525,10 +525,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     void notifyFailureDetector(Map<InetAddress, EndPointState> remoteEpStateMap)
     {
         IFailureDetector fd = FailureDetector.instance;
-        Set<InetAddress> endpoints = remoteEpStateMap.keySet();
-        for ( InetAddress endpoint : endpoints )
+        for (Entry<InetAddress, EndPointState> entry : remoteEpStateMap.entrySet())
         {
-            EndPointState remoteEndPointState = remoteEpStateMap.get(endpoint);
+            InetAddress endpoint = entry.getKey();
+            EndPointState remoteEndPointState = entry.getValue();
             EndPointState localEndPointState = endPointStateMap_.get(endpoint);
             /*
              * If the local endpoint state exists then report to the FD only
@@ -604,14 +604,14 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     synchronized void applyStateLocally(Map<InetAddress, EndPointState> epStateMap)
     {
-        Set<InetAddress> eps = epStateMap.keySet();
-        for( InetAddress ep : eps )
+        for (Entry<InetAddress, EndPointState> entry : epStateMap.entrySet())
         {
+            InetAddress ep = entry.getKey();
             if ( ep.equals( localEndPoint_ ) )
                 continue;
 
             EndPointState localEpStatePtr = endPointStateMap_.get(ep);
-            EndPointState remoteState = epStateMap.get(ep);
+            EndPointState remoteState = entry.getValue();
             /*
                 If state does not exist just add it. If it does then add it only if the version
                 of the remote copy is greater than the local copy.

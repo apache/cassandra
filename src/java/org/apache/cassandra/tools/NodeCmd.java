@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Map.Entry;
 
 import org.apache.cassandra.cache.JMXAggregatingCacheMBean;
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
@@ -199,9 +200,10 @@ public class NodeCmd {
         }
 
         // print out the table statistics
-        for (String tableName : cfstoreMap.keySet())
+        for (Entry<String, List<ColumnFamilyStoreMBean>> entry : cfstoreMap.entrySet())
         {
-            List<ColumnFamilyStoreMBean> columnFamilies = cfstoreMap.get(tableName);
+            String tableName = entry.getKey();
+            List<ColumnFamilyStoreMBean> columnFamilies = entry.getValue();
             int tableReadCount = 0;
             int tableWriteCount = 0;
             int tablePendingTasks = 0;

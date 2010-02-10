@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import javax.management.*;
@@ -450,9 +451,10 @@ public class CompactionManager implements CompactionManagerMBean
             // look for a bucket containing similar-sized files:
             // group in the same bucket if it's w/in 50% of the average for this bucket,
             // or this file and the bucket are all considered "small" (less than `min`)
-            for (List<SSTableReader> bucket : buckets.keySet())
+            for (Entry<List<SSTableReader>, Long> entry : buckets.entrySet())
             {
-                long averageSize = buckets.get(bucket);
+                List<SSTableReader> bucket = entry.getKey();
+                long averageSize = entry.getValue();
                 if ((size > averageSize / 2 && size < 3 * averageSize / 2)
                     || (size < min && averageSize < min))
                 {

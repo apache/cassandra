@@ -22,6 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.Map.Entry;
 
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.CompactEndPointSerializationHelper;
@@ -112,17 +113,17 @@ class GossipDigestSerializationHelper
 class EndPointStatesSerializationHelper
 {
     private static final Logger logger_ = Logger.getLogger(EndPointStatesSerializationHelper.class);
-    
+
     static boolean serialize(Map<InetAddress, EndPointState> epStateMap, DataOutputStream dos) throws IOException
     {
         boolean bVal = true;
         int estimate = 0;                
         int size = epStateMap.size();
         dos.writeInt(size);
-    
-        Set<InetAddress> eps = epStateMap.keySet();
-        for( InetAddress ep : eps )
+
+        for (Entry<InetAddress, EndPointState> entry : epStateMap.entrySet())
         {
+            InetAddress ep = entry.getKey();
             if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
             {
                 logger_.info("@@@@ Breaking out to respect the MTU size in EPS. Estimate is " + estimate + " @@@@");
@@ -132,8 +133,7 @@ class EndPointStatesSerializationHelper
     
             int pre = dos.size();
             CompactEndPointSerializationHelper.serialize(ep, dos);
-            EndPointState epState = epStateMap.get(ep);            
-            EndPointState.serializer().serialize(epState, dos);
+            EndPointState.serializer().serialize(entry.getValue(), dos);
             int post = dos.size();
             estimate = post - pre;
         }

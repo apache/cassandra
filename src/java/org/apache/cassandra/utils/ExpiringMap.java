@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.util.*;
+import java.util.Map.Entry;
 
 import org.apache.log4j.Logger;
 
@@ -93,10 +94,11 @@ public class ExpiringMap<K, V>
             }
 
             /* Calling the hooks on the keys that have been expunged */
-            Set<K> keys = expungedValues.keySet();
-            for (K key : keys)
+            for (Entry<K, V> entry : expungedValues.entrySet())
             {
-                V value = expungedValues.get(key);
+                K key = entry.getKey();
+                V value = entry.getValue();
+                
                 ICacheExpungeHook<K, V> hook = hooks_.remove(key);
                 if (hook != null)
                 {
