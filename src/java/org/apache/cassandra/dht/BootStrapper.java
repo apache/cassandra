@@ -65,27 +65,21 @@ public class BootStrapper
     
     public void startBootstrap() throws IOException
     {
-        new Thread(new Runnable()
+        if (logger.isDebugEnabled())
+            logger.debug("Beginning bootstrap process");
+        for (String table : DatabaseDescriptor.getNonSystemTables())
         {
-            public void run()
+            Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources(table);
+            /* Send messages to respective folks to stream data over to me */
+            for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
             {
+                InetAddress source = entry.getKey();
+                StorageService.instance.addBootstrapSource(source, table);
                 if (logger.isDebugEnabled())
-                    logger.debug("Beginning bootstrap process");
-                for (String table : DatabaseDescriptor.getNonSystemTables())
-                {
-                    Multimap<Range, InetAddress> rangesWithSourceTarget = getRangesWithSources(table);
-                    /* Send messages to respective folks to stream data over to me */
-                    for (Map.Entry<InetAddress, Collection<Range>> entry : getWorkMap(rangesWithSourceTarget).asMap().entrySet())
-                    {   
-                        InetAddress source = entry.getKey();
-                        StorageService.instance.addBootstrapSource(source, table);
-                        if (logger.isDebugEnabled())
-                            logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
-                        StreamIn.requestRanges(source, table, entry.getValue());
-                    }
-                }
+                    logger.debug("Requesting from " + source + " ranges " + StringUtils.join(entry.getValue(), ", "));
+                StreamIn.requestRanges(source, table, entry.getValue());
             }
-        }, "Boostrap requester").start();
+        }
     }
 
     /**
