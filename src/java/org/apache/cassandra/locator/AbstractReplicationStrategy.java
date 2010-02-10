@@ -155,7 +155,6 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
-        assert map.size() == targets.size();
         return map;
     }
 
