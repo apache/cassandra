@@ -564,13 +564,12 @@ public class StorageProxy implements StorageProxyMBean
                 Message message = c2.getMessage();
 
                 // collect replies and resolve according to consistency level
-                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, currentRange, endpoints);
+                List<InetAddress> endpointsforCL = endpoints.subList(0, responseCount);
+                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, currentRange, endpointsforCL);
                 QuorumResponseHandler<Map<String, ColumnFamily>> handler = new QuorumResponseHandler<Map<String, ColumnFamily>>(responseCount, resolver);
 
-                Iterator<InetAddress> endpointIter = endpoints.iterator();
-                for (int i = 0; i < responseCount; i++)
+                for (InetAddress endpoint : endpointsforCL)
                 {
-                    InetAddress endpoint = endpointIter.next();
                     MessagingService.instance.sendRR(message, endpoint, handler);
                     if (logger.isDebugEnabled())
                         logger.debug("reading " + c2 + " for " + range + " from " + message.getMessageId() + "@" + endpoint);
