@@ -50,6 +50,8 @@ case "`uname`" in
     ;;
 esac
 
-$JAVA -cp $CLASSPATH org.apache.cassandra.tools.ClusterCmd $@
+$JAVA -cp $CLASSPATH \
+        -Dlog4j.configuration=log4j-tools.properties \
+        org.apache.cassandra.tools.ClusterCmd $@
 
 # vi:ai sw=4 ts=4 tw=0 et

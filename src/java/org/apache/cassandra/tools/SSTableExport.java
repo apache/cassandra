@@ -46,7 +46,6 @@ public class SSTableExport
 {
     private static int INPUT_FILE_BUFFER_SIZE = 8 * 1024 * 1024;
 
-    private static final String OUTFILE_OPTION = "f";
     private static final String KEY_OPTION = "k";
     private static final String ENUMERATEKEYS_OPTION = "e";
     private static Options options;
@@ -55,19 +54,13 @@ public class SSTableExport
     static
     {
         options = new Options();
-        Option optOutfile = new Option(OUTFILE_OPTION, true, "output file");
-        optOutfile.setRequired(false);
-        options.addOption(optOutfile);
-        
+
         Option optKey = new Option(KEY_OPTION, true, "Row key");
         // Number of times -k <key> can be passed on the command line.
         optKey.setArgs(500);
-        optKey.setRequired(false);
         options.addOption(optKey);
 
-        options = new Options();
         Option optEnumerate = new Option(ENUMERATEKEYS_OPTION, false, "enumerate keys only");
-        optOutfile.setRequired(false);
         options.addOption(optEnumerate);
     }
     
@@ -327,8 +320,7 @@ public class SSTableExport
      */
     public static void main(String[] args) throws IOException
     {
-        String usage = String.format("Usage: %s [-f outfile] <sstable> [-k key [-k key [...]]]%n",
-                SSTableExport.class.getName());
+        String usage = String.format("Usage: %s <sstable> [-k key [-k key [...]]]%n", SSTableExport.class.getName());
         
         CommandLineParser parser = new PosixParser();
         try
@@ -341,7 +333,6 @@ public class SSTableExport
             System.exit(1);
         }
         
-        String outFile = cmd.getOptionValue(OUTFILE_OPTION);
 
         if (cmd.getArgs().length != 1)
         {
@@ -354,27 +345,13 @@ public class SSTableExport
         String[] keys = cmd.getOptionValues(KEY_OPTION);
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
         
-        if (outFile != null)
-        {
-            if (cmd.hasOption(ENUMERATEKEYS_OPTION))
-                enumeratekeys(ssTableFileName, outFile);
-            else {
-                if ((keys != null) && (keys.length > 0))
-                    export(ssTableFileName, outFile, keys);
-                else
-                    export(ssTableFileName, outFile);
-            }
-        }
-        else
-        {
-            if (cmd.hasOption(ENUMERATEKEYS_OPTION))
-                enumeratekeys(ssTableFileName, System.out);
-            else {
-                if ((keys != null) && (keys.length > 0))
-                    export(ssTableFileName, System.out, keys);
-                else
-                    export(ssTableFileName);
-            }
+        if (cmd.hasOption(ENUMERATEKEYS_OPTION))
+            enumeratekeys(ssTableFileName, System.out);
+        else {
+            if ((keys != null) && (keys.length > 0))
+                export(ssTableFileName, System.out, keys);
+            else
+                export(ssTableFileName);
         }
         System.exit(0);
     }
