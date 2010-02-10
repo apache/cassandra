@@ -40,6 +40,7 @@ public class IncomingStreamReader
         this.socketChannel = socketChannel;
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
         pendingFile = StreamInManager.getStreamContext(remoteAddress.getAddress());
+        StreamInManager.activeStreams.put(remoteAddress.getAddress(), pendingFile);
         assert pendingFile != null;
         streamStatus = StreamInManager.getStreamStatus(remoteAddress.getAddress());
         assert streamStatus != null;
@@ -56,8 +57,10 @@ public class IncomingStreamReader
         long bytesRead = 0;
         try
         {
-            while (bytesRead < pendingFile.getExpectedBytes())
+            while (bytesRead < pendingFile.getExpectedBytes()) {
                 bytesRead += fc.transferFrom(socketChannel, bytesRead, FileStreamTask.CHUNK_SIZE);
+                pendingFile.update(bytesRead);
+            }
         }
         catch (IOException ex)
         {
@@ -68,6 +71,10 @@ public class IncomingStreamReader
             File file = new File(pendingFile.getTargetFile());
             file.delete();
             throw ex;
+        }
+        finally
+        {
+            StreamInManager.activeStreams.remove(remoteAddress.getAddress(), pendingFile);
         }
 
         if (bytesRead == pendingFile.getExpectedBytes())

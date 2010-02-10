@@ -21,14 +21,26 @@ class PendingFile
     }
 
     private String targetFile_;
-    private long expectedBytes_;
-    private String table_;
+    private final long expectedBytes_;
+    private final String table_;
+    private long ptr_;
 
     public PendingFile(String targetFile, long expectedBytes, String table)
     {
         targetFile_ = targetFile;
         expectedBytes_ = expectedBytes;
         table_ = table;
+        ptr_ = 0;
+    }
+
+    public void update(long ptr)
+    {
+        ptr_ = ptr;
+    }
+
+    public long getPtr()
+    {
+        return ptr_;
     }
 
     public String getTable()
@@ -57,7 +69,7 @@ class PendingFile
             return false;
 
         PendingFile rhs = (PendingFile)o;
-        return targetFile_.equals(rhs.targetFile_);
+        return targetFile_.hashCode() == rhs.hashCode();
     }
 
     public int hashCode()

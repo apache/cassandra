@@ -47,6 +47,8 @@ import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.db.CompactionManagerMBean;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.streaming.StreamingService;
+import org.apache.cassandra.streaming.StreamingServiceMBean;
 
 /**
  * JMX client operations for Cassandra.
@@ -64,6 +66,7 @@ public class NodeProbe
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
     private CompactionManagerMBean mcmProxy;
+    private StreamingServiceMBean streamProxy;
     
     /**
      * Creates a NodeProbe using the specified JMX host and port.
@@ -109,6 +112,8 @@ public class NodeProbe
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
             name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
             mcmProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
+            name = new ObjectName(StreamingService.MBEAN_OBJECT_NAME);
+            streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamingServiceMBean.class);
         } catch (MalformedObjectNameException e)
         {
             throw new RuntimeException(
@@ -399,6 +404,31 @@ public class NodeProbe
     public List<InetAddress> getEndPoints(String key, String table)
     {
         return ssProxy.getNaturalEndpoints(key, table);
+    }
+
+    public Set<InetAddress> getStreamDestinations()
+    {
+        return streamProxy.getStreamDestinations();
+    }
+
+    public List<String> getFilesDestinedFor(InetAddress host) throws IOException
+    {
+        return streamProxy.getOutgoingFiles(host.getHostAddress());
+    }
+
+    public Set<InetAddress> getStreamSources()
+    {
+        return streamProxy.getStreamSources();
+    }
+
+    public List<String> getIncomingFiles(InetAddress host) throws IOException
+    {
+        return streamProxy.getIncomingFiles(host.getHostAddress());
+    }
+
+    public String getOperationMode()
+    {
+        return ssProxy.getOperationMode();
     }
 }
 

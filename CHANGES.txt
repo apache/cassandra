@@ -23,6 +23,8 @@ dev
  * track latency in microseconds (CASSANDRA-733)
  * add describe_ Thrift methods, deprecating get_string_property and 
    get_string_list_property
+ * jmx interface for tracking operation mode and streams in general.
+   (CASSANDRA-709)
 
 
 0.5.1

@@ -145,6 +145,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     /* when intialized as a client, we shouldn't write to the system table. */
     private boolean isClientMode;
     private boolean initialized;
+    private String operationMode;
 
     public void addBootstrapSource(InetAddress s, String table)
     {
@@ -175,6 +176,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         setToken(getLocalToken());
         Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(getLocalToken())));
         logger_.info("Bootstrap/move completed! Now serving reads.");
+        setMode("Normal", false);
     }
 
     /** This method updates the local token on disk  */
@@ -228,6 +230,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             replicationStrategies.put(table, strat);
         }
         replicationStrategies = Collections.unmodifiableMap(replicationStrategies);
+
+        // spin up the streaming serivice so it is available for jmx tools.
+        if (StreamingService.instance == null)
+            throw new RuntimeException("Streaming service is unavailable.");
     }
 
     public AbstractReplicationStrategy getReplicationStrategy(String table)
@@ -279,6 +285,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
         Gossiper.instance.register(this);
         Gossiper.instance.start(FBUtilities.getLocalAddress(), (int)(System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+        setMode("Client", false);
     }
 
     public synchronized void initServer() throws IOException
@@ -313,14 +320,16 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (DatabaseDescriptor.isAutoBootstrap()
             && !(DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()) || SystemTable.isBootstrapped()))
         {
-            logger_.info("Starting in bootstrap mode");
+            setMode("Joining: getting load information", true);
             StorageLoadBalancer.instance.waitForLoadInfo();
-            logger_.info("... got load info");
+            if (logger_.isDebugEnabled())
+                logger_.debug("... got load info");
             if (tokenMetadata_.isMember(FBUtilities.getLocalAddress()))
             {
                 String s = "This node is already a member of the token ring; bootstrap aborted. (If replacing a dead node, remove the old one from the ring first.)";
                 throw new UnsupportedOperationException(s);
             }
+            setMode("Joining: getting bootstrap token", true);
             Token token = BootStrapper.getBootstrapToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
             startBootstrap(token);
             // don't finish startup (enabling thrift) until after bootstrap is done
@@ -342,9 +351,17 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             Token token = storageMetadata_.getToken();
             tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
             Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_NORMAL + Delimiter + partitioner_.getTokenFactory().toString(token)));
+            setMode("Normal", false);
         }
 
         assert tokenMetadata_.sortedTokens().size() > 0;
+    }
+
+    private void setMode(String m, boolean log)
+    {
+        operationMode = m;
+        if (log)
+            logger_.info(m);
     }
 
     private void startBootstrap(Token token) throws IOException
@@ -352,7 +369,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isBootstrapMode = true;
         SystemTable.updateToken(token); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
         Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_BOOTSTRAPPING + Delimiter + partitioner_.getTokenFactory().toString(token)));
-        logger_.info("bootstrap sleeping " + RING_DELAY);
+        setMode("Joining: sleeping " + RING_DELAY + " for pending range setup", true);
         try
         {
             Thread.sleep(RING_DELAY);
@@ -361,6 +378,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         {
             throw new AssertionError(e);
         }
+        setMode("Bootstrapping", true);
         new BootStrapper(FBUtilities.getLocalAddress(), token, tokenMetadata_).startBootstrap(); // handles token update
     }
 
@@ -1271,10 +1289,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
         }
 
-        // leave the ring
-        logger_.info("DECOMMISSIONING");
+        if (logger_.isDebugEnabled())
+            logger_.debug("DECOMMISSIONING");
         startLeaving();
-        logger_.info("decommission sleeping " + RING_DELAY);
+        setMode("Leaving: sleeping " + RING_DELAY + " for pending range setup", true);
         Thread.sleep(RING_DELAY);
 
         Runnable finishLeaving = new Runnable()
@@ -1283,7 +1301,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             {
                 Gossiper.instance.stop();
                 MessagingService.shutdown();
-                logger_.info("DECOMMISSION FINISHED.");
+                setMode("Decommissioned", true);
                 // let op be responsible for killing the process
             }
         };
@@ -1296,8 +1314,6 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         tokenMetadata_.removeEndpoint(FBUtilities.getLocalAddress());
         calculatePendingRanges();
 
-        if (logger_.isDebugEnabled())
-            logger_.debug("");
         Gossiper.instance.addLocalApplicationState(MOVE_STATE, new ApplicationState(STATE_LEFT + Delimiter + LEFT_NORMALLY + Delimiter + getLocalToken().toString()));
         try
         {
@@ -1323,6 +1339,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 continue;
             }
 
+            setMode("Leaving: streaming data to other nodes", true);
             final Set<Map.Entry<Range, InetAddress>> pending = Collections.synchronizedSet(new HashSet<Map.Entry<Range, InetAddress>>(rangesMM.entries()));
             for (final Map.Entry<Range, InetAddress> entry : rangesMM.entries())
             {
@@ -1388,10 +1405,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (token != null && tokenMetadata_.sortedTokens().contains(token))
             throw new IOException("target token " + token + " is already owned by another node");
 
-        // leave the ring
-        logger_.info("starting move. leaving token " + getLocalToken());
+        if (logger_.isDebugEnabled())
+            logger_.debug("Leaving: old token was " + getLocalToken());
         startLeaving();
-        logger_.info("move sleeping " + RING_DELAY);
+         setMode("Leaving: sleeping " + RING_DELAY + " for pending range setup", true);
         Thread.sleep(RING_DELAY);
 
         Runnable finishMoving = new WrappedRunnable()
@@ -1479,6 +1496,11 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                 return true;
         }
         return false;
+    }
+
+    public String getOperationMode()
+    {
+        return operationMode;
     }
 
     // Never ever do this at home. Used by tests.

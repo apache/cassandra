@@ -21,7 +21,12 @@ package org.apache.cassandra.streaming;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -37,7 +42,7 @@ import org.apache.log4j.Logger;
 /**
  * This class manages the streaming of multiple files one after the other.
 */
-class StreamOutManager
+public class StreamOutManager
 {   
     private static Logger logger = Logger.getLogger( StreamOutManager.class );
         
@@ -54,8 +59,17 @@ class StreamOutManager
         }
         return manager;
     }
+
+    public static Set<InetAddress> getDestinations()
+    {
+        // the results of streamManagers.keySet() isn't serializable, so create a new set.
+        return new HashSet(streamManagers.keySet());
+    }
+
+    // we need sequential and random access to the files. hence, the map and the list.
+    private final List<PendingFile> files = new ArrayList<PendingFile>();
+    private final Map<String, PendingFile> fileMap = new HashMap<String, PendingFile>();
     
-    private final List<File> files = new ArrayList<File>();
     private final InetAddress to;
     private long totalBytes = 0L;
     private final SimpleCondition condition = new SimpleCondition();
@@ -71,16 +85,24 @@ class StreamOutManager
         {
             if (logger.isDebugEnabled())
               logger.debug("Adding file " + pendingFile.getTargetFile() + " to be streamed.");
-            files.add( new File( pendingFile.getTargetFile() ) );
+            files.add(pendingFile);
+            fileMap.put(pendingFile.getTargetFile(), pendingFile);
             totalBytes += pendingFile.getExpectedBytes();
         }
+    }
+
+    public void update(String path, long pos)
+    {
+        PendingFile pf = fileMap.get(path);
+        if (pf != null)
+            pf.update(pos);
     }
     
     public void startNext()
     {
         if (files.size() > 0)
         {
-            File file = files.get(0);
+            File file = new File(files.get(0).getTargetFile());
             if (logger.isDebugEnabled())
               logger.debug("Streaming " + file.length() + " length file " + file + " ...");
             MessagingService.instance.stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to);
@@ -93,7 +115,9 @@ class StreamOutManager
         if (logger.isDebugEnabled())
           logger.debug("Deleting file " + file + " after streaming " + f.length() + "/" + totalBytes + " bytes.");
         FileUtils.delete(file);
-        files.remove(0);
+        PendingFile pf = files.remove(0);
+        if (pf != null)
+            fileMap.remove(pf.getTargetFile());
         if (files.size() > 0)
         {
             startNext();
@@ -115,6 +139,31 @@ class StreamOutManager
         catch (InterruptedException e)
         {
             throw new AssertionError(e);
+        }
+    }
+
+    List<PendingFile> getFiles()
+    {
+        return Collections.unmodifiableList(files);
+    }
+
+    public class StreamFile extends File
+    {
+        private long ptr = 0;
+        public StreamFile(String path)
+        {
+            super(path);
+            ptr = 0;
+        }
+
+        private void update(long ptr)
+        {
+            this.ptr = ptr;
+        }
+
+        public long getPtr()
+        {
+            return ptr;
         }
     }
 }

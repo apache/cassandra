@@ -3,9 +3,11 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.MemoryUsage;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import org.apache.cassandra.db.CompactionManager;
 import org.apache.cassandra.dht.Range;
 
 import org.apache.commons.cli.*;
+import org.apache.commons.lang.StringUtils;
 
 public class NodeCmd {
     private static final String HOST_OPT_LONG = "host";
@@ -55,7 +58,8 @@ public class NodeCmd {
                 "%nAvailable commands: ring, info, cleanup, compact, cfstats, snapshot [snapshotname], clearsnapshot, " +
                 "tpstats, flush, repair, decommission, move, loadbalance, removetoken, " +
                 "setcachecapacity <keyspace> <cfname> <keycachecapacity> <rowcachecapacity>, " +
-                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])");
+                "getcompactionthreshold, setcompactionthreshold [minthreshold] ([maxthreshold])" +
+                "streams [host]");
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
         hf.printHelp(usage, "", options, header);
     }
@@ -172,6 +176,60 @@ public class NodeCmd {
         double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double)heapUsage.getMax() / (1024 * 1024);
         outs.println(String.format("%-17s: %.2f / %.2f", "Heap Memory (MB)", memUsed, memMax));
+    }
+
+    public void printStreamInfo(final InetAddress addr, PrintStream outs)
+    {
+        outs.println(String.format("Mode: %s", probe.getOperationMode()));
+        Set<InetAddress> hosts = addr == null ? probe.getStreamDestinations() : new HashSet<InetAddress>(){{add(addr);}};
+        if (hosts.size() == 0)
+            outs.println("Not sending any streams.");
+        for (InetAddress host : hosts)
+        {
+            try
+            {
+                List<String> files = probe.getFilesDestinedFor(host);
+                if (files.size() > 0)
+                {
+                    outs.println(String.format("Streaming to: %s", host));
+                    for (String file : files)
+                        outs.println(String.format("   %s", file));
+                }
+                else
+                {
+                    outs.println(String.format(" Nothing streaming to %s", host));
+                }
+            }
+            catch (IOException ex)
+            {
+                outs.println(String.format("   Error retrieving file data for %s", host));
+            }
+        }
+
+        hosts = addr == null ? probe.getStreamSources() : new HashSet<InetAddress>(){{add(addr); }};
+        if (hosts.size() == 0)
+            outs.println("Not receiving any streams.");
+        for (InetAddress host : hosts)
+        {
+            try
+            {
+                List<String> files = probe.getIncomingFiles(host);
+                if (files.size() > 0)
+                {
+                    outs.println(String.format("Streaming from: %s", host));
+                    for (String file : files)
+                        outs.println(String.format("   %s", file));
+                }
+                else
+                {
+                    outs.println(String.format(" Nothing streaming from %s", host));
+                }
+            }
+            catch (IOException ex)
+            {
+                outs.println(String.format("   Error retrieving file data for %s", host));
+            }
+        }
     }
     
     public void printColumnFamilyStats(PrintStream outs)
@@ -465,6 +523,11 @@ public class NodeCmd {
                 System.exit(1);
             }
             probe.setCompactionThreshold(minthreshold, maxthreshold);
+        }
+        else if (cmdName.equals("streams"))
+        {
+            String otherHost = arguments.length > 1 ? arguments[1] : null;
+            nodeCmd.printStreamInfo(otherHost == null ? null : InetAddress.getByName(otherHost), System.out);
         }
         else
         {

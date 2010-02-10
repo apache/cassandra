@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
+import org.apache.cassandra.streaming.StreamOutManager;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
 
@@ -95,6 +96,7 @@ public class FileStreamTask extends WrappedRunnable
                 if (logger.isDebugEnabled())
                     logger.debug("Bytes transferred " + bytesTransferred);
                 start += bytesTransferred;
+                StreamOutManager.get(to).update(file, start);
             }
         }
         finally

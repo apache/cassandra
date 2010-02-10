@@ -21,6 +21,9 @@ package org.apache.cassandra.streaming;
 import java.util.*;
 import java.net.InetAddress;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import org.apache.cassandra.streaming.IStreamComplete;
 
 import org.apache.log4j.Logger;
@@ -35,7 +38,9 @@ class StreamInManager
     public static final Map<InetAddress, List<CompletedFileStatus>> streamStatusBag_ = new Hashtable<InetAddress, List<CompletedFileStatus>>();
     /* Maintains a callback handler per endpoint to notify the app that a stream from a given endpoint has been handled */
     public static final Map<InetAddress, IStreamComplete> streamNotificationHandlers_ = new HashMap<InetAddress, IStreamComplete>();
-    
+
+    public static final Multimap<InetAddress, PendingFile> activeStreams = Multimaps.synchronizedMultimap(HashMultimap.<InetAddress, PendingFile>create());
+
     public synchronized static PendingFile getStreamContext(InetAddress key)
     {        
         List<PendingFile> context = ctxBag_.get(key);
@@ -57,7 +62,27 @@ class StreamInManager
             streamStatusBag_.remove(key);
         return streamStatus;
     }
-    
+
+    /** query method to determine which hosts are streaming to this node. */
+    public static Set<InetAddress> getSources()
+    {
+        HashSet<InetAddress> set = new HashSet<InetAddress>();
+        set.addAll(ctxBag_.keySet());
+        set.addAll(activeStreams.keySet());
+        return set;
+    }
+
+    /** query the status of incoming files. */
+    public static List<PendingFile> getIncomingFiles(InetAddress host)
+    {
+        // avoid returning null.
+        List<PendingFile> list = new ArrayList<PendingFile>();
+        if (ctxBag_.containsKey(host))
+            list.addAll(ctxBag_.get(host));
+        list.addAll(activeStreams.get(host));
+        return list;
+    }
+
     /*
      * This method helps determine if the StreamCompletionHandler needs
      * to be invoked for the data being streamed from a source. 
@@ -101,5 +126,5 @@ class StreamInManager
             streamStatusBag_.put(key, status);
         }
         status.add( streamStatus );
-    }        
+    }
 }

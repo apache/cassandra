@@ -139,6 +139,7 @@ public class StreamOut
         {
             logger.info("Waiting for transfer to " + target + " to complete");
             StreamOutManager.get(target).waitForStreamCompletion();
+            // todo: it would be good if there were a dafe way to remove the StreamManager for target.
             // (StreamManager will delete the streamed file on completion.)
             logger.info("Done with transfer to " + target);
         }
