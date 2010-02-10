@@ -29,6 +29,7 @@ dev
  * ensure all files for an sstable are streamed to the same directory.
    (CASSANDRA-716)
  * more accurate load estimate for bootstrapping (CASSANDRA-762)
+ * tolerate dead or unavailable bootstrap target on write (CASSANDRA-731)
 
 
 0.5.0 final
