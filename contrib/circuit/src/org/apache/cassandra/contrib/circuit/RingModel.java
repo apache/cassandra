@@ -117,7 +117,7 @@ public class RingModel
             else
                 status = NodeStatus.OK;
             
-            String token = r.left().toString();
+            String token = r.left.toString();
             nodes.add(new Node(host, status, token));
         }
         
