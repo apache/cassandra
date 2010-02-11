@@ -40,6 +40,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
@@ -366,14 +367,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Table.flusherLock.writeLock().lock();
         try
         {
-            final CommitLog.CommitLogContext ctx = CommitLog.instance().getContext(); // this is harmless if !writeCommitLog
-
             if (oldMemtable.isFrozen())
             {
                 return null;
             }
-            logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable");
             oldMemtable.freeze();
+
+            final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance().getContext() : null;
+            logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable at " + ctx);
             final Condition condition = submitFlush(oldMemtable);
             memtable_ = new Memtable(table_, columnFamily_);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
@@ -387,7 +388,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     {
                         // if we're not writing to the commit log, we are replaying the log, so marking
                         // the log header with "you can discard anything written before the context" is not valid
-                        onMemtableFlush(ctx);
+                        CommitLog.instance().discardCompletedSegments(table_, columnFamily_, ctx);
                     }
                 }
             });
@@ -529,19 +530,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 cf.remove(c.name());
             }
-        }
-    }
-
-    /*
-     * This method is called when the Memtable is frozen and ready to be flushed
-     * to disk. This method informs the CommitLog that a particular ColumnFamily
-     * is being flushed to disk.
-     */
-    void onMemtableFlush(CommitLog.CommitLogContext cLogCtx) throws IOException
-    {
-        if (cLogCtx.isValidContext())
-        {
-            CommitLog.instance().onMemtableFlush(table_, columnFamily_, cLogCtx);
         }
     }
 

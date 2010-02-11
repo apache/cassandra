@@ -23,9 +23,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.DeletionService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -68,15 +66,12 @@ import java.util.concurrent.Future;
  * inherited the old's dirty bitflags, getting a zero for any given bit in the anding
  * means that either the CF was clean in the old CL or it has been flushed since the
  * switch in the new.)
- *
- * The CommitLog class itself is "mostly a singleton."  open() always returns one
- * instance, but log replay will bypass that.
  */
 public class CommitLog
 {
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
+
     private static final Logger logger = Logger.getLogger(CommitLog.class);
-    private static final Map<String, CommitLogHeader> clHeaders = new HashMap<String, CommitLogHeader>();
 
     public static CommitLog instance()
     {
@@ -88,81 +83,21 @@ public class CommitLog
         public static final CommitLog instance = new CommitLog();
     }
 
-    public static class CommitLogContext
-    {
-        /* Commit Log associated with this operation */
-        public final String file;
-        /* Offset within the Commit Log where this row as added */
-        public final long position;
-
-        public CommitLogContext(String file, long position)
-        {
-            this.file = file;
-            this.position = position;
-        }
-
-        public boolean isValidContext()
-        {
-            return (position != -1L);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "CommitLogContext(" +
-                   "file='" + file + '\'' +
-                   ", position=" + position +
-                   ')';
-        }
-    }
-
-    public static class CommitLogFileComparator implements Comparator<String>
-    {
-        public int compare(String f, String f2)
-        {
-            return (int)(getCreationTime(f) - getCreationTime(f2));
-        }
-    }
+    private final Deque<CommitLogSegment> segments = new ArrayDeque<CommitLogSegment>();
 
     public static void setSegmentSize(int size)
     {
         SEGMENT_SIZE = size;
     }
 
-    public static int getSegmentCount()
+    public int getSegmentCount()
     {
-        return clHeaders.size();
+        return segments.size();
     }
 
-    static long getCreationTime(String file)
-    {
-        String[] entries = FBUtilities.strip(file, "-.");
-        return Long.parseLong(entries[entries.length - 2]);
-    }
-
-    private static BufferedRandomAccessFile createWriter(String file) throws IOException
-    {        
-        return new BufferedRandomAccessFile(file, "rw");
-    }
-
-    /* Current commit log file */
-    private String logFile;
-    /* header for current commit log */
-    private CommitLogHeader clHeader;
-    private BufferedRandomAccessFile logWriter;
     private final ExecutorService executor = new CommitLogExecutorService();
 
-    /*
-     * Generates a file name of the format CommitLog-<table>-<timestamp>.log in the
-     * directory specified by the Database Descriptor.
-    */
-    private void setNextFileName()
-    {
-        logFile = DatabaseDescriptor.getLogFileLocation() + File.separator +
-                   "CommitLog-" + System.currentTimeMillis() + ".log";
-    }
-
-    /*
+    /**
      * param @ table - name of table for which we are maintaining
      *                 this commit log.
      * param @ recoverymode - is commit log being instantiated in
@@ -170,17 +105,11 @@ public class CommitLog
     */
     private CommitLog()
     {
-        setNextFileName();
-        try
-        {
-            logWriter = CommitLog.createWriter(logFile);
-            writeCommitLogHeader();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
-
+        // all old segments are recovered and deleted before CommitLog is instantiated.
+        // All we need to do is create a new one.
+        int cfSize = Table.TableMetadata.getColumnFamilyCount();
+        segments.add(new CommitLogSegment(cfSize));
+        
         if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
         {
             final Runnable syncer = new WrappedRunnable()
@@ -216,50 +145,7 @@ public class CommitLog
         }
     }
 
-    String getLogFile()
-    {
-        return logFile;
-    }
-    
-    private CommitLogHeader readCommitLogHeader(BufferedRandomAccessFile logReader) throws IOException
-    {
-        int size = (int)logReader.readLong();
-        byte[] bytes = new byte[size];
-        logReader.read(bytes);
-        ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
-        return CommitLogHeader.serializer().deserialize(new DataInputStream(byteStream));
-    }
-
-    /*
-     * This is invoked on startup via the ctor. It basically
-     * writes a header with all bits set to zero.
-    */
-    private void writeCommitLogHeader() throws IOException
-    {
-        int cfSize = Table.TableMetadata.getColumnFamilyCount();
-        clHeader = new CommitLogHeader(cfSize);
-        writeCommitLogHeader(logWriter, clHeader.toByteArray());
-    }
-
-    /** writes header at the beginning of the file, then seeks back to current position */
-    private void seekAndWriteCommitLogHeader(byte[] bytes) throws IOException
-    {
-        long currentPos = logWriter.getFilePointer();
-        logWriter.seek(0);
-
-        writeCommitLogHeader(logWriter, bytes);
-
-        logWriter.seek(currentPos);
-    }
-
-    private static void writeCommitLogHeader(BufferedRandomAccessFile logWriter, byte[] bytes) throws IOException
-    {
-        logWriter.writeLong(bytes.length);
-        logWriter.write(bytes);
-        logWriter.sync();
-    }
-
-    public void recover(File[] clogs) throws IOException
+    public static void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
         assert StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTaskCount() == 0;
@@ -268,7 +154,7 @@ public class CommitLog
         {
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
-            final CommitLogHeader clHeader = readCommitLogHeader(reader);
+            final CommitLogHeader clHeader = CommitLogHeader.readCommitLogHeader(reader);
             /* seek to the lowest position where any CF has non-flushed data */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
             if (lowPos == 0)
@@ -357,13 +243,13 @@ public class CommitLog
             }
         }
 
-        // flush replayed tables, allowing commitlog segments to be removed
+        // flush replayed tables
         List<Future<?>> futures = new ArrayList<Future<?>>();
         for (Table table : tablesRecovered)
         {
             futures.addAll(table.flush());
         }
-        // wait for flushes to finish before continuing with startup
+        // wait for flushes to finish
         for (Future<?> future : futures)
         {
             try
@@ -377,31 +263,18 @@ public class CommitLog
         }
     }
 
-    /*
-     * Update the header of the commit log if a new column family
-     * is encountered for the first time.
-    */
-    private void maybeUpdateHeader(RowMutation rm) throws IOException
+    private CommitLogSegment currentSegment()
     {
-        Table table = Table.open(rm.getTable());
-        for (ColumnFamily columnFamily : rm.getColumnFamilies())
-        {
-            int id = table.getColumnFamilyId(columnFamily.name());
-            if (!clHeader.isDirty(id))
-            {
-                clHeader.turnOn(id, logWriter.getFilePointer());
-                seekAndWriteCommitLogHeader(clHeader.toByteArray());
-            }
-        }
+        return segments.getLast();
     }
     
-    public CommitLogContext getContext() throws IOException
+    public CommitLogSegment.CommitLogContext getContext() throws IOException
     {
-        Callable<CommitLogContext> task = new Callable<CommitLogContext>()
+        Callable<CommitLogSegment.CommitLogContext> task = new Callable<CommitLogSegment.CommitLogContext>()
         {
-            public CommitLogContext call() throws Exception
+            public CommitLogSegment.CommitLogContext call() throws Exception
             {
-                return new CommitLogContext(logFile, logWriter.getFilePointer());
+                return currentSegment().getContext();
             }
         };
         try
@@ -424,9 +297,9 @@ public class CommitLog
      * of any problems. This way we can assume that the subsequent commit log
      * entry will override the garbage left over by the previous write.
     */
-    public Future<CommitLogContext> add(RowMutation rowMutation, Object serializedRow) throws IOException
+    public Future<CommitLogSegment.CommitLogContext> add(RowMutation rowMutation, Object serializedRow) throws IOException
     {
-        Callable<CommitLogContext> task = new LogRecordAdder(rowMutation, serializedRow);
+        Callable<CommitLogSegment.CommitLogContext> task = new LogRecordAdder(rowMutation, serializedRow);
         return executor.submit(task);
     }
 
@@ -436,15 +309,14 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    public void onMemtableFlush(final String tableName, final String cf, final CommitLog.CommitLogContext cLogCtx) throws IOException
+    public void discardCompletedSegments(final String tableName, final String cf, final CommitLogSegment.CommitLogContext context) throws IOException
     {
         Callable task = new Callable()
         {
             public Object call() throws IOException
             {
-                Table table = Table.open(tableName);
-                int id = table.getColumnFamilyId(cf);
-                discardCompletedSegments(cLogCtx, id);
+                int id = Table.open(tableName).getColumnFamilyId(cf);
+                discardCompletedSegmentsInternal(context, id);
                 return null;
             }
         };
@@ -462,41 +334,23 @@ public class CommitLog
         }
     }
 
-    /*
-     * Delete log segments whose contents have been turned into SSTables.
+    /**
+     * Delete log segments whose contents have been turned into SSTables. NOT threadsafe.
      *
-     * param @ cLogCtx The commitLog context .
+     * param @ context The commitLog context .
      * param @ id id of the columnFamily being flushed to disk.
      *
     */
-    private void discardCompletedSegments(CommitLog.CommitLogContext cLogCtx, int id) throws IOException
+    private void discardCompletedSegmentsInternal(CommitLogSegment.CommitLogContext context, int id) throws IOException
     {
         if (logger.isDebugEnabled())
-            logger.debug("discard completed log segments for " + cLogCtx + ", column family " + id + ". CFIDs are " + Table.TableMetadata.getColumnFamilyIDString());
-        /* retrieve the commit log header associated with the file in the context */
-        if (clHeaders.get(cLogCtx.file) == null)
-        {
-            if (logFile.equals(cLogCtx.file))
-            {
-                /* this means we are dealing with the current commit log. */
-                clHeaders.put(cLogCtx.file, clHeader);
-            }
-            else
-            {
-                logger.error("Unknown commitlog file " + cLogCtx.file);
-                return;
-            }
-        }
+            logger.debug("discard completed log segments for " + context + ", column family " + id + ". CFIDs are " + Table.TableMetadata.getColumnFamilyIDString());
 
         /*
          * log replay assumes that we only have to look at entries past the last
          * flush position, so verify that this flush happens after the last.
         */
-        assert cLogCtx.position >= clHeaders.get(cLogCtx.file).getPosition(id);
-
-        /* Sort the commit logs based on creation time */
-        List<String> oldFiles = new ArrayList<String>(clHeaders.keySet());
-        Collections.sort(oldFiles, new CommitLogFileComparator());
+        assert context.position > context.getSegment().getHeader().getPosition(id) : "discard called on obsolete context " + context;
 
         /*
          * Loop through all the commit log files in the history. Now process
@@ -504,78 +358,47 @@ public class CommitLog
          * these files the header needs to modified by resetting the dirty
          * bit corresponding to the flushed CF.
         */
-        for (String oldFile : oldFiles)
+        for (CommitLogSegment segment : segments)
         {
-            CommitLogHeader header = clHeaders.get(oldFile);
-            if (oldFile.equals(cLogCtx.file))
+            CommitLogHeader header = segment.getHeader();
+            if (segment.equals(context.getSegment()))
             {
                 // we can't just mark the segment where the flush happened clean,
                 // since there may have been writes to it between when the flush
                 // started and when it finished. so mark the flush position as
                 // the replay point for this CF, instead.
                 if (logger.isDebugEnabled())
-                    logger.debug("Marking replay position " + cLogCtx.position + " on commit log " + oldFile);
-                header.turnOn(id, cLogCtx.position);
-                if (oldFile.equals(logFile))
-                {
-                    seekAndWriteCommitLogHeader(header.toByteArray());
-                }
-                else
-                {
-                    writeOldCommitLogHeader(oldFile, header);
-                }
+                    logger.debug("Marking replay position " + context.position + " on commit log " + segment);
+                header.turnOn(id, context.position);
+                segment.writeHeader();
                 break;
             }
 
             header.turnOff(id);
             if (header.isSafeToDelete())
             {
-                logger.info("Deleting obsolete commit log:" + oldFile);
-                DeletionService.submitDelete(oldFile);
-                clHeaders.remove(oldFile);
+                logger.info("Discarding obsolete commit log:" + segment);
+                segment.close();
+                DeletionService.submitDelete(segment.getPath());
+                // usually this will be the first (remaining) segment, but not always, if segment A contains
+                // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
+                segments.remove(segment);
             }
             else
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("Not safe to delete commit log " + oldFile + "; dirty is " + header.dirtyString());
-                writeOldCommitLogHeader(oldFile, header);
+                    logger.debug("Not safe to delete commit log " + segment + "; dirty is " + header.dirtyString());
+                segment.writeHeader();
             }
         }
     }
 
-    private void writeOldCommitLogHeader(String oldFile, CommitLogHeader header) throws IOException
-    {
-        BufferedRandomAccessFile logWriter = CommitLog.createWriter(oldFile);
-        writeCommitLogHeader(logWriter, header.toByteArray());
-        logWriter.close();
-    }
-
-    private boolean maybeRollLog() throws IOException
-    {
-        if (logWriter.length() >= SEGMENT_SIZE)
-        {
-            /* Rolls the current log file over to a new one. */
-            setNextFileName();
-            String oldLogFile = logWriter.getPath();
-            logWriter.close();
-
-            /* point reader/writer to a new commit log file. */
-            logWriter = CommitLog.createWriter(logFile);
-            /* squirrel away the old commit log header */
-            clHeaders.put(oldLogFile, new CommitLogHeader(clHeader));
-            clHeader.clear();
-            writeCommitLogHeader(logWriter, clHeader.toByteArray());
-            return true;
-        }
-        return false;
-    }
-
     void sync() throws IOException
     {
-        logWriter.sync();
+        currentSegment().sync();
     }
 
-    class LogRecordAdder implements Callable<CommitLog.CommitLogContext>
+    class LogRecordAdder implements Callable<CommitLogSegment.CommitLogContext>
     {
         final RowMutation rowMutation;
         final Object serializedRow;
@@ -586,40 +409,18 @@ public class CommitLog
             this.serializedRow = serializedRow;
         }
 
-        public CommitLog.CommitLogContext call() throws Exception
+        public CommitLogSegment.CommitLogContext call() throws Exception
         {
-            long currentPosition = -1L;
-            try
+            CommitLogSegment.CommitLogContext context = currentSegment().write(rowMutation, serializedRow);
+
+            // roll log if necessary
+            if (currentSegment().length() >= SEGMENT_SIZE)
             {
-                currentPosition = logWriter.getFilePointer();
-                CommitLogContext cLogCtx = new CommitLogContext(logFile, currentPosition);
-                maybeUpdateHeader(rowMutation);
-                Checksum checkum = new CRC32();
-                if (serializedRow instanceof DataOutputBuffer)
-                {
-                    DataOutputBuffer buffer = (DataOutputBuffer) serializedRow;
-                    logWriter.writeLong(buffer.getLength());
-                    logWriter.write(buffer.getData(), 0, buffer.getLength());
-                    checkum.update(buffer.getData(), 0, buffer.getLength());
-                }
-                else
-                {
-                    assert serializedRow instanceof byte[];
-                    byte[] bytes = (byte[]) serializedRow;
-                    logWriter.writeLong(bytes.length);
-                    logWriter.write(bytes);
-                    checkum.update(bytes, 0, bytes.length);
-                }
-                logWriter.writeLong(checkum.getValue());
-                maybeRollLog();
-                return cLogCtx;
+                sync();
+                segments.add(new CommitLogSegment(currentSegment().getHeader().getColumnFamilyCount()));
             }
-            catch (IOException e)
-            {
-                if ( currentPosition != -1 )
-                    logWriter.seek(currentPosition);
-                throw e;
-            }
+
+            return context;
         }
     }
 }

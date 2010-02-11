@@ -32,7 +32,7 @@ public class CommitLogTest extends CleanupHelper
     @Test
     public void testCleanup() throws IOException, ExecutionException, InterruptedException
     {
-        assert CommitLog.getSegmentCount() == 0;
+        assert CommitLog.instance().getSegmentCount() == 1;
         CommitLog.setSegmentSize(1000);
 
         Table table = Table.open("Keyspace1");
@@ -49,14 +49,14 @@ public class CommitLogTest extends CleanupHelper
             rm.add(new QueryPath("Standard2", null, "Column1".getBytes()), value, 0);
             rm.apply();
         }
-        assert CommitLog.getSegmentCount() > 1;
+        assert CommitLog.instance().getSegmentCount() > 1;
 
         // nothing should get removed after flushing just Standard1
         store1.forceBlockingFlush();
-        assert CommitLog.getSegmentCount() > 1;
+        assert CommitLog.instance().getSegmentCount() > 1;
 
         // after flushing Standard2 we should be able to clean out all segments
         store2.forceBlockingFlush();
-        assert CommitLog.getSegmentCount() == 1;
+        assert CommitLog.instance().getSegmentCount() == 1;
     }
 }

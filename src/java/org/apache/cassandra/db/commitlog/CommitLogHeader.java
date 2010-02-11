@@ -24,6 +24,7 @@ import java.util.Arrays;
 
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.utils.BitSetSerializer;
 
 class CommitLogHeader
@@ -70,14 +71,7 @@ class CommitLogHeader
         this.dirty = dirty;
         this.lastFlushedAt = lastFlushedAt;
     }
-    
-    CommitLogHeader(CommitLogHeader clHeader)
-    {
-        dirty = (BitSet)clHeader.dirty.clone();
-        lastFlushedAt = new int[clHeader.lastFlushedAt.length];
-        System.arraycopy(clHeader.lastFlushedAt, 0, lastFlushedAt, 0, lastFlushedAt.length);
-    }
-    
+        
     boolean isDirty(int index)
     {
         return dirty.get(index);
@@ -105,12 +99,6 @@ class CommitLogHeader
         return dirty.isEmpty();
     }
 
-    void clear()
-    {
-        dirty.clear();
-        Arrays.fill(lastFlushedAt, 0);
-    }
-        
     byte[] toByteArray() throws IOException
     {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -150,6 +138,20 @@ class CommitLogHeader
             }
         }
         return sb.toString();
+    }
+
+    static CommitLogHeader readCommitLogHeader(BufferedRandomAccessFile logReader) throws IOException
+    {
+        int size = (int)logReader.readLong();
+        byte[] bytes = new byte[size];
+        logReader.read(bytes);
+        ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
+        return serializer().deserialize(new DataInputStream(byteStream));
+    }
+
+    public int getColumnFamilyCount()
+    {
+        return lastFlushedAt.length;
     }
 
     static class CommitLogHeaderSerializer implements ICompactSerializer<CommitLogHeader>

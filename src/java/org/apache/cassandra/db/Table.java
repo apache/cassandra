@@ -28,6 +28,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.SSTableDeletingReference;
 import org.apache.cassandra.io.SSTableReader;
@@ -396,7 +397,7 @@ public class Table
         {
             if (writeCommitLog)
             {
-                Future<CommitLog.CommitLogContext> future = CommitLog.instance().add(mutation, serializedMutation);
+                Future<CommitLogSegment.CommitLogContext> future = CommitLog.instance().add(mutation, serializedMutation);
                 if (waitForCommitLog)
                 {
                     try

@@ -11,9 +11,9 @@ import javax.management.ObjectName;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-public class CommitLogExecutorService extends AbstractExecutorService implements CommitLogExecutorServiceMBean
+class CommitLogExecutorService extends AbstractExecutorService implements CommitLogExecutorServiceMBean
 {
-    BlockingQueue<CheaterFutureTask> queue;
+    private final BlockingQueue<CheaterFutureTask> queue;
 
     private volatile long completedTaskCount = 0;
 
@@ -92,8 +92,8 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
         queue.take().run();
     }
 
-    private ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
-    private ArrayList taskValues = new ArrayList(); // TODO not sure how to generify this
+    private final ArrayList<CheaterFutureTask> incompleteTasks = new ArrayList<CheaterFutureTask>();
+    private final ArrayList taskValues = new ArrayList(); // TODO not sure how to generify this
     private void processWithSyncBatch() throws Exception
     {
         CheaterFutureTask firstTask = queue.take();
@@ -188,26 +188,26 @@ public class CommitLogExecutorService extends AbstractExecutorService implements
     {
         throw new UnsupportedOperationException();
     }
-}
 
-class CheaterFutureTask<V> extends FutureTask<V>
-{
-    private Callable rawCallable;
-
-    public CheaterFutureTask(Callable<V> callable)
+    private static class CheaterFutureTask<V> extends FutureTask<V>
     {
-        super(callable);
-        rawCallable = callable;
-    }
+        private final Callable rawCallable;
 
-    public Callable getRawCallable()
-    {
-        return rawCallable;
-    }
+        public CheaterFutureTask(Callable<V> callable)
+        {
+            super(callable);
+            rawCallable = callable;
+        }
 
-    @Override
-    public void set(V v)
-    {
-        super.set(v);
+        public Callable getRawCallable()
+        {
+            return rawCallable;
+        }
+
+        @Override
+        public void set(V v)
+        {
+            super.set(v);
+        }
     }
 }
