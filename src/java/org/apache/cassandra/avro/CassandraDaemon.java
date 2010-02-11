@@ -27,8 +27,8 @@ import org.apache.avro.ipc.SocketServer;
 import org.apache.avro.specific.SpecificResponder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
-import org.apache.cassandra.db.RecoveryManager;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.log4j.Logger;
@@ -81,7 +81,7 @@ public class CassandraDaemon {
         }
 
         // replay the log if necessary and check for compaction candidates
-        RecoveryManager.doRecovery();
+        CommitLog.recover();
         CompactionManager.instance.checkAllColumnFamilies();
 
         // start server internals

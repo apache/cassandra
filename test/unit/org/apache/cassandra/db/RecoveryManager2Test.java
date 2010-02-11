@@ -29,6 +29,8 @@ import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.commitlog.CommitLog;
+
 import static org.apache.cassandra.Util.column;
 
 public class RecoveryManager2Test extends CleanupHelper
@@ -49,7 +51,7 @@ public class RecoveryManager2Test extends CleanupHelper
         cfs.forceBlockingFlush();
 
         cfs.clearUnsafe();
-        RecoveryManager.doRecovery(); // this is a no-op. is testing this useful?
+        CommitLog.recover(); // this is a no-op. is testing this useful?
 
         assert Util.getRangeSlice(cfs).rows.isEmpty();
     }

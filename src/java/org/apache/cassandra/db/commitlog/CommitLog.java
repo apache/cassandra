@@ -24,6 +24,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.DeletionService;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -144,6 +145,29 @@ public class CommitLog
             }, "PERIODIC-COMMIT-LOG-SYNCER").start();
         }
     }
+
+    public static void recover() throws IOException
+    {
+        String directory = DatabaseDescriptor.getLogFileLocation();
+        File file = new File(directory);
+        File[] files = file.listFiles(new FilenameFilter()
+        {
+            public boolean accept(File dir, String name)
+            {
+                // throw out anything that starts with dot.
+                return !name.matches("\\..*");
+            }
+        });
+        if (files.length == 0)
+            return;
+
+        Arrays.sort(files, new FileUtils.FileComparator());
+        logger.info("Replaying " + StringUtils.join(files, ", "));
+        recover(files);
+        FileUtils.delete(files);
+        logger.info("Log replay complete");
+    }
+
 
     public static void recover(File[] clogs) throws IOException
     {

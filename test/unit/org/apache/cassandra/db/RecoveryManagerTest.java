@@ -24,6 +24,8 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.db.commitlog.CommitLog;
+
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.TableTest.assertColumns;
 
@@ -32,7 +34,7 @@ public class RecoveryManagerTest extends CleanupHelper
     @Test
     public void testNothing() throws IOException {
         // TODO nothing to recover
-        RecoveryManager.doRecovery();
+        CommitLog.recover();
     }
 
     @Test
@@ -59,7 +61,7 @@ public class RecoveryManagerTest extends CleanupHelper
         table1.getColumnFamilyStore("Standard1").clearUnsafe();
         table2.getColumnFamilyStore("Standard3").clearUnsafe();
 
-        RecoveryManager.doRecovery();
+        CommitLog.recover();
 
         assertColumns(table1.get("keymulti", "Standard1"), "col1");
         assertColumns(table2.get("keymulti", "Standard3"), "col2");

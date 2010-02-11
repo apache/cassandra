@@ -26,6 +26,7 @@ import java.net.InetAddress;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -38,7 +39,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.RecoveryManager;
 import org.apache.cassandra.db.CompactionManager;
 
 /**
@@ -92,7 +92,7 @@ public class CassandraDaemon
         }
 
         // replay the log if necessary and check for compaction candidates
-        RecoveryManager.doRecovery();
+        CommitLog.recover();
         CompactionManager.instance.checkAllColumnFamilies();
 
         // start server internals
