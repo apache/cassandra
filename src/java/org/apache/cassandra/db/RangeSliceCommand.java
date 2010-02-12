@@ -39,7 +39,6 @@ package org.apache.cassandra.db;
 import org.apache.cassandra.concurrent.StageManager;
 
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -129,7 +128,7 @@ class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceComman
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
         FBUtilities.serialize(ser, sliceCommand.predicate, dos);
-        Bounds.serializer().serialize(sliceCommand.range, dos);
+        AbstractBounds.serializer().serialize(sliceCommand.range, dos);
         dos.writeInt(sliceCommand.max_keys);
     }
 

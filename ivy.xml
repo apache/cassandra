@@ -19,8 +19,11 @@
 <ivy-module version="2.0">
   <info organisation="apache-cassandra" module="cassandra"/>
   <dependencies>
-    <dependency org="org.apache.mahout.hadoop"
-                name="hadoop-core" rev="0.20.1"/>
+    <!-- for hadoop -->
+    <dependency org="commons-logging" name="commons-logging" rev="1.1.1"/>
+    <dependency org="org.apache.mahout.hadoop" name="hadoop-core" rev="0.20.1"/>
+    <dependency org="commons-httpclient" name="commons-httpclient" rev="3.1"/>
+
     <!-- FIXME: paranamer and jackson can be dropped after we're depending
     on avro (since it depends on them). -->
     <dependency org="com.thoughtworks.paranamer"

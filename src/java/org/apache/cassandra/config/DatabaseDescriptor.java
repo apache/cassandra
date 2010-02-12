@@ -42,6 +42,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.net.URL;
 
 public class DatabaseDescriptor
 {
@@ -145,11 +146,29 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
 
+    private final static String STORAGE_CONF_FILE = "storage-conf.xml";
+
+    /**
+     * Try the storage-config system property, and then inspect the classpath.
+     */
+    static String getStorageConfigPath()
+    {
+        String scp = System.getProperty("storage-config") + File.separator + STORAGE_CONF_FILE;
+        if (new File(scp).exists())
+            return scp;
+        // try the classpath
+        ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
+        URL scpurl = loader.getResource(STORAGE_CONF_FILE);
+        if (scpurl != null)
+            return scpurl.getFile();
+        throw new RuntimeException("Cannot locate " + STORAGE_CONF_FILE + " via storage-config system property or classpath lookup.");
+    }
+
     static
     {
         try
         {
-            configFileName_ = System.getProperty("storage-config") + File.separator + "storage-conf.xml";
+            configFileName_ = getStorageConfigPath();
             if (logger_.isDebugEnabled())
                 logger_.debug("Loading settings from " + configFileName_);
             XMLUtils xmlUtils = new XMLUtils(configFileName_);
