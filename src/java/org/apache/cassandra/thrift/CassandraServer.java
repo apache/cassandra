@@ -33,8 +33,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
@@ -543,21 +545,45 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("range_slice");
 
+        KeyRange range = new KeyRange().setStart_key(start_key).setEnd_key(finish_key).setCount(maxRows);
+        return getRangeSlicesInternal(keyspace, column_parent, predicate, range, consistency_level);
+    }
+
+    public List<KeySlice> get_range_slices(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("range_slice");
+
+        return getRangeSlicesInternal(keyspace, column_parent, predicate, range, consistency_level);
+    }
+
+    private List<KeySlice> getRangeSlicesInternal(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
+            throws InvalidRequestException, UnavailableException, TimedOutException
+    {
         checkLoginDone();
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
-        if (maxRows <= 0)
-        {
-            throw new InvalidRequestException("maxRows must be positive");
-        }
+        ThriftValidation.validateKeyRange(range);
 
         List<Pair<String, ColumnFamily>> rows;
         try
         {
-            Bounds bounds = new Bounds(StorageService.getPartitioner().decorateKey(start_key).token,
-                                       StorageService.getPartitioner().decorateKey(finish_key).token);
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, maxRows), consistency_level);
+            AbstractBounds bounds;
+            if (range.start_key == null)
+            {
+                Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
+                Token left = tokenFactory.fromString(range.start_token);
+                Token right = tokenFactory.fromString(range.end_token);
+                bounds = new Range(left, right);
+            }
+            else
+            {
+                bounds = new Bounds(StorageService.getPartitioner().decorateKey(range.start_key).token,
+                                    StorageService.getPartitioner().decorateKey(range.end_key).token);
+            }
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
             assert rows != null;
         }
         catch (TimeoutException e)

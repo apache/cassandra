@@ -749,6 +749,19 @@ class TestMutations(CassandraTester):
         _insert_super_range()
         _verify_super_range()
 
+    def test_get_range_slices_tokens(self):
+        for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
+            for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:
+                client.insert('Keyspace2', key, ColumnPath('Super3', 'sc1', cname), 'v-' + cname, 0, ConsistencyLevel.ONE)
+
+        cp = ColumnParent('Super3', 'sc1')
+        predicate = SlicePredicate(column_names=['col1', 'col3'])
+        range = KeyRange(start_token='55', end_token='55', count=100)
+        result = client.get_range_slices("Keyspace2", cp, predicate, range, ConsistencyLevel.ONE)
+        assert len(result) == 5
+        assert result[0].columns[0].column.name == 'col1'
+        assert result[0].columns[1].column.name == 'col3'
+
     def test_get_range_slice_super(self):
         for key in ['key1', 'key2', 'key3', 'key4', 'key5']:
             for cname in ['col1', 'col2', 'col3', 'col4', 'col5']:

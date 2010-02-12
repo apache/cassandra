@@ -230,6 +230,22 @@ struct SlicePredicate {
 }
 
 /**
+The semantics of start keys and tokens are slightly different.
+Keys are start-inclusive; tokens are start-exclusive.  Token
+ranges may also wrap -- that is, the end token may be less
+than the start one.  Thus, a range from keyX to keyX is a
+one-element range, but a range from tokenY to tokenY is the
+full ring.
+*/
+struct KeyRange {
+    1: optional string start_key,
+    2: optional string end_key,
+    3: optional string start_token,
+    4: optional string end_token,
+    5: required i32 count=100
+}
+
+/**
     A KeySlice is key followed by the data it maps to. A collection of KeySlice is returned by the get_range_slice operation.
 
     @param key. a row key
@@ -330,6 +346,7 @@ service Cassandra {
 
   /**
    returns a subset of columns for a range of keys.
+   @Deprecated.  Use get_range_slices instead
   */
   list<KeySlice> get_range_slice(1:required string keyspace, 
                                  2:required ColumnParent column_parent, 
@@ -338,6 +355,16 @@ service Cassandra {
                                  5:required string finish_key="", 
                                  6:required i32 row_count=100, 
                                  7:required ConsistencyLevel consistency_level=ONE)
+                 throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
+
+  /**
+   returns a subset of columns for a range of keys.
+  */
+  list<KeySlice> get_range_slices(1:required string keyspace, 
+                                  2:required ColumnParent column_parent, 
+                                  3:required SlicePredicate predicate,
+                                  4:required KeyRange range,
+                                  5:required ConsistencyLevel consistency_level=ONE)
                  throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   # modification methods

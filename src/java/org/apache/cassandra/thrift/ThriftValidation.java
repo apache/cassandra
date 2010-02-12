@@ -298,4 +298,25 @@ public class ThriftValidation
         else
             validateColumns(keyspace, column_parent, predicate.column_names);
     }
+
+    public static void validateKeyRange(KeyRange range) throws InvalidRequestException
+    {
+        if ((range.start_key == null) != (range.end_key == null))
+        {
+            throw new InvalidRequestException("start key and end key must either both be non-null, or both be null");
+        }
+        if ((range.start_token == null) != (range.end_token == null))
+        {
+            throw new InvalidRequestException("start token and end token must either both be non-null, or both be null");
+        }
+        if ((range.start_key == null) == (range.start_token == null))
+        {
+            throw new InvalidRequestException("exactly one of {start key, end key} or {start token, end token} must be specified");
+        }
+
+        if (range.count <= 0)
+        {
+            throw new InvalidRequestException("maxRows must be positive");
+        }
+    }
 }
