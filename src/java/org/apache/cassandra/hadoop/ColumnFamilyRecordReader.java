@@ -86,19 +86,14 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             {
                 throw new RuntimeException(e);
             }
-            SliceRange sliceRange = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   ArrayUtils.EMPTY_BYTE_ARRAY,
-                                                   false,
-                                                   Integer.MAX_VALUE);
             KeyRange keyRange = new KeyRange(ROWS_PER_RANGE_QUERY)
                                 .setStart_token(split.getStartToken())
                                 .setEnd_token(split.getEndToken());
-            // TODO "paging" large rows would be good
             try
             {
                 rows = client.get_range_slices(split.getTable(),
                                                new ColumnParent(split.getColumnFamily()),
-                                               new SlicePredicate().setSlice_range(sliceRange),
+                                               split.getPredicate(),
                                                keyRange,
                                                ConsistencyLevel.ONE);
             }

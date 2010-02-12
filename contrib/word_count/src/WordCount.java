@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.SortedMap;
 import java.util.StringTokenizer;
 
@@ -6,6 +7,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
+import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -48,9 +50,9 @@ public class WordCount extends Configured implements Tool
 
         public void map(String key, SortedMap<byte[], IColumn> columns, Context context) throws IOException, InterruptedException
         {
-            if (columns == null)
-                return;
             IColumn column = columns.get(columnName.getBytes());
+            if (column == null)
+                return;
             String value = new String(column.value());
             logger.debug("read " + key + ":" + value + " from " + context.getInputSplit());
 
@@ -99,6 +101,8 @@ public class WordCount extends Configured implements Tool
             FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX + i));
 
             ColumnFamilyInputFormat.setColumnFamily(job, KEYSPACE, COLUMN_FAMILY);
+            SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(columnName.getBytes()));
+            ColumnFamilyInputFormat.setSlicePredicate(job, predicate);
 
             job.waitForCompletion(true);
         }
