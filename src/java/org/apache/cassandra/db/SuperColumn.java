@@ -47,7 +47,7 @@ public class SuperColumn implements IColumn, IColumnContainer
     private AtomicInteger localDeletionTime = new AtomicInteger(Integer.MIN_VALUE);
 	private AtomicLong markedForDeleteAt = new AtomicLong(Long.MIN_VALUE);
 
-    SuperColumn(byte[] name, AbstractType comparator)
+    public SuperColumn(byte[] name, AbstractType comparator)
     {
         this(name, new ConcurrentSkipListMap<byte[], IColumn>(comparator));
     }
