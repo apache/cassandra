@@ -187,6 +187,7 @@ public class Cassandra {
      * to list of endpoints, because you can't use Thrift structs as
      * map keys:
      * https://issues.apache.org/jira/browse/THRIFT-162
+     * 
      * for the same reason, we can't return a set here, even though
      * order is neither important nor predictable.
      * 
@@ -200,6 +201,19 @@ public class Cassandra {
      * @param keyspace
      */
     public Map<String,Map<String,String>> describe_keyspace(String keyspace) throws NotFoundException, TException;
+
+    /**
+     * experimental API for hadoop/parallel query support.
+     * may change violently and without warning.
+     * 
+     * returns list of token strings such that first subrange is (list[0], list[1]],
+     * next is (list[1], list[2]], etc.
+     * 
+     * @param start_token
+     * @param end_token
+     * @param keys_per_split
+     */
+    public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException;
 
   }
 
@@ -992,6 +1006,41 @@ public class Cassandra {
       throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_keyspace failed: unknown result");
     }
 
+    public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException
+    {
+      send_describe_splits(start_token, end_token, keys_per_split);
+      return recv_describe_splits();
+    }
+
+    public void send_describe_splits(String start_token, String end_token, int keys_per_split) throws TException
+    {
+      oprot_.writeMessageBegin(new TMessage("describe_splits", TMessageType.CALL, seqid_));
+      describe_splits_args args = new describe_splits_args();
+      args.start_token = start_token;
+      args.end_token = end_token;
+      args.keys_per_split = keys_per_split;
+      args.write(oprot_);
+      oprot_.writeMessageEnd();
+      oprot_.getTransport().flush();
+    }
+
+    public List<String> recv_describe_splits() throws TException
+    {
+      TMessage msg = iprot_.readMessageBegin();
+      if (msg.type == TMessageType.EXCEPTION) {
+        TApplicationException x = TApplicationException.read(iprot_);
+        iprot_.readMessageEnd();
+        throw x;
+      }
+      describe_splits_result result = new describe_splits_result();
+      result.read(iprot_);
+      iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_splits failed: unknown result");
+    }
+
   }
   public static class Processor implements TProcessor {
     private static final Logger LOGGER = LoggerFactory.getLogger(Processor.class.getName());
@@ -1017,6 +1066,7 @@ public class Cassandra {
       processMap_.put("describe_version", new describe_version());
       processMap_.put("describe_ring", new describe_ring());
       processMap_.put("describe_keyspace", new describe_keyspace());
+      processMap_.put("describe_splits", new describe_splits());
     }
 
     protected static interface ProcessFunction {
@@ -1546,6 +1596,22 @@ public class Cassandra {
           return;
         }
         oprot.writeMessageBegin(new TMessage("describe_keyspace", TMessageType.REPLY, seqid));
+        result.write(oprot);
+        oprot.writeMessageEnd();
+        oprot.getTransport().flush();
+      }
+
+    }
+
+    private class describe_splits implements ProcessFunction {
+      public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
+      {
+        describe_splits_args args = new describe_splits_args();
+        args.read(iprot);
+        iprot.readMessageEnd();
+        describe_splits_result result = new describe_splits_result();
+        result.success = iface_.describe_splits(args.start_token, args.end_token, args.keys_per_split);
+        oprot.writeMessageBegin(new TMessage("describe_splits", TMessageType.REPLY, seqid));
         result.write(oprot);
         oprot.writeMessageEnd();
         oprot.getTransport().flush();
@@ -19040,6 +19106,783 @@ public class Cassandra {
         sb.append("null");
       } else {
         sb.append(this.nfe);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+    }
+
+  }
+
+  public static class describe_splits_args implements TBase<describe_splits_args._Fields>, java.io.Serializable, Cloneable, Comparable<describe_splits_args>   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_splits_args");
+
+    private static final TField START_TOKEN_FIELD_DESC = new TField("start_token", TType.STRING, (short)1);
+    private static final TField END_TOKEN_FIELD_DESC = new TField("end_token", TType.STRING, (short)2);
+    private static final TField KEYS_PER_SPLIT_FIELD_DESC = new TField("keys_per_split", TType.I32, (short)3);
+
+    public String start_token;
+    public String end_token;
+    public int keys_per_split;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      START_TOKEN((short)1, "start_token"),
+      END_TOKEN((short)2, "end_token"),
+      KEYS_PER_SPLIT((short)3, "keys_per_split");
+
+      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byId.put((int)field._thriftId, field);
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        return byId.get(fieldId);
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+    private static final int __KEYS_PER_SPLIT_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.START_TOKEN, new FieldMetaData("start_token", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
+      put(_Fields.END_TOKEN, new FieldMetaData("end_token", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.STRING)));
+      put(_Fields.KEYS_PER_SPLIT, new FieldMetaData("keys_per_split", TFieldRequirementType.REQUIRED, 
+          new FieldValueMetaData(TType.I32)));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(describe_splits_args.class, metaDataMap);
+    }
+
+    public describe_splits_args() {
+    }
+
+    public describe_splits_args(
+      String start_token,
+      String end_token,
+      int keys_per_split)
+    {
+      this();
+      this.start_token = start_token;
+      this.end_token = end_token;
+      this.keys_per_split = keys_per_split;
+      setKeys_per_splitIsSet(true);
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public describe_splits_args(describe_splits_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
+      if (other.isSetStart_token()) {
+        this.start_token = other.start_token;
+      }
+      if (other.isSetEnd_token()) {
+        this.end_token = other.end_token;
+      }
+      this.keys_per_split = other.keys_per_split;
+    }
+
+    public describe_splits_args deepCopy() {
+      return new describe_splits_args(this);
+    }
+
+    @Deprecated
+    public describe_splits_args clone() {
+      return new describe_splits_args(this);
+    }
+
+    public String getStart_token() {
+      return this.start_token;
+    }
+
+    public describe_splits_args setStart_token(String start_token) {
+      this.start_token = start_token;
+      return this;
+    }
+
+    public void unsetStart_token() {
+      this.start_token = null;
+    }
+
+    /** Returns true if field start_token is set (has been asigned a value) and false otherwise */
+    public boolean isSetStart_token() {
+      return this.start_token != null;
+    }
+
+    public void setStart_tokenIsSet(boolean value) {
+      if (!value) {
+        this.start_token = null;
+      }
+    }
+
+    public String getEnd_token() {
+      return this.end_token;
+    }
+
+    public describe_splits_args setEnd_token(String end_token) {
+      this.end_token = end_token;
+      return this;
+    }
+
+    public void unsetEnd_token() {
+      this.end_token = null;
+    }
+
+    /** Returns true if field end_token is set (has been asigned a value) and false otherwise */
+    public boolean isSetEnd_token() {
+      return this.end_token != null;
+    }
+
+    public void setEnd_tokenIsSet(boolean value) {
+      if (!value) {
+        this.end_token = null;
+      }
+    }
+
+    public int getKeys_per_split() {
+      return this.keys_per_split;
+    }
+
+    public describe_splits_args setKeys_per_split(int keys_per_split) {
+      this.keys_per_split = keys_per_split;
+      setKeys_per_splitIsSet(true);
+      return this;
+    }
+
+    public void unsetKeys_per_split() {
+      __isset_bit_vector.clear(__KEYS_PER_SPLIT_ISSET_ID);
+    }
+
+    /** Returns true if field keys_per_split is set (has been asigned a value) and false otherwise */
+    public boolean isSetKeys_per_split() {
+      return __isset_bit_vector.get(__KEYS_PER_SPLIT_ISSET_ID);
+    }
+
+    public void setKeys_per_splitIsSet(boolean value) {
+      __isset_bit_vector.set(__KEYS_PER_SPLIT_ISSET_ID, value);
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case START_TOKEN:
+        if (value == null) {
+          unsetStart_token();
+        } else {
+          setStart_token((String)value);
+        }
+        break;
+
+      case END_TOKEN:
+        if (value == null) {
+          unsetEnd_token();
+        } else {
+          setEnd_token((String)value);
+        }
+        break;
+
+      case KEYS_PER_SPLIT:
+        if (value == null) {
+          unsetKeys_per_split();
+        } else {
+          setKeys_per_split((Integer)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case START_TOKEN:
+        return getStart_token();
+
+      case END_TOKEN:
+        return getEnd_token();
+
+      case KEYS_PER_SPLIT:
+        return new Integer(getKeys_per_split());
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case START_TOKEN:
+        return isSetStart_token();
+      case END_TOKEN:
+        return isSetEnd_token();
+      case KEYS_PER_SPLIT:
+        return isSetKeys_per_split();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof describe_splits_args)
+        return this.equals((describe_splits_args)that);
+      return false;
+    }
+
+    public boolean equals(describe_splits_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_start_token = true && this.isSetStart_token();
+      boolean that_present_start_token = true && that.isSetStart_token();
+      if (this_present_start_token || that_present_start_token) {
+        if (!(this_present_start_token && that_present_start_token))
+          return false;
+        if (!this.start_token.equals(that.start_token))
+          return false;
+      }
+
+      boolean this_present_end_token = true && this.isSetEnd_token();
+      boolean that_present_end_token = true && that.isSetEnd_token();
+      if (this_present_end_token || that_present_end_token) {
+        if (!(this_present_end_token && that_present_end_token))
+          return false;
+        if (!this.end_token.equals(that.end_token))
+          return false;
+      }
+
+      boolean this_present_keys_per_split = true;
+      boolean that_present_keys_per_split = true;
+      if (this_present_keys_per_split || that_present_keys_per_split) {
+        if (!(this_present_keys_per_split && that_present_keys_per_split))
+          return false;
+        if (this.keys_per_split != that.keys_per_split)
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(describe_splits_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      describe_splits_args typedOther = (describe_splits_args)other;
+
+      lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(isSetStart_token());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(isSetEnd_token());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = Boolean.valueOf(isSetKeys_per_split()).compareTo(isSetKeys_per_split());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(keys_per_split, typedOther.keys_per_split);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        _Fields fieldId = _Fields.findByThriftId(field.id);
+        if (fieldId == null) {
+          TProtocolUtil.skip(iprot, field.type);
+        } else {
+          switch (fieldId) {
+            case START_TOKEN:
+              if (field.type == TType.STRING) {
+                this.start_token = iprot.readString();
+              } else { 
+                TProtocolUtil.skip(iprot, field.type);
+              }
+              break;
+            case END_TOKEN:
+              if (field.type == TType.STRING) {
+                this.end_token = iprot.readString();
+              } else { 
+                TProtocolUtil.skip(iprot, field.type);
+              }
+              break;
+            case KEYS_PER_SPLIT:
+              if (field.type == TType.I32) {
+                this.keys_per_split = iprot.readI32();
+                setKeys_per_splitIsSet(true);
+              } else { 
+                TProtocolUtil.skip(iprot, field.type);
+              }
+              break;
+          }
+          iprot.readFieldEnd();
+        }
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      if (!isSetKeys_per_split()) {
+        throw new TProtocolException("Required field 'keys_per_split' was not found in serialized data! Struct: " + toString());
+      }
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      validate();
+
+      oprot.writeStructBegin(STRUCT_DESC);
+      if (this.start_token != null) {
+        oprot.writeFieldBegin(START_TOKEN_FIELD_DESC);
+        oprot.writeString(this.start_token);
+        oprot.writeFieldEnd();
+      }
+      if (this.end_token != null) {
+        oprot.writeFieldBegin(END_TOKEN_FIELD_DESC);
+        oprot.writeString(this.end_token);
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldBegin(KEYS_PER_SPLIT_FIELD_DESC);
+      oprot.writeI32(this.keys_per_split);
+      oprot.writeFieldEnd();
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("describe_splits_args(");
+      boolean first = true;
+
+      sb.append("start_token:");
+      if (this.start_token == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.start_token);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("end_token:");
+      if (this.end_token == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.end_token);
+      }
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("keys_per_split:");
+      sb.append(this.keys_per_split);
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws TException {
+      // check for required fields
+      if (start_token == null) {
+        throw new TProtocolException("Required field 'start_token' was not present! Struct: " + toString());
+      }
+      if (end_token == null) {
+        throw new TProtocolException("Required field 'end_token' was not present! Struct: " + toString());
+      }
+      // alas, we cannot check 'keys_per_split' because it's a primitive and you chose the non-beans generator.
+    }
+
+  }
+
+  public static class describe_splits_result implements TBase<describe_splits_result._Fields>, java.io.Serializable, Cloneable, Comparable<describe_splits_result>   {
+    private static final TStruct STRUCT_DESC = new TStruct("describe_splits_result");
+
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.LIST, (short)0);
+
+    public List<String> success;
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements TFieldIdEnum {
+      SUCCESS((short)0, "success");
+
+      private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byId.put((int)field._thriftId, field);
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        return byId.get(fieldId);
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+
+    public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new ListMetaData(TType.LIST, 
+              new FieldValueMetaData(TType.STRING))));
+    }});
+
+    static {
+      FieldMetaData.addStructMetaDataMap(describe_splits_result.class, metaDataMap);
+    }
+
+    public describe_splits_result() {
+    }
+
+    public describe_splits_result(
+      List<String> success)
+    {
+      this();
+      this.success = success;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public describe_splits_result(describe_splits_result other) {
+      if (other.isSetSuccess()) {
+        List<String> __this__success = new ArrayList<String>();
+        for (String other_element : other.success) {
+          __this__success.add(other_element);
+        }
+        this.success = __this__success;
+      }
+    }
+
+    public describe_splits_result deepCopy() {
+      return new describe_splits_result(this);
+    }
+
+    @Deprecated
+    public describe_splits_result clone() {
+      return new describe_splits_result(this);
+    }
+
+    public int getSuccessSize() {
+      return (this.success == null) ? 0 : this.success.size();
+    }
+
+    public java.util.Iterator<String> getSuccessIterator() {
+      return (this.success == null) ? null : this.success.iterator();
+    }
+
+    public void addToSuccess(String elem) {
+      if (this.success == null) {
+        this.success = new ArrayList<String>();
+      }
+      this.success.add(elem);
+    }
+
+    public List<String> getSuccess() {
+      return this.success;
+    }
+
+    public describe_splits_result setSuccess(List<String> success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((List<String>)value);
+        }
+        break;
+
+      }
+    }
+
+    public void setFieldValue(int fieldID, Object value) {
+      setFieldValue(_Fields.findByThriftIdOrThrow(fieldID), value);
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    public Object getFieldValue(int fieldId) {
+      return getFieldValue(_Fields.findByThriftIdOrThrow(fieldId));
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
+      }
+      throw new IllegalStateException();
+    }
+
+    public boolean isSet(int fieldID) {
+      return isSet(_Fields.findByThriftIdOrThrow(fieldID));
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof describe_splits_result)
+        return this.equals((describe_splits_result)that);
+      return false;
+    }
+
+    public boolean equals(describe_splits_result that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(describe_splits_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      describe_splits_result typedOther = (describe_splits_result)other;
+
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      return 0;
+    }
+
+    public void read(TProtocol iprot) throws TException {
+      TField field;
+      iprot.readStructBegin();
+      while (true)
+      {
+        field = iprot.readFieldBegin();
+        if (field.type == TType.STOP) { 
+          break;
+        }
+        _Fields fieldId = _Fields.findByThriftId(field.id);
+        if (fieldId == null) {
+          TProtocolUtil.skip(iprot, field.type);
+        } else {
+          switch (fieldId) {
+            case SUCCESS:
+              if (field.type == TType.LIST) {
+                {
+                  TList _list100 = iprot.readListBegin();
+                  this.success = new ArrayList<String>(_list100.size);
+                  for (int _i101 = 0; _i101 < _list100.size; ++_i101)
+                  {
+                    String _elem102;
+                    _elem102 = iprot.readString();
+                    this.success.add(_elem102);
+                  }
+                  iprot.readListEnd();
+                }
+              } else { 
+                TProtocolUtil.skip(iprot, field.type);
+              }
+              break;
+          }
+          iprot.readFieldEnd();
+        }
+      }
+      iprot.readStructEnd();
+
+      // check for required fields of primitive type, which can't be checked in the validate method
+      validate();
+    }
+
+    public void write(TProtocol oprot) throws TException {
+      oprot.writeStructBegin(STRUCT_DESC);
+
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new TList(TType.STRING, this.success.size()));
+          for (String _iter103 : this.success)
+          {
+            oprot.writeString(_iter103);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+      oprot.writeFieldStop();
+      oprot.writeStructEnd();
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("describe_splits_result(");
+      boolean first = true;
+
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
       }
       first = false;
       sb.append(")");

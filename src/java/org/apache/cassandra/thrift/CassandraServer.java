@@ -633,6 +633,18 @@ public class CassandraServer implements Cassandra.Iface
         return ranges;
     }
 
+    public List<String> describe_splits(String start_token, String end_token, int keys_per_split) throws TException
+    {
+        Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
+        List<Token> tokens = StorageService.instance.getSplits(new Range(tf.fromString(start_token), tf.fromString(end_token)), keys_per_split);
+        List<String> splits = new ArrayList<String>(tokens.size());
+        for (Token token : tokens)
+        {
+            splits.add(token.toString());
+        }
+        return splits;
+    }
+
     public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
         DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);

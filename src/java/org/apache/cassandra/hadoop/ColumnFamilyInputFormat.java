@@ -1,16 +1,22 @@
 package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.SortedMap;
+import java.net.InetAddress;
+import java.util.*;
 
 import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.thrift.TDeserializer;
@@ -113,16 +119,63 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
         predicate = predicateFromString(conf.get(PREDICATE_CONFIG));
         validateConfiguration();
 
-        List<TokenRange> map = getRangeMap();
-        ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
-        for (TokenRange entry : map)
+        // cannonical ranges and nodes holding replicas
+        List<TokenRange> masterRangeNodes = getRangeMap();
+
+        // cannonical ranges, split into pieces:
+        // for each range, pick a live owner and ask it to compute bite-sized splits
+        // TODO parallelize this thread-per-range
+        Map<TokenRange, List<String>> splitRanges = new HashMap<TokenRange, List<String>>();
+        for (TokenRange range : masterRangeNodes)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("split range is [" + entry.start_token + ", " + entry.end_token + "]");
-            String[] endpoints = entry.endpoints.toArray(new String[0]);
-            splits.add(new ColumnFamilySplit(keyspace, columnFamily, predicate, entry.start_token, entry.end_token, endpoints));
+            splitRanges.put(range, getSubSplits(range));
         }
 
+        // turn the sub-ranges into InputSplits
+        ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
+        for (Map.Entry<TokenRange, List<String>> entry : splitRanges.entrySet())
+        {
+            TokenRange range = entry.getKey();
+            List<String> tokens = entry.getValue();
+            String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
+
+            int i = 1;
+            for ( ; i < tokens.size(); i++)
+            {
+                ColumnFamilySplit split = new ColumnFamilySplit(keyspace, columnFamily, predicate, tokens.get(i - 1), tokens.get(i), endpoints);
+                logger.info("adding " + split);
+                splits.add(split);
+            }
+        }
+        assert splits.size() > 0;
+        
+        return splits;
+    }
+
+    private List<String> getSubSplits(TokenRange range) throws IOException
+    {
+        // TODO handle failure of range replicas & retry
+        TSocket socket = new TSocket(range.endpoints.get(0),
+                                     DatabaseDescriptor.getThriftPort());
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
+        Cassandra.Client client = new Cassandra.Client(binaryProtocol);
+        try
+        {
+            socket.open();
+        }
+        catch (TTransportException e)
+        {
+            throw new IOException(e);
+        }
+        List<String> splits;
+        try
+        {
+            splits = client.describe_splits(range.start_token, range.end_token, 128); // TODO make split size configurable
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
         return splits;
     }
 

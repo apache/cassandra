@@ -205,12 +205,11 @@ public class BootStrapper
         public void doVerb(Message message)
         {
             StorageService ss = StorageService.instance;
-            List<String> tokens = ss.getSplits(2);
-            assert tokens.size() == 3 : tokens.size();
+            String tokenString = ss.getBootstrapToken().toString();
             Message response;
             try
             {
-                response = message.getReply(FBUtilities.getLocalAddress(), tokens.get(1).getBytes("UTF-8"));
+                response = message.getReply(FBUtilities.getLocalAddress(), tokenString.getBytes("UTF-8"));
             }
             catch (UnsupportedEncodingException e)
             {

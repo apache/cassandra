@@ -40,6 +40,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.AntiEntropyService.TreeRequestVerbHandler;
@@ -102,6 +103,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         GOSSIP_DIGEST_SYN,
         GOSSIP_DIGEST_ACK,
         GOSSIP_DIGEST_ACK2,
+        ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
     public static final Verb[] VERBS = Verb.values();
@@ -1219,20 +1221,13 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * @param splits: number of ranges to break into. Minimum 2.
-     * @return list of Tokens (_not_ keys!) breaking up the data this node is responsible for into `splits` pieces.
-     * There will be 1 more token than splits requested.  So for splits of 2, tokens T1 T2 T3 will be returned,
-     * where (T1, T2] is the first range and (T2, T3] is the second.  The first token will always be the left
-     * Token of this node's primary range, and the last will always be the Right token of that range.
-     */
-    public List<String> getSplits(int splits)
+     * @return list of Tokens (_not_ keys!) breaking up the data this node is responsible for into pieces of roughly keysPerSplit
+     */ 
+    public List<Token> getSplits(Range range, int keysPerSplit)
     {
-        assert splits > 1;
+        List<Token> tokens = new ArrayList<Token>();
         // we use the actual Range token for the first and last brackets of the splits to ensure correctness
-        // (we're only operating on 1/128 of the keys remember)
-        Range range = getLocalPrimaryRange();
-        List<String> tokens = new ArrayList<String>();
-        tokens.add(range.left.toString());
+        tokens.add(range.left);
 
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
@@ -1243,28 +1238,41 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
                     keys.add(info.key);
             }
         }
-        Collections.sort(keys);
+        FBUtilities.sortSampledKeys(keys, range);
+        int splits = keys.size() * SSTableReader.indexInterval() / keysPerSplit;
 
-        if (keys.size() < splits)
-        {
-            // not enough keys to generate good splits -- generate random ones instead
-            // (since this only happens when we don't have many keys, it doesn't really matter that the splits are poor)
-            for (int i = 1; i < splits; i++)
-            {
-                tokens.add(partitioner_.getRandomToken().toString());
-            }
-        }
-        else
+        if (keys.size() >= splits)
         {
             for (int i = 1; i < splits; i++)
             {
                 int index = i * (keys.size() / splits);
-                tokens.add(keys.get(index).token.toString());
+                tokens.add(keys.get(index).token);
             }
         }
 
-        tokens.add(range.right.toString());
+        tokens.add(range.right);
         return tokens;
+    }
+
+    /** return a token to which if a node bootstraps it will get about 1/2 of this node's range */
+    public Token getBootstrapToken()
+    {
+        Range range = getLocalPrimaryRange();
+        List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        {
+            for (SSTable.KeyPosition info: cfs.allIndexPositions())
+            {
+                if (range.contains(info.key.token))
+                    keys.add(info.key);
+            }
+        }
+        FBUtilities.sortSampledKeys(keys, range);
+
+        if (keys.size() < 3)
+            return partitioner_.getRandomToken();
+        else
+            return keys.get(keys.size() / 2).token;
     }
 
     /**

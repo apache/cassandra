@@ -3,6 +3,7 @@ package org.apache.cassandra.hadoop;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -111,7 +112,20 @@ public class ColumnFamilySplit extends InputSplit implements Writable
             dataNodes[i] = in.readUTF();
         }
     }
-    
+
+    @Override
+    public String toString()
+    {
+        return "ColumnFamilySplit{" +
+               "startToken='" + startToken + '\'' +
+               ", endToken='" + endToken + '\'' +
+               ", table='" + table + '\'' +
+               ", columnFamily='" + columnFamily + '\'' +
+               ", dataNodes=" + (dataNodes == null ? null : Arrays.asList(dataNodes)) +
+               ", predicate=" + predicate +
+               '}';
+    }
+
     public static ColumnFamilySplit read(DataInput in) throws IOException
     {
         ColumnFamilySplit w = new ColumnFamilySplit();

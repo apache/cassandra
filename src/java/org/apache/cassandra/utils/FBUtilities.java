@@ -35,6 +35,9 @@ import org.apache.log4j.Logger;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TDeserializer;
@@ -382,6 +385,34 @@ public class FBUtilities
         catch (TException ex)
         {
             throw new IOException(ex);
+        }
+    }
+
+    public static void sortSampledKeys(List<DecoratedKey> keys, Range range)
+    {
+        if (range.left.compareTo(range.right) >= 0)
+        {
+            // range wraps.  have to be careful that we sort in the same order as the range to find the right midpoint.
+            final Token right = range.right;
+            Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
+            {
+                public int compare(DecoratedKey o1, DecoratedKey o2)
+                {
+                    if ((right.compareTo(o1.token) < 0 && right.compareTo(o2.token) < 0)
+                        || (right.compareTo(o1.token) > 0 && right.compareTo(o2.token) > 0))
+                    {
+                        // both tokens are on the same side of the wrap point
+                        return o1.compareTo(o2);
+                    }
+                    return -o1.compareTo(o2);
+                }
+            };
+            Collections.sort(keys, comparator);
+        }
+        else
+        {
+            // unwrapped range (left < right).  standard sort is all we need.
+            Collections.sort(keys);
         }
     }
 }

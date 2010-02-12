@@ -434,6 +434,7 @@ service Cassandra {
       to list of endpoints, because you can't use Thrift structs as
       map keys:
       https://issues.apache.org/jira/browse/THRIFT-162 
+
       for the same reason, we can't return a set here, even though
       order is neither important nor predictable. */
   list<TokenRange> describe_ring(1:required string keyspace),
@@ -441,4 +442,13 @@ service Cassandra {
   /** describe specified keyspace */
   map<string, map<string, string>> describe_keyspace(1:required string keyspace)
                                    throws (1:NotFoundException nfe),
+
+  /** experimental API for hadoop/parallel query support.  
+      may change violently and without warning. 
+
+      returns list of token strings such that first subrange is (list[0], list[1]],
+      next is (list[1], list[2]], etc. */
+  list<string> describe_splits(1:required string start_token, 
+  	                       2:required string end_token,
+                               3:required i32 keys_per_split),
 }
