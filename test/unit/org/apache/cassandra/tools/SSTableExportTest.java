@@ -78,8 +78,9 @@ public class SSTableExportTest
         char[] buf = new char[(int) temp.length()];
         file.read(buf);
         String output = new String(buf);
-        
-        assert output.equals("rowA\nrowB\n");
+
+        String sep = System.getProperty("line.separator");
+        assert output.equals("rowA" + sep + "rowB" + sep) : output;
     }
 
     @Test
