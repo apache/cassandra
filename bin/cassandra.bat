@@ -20,7 +20,7 @@ SETLOCAL
 
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
 if NOT DEFINED CASSANDRA_CONF set CASSANDRA_CONF=%CASSANDRA_HOME%\conf
-if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.service.CassandraDaemon
+if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.thrift.CassandraDaemon
 if NOT DEFINED JAVA_HOME goto err
 
 REM ***** JAVA options *****
@@ -31,13 +31,14 @@ set JAVA_OPTS=^
  -Xrunjdwp:transport=dt_socket,server=y,address=8888,suspend=n^
  -Xms128m^
  -Xmx1G^
- -XX:SurvivorRatio=8^
+ -XX:TargetSurvivorRatio=90^
  -XX:+AggressiveOpts^
  -XX:+UseParNewGC^
  -XX:+UseConcMarkSweepGC^
- -XX:CMSInitiatingOccupancyFraction=1^
  -XX:+CMSParallelRemarkEnabled^
  -XX:+HeapDumpOnOutOfMemoryError^
+ -XX:SurvivorRatio=128^
+ -XX:MaxTenuringThreshold=0^
  -Dcom.sun.management.jmxremote.port=8080^
  -Dcom.sun.management.jmxremote.ssl=false^
  -Dcom.sun.management.jmxremote.authenticate=false
