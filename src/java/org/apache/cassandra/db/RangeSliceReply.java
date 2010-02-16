@@ -31,18 +31,15 @@ import java.util.*;
 public class RangeSliceReply
 {
     public final List<Row> rows;
-    public final boolean rangeCompletedLocally;
 
-    public RangeSliceReply(List<Row> rows, boolean rangeCompletedLocally)
+    public RangeSliceReply(List<Row> rows)
     {
         this.rows = rows;
-        this.rangeCompletedLocally = rangeCompletedLocally;
     }
 
     public Message getReply(Message originalMessage) throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();
-        dob.writeBoolean(rangeCompletedLocally);
         dob.writeInt(rows.size());
         for (Row row : rows)
         {
@@ -57,7 +54,6 @@ public class RangeSliceReply
     {
         return "RangeSliceReply{" +
                "rows=" + StringUtils.join(rows, ",") +
-               ", rangeCompletedLocally=" + rangeCompletedLocally +
                '}';
     }
 
@@ -65,13 +61,12 @@ public class RangeSliceReply
     {
         ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
         DataInputStream dis = new DataInputStream(bufIn);
-        boolean completed = dis.readBoolean();
         int rowCount = dis.readInt();
         List<Row> rows = new ArrayList<Row>(rowCount);
         for (int i = 0; i < rowCount; i++)
         {
             rows.add(Row.serializer().deserialize(dis));
         }
-        return new RangeSliceReply(rows, completed);
+        return new RangeSliceReply(rows);
     }
 }

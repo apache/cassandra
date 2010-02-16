@@ -24,63 +24,78 @@ import java.util.*;
 
 import org.apache.log4j.Logger;
 
+import org.apache.commons.collections.iterators.CollatingIterator;
+
+import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RangeSliceReply;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ReducingIterator;
 
 /**
  * Turns RangeSliceReply objects into row (string -> CF) maps, resolving
  * to the most recent ColumnFamily and setting up read repairs as necessary.
  */
-public class RangeSliceResponseResolver implements IResponseResolver<Map<String, ColumnFamily>>
+public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 {
     private static final Logger logger_ = Logger.getLogger(RangeSliceResponseResolver.class);
     private final String table;
-    private final Range range;
     private final List<InetAddress> sources;
-    private boolean isCompleted;
 
-    public RangeSliceResponseResolver(String table, Range range, List<InetAddress> sources)
+    public RangeSliceResponseResolver(String table, List<InetAddress> sources)
     {
         assert sources.size() > 0;
         this.sources = sources;
-        this.range = range;
         this.table = table;
     }
 
-    public Map<String, ColumnFamily> resolve(List<Message> responses) throws DigestMismatchException, IOException
+    public List<Row> resolve(List<Message> responses) throws DigestMismatchException, IOException
     {
-        Map<InetAddress, Map<String, ColumnFamily>> replies = new HashMap<InetAddress, Map<String, ColumnFamily>>(responses.size());
-        Set<String> allKeys = new HashSet<String>();
+        CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()
+        {
+            public int compare(Pair<Row,InetAddress> o1, Pair<Row,InetAddress> o2)
+            {
+                return o1.left.key.compareTo(o2.left.key);
+            }
+        });
+        
+        int n = 0;
         for (Message response : responses)
         {
             RangeSliceReply reply = RangeSliceReply.read(response.getMessageBody());
-            isCompleted &= reply.rangeCompletedLocally;
-            Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(reply.rows.size());
-            for (Row row : reply.rows)
-            {
-                rows.put(row.key, row.cf);
-                allKeys.add(row.key);
-            }
-            replies.put(response.getFrom(), rows);
+            n = Math.max(n, reply.rows.size());
+            collator.addIterator(new RowIterator(reply.rows.iterator(), response.getFrom()));
         }
 
         // for each row, compute the combination of all different versions seen, and repair incomplete versions
-        // TODO since the rows all arrive in sorted order, we should be able to do this more efficiently w/o all the Map conversion
-        Map<String, ColumnFamily> resolvedRows = new HashMap<String, ColumnFamily>(allKeys.size());
-        for (String key : allKeys)
+        ReducingIterator<Pair<Row,InetAddress>, Row> iter = new ReducingIterator<Pair<Row,InetAddress>, Row>(collator)
         {
             List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
-            for (InetAddress endpoint : sources)
+            List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
+            String key;
+
+            public void reduce(Pair<Row,InetAddress> current)
             {
-                versions.add(replies.get(endpoint).get(key));
+                key = current.left.key;
+                versions.add(current.left.cf);
+                versionSources.add(current.right);
             }
-            ColumnFamily resolved = ReadResponseResolver.resolveSuperset(versions);
-            ReadResponseResolver.maybeScheduleRepairs(resolved, table, key, versions, sources);
-            resolvedRows.put(key, resolved);
-        }
+
+            protected Row getReduced()
+            {
+                ColumnFamily resolved = ReadResponseResolver.resolveSuperset(versions);
+                ReadResponseResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
+                versions.clear();
+                return new Row(key, resolved);
+            }
+        };
+
+        List<Row> resolvedRows = new ArrayList<Row>(n);
+        while (iter.hasNext())
+            resolvedRows.add(iter.next());
+
         return resolvedRows;
     }
 
@@ -89,11 +104,21 @@ public class RangeSliceResponseResolver implements IResponseResolver<Map<String,
         return responses.size() >= sources.size();
     }
 
-    /**
-     * only valid after resolve has been called (typically via QRH.get)
-     */
-    public boolean completed()
+    private static class RowIterator extends AbstractIterator<Pair<Row,InetAddress>>
     {
-        return isCompleted;
+        private final Iterator<Row> iter;
+        private final InetAddress source;
+
+        private RowIterator(Iterator<Row> iter, InetAddress source)
+        {
+            this.iter = iter;
+            this.source = source;
+        }
+
+        @Override
+        protected Pair<Row,InetAddress> computeNext()
+        {
+            return iter.hasNext() ? new Pair<Row, InetAddress>(iter.next(), source) : endOfData();
+        }
     }
 }

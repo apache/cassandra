@@ -1,7 +1,11 @@
 package org.apache.cassandra.dht;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 
@@ -23,13 +27,29 @@ public abstract class AbstractBounds implements Serializable
     public final Token left;
     public final Token right;
 
-    public AbstractBounds(Token left, Token right)
+    protected transient final IPartitioner partitioner;
+
+    public AbstractBounds(Token left, Token right, IPartitioner partitioner)
     {
         this.left = left;
         this.right = right;
+        this.partitioner = partitioner;
     }
 
-    public abstract List<AbstractBounds> restrictTo(Range range);
+    @Override
+    public int hashCode()
+    {
+        return toString().hashCode();
+    }
+
+    @Override
+    public abstract boolean equals(Object obj);
+
+    public abstract boolean contains(Token start);
+
+    public abstract Set<AbstractBounds> restrictTo(Range range);
+
+    public abstract List<AbstractBounds> unwrap();
 
     private static class AbstractBoundsSerializer implements ICompactSerializer2<AbstractBounds>
     {

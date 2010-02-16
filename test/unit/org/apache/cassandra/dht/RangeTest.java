@@ -18,6 +18,9 @@
 */
 package org.apache.cassandra.dht;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.Test;
 
 public class RangeTest
@@ -80,6 +83,7 @@ public class RangeTest
         Range two = new Range(new BigIntegerToken("5"), new BigIntegerToken("3"));
         Range thr = new Range(new BigIntegerToken("10"), new BigIntegerToken("12"));
         Range fou = new Range(new BigIntegerToken("2"), new BigIntegerToken("6"));
+        Range fiv = new Range(new BigIntegerToken("0"), new BigIntegerToken("0"));
 
         assert !one.contains(two);
         assert one.contains(thr);
@@ -96,6 +100,30 @@ public class RangeTest
         assert !fou.contains(one);
         assert !fou.contains(two);
         assert !fou.contains(thr);
+
+        assert fiv.contains(one);
+        assert fiv.contains(two);
+        assert fiv.contains(thr);
+        assert fiv.contains(fou);
+    }
+
+    @Test
+    public void testContainsRangeOneWrapping()
+    {
+        Range wrap1 = new Range(new BigIntegerToken("0"), new BigIntegerToken("0"));
+        Range wrap2 = new Range(new BigIntegerToken("10"), new BigIntegerToken("2"));
+
+        Range nowrap1 = new Range(new BigIntegerToken("0"), new BigIntegerToken("2"));
+        Range nowrap2 = new Range(new BigIntegerToken("2"), new BigIntegerToken("10"));
+        Range nowrap3 = new Range(new BigIntegerToken("10"), new BigIntegerToken("100"));
+
+        assert wrap1.contains(nowrap1);
+        assert wrap1.contains(nowrap2);
+        assert wrap1.contains(nowrap3);
+
+        assert wrap2.contains(nowrap1);
+        assert !wrap2.contains(nowrap2);
+        assert wrap2.contains(nowrap3);
     }
 
     @Test
@@ -124,12 +152,14 @@ public class RangeTest
     {
         Range onewrap = new Range(new BigIntegerToken("10"), new BigIntegerToken("2"));
         Range onecomplement = new Range(onewrap.right, onewrap.left);
-        Range oneadjoins = new Range(onewrap.left, new BigIntegerToken("12"));
+        Range onestartswith = new Range(onewrap.left, new BigIntegerToken("12"));
+        Range oneendswith = new Range(new BigIntegerToken("1"), onewrap.right);
         Range twowrap = new Range(new BigIntegerToken("5"), new BigIntegerToken("3"));
         Range not = new Range(new BigIntegerToken("2"), new BigIntegerToken("6"));
 
         assert !onewrap.intersects(onecomplement);
-        assert onewrap.intersects(oneadjoins);
+        assert onewrap.intersects(onestartswith);
+        assert onewrap.intersects(oneendswith);
 
         assert onewrap.intersects(twowrap);
         assert twowrap.intersects(onewrap);

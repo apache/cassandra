@@ -35,6 +35,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
@@ -543,7 +544,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
-            logger.debug("range_slice");
+            logger.debug("get_range_slice " + start_key + " to " + finish_key);
 
         KeyRange range = new KeyRange().setStart_key(start_key).setEnd_key(finish_key).setCount(maxRows);
         return getRangeSlicesInternal(keyspace, column_parent, predicate, range, consistency_level);
@@ -567,21 +568,21 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
         ThriftValidation.validateKeyRange(range);
 
-        List<Pair<String, ColumnFamily>> rows;
+        List<Row> rows;
         try
         {
+            IPartitioner p = StorageService.getPartitioner();
             AbstractBounds bounds;
             if (range.start_key == null)
             {
-                Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
+                Token.TokenFactory tokenFactory = p.getTokenFactory();
                 Token left = tokenFactory.fromString(range.start_token);
                 Token right = tokenFactory.fromString(range.end_token);
                 bounds = new Range(left, right);
             }
             else
             {
-                bounds = new Bounds(StorageService.getPartitioner().decorateKey(range.start_key).token,
-                                    StorageService.getPartitioner().decorateKey(range.end_key).token);
+                bounds = new Bounds(p.decorateKey(range.start_key).token, p.decorateKey(range.end_key).token);
             }
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
             assert rows != null;
@@ -597,10 +598,10 @@ public class CassandraServer implements Cassandra.Iface
 
         List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
         boolean reversed = predicate.slice_range != null && predicate.slice_range.reversed;
-        for (Pair<String, ColumnFamily> row : rows)
+        for (Row row : rows)
         {
-            List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(row.right, column_parent.super_column != null, reversed);
-            keySlices.add(new KeySlice(row.left, thriftifiedColumns));
+            List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(row.cf, column_parent.super_column != null, reversed);
+            keySlices.add(new KeySlice(row.key, thriftifiedColumns));
         }
 
         return keySlices;

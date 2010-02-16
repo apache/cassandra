@@ -533,6 +533,8 @@ class TestMutations(CassandraTester):
         column_parent = ColumnParent('Super1', 'sc1')
         _expect_exception(lambda: client.get_slice('Keyspace1', 'key1', column_parent, p, ConsistencyLevel.ONE),
                           InvalidRequestException)
+        # start > finish, key version
+        _expect_exception(lambda: client.get_range_slice('Keyspace1', ColumnParent('Standard1'), SlicePredicate(column_names=['']), 'z', 'a', 1, ConsistencyLevel.ONE), InvalidRequestException)
 
     def test_batch_insert_super(self):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
@@ -795,7 +797,7 @@ class TestMutations(CassandraTester):
 
         # test column_names predicate
         result = client.get_range_slice("Keyspace1", cp, SlicePredicate(column_names=['col1', 'col3']), 'key2', 'key4', 5, ConsistencyLevel.ONE)
-        assert len(result) == 3
+        assert len(result) == 3, result
         assert result[0].columns[0].column.name == 'col1'
         assert result[0].columns[1].column.name == 'col3'
 

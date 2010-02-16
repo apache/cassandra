@@ -314,6 +314,12 @@ public class ThriftValidation
             throw new InvalidRequestException("exactly one of {start key, end key} or {start token, end token} must be specified");
         }
 
+        if (range.start_key != null)
+        {
+            if (range.start_key.compareTo(range.end_key) > 0 && !range.end_key.isEmpty())
+                throw new InvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
+        }
+
         if (range.count <= 0)
         {
             throw new InvalidRequestException("maxRows must be positive");

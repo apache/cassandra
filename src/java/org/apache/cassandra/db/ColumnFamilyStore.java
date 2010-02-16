@@ -44,6 +44,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -1062,12 +1063,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         else
         {
             // wrapped range
-            Range first = new Range(range.left, StorageService.getPartitioner().getMinimumToken());
+            Token min = StorageService.getPartitioner().getMinimumToken();
+            Range first = new Range(range.left, min);
             completed = getKeyRange(keys, first, keyMax);
-            if (!completed)
+            if (!completed && min.compareTo(range.right) < 0)
             {
-                Range second = new Range(StorageService.getPartitioner().getMinimumToken(), range.right);
-                completed = getKeyRange(keys, second, keyMax);
+                Range second = new Range(min, range.right);
+                getKeyRange(keys, second, keyMax);
             }
         }
         List<Row> rows = new ArrayList<Row>(keys.size());
@@ -1081,7 +1083,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rows.add(new Row(key, getColumnFamily(filter)));
         }
 
-        return new RangeSliceReply(rows, completed);
+        return new RangeSliceReply(rows);
     }
 
     public AbstractType getComparator()
