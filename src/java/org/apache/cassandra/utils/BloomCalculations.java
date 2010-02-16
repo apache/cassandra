@@ -27,12 +27,10 @@ package org.apache.cassandra.utils;
  * Filter class by helping to choose correct values of 'bits per element' and
  * 'number of hash functions, k'.
  */
-public class BloomCalculations {
+class BloomCalculations {
 
-    private static final int maxBuckets = 15;
     private static final int minBuckets = 2;
     private static final int minK = 1;
-    private static final int maxK = 8;
     private static final int[] optKPerBuckets =
             new int[]{1, // dummy K for 0 buckets per element
                       1, // dummy K for 1 buckets per element
@@ -65,17 +63,17 @@ public class BloomCalculations {
     };  // the first column is a dummy column representing K=0.
 
     /**
-     * Given the number of buckets that can be used per element, return the optimal
-     * number of hash functions in order to minimize the false positive rate.
+     * Given the number of buckets that can be used per element, return a
+     * specification that minimizes the false positive rate.
      *
-     * @param bucketsPerElement
-     * @return The number of hash functions that minimize the false positive rate.
+     * @param bucketsPerElement The number of buckets per element for the filter.
+     * @return A spec that minimizes the false positive rate.
      */
-    public static int computeBestK(int bucketsPerElement){
-        assert bucketsPerElement >= 0;
-        if(bucketsPerElement >= optKPerBuckets.length)
-            return optKPerBuckets[optKPerBuckets.length-1];
-        return optKPerBuckets[bucketsPerElement];
+    public static BloomSpecification computeBloomSpec(int bucketsPerElement)
+    {
+        assert bucketsPerElement >= 1;
+        assert bucketsPerElement <= probs.length - 1;
+        return new BloomSpecification(optKPerBuckets[bucketsPerElement], bucketsPerElement);
     }
 
     /**
@@ -100,17 +98,25 @@ public class BloomCalculations {
      * is considered more expensive than computing power, preference is given
      * to minimizing buckets per element rather than number of hash functions.
      *
+     * @param maxBucketsPerElement The maximum number of buckets available for the filter.
      * @param maxFalsePosProb The maximum tolerable false positive rate.
      * @return A Bloom Specification which would result in a false positive rate
-     * less than specified by the function call.
+     * less than specified by the function call
+     * @throws UnsupportedOperationException if a filter satisfying the parameters cannot be met
      */
-    public static BloomSpecification computeBucketsAndK(double maxFalsePosProb){
+    public static BloomSpecification computeBloomSpec(int maxBucketsPerElement, double maxFalsePosProb)
+    {
+        assert maxBucketsPerElement >= 1;
+        assert maxBucketsPerElement <= probs.length - 1;
+        int maxK = probs[maxBucketsPerElement].length - 1;
+
         // Handle the trivial cases
         if(maxFalsePosProb >= probs[minBuckets][minK]) {
             return new BloomSpecification(2, optKPerBuckets[2]);
         }
-        if(maxFalsePosProb < probs[maxBuckets][maxK]) {
-            return new BloomSpecification(maxK, maxBuckets);
+        if (maxFalsePosProb < probs[maxBucketsPerElement][maxK]) {
+            throw new UnsupportedOperationException(String.format("Unable to satisfy %s with %s buckets per element",
+                                                                  maxFalsePosProb, maxBucketsPerElement));
         }
 
         // First find the minimal required number of buckets:

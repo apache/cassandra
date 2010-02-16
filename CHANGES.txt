@@ -5,7 +5,10 @@
    (CASSANDRA-703)
  * more accurate load estimate for bootstrapping (CASSANDRA-762)
  * tolerate dead or unavailable bootstrap target on write (CASSANDRA-731)
-
+ * allow larger numbers of keys (> 140M) in a sstable bloom filter
+   (CASSANDRA-790)
+ * include jvm argument improvements from CASSANDRA-504 in debian package
+ 
 
 0.5.0 final
  * avoid attempting to delete temporary bootstrap files twice (CASSANDRA-681)
