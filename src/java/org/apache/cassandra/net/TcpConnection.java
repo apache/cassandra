@@ -182,8 +182,8 @@ public class TcpConnection extends SelectionKeyHandler implements Comparable
         lock_.lock();        
         try
         {            
-            /* transfer 64MB in each attempt */
-            int limit = 64*1024*1024;  
+            /* transfer 32MB in each attempt */
+            final int limit = 32*1024*1024;
             long total = endPosition - startPosition;
             /* keeps track of total number of bytes transferred */
             long bytesWritten = 0L;                          
