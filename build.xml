@@ -343,6 +343,7 @@
       <formatter type="xml" usefile="true"/>
       <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
+      <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
       <jvmarg value="-ea"/>
       <classpath>
         <path refid="cassandra.classpath" />
