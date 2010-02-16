@@ -8,6 +8,7 @@
  * allow larger numbers of keys (> 140M) in a sstable bloom filter
    (CASSANDRA-790)
  * include jvm argument improvements from CASSANDRA-504 in debian package
+ * change streaming chunk size to 32MB (was 64MB) (CASSANDRA-795)
  
 
 0.5.0 final
