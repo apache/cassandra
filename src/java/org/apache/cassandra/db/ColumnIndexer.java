@@ -82,7 +82,7 @@ public class ColumnIndexer
             columnCount += column.getObjectCount();
         }
 
-        BloomFilter bf = new BloomFilter(columnCount, 4);
+        BloomFilter bf = BloomFilter.getFilter(columnCount, 4);
         for (IColumn column : columns)
         {
             bf.add(column.name());

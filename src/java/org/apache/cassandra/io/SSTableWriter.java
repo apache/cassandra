@@ -53,7 +53,7 @@ public class SSTableWriter extends SSTable
         super(filename, partitioner);
         dataFile = new BufferedRandomAccessFile(path, "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
         indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", (int)(DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024));
-        bf = new BloomFilter((int)keyCount, 15); // TODO fix long -> int cast
+        bf = BloomFilter.getFilter(keyCount, 15);
     }
 
     private long beforeAppend(DecoratedKey decoratedKey) throws IOException

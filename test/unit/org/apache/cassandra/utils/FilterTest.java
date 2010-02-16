@@ -57,7 +57,7 @@ public class FilterTest
     // used by filter subclass tests
 
     static final double MAX_FAILURE_RATE = 0.1;
-    public static final BloomCalculations.BloomSpecification spec = BloomCalculations.computeBucketsAndK(MAX_FAILURE_RATE);
+    public static final BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(15, MAX_FAILURE_RATE);
     static final int ELEMENTS = 10000;
 
     static final ResetableIterator<String> intKeys()
