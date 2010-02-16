@@ -36,7 +36,7 @@ public class FileStreamTask extends WrappedRunnable
 {
     private static Logger logger = Logger.getLogger( FileStreamTask.class );
     
-    public static final int CHUNK_SIZE = 64*1024*1024;
+    public static final int CHUNK_SIZE = 32*1024*1024;
 
     private final String file;
     private final long startPosition;
