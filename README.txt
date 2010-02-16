@@ -12,6 +12,10 @@ data model richer than typical key/value systems.
 
 For more information see http://incubator.apache.org/cassandra
 
+Requirements
+------------
+  * Java >= 1.6 (OpenJDK and Sun have been tested)
+  * Apache Ant >= 1.7 (http://ant.apache.org/)
 
 Getting started
 ---------------
@@ -25,6 +29,7 @@ and running, and demonstrate some simple reads and writes.
   * sudo chown -R `whoami` /var/log/cassandra
   * sudo mkdir -p /var/lib/cassandra
   * sudo chown -R `whoami` /var/lib/cassandra
+  * ant ivy-retrieve
 
 Note: The sample configuration files in conf/ determine the file-system 
 locations Cassandra uses for logging and data storage. You are free to

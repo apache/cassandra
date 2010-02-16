@@ -60,6 +60,10 @@
       <available file="${build.dir}/ivy-${ivy.version}.jar" />
     </condition>
 
+    <condition property="is.source.artifact">
+      <available file="${build.src}" type="dir" />
+    </condition>
+
     <!-- 
 	 Add all the dependencies.
     -->
@@ -79,8 +83,9 @@
 	Setup the output directories.
     -->
     <target name="init">
+        <fail unless="is.source.artifact"
+            message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes}"/>
-        <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
     </target>
@@ -117,20 +122,28 @@
       </java> 
     </target>
 
-    <target name="ivy-download" unless="ivy.jar.exists" depends="init">
+    <!--
+       Fetch Ivy and Cassandra's dependencies
+
+       These targets are intentionally free of dependencies so that they
+       can be run stand-alone from a binary release artifact.
+    -->
+    <target name="ivy-download" unless="ivy.jar.exists">
       <echo>Downloading Ivy...</echo>
+      <mkdir dir="${build.dir}" />
       <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
            dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
     </target>
 
     <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
+      <mkdir dir="${build.dir.lib}"/>
       <taskdef resource="org/apache/ivy/ant/antlib.xml"
                uri="antlib:org.apache.ivy.ant"
                classpathref="cassandra.classpath"/>
       <property name="ivy.initialized" value="true"/>
     </target>
 
-    <target name="ivy-retrieve" depends="ivy-download,ivy-init">
+    <target name="ivy-retrieve" depends="ivy-init">
       <ivy:retrieve type="jar,source" conf="default" sync="true"
              pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
     </target>
@@ -267,7 +280,11 @@
         <fileset dir="${basedir}">
           <include name="*.txt" />
         </fileset>
-      </copy> 
+      </copy>
+      <copy todir="${dist.dir}">
+        <fileset file="build.xml" />
+        <fileset file="ivy.xml" />
+      </copy>
       
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
