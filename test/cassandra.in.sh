@@ -27,7 +27,7 @@ cassandra_bin=$cassandra_home/build/classes
 # The java classpath (required)
 CLASSPATH=$CASSANDRA_CONF:$cassandra_bin
 
-for jar in $cassandra_home/lib/*.jar; do
+for jar in $cassandra_home/lib/*.jar $cassandra_home/build/lib/jars/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done
 

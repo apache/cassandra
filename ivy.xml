@@ -30,6 +30,9 @@
                 name="paranamer-ant" rev="2.1"/>
     <dependency org="org.codehaus.jackson"
                 name="jackson-mapper-asl" rev="1.4.0"/>
+
+    <dependency org="com.google.collections" name="google-collections"
+                rev="1.0"/>
   </dependencies>
 </ivy-module>
 
