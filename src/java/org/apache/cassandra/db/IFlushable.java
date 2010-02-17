@@ -23,11 +23,13 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.locks.Condition;
 
 import org.apache.cassandra.io.SSTableReader;
 
-public interface IFlushable<T>
+public interface IFlushable
 {
-    public List<T> getSortedKeys();
-    public SSTableReader writeSortedContents(List<T> sortedKeys) throws IOException;
+    public void flushAndSignal(Condition condition, ExecutorService sorter, ExecutorService writer);
 }

@@ -20,7 +20,9 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
 
 import org.apache.commons.lang.ArrayUtils;
 
@@ -33,11 +35,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
-public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
+public class Memtable implements Comparable<Memtable>, IFlushable
 {
     private static final Logger logger = Logger.getLogger(Memtable.class);
 
@@ -141,7 +144,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         return builder.toString();
     }
 
-    public List<DecoratedKey> getSortedKeys()
+    private List<DecoratedKey> getSortedKeys()
     {
         logger.info("Sorting " + this);
         // sort keys in the order they would be in when decorated
@@ -150,7 +153,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         return orderedKeys;
     }
 
-    public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
+    private SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
         logger.info("Writing " + this);
         ColumnFamilyStore cfStore = Table.open(table).getColumnFamilyStore(columnfamilyName);
@@ -170,6 +173,28 @@ public class Memtable implements Comparable<Memtable>, IFlushable<DecoratedKey>
         SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table, columnfamilyName));
         logger.info("Completed flushing " + ssTable.getFilename());
         return ssTable;
+    }
+
+    public void flushAndSignal(final Condition condition, ExecutorService sorter, final ExecutorService writer)
+    {
+        ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).add(this); // it's ok for the MT to briefly be both active and pendingFlush
+        sorter.submit(new Runnable()
+        {
+            public void run()
+            {
+                final List<DecoratedKey> sortedKeys = getSortedKeys();
+                writer.submit(new WrappedRunnable()
+                {
+                    public void runMayThrow() throws IOException
+                    {
+                        ColumnFamilyStore cfs = Table.open(table).getColumnFamilyStore(columnfamilyName);
+                        cfs.addSSTable(writeSortedContents(sortedKeys));
+                        ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).remove(Memtable.this);
+                        condition.signalAll();
+                    }
+                });
+            }
+        });
     }
 
     public String toString()

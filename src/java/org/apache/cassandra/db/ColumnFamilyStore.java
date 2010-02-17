@@ -644,34 +644,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     Condition submitFlush(final IFlushable flushable)
     {
         logger_.info("Enqueuing flush of " + flushable);
-        if (flushable instanceof Memtable)
-        {
-            // special-casing Memtable here is a bit messy, but it's best to keep the flush-related happenings in one place
-            // since they're a little complicated.  (We dont' want to move the remove back to switchMemtable, which is
-            // the other sane option, since that could mean keeping a flushed memtable in the Historical set unnecessarily
-            // while earlier flushes finish.)
-            getMemtablesPendingFlushNotNull(columnFamily_).add((Memtable) flushable); // it's ok for the MT to briefly be both active and pendingFlush
-        }
         final Condition condition = new SimpleCondition();
-        flushSorter_.submit(new Runnable()
-        {
-            public void run()
-            {
-                final List sortedKeys = flushable.getSortedKeys();
-                flushWriter_.submit(new WrappedRunnable()
-                {
-                    public void runMayThrow() throws IOException
-                    {
-                        addSSTable(flushable.writeSortedContents(sortedKeys));
-                        if (flushable instanceof Memtable)
-                        {
-                            getMemtablesPendingFlushNotNull(columnFamily_).remove(flushable);
-                        }
-                        condition.signalAll();
-                    }
-                });
-            }
-        });
+        flushable.flushAndSignal(condition, flushSorter_, flushWriter_);
         return condition;
     }
 

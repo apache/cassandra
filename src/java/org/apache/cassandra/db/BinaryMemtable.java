@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -34,10 +35,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.log4j.Logger;
+
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.dht.IPartitioner;
 
-public class BinaryMemtable implements IFlushable<DecoratedKey>
+public class BinaryMemtable implements IFlushable
 {
     private static final Logger logger = Logger.getLogger(BinaryMemtable.class);
     private final int threshold = DatabaseDescriptor.getBMTThreshold() * 1024 * 1024;
@@ -108,7 +111,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         currentSize.addAndGet(buffer.length + key.length());
     }
 
-    public List<DecoratedKey> getSortedKeys()
+    private List<DecoratedKey> getSortedKeys()
     {
         assert !columnFamilies.isEmpty();
         logger.info("Sorting " + this);
@@ -117,7 +120,7 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         return keys;
     }
 
-    public SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
+    private SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
     {
         logger.info("Writing " + this);
         String path = cfs.getFlushPath();
@@ -132,5 +135,24 @@ public class BinaryMemtable implements IFlushable<DecoratedKey>
         SSTableReader sstable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(cfs.getTable().name, cfs.getColumnFamilyName()));
         logger.info("Completed flushing " + writer.getFilename());
         return sstable;
+    }
+
+    public void flushAndSignal(final Condition condition, ExecutorService sorter, final ExecutorService writer)
+    {
+        sorter.submit(new Runnable()
+        {
+            public void run()
+            {
+                final List<DecoratedKey> sortedKeys = getSortedKeys();
+                writer.submit(new WrappedRunnable()
+                {
+                    public void runMayThrow() throws IOException
+                    {
+                        cfs.addSSTable(writeSortedContents(sortedKeys));
+                        condition.signalAll();
+                    }
+                });
+            }
+        });
     }
 }
