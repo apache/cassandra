@@ -34,6 +34,8 @@
     <dependency org="com.google.collections" name="google-collections"
                 rev="1.0"/>
     <dependency org="commons-cli" name="commons-cli" rev="1.1"/>
+    <dependency org="commons-collections" name="commons-collections"
+                rev="3.2.1"/>
   </dependencies>
 </ivy-module>
 
