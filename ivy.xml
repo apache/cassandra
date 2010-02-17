@@ -41,6 +41,7 @@
     <dependency org="org.slf4j" name="slf4j-api" rev="1.5.8"/>
     <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.5.8"/>
     <dependency org="com.googlecode.json-simple" name="json-simple" rev="1.1"/>
+    <dependency org="junit" name="junit" rev="4.6"/>
   </dependencies>
 </ivy-module>
 
