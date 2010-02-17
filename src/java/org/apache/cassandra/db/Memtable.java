@@ -51,16 +51,15 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private final AtomicInteger currentThroughput = new AtomicInteger(0);
     private final AtomicInteger currentOperations = new AtomicInteger(0);
 
-    private final String table;
-    private final String columnfamilyName;
     private final long creationTime;
     private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     private final IPartitioner partitioner = StorageService.getPartitioner();
+    private final ColumnFamilyStore cfs;
 
-    Memtable(String table, String cfName)
+    public Memtable(ColumnFamilyStore cfs)
     {
-        this.table = table;
-        columnfamilyName = cfName;
+
+        this.cfs = cfs;
         creationTime = System.currentTimeMillis();
     }
 
@@ -147,8 +146,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private SSTableReader writeSortedContents() throws IOException
     {
         logger.info("Writing " + this);
-        ColumnFamilyStore cfStore = Table.open(table).getColumnFamilyStore(columnfamilyName);
-        SSTableWriter writer = new SSTableWriter(cfStore.getFlushPath(), columnFamilies.size(), StorageService.getPartitioner());
+        SSTableWriter writer = new SSTableWriter(cfs.getFlushPath(), columnFamilies.size(), StorageService.getPartitioner());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
@@ -160,21 +158,20 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             writer.append(entry.getKey(), buffer);
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table, columnfamilyName));
+        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(getTableName(), cfs.getColumnFamilyName()));
         logger.info("Completed flushing " + ssTable.getFilename());
         return ssTable;
     }
 
     public void flushAndSignal(final Condition condition, ExecutorService sorter, final ExecutorService writer)
     {
-        ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).add(this); // it's ok for the MT to briefly be both active and pendingFlush
+        cfs.getMemtablesPendingFlush().add(this); // it's ok for the MT to briefly be both active and pendingFlush
         writer.submit(new WrappedRunnable()
         {
             public void runMayThrow() throws IOException
             {
-                ColumnFamilyStore cfs = Table.open(table).getColumnFamilyStore(columnfamilyName);
                 cfs.addSSTable(writeSortedContents());
-                ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).remove(Memtable.this);
+                cfs.getMemtablesPendingFlush().remove(Memtable.this);
                 condition.signalAll();
             }
         });
@@ -182,7 +179,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public String toString()
     {
-        return "Memtable(" + columnfamilyName + ")@" + hashCode();
+        return "Memtable(" + cfs.getColumnFamilyName() + ")@" + hashCode();
     }
 
     public Iterator<DecoratedKey> getKeyIterator(DecoratedKey startWith)
@@ -195,19 +192,24 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return columnFamilies.isEmpty();
     }
 
+    private String getTableName()
+    {
+        return cfs.getTable().name;
+    }
+
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
     public ColumnIterator getSliceIterator(ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
     {
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table, filter.getColumnFamilyName()) : cf.cloneMeShallow();
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(getTableName(), filter.getColumnFamilyName()) : cf.cloneMeShallow();
 
         final IColumn columns[] = (cf == null ? columnFamily : cf).getSortedColumns().toArray(new IColumn[columnFamily.getSortedColumns().size()]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
         if (filter.reversed)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
-        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table, filter.getColumnFamilyName()).equals("Standard");
+        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(getTableName(), filter.getColumnFamilyName()).equals("Standard");
         if (isStandard)
             startIColumn = new Column(filter.start);
         else
@@ -252,8 +254,8 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
     public ColumnIterator getNamesIterator(final ColumnFamily cf, final NamesQueryFilter filter)
     {
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(table, filter.getColumnFamilyName()) : cf.cloneMeShallow();
-        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(table, filter.getColumnFamilyName()).equals("Standard");
+        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(getTableName(), filter.getColumnFamilyName()) : cf.cloneMeShallow();
+        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(getTableName(), filter.getColumnFamilyName()).equals("Standard");
 
         return new SimpleAbstractColumnIterator()
         {

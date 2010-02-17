@@ -61,7 +61,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 
 import org.apache.commons.collections.IteratorUtils;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import com.google.common.collect.Iterators;
 import com.google.common.base.Predicate;
 
@@ -84,7 +83,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
      * called, all data up to the given context has been persisted to SSTables.
      */
-    private static NonBlockingHashMap<String, Set<Memtable>> memtablesPendingFlush = new NonBlockingHashMap<String, Set<Memtable>>();
     private static ExecutorService flushSorter_
             = new JMXEnabledThreadPoolExecutor(1,
                                                Runtime.getRuntime().availableProcessors(),
@@ -102,6 +100,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
     private static final int KEY_RANGE_FILE_BUFFER_SIZE = 256 * 1024;
+
+    private Set<Memtable> memtablesPendingFlush = new ConcurrentSkipListSet<Memtable>();
 
     private final String table_;
     public final String columnFamily_;
@@ -132,7 +132,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         columnFamily_ = columnFamilyName;
         isSuper_ = isSuper;
         fileIndexGenerator_.set(indexValue);
-        memtable_ = new Memtable(table_, columnFamily_);
+        memtable_ = new Memtable(this);
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
 
         if (logger_.isDebugEnabled())
@@ -377,7 +377,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             final CommitLogSegment.CommitLogContext ctx = writeCommitLog ? CommitLog.instance().getContext() : null;
             logger_.info(columnFamily_ + " has reached its threshold; switching in a fresh Memtable at " + ctx);
             final Condition condition = submitFlush(oldMemtable);
-            memtable_ = new Memtable(table_, columnFamily_);
+            memtable_ = new Memtable(this);
             // a second executor that makes sure the onMemtableFlushes get called in the right order,
             // while keeping the wait-for-flush (future.get) out of anything latency-sensitive.
             return commitLogUpdater_.submit(new WrappedRunnable()
@@ -616,22 +616,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_.replace(sstables, replacements);
     }
 
-    public static List<Memtable> getUnflushedMemtables(String cfName)
-    {
-        return new ArrayList<Memtable>(getMemtablesPendingFlushNotNull(cfName));
-    }
-
-    static Set<Memtable> getMemtablesPendingFlushNotNull(String columnFamilyName)
-    {
-        Set<Memtable> memtables = memtablesPendingFlush.get(columnFamilyName);
-        if (memtables == null)
-        {
-            memtablesPendingFlush.putIfAbsent(columnFamilyName, new ConcurrentSkipListSet<Memtable>());
-            memtables = memtablesPendingFlush.get(columnFamilyName); // might not be the object we just put, if there was a race!
-        }
-        return memtables;
-    }
-
     /**
      * submits flush sort on the flushSorter executor, which will in turn submit to flushWriter when sorted.
      * TODO because our executors use CallerRunsPolicy, when flushSorter fills up, no writes will proceed
@@ -854,8 +838,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             iterators.add(iter);
 
             /* add the memtables being flushed */
-            List<Memtable> memtables = getUnflushedMemtables(filter.getColumnFamilyName());
-            for (Memtable memtable:memtables)
+            for (Memtable memtable : getMemtablesPendingFlush())
             {
                 iter = filter.getMemColumnIterator(memtable, getComparator());
                 returnCF.delete(iter.getColumnFamily());
@@ -930,7 +913,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // current memtable keys.  have to go through the CFS api for locking.
         iterators.add(Iterators.filter(memtableKeyIterator(startWith), p));
         // historical memtables
-        for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily_))
+        for (Memtable memtable : memtablesPendingFlush)
         {
             iterators.add(Iterators.filter(memtable.getKeyIterator(startWith), p));
         }
@@ -1178,5 +1161,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         memtable_.clearUnsafe();
         ssTables_.clearUnsafe();
+    }
+
+
+    public Set<Memtable> getMemtablesPendingFlush()
+    {
+        return memtablesPendingFlush;
     }
 }
