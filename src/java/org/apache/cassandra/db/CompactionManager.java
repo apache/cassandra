@@ -247,13 +247,19 @@ public class CompactionManager implements CompactionManagerMBean
         String compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(sstables));
         // If the compaction file path is null that means we have no space left for this compaction.
         // try again w/o the largest one.
+        List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
+        while (compactionFileLocation == null && smallerSSTables.size() > 1)
+        {
+            logger.warn("insufficient space to compact all requested files " + StringUtils.join(smallerSSTables, ", "));
+            smallerSSTables.remove(cfs.getMaxSizeFile(smallerSSTables));
+            compactionFileLocation = table.getDataFileLocation(cfs.getExpectedCompactedFileSize(smallerSSTables));
+        }
         if (compactionFileLocation == null)
         {
-            SSTableReader maxFile = cfs.getMaxSizeFile(sstables);
-            List<SSTableReader> smallerSSTables = new ArrayList<SSTableReader>(sstables);
-            smallerSSTables.remove(maxFile);
-            return doCompaction(cfs, smallerSSTables, gcBefore);
+            logger.error("insufficient space to compact even the two smallest files, aborting");
+            return 0;
         }
+        sstables = smallerSSTables;
 
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
