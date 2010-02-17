@@ -36,6 +36,7 @@
     <dependency org="commons-cli" name="commons-cli" rev="1.1"/>
     <dependency org="commons-collections" name="commons-collections"
                 rev="3.2.1"/>
+    <dependency org="commons-lang" name="commons-lang" rev="2.4"/>
   </dependencies>
 </ivy-module>
 
