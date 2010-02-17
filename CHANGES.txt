@@ -25,6 +25,10 @@ dev
    get_string_list_property
  * jmx interface for tracking operation mode and streams in general.
    (CASSANDRA-709)
+ * keep memtables in sorted order to improve range query performance
+   (CASSANDRA-799)
+ * use while loop instead of recursion when trimming sstables compaction list 
+   to avoid blowing stack in pathological cases (CASSANDRA-804)
 
 
 0.5.1

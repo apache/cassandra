@@ -20,25 +20,24 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
+import org.apache.log4j.Logger;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.SSTableWriter;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.DestructivePQIterator;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.SSTableWriter;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
-import org.apache.log4j.Logger;
 
 public class Memtable implements Comparable<Memtable>, IFlushable
 {
@@ -55,7 +54,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     private final String table;
     private final String columnfamilyName;
     private final long creationTime;
-    private final NonBlockingHashMap<DecoratedKey, ColumnFamily> columnFamilies = new NonBlockingHashMap<DecoratedKey, ColumnFamily>();
+    private final ConcurrentNavigableMap<DecoratedKey, ColumnFamily> columnFamilies = new ConcurrentSkipListMap<DecoratedKey, ColumnFamily>();
     private final IPartitioner partitioner = StorageService.getPartitioner();
 
     Memtable(String table, String cfName)
@@ -144,30 +143,21 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return builder.toString();
     }
 
-    private List<DecoratedKey> getSortedKeys()
-    {
-        logger.info("Sorting " + this);
-        // sort keys in the order they would be in when decorated
-        ArrayList<DecoratedKey> orderedKeys = new ArrayList<DecoratedKey>(columnFamilies.keySet());
-        Collections.sort(orderedKeys);
-        return orderedKeys;
-    }
 
-    private SSTableReader writeSortedContents(List<DecoratedKey> sortedKeys) throws IOException
+    private SSTableReader writeSortedContents() throws IOException
     {
         logger.info("Writing " + this);
         ColumnFamilyStore cfStore = Table.open(table).getColumnFamilyStore(columnfamilyName);
         SSTableWriter writer = new SSTableWriter(cfStore.getFlushPath(), columnFamilies.size(), StorageService.getPartitioner());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        for (DecoratedKey key : sortedKeys)
+        for (Map.Entry<DecoratedKey, ColumnFamily> entry : columnFamilies.entrySet())
         {
             buffer.reset();
-            ColumnFamily columnFamily = columnFamilies.get(key);
             /* serialize the cf with column indexes */
-            ColumnFamily.serializer().serializeWithIndexes(columnFamily, buffer);
+            ColumnFamily.serializer().serializeWithIndexes(entry.getValue(), buffer);
             /* Now write the key and value to disk */
-            writer.append(key, buffer);
+            writer.append(entry.getKey(), buffer);
         }
 
         SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table, columnfamilyName));
@@ -178,21 +168,14 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     public void flushAndSignal(final Condition condition, ExecutorService sorter, final ExecutorService writer)
     {
         ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).add(this); // it's ok for the MT to briefly be both active and pendingFlush
-        sorter.submit(new Runnable()
+        writer.submit(new WrappedRunnable()
         {
-            public void run()
+            public void runMayThrow() throws IOException
             {
-                final List<DecoratedKey> sortedKeys = getSortedKeys();
-                writer.submit(new WrappedRunnable()
-                {
-                    public void runMayThrow() throws IOException
-                    {
-                        ColumnFamilyStore cfs = Table.open(table).getColumnFamilyStore(columnfamilyName);
-                        cfs.addSSTable(writeSortedContents(sortedKeys));
-                        ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).remove(Memtable.this);
-                        condition.signalAll();
-                    }
-                });
+                ColumnFamilyStore cfs = Table.open(table).getColumnFamilyStore(columnfamilyName);
+                cfs.addSSTable(writeSortedContents());
+                ColumnFamilyStore.getMemtablesPendingFlushNotNull(columnfamilyName).remove(Memtable.this);
+                condition.signalAll();
             }
         });
     }
@@ -202,18 +185,9 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return "Memtable(" + columnfamilyName + ")@" + hashCode();
     }
 
-    public Iterator<DecoratedKey> getKeyIterator()
+    public Iterator<DecoratedKey> getKeyIterator(DecoratedKey startWith)
     {
-        // even though we are using NBHM, it is okay to use size() twice here, since size() will never decrease
-        // w/in a single memtable's lifetime
-        if (columnFamilies.size() == 0)
-        {
-            // cannot create a PQ of size zero (wtf?)
-            return Arrays.asList(new DecoratedKey[0]).iterator();
-        }
-        PriorityQueue<DecoratedKey> pq = new PriorityQueue<DecoratedKey>(columnFamilies.size());
-        pq.addAll(columnFamilies.keySet());
-        return new DestructivePQIterator<DecoratedKey>(pq);
+        return columnFamilies.navigableKeySet().tailSet(startWith).iterator();
     }
 
     public boolean isClean()

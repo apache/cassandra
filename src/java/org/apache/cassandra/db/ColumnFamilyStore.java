@@ -90,14 +90,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                Runtime.getRuntime().availableProcessors(),
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(1 + 2 * Runtime.getRuntime().availableProcessors()),
+                                               new LinkedBlockingQueue<Runnable>(1 + Runtime.getRuntime().availableProcessors()),
                                                new NamedThreadFactory("FLUSH-SORTER-POOL"));
     private static ExecutorService flushWriter_
-            = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getAllDataFileLocations().length,
+            = new JMXEnabledThreadPoolExecutor(1,
                                                DatabaseDescriptor.getAllDataFileLocations().length,
                                                Integer.MAX_VALUE,
                                                TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(),
+                                               new LinkedBlockingQueue<Runnable>(1 + 2 * DatabaseDescriptor.getAllDataFileLocations().length),
                                                new NamedThreadFactory("FLUSH-WRITER-POOL"));
     private static ExecutorService commitLogUpdater_ = new JMXEnabledThreadPoolExecutor("MEMTABLE-POST-FLUSHER");
 
@@ -641,7 +641,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * flushing thread finishes sorting, which will almost always be longer than any of the flushSorter threads proper
      * (since, by definition, it started last).
      */
-    Condition submitFlush(final IFlushable flushable)
+    Condition submitFlush(IFlushable flushable)
     {
         logger_.info("Enqueuing flush of " + flushable);
         final Condition condition = new SimpleCondition();
@@ -692,12 +692,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Iterator<DecoratedKey> memtableKeyIterator() throws ExecutionException, InterruptedException
+    public Iterator<DecoratedKey> memtableKeyIterator(DecoratedKey startWith) throws ExecutionException, InterruptedException
     {
         Table.flusherLock.readLock().lock();
         try
         {
-             return memtable_.getKeyIterator();
+             return memtable_.getKeyIterator(startWith);
         }
         finally
         {
@@ -928,11 +928,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         };
 
         // current memtable keys.  have to go through the CFS api for locking.
-        iterators.add(Iterators.filter(memtableKeyIterator(), p));
+        iterators.add(Iterators.filter(memtableKeyIterator(startWith), p));
         // historical memtables
         for (Memtable memtable : ColumnFamilyStore.getUnflushedMemtables(columnFamily_))
         {
-            iterators.add(Iterators.filter(memtable.getKeyIterator(), p));
+            iterators.add(Iterators.filter(memtable.getKeyIterator(startWith), p));
         }
 
         // sstables

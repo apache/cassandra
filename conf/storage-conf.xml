@@ -308,7 +308,7 @@
    ~ ColumnFamily before flushing to disk.  This is also a per-memtable
    ~ setting.  Use with MemtableThroughputInMB to tune memory usage.
   -->
-  <MemtableOperationsInMillions>0.1</MemtableOperationsInMillions>
+  <MemtableOperationsInMillions>0.3</MemtableOperationsInMillions>
   <!--
    ~ The maximum time to leave a dirty memtable unflushed.
    ~ (While any affected columnfamilies have unflushed data from a
