@@ -37,6 +37,7 @@
     <dependency org="commons-collections" name="commons-collections"
                 rev="3.2.1"/>
     <dependency org="commons-lang" name="commons-lang" rev="2.4"/>
+    <dependency org="jline" name="jline" rev="0.9.94"/>
   </dependencies>
 </ivy-module>
 

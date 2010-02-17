@@ -11,9 +11,6 @@ Some alternate data structures provided by high-scale-lib from
 http://sourceforge.net/projects/high-scale-lib/.
 Written by Cliff Click and released as Public Domain.
 
-This product makes use of JLine for console input (http://jline.sf.net).
-Copyright (c) 2002-2006, Marc Prud'hommeaux <mwp1@cornell.edu>
-
 JSON support provided by json-simple (http://code.google.com/p/json-simple/).
 Copyright 2006-2009 Yidong Fang.
 
