@@ -38,6 +38,8 @@
                 rev="3.2.1"/>
     <dependency org="commons-lang" name="commons-lang" rev="2.4"/>
     <dependency org="jline" name="jline" rev="0.9.94"/>
+    <dependency org="org.slf4j" name="slf4j-api" rev="1.5.8"/>
+    <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.5.8"/>
   </dependencies>
 </ivy-module>
 
