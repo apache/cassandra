@@ -207,13 +207,13 @@ public class AntiEntropyServiceTest extends CleanupHelper
     public void testDifferencer() throws Throwable
     {
         // generate a tree
-        Validator validator = new Validator(new CFPair("ltable", "lcf"));
+        Validator validator = new Validator(new CFPair("Keyspace1", "lcf"));
         validator.prepare();
 
         // create a clone with no values filled
         validator.complete();
         MerkleTree ltree = validator.tree;
-        validator = new Validator(new CFPair("rtable", "rcf"));
+        validator = new Validator(new CFPair("Keyspace1", "rcf"));
         validator.prepare();
         validator.complete();
         MerkleTree rtree = validator.tree;
