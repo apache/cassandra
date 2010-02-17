@@ -14,18 +14,37 @@
 @REM  See the License for the specific language governing permissions and
 @REM  limitations under the License.
 
+
 @echo off
-SETLOCAL
+if "%OS%" == "Windows_NT" setlocal
 
-SET CASSANDRA_LIBS=%CASSANDRA_HOME%\lib
+if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
+if NOT DEFINED JAVA_HOME goto err
 
-FOR %%a IN (%CASSANDRA_HOME%\lib\*.jar) DO  call :append %%~fa
-java -cp %CASSANDRA_LIBS% org.apache.cassandra.cli.CliMain
+REM Ensure that any user defined CLASSPATH variables are not used on startup
+set CLASSPATH=
+
+REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
+for %%i in (%CASSANDRA_HOME%\lib\*.jar) do call :append %%~fi
+goto okClasspath
 
 :append
-SET CASSANDRA_LIBS=%CASSANDRA_LIBS%;%1%2
-goto :finally
+set CLASSPATH=%CLASSPATH%;%1%2
+goto :eof
 
+:okClasspath
+REM Include the build\classes directory so it works in development
+set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes
+goto runCli
+
+:runCli
+echo Starting Cassandra Client
+"%JAVA_HOME%\bin\java" -cp "%CASSANDRA_CLASSPATH%" org.apache.cassandra.cli.CliMain %*
+goto finally
+
+:err
+echo The JAVA_HOME environment variable must be set to run this program!
+pause
 
 :finally
 
