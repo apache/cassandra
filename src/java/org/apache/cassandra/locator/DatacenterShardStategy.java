@@ -68,7 +68,7 @@ public class DatacenterShardStategy extends AbstractReplicationStrategy
      */
     private synchronized void loadEndPoints(TokenMetadata metadata) throws IOException
     {
-        this.tokens = new ArrayList<Token>(tokens);
+        this.tokens = new ArrayList<Token>(metadata.sortedTokens());
         String localDC = ((DatacenterEndPointSnitch)snitch_).getLocation(InetAddress.getLocalHost());
         dcMap = new HashMap<String, List<Token>>();
         for (Token token : this.tokens)
