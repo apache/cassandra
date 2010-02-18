@@ -1,4 +1,4 @@
-dev
+0.6.0-dev
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
  * remove get_key_range Thrift API, deprecated in 0.5 (CASSANDRA-710)
  * add optional login() Thrift call for authentication (CASSANDRA-547)
