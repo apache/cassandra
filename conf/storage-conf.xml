@@ -227,16 +227,16 @@
   <StoragePort>7000</StoragePort>
 
   <!--
-   ~ The address to bind the Thrift RPC service to. Unlike ListenAddress
-   ~ above, you *can* specify 0.0.0.0 here if you want Thrift to listen on
-   ~ all interfaces.
+   ~ The address to bind the RPC service to. Unlike ListenAddress above, you
+   ~ *can* specify 0.0.0.0 here if you want to bind the RPC service to all
+   ~ interfaces.
    ~
    ~ Leaving this blank has the same effect it does for ListenAddress,
    ~ (i.e. it will be based on the configured hostname of the node).
   -->
-  <ThriftAddress>localhost</ThriftAddress>
-  <!-- Thrift RPC port (the port clients connect to). -->
-  <ThriftPort>9160</ThriftPort>
+  <RPCAddress>localhost</RPCAddress>
+  <!-- RPC port (the port clients connect to). -->
+  <RPCPort>9160</RPCPort>
   <!-- 
    ~ Whether or not to use a framed transport for Thrift. If this option
    ~ is set to true then you must also use a framed transport on the 

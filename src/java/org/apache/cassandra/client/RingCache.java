@@ -48,7 +48,7 @@ public class RingCache
     final private static Logger logger_ = Logger.getLogger(RingCache.class);
 
     private Set<String> seeds_ = new HashSet<String>();
-    final private int port_= DatabaseDescriptor.getThriftPort();
+    final private int port_= DatabaseDescriptor.getRpcPort();
     final private static IPartitioner partitioner_ = DatabaseDescriptor.getPartitioner();
     private TokenMetadata tokenMetadata;
 

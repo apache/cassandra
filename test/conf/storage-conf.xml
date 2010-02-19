@@ -26,7 +26,7 @@
    <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
    <ListenAddress>127.0.0.1</ListenAddress>
    <StoragePort>7010</StoragePort>
-   <ThriftPort>9170</ThriftPort>
+   <RPCPort>9170</RPCPort>
    <ColumnIndexSizeInKB>4</ColumnIndexSizeInKB>
    <CommitLogDirectory>build/test/cassandra/commitlog</CommitLogDirectory>
    <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>

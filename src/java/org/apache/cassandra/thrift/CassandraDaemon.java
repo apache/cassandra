@@ -61,8 +61,8 @@ public class CassandraDaemon
         String file = System.getProperty("storage-config") + File.separator + "log4j.properties";
         PropertyConfigurator.configure(file);
 
-        int listenPort = DatabaseDescriptor.getThriftPort();
-        InetAddress listenAddr = DatabaseDescriptor.getThriftAddress();
+        int listenPort = DatabaseDescriptor.getRpcPort();
+        InetAddress listenAddr = DatabaseDescriptor.getRpcAddress();
         
         /* 
          * If ThriftAddress was left completely unconfigured, then assume

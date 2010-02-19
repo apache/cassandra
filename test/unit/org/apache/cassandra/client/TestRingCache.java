@@ -98,7 +98,7 @@ public class TestRingCache
             System.out.println("hosts with key " + row + " : " + hosts + "; choose " + endPoints.get(0));
 
             // now, read the row back directly from the host owning the row locally
-            setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getThriftPort());
+            setup(endPoints.get(0).getHostAddress(), DatabaseDescriptor.getRpcPort());
             thriftClient.insert(table, row, col, "val1".getBytes(), 1, ConsistencyLevel.ONE);
             Column column=thriftClient.get(table, row, col, ConsistencyLevel.ONE).column;
             System.out.println("read row " + row + " " + new String(column.name) + ":" + new String(column.value) + ":" + column.timestamp);

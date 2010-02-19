@@ -66,10 +66,10 @@ public class DatabaseDescriptor
     public static final String ophf_ = "OPHF";
     private static int storagePort_ = 7000;
     private static int controlPort_ = 7001;
-    private static int thriftPort_ = 9160;
+    private static int rpcPort_ = 9160;
     private static boolean thriftFramed_ = false;
     private static InetAddress listenAddress_; // leave null so we can fall through to getLocalHost
-    private static InetAddress thriftAddress_;
+    private static InetAddress rpcAddress_;
     private static String clusterName_ = "Test";
     private static long rpcTimeoutInMillis_ = 2000;
     private static Set<InetAddress> seeds_ = new HashSet<InetAddress>();
@@ -352,20 +352,20 @@ public class DatabaseDescriptor
                 }
             }
 
-            /* Local IP or hostname to bind thrift server to */
-            String thriftAddress = xmlUtils.getNodeValue("/Storage/ThriftAddress");
-            if ( thriftAddress != null )
-                thriftAddress_ = InetAddress.getByName(thriftAddress);
+            /* Local IP or hostname to bind RPC server to */
+            String rpcAddress = xmlUtils.getNodeValue("/Storage/RPCAddress");
+            if ( rpcAddress != null )
+                rpcAddress_ = InetAddress.getByName(rpcAddress);
             
             /* UDP port for control messages */
             port = xmlUtils.getNodeValue("/Storage/ControlPort");
             if ( port != null )
                 controlPort_ = Integer.parseInt(port);
 
-            /* get the thrift port from conf file */
-            port = xmlUtils.getNodeValue("/Storage/ThriftPort");
+            /* get the RPC port from conf file */
+            port = xmlUtils.getNodeValue("/Storage/RPCPort");
             if (port != null)
-                thriftPort_ = Integer.parseInt(port);
+                rpcPort_ = Integer.parseInt(port);
 
             /* Framed (Thrift) transport (default to "no") */
             String framedRaw = xmlUtils.getNodeValue("/Storage/ThriftFramedTransport");
@@ -869,9 +869,9 @@ public class DatabaseDescriptor
         return controlPort_;
     }
 
-    public static int getThriftPort()
+    public static int getRpcPort()
     {
-        return thriftPort_;
+        return rpcPort_;
     }
 
     public static int getReplicationFactor(String table)
@@ -1035,9 +1035,9 @@ public class DatabaseDescriptor
         return listenAddress_;
     }
     
-    public static InetAddress getThriftAddress()
+    public static InetAddress getRpcAddress()
     {
-        return thriftAddress_;
+        return rpcAddress_;
     }
 
     public static double getCommitLogSyncBatchWindow()

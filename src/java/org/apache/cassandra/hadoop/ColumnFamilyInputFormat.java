@@ -156,7 +156,7 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
     {
         // TODO handle failure of range replicas & retry
         TSocket socket = new TSocket(range.endpoints.get(0),
-                                     DatabaseDescriptor.getThriftPort());
+                                     DatabaseDescriptor.getRpcPort());
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         try
@@ -182,7 +182,7 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
     private List<TokenRange> getRangeMap() throws IOException
     {
         TSocket socket = new TSocket(DatabaseDescriptor.getSeeds().iterator().next().getHostAddress(),
-                                     DatabaseDescriptor.getThriftPort());
+                                     DatabaseDescriptor.getRpcPort());
         TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         try

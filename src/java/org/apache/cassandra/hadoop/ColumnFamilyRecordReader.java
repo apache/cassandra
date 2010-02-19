@@ -75,7 +75,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             if (rows != null)
                 return;
             TSocket socket = new TSocket(getLocation(),
-                                         DatabaseDescriptor.getThriftPort());
+                                         DatabaseDescriptor.getRpcPort());
             TBinaryProtocol binaryProtocol = new TBinaryProtocol(socket, false, false);
             Cassandra.Client client = new Cassandra.Client(binaryProtocol);
             try
