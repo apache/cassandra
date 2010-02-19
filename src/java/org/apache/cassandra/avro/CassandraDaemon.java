@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 import org.apache.avro.ipc.SocketServer;
+import org.apache.avro.ipc.HttpServer;
 import org.apache.avro.specific.SpecificResponder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CompactionManager;
@@ -40,7 +41,7 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class CassandraDaemon {
     private static Logger logger = Logger.getLogger(CassandraDaemon.class);
-    private SocketServer server;
+    private HttpServer server;
     private InetAddress listenAddr;
     private int listenPort;
     
@@ -100,11 +101,11 @@ public class CassandraDaemon {
     {
         if (logger.isDebugEnabled())
             logger.debug(String.format("Binding avro service to %s:%s", listenAddr, listenPort));
-        InetSocketAddress socketAddress = new InetSocketAddress(listenAddr, listenPort);
         SpecificResponder responder = new SpecificResponder(Cassandra.class, new CassandraServer());
         
         logger.info("Cassandra starting up...");
-        server = new SocketServer(responder, socketAddress);
+        // FIXME: This isn't actually binding to listenAddr (it should).
+        server = new HttpServer(responder, listenPort);
     }
     
     /** hook for JSVC */
