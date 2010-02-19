@@ -19,7 +19,8 @@
 
 import os, sys, time, struct
 
-from . import client, root, CassandraTester
+from . import root, ThriftTester
+from . import thrift_client as client
 
 from thrift.Thrift import TApplicationException
 from ttypes import *
@@ -172,7 +173,7 @@ def _expect_missing(fn):
     _expect_exception(fn, NotFoundException)
 
 
-class TestMutations(CassandraTester):
+class TestMutations(ThriftTester):
     def test_insert(self):
         _insert_simple(False)
         time.sleep(0.1)

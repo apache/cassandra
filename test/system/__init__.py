@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, sys, time, signal
+import os, sys, time, signal, httplib
 
-__all__ = ['root', 'client']
+__all__ = ['root', 'thrift_client']
 
 from thrift.transport import TTransport
 from thrift.transport import TSocket
 from thrift.transport import THttpClient
 from thrift.protocol import TBinaryProtocol
+import avro.ipc as ipc
+import avro.protocol as protocol
 
 # add cassandra directory to sys.path
 L = os.path.abspath(__file__).split(os.path.sep)[:-3]
@@ -30,26 +32,40 @@ _ipath = os.path.join(root, 'interface', 'thrift', 'gen-py')
 sys.path.append(os.path.join(_ipath, 'cassandra'))
 import Cassandra
 
-def get_client(host='127.0.0.1', port=9170):
+def get_thrift_client(host='127.0.0.1', port=9170):
     socket = TSocket.TSocket(host, port)
     transport = TTransport.TBufferedTransport(socket)
     protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
     client = Cassandra.Client(protocol)
     client.transport = transport
     return client
+thrift_client = get_thrift_client()
 
-client = get_client()
-
+def get_avro_client(host='127.0.0.1', port=9170):
+    schema = os.path.join(root, 'interface', 'cassandra.avpr')
+    proto = protocol.parse(open(schema).read())
+    conn = httplib.HTTPConnection(host, port)
+    conn.connect()
+    client = ipc.HTTPTransceiver(conn)
+    return ipc.Requestor(proto, client)
 
 pid_fname = "system_test.pid"
 def pid():
     return int(open(pid_fname).read())
 
-
-class CassandraTester(object):
+class BaseTester(object):
     # leave this True unless you are manually starting a server and then
-    # running only a single test against it; tests assume they start against an empty db.
+    # running only a single test against it; tests assume they start
+    # against an empty db.
     runserver = True
+    client = None
+    extra_args = []
+
+    def open_client(self):
+        raise NotImplementedError()
+
+    def close_client(self):
+        raise NotImplementedError()
 
     def setUp(self):
         if self.runserver:
@@ -70,7 +86,7 @@ class CassandraTester(object):
             import subprocess as sp
             os.chdir(root)
             os.environ['CASSANDRA_INCLUDE'] = 'test/cassandra.in.sh'
-            args = ['bin/cassandra', '-p', pid_fname]
+            args = ['bin/cassandra', '-p', pid_fname] + self.extra_args
             process = sp.Popen(args, stderr=sp.PIPE, stdout=sp.PIPE)
             time.sleep(0.1)
 
@@ -78,7 +94,7 @@ class CassandraTester(object):
             start = time.time()
             while time.time() < start + 10:
                 try:
-                    client.transport.open()
+                    self.open_client()
                 except:
                     time.sleep(0.1)
                 else:
@@ -97,17 +113,36 @@ class CassandraTester(object):
                 sys.exit()
         else:
             try:
-                client.transport.open()
+                self.open_client()
             except:
                 pass
 
     def tearDown(self):
         if self.runserver:
-            client.transport.close()
+            self.close_client()
             open('/tmp/kill', 'w').write('killing %s\n' % pid())
             os.kill(pid(), signal.SIGTERM)
             # TODO kill server with SIGKILL if it's still alive
             time.sleep(0.5)
             # TODO assert server is Truly Dead
+
+class ThriftTester(BaseTester):
+    client = thrift_client
+
+    def open_client(self):
+        self.client.transport.open()
+
+    def close_client(self):
+        self.client.transport.close()
+
+class AvroTester(BaseTester):
+    client = None
+    extra_args = ['-a']
+
+    def open_client(self):
+        self.client = get_avro_client()
+
+    def close_client(self):
+        self.client.transceiver.conn.close()
 
 # vim:ai sw=4 ts=4 tw=0 et
