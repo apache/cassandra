@@ -18,6 +18,7 @@ from . import AvroTester
 
 class TestMutations(AvroTester):
     def test_insert_and_get(self):
+        "setting and getting a column"
         params = dict()
         params['keyspace'] = 'Keyspace1'
         params['key'] = 'key1'
@@ -40,5 +41,11 @@ class TestMutations(AvroTester):
                 and response['column'].has_key('name')
         assert response['column']['name'] == 'c1'
         assert response['column']['value'] == 'v1'
-        
+
+    def test_get_api_version(self):
+        "getting the remote api version string"
+        client = get_avro_client()
+        vers = client.request('get_api_version', {})
+        assert isinstance(vers, (str,unicode)) and len(vers.split('.')) == 3
+
 # vi:ai sw=4 ts=4 tw=0 et
