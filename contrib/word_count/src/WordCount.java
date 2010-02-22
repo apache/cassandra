@@ -32,7 +32,7 @@ public class WordCount extends Configured implements Tool
 
     static final String KEYSPACE = "Keyspace1";
     static final String COLUMN_FAMILY = "Standard1";
-    private static String columnName;
+    private static final String CONF_COLUMN_NAME = "columnname";
     private static final String OUTPUT_PATH_PREFIX = "/tmp/word_count";
     static final int RING_DELAY = 3000; // this is enough for testing a single server node; may need more for a real cluster
 
@@ -47,6 +47,7 @@ public class WordCount extends Configured implements Tool
     {
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
+        private String columnName;
 
         public void map(String key, SortedMap<byte[], IColumn> columns, Context context) throws IOException, InterruptedException
         {
@@ -63,6 +64,13 @@ public class WordCount extends Configured implements Tool
                 context.write(word, one);
             }
         }
+
+        protected void setup(org.apache.hadoop.mapreduce.Mapper.Context context)
+            throws IOException, InterruptedException
+        {
+            this.columnName = context.getConfiguration().get(CONF_COLUMN_NAME);
+        }
+        
     }
 
     public static class IntSumReducer extends Reducer<Text, IntWritable, Text, IntWritable>
@@ -88,7 +96,8 @@ public class WordCount extends Configured implements Tool
 
         for (int i = 0; i < WordCountSetup.TEST_COUNT; i++)
         {
-            columnName = "text" + i;
+            String columnName = "text" + i;
+            conf.set(CONF_COLUMN_NAME, columnName);
             Job job = new Job(conf, "wordcount");
             job.setJarByClass(WordCount.class);
             job.setMapperClass(TokenizerMapper.class);
