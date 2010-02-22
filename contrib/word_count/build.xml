@@ -55,6 +55,9 @@
            <fileset dir="${cassandra.dir}">
                <include name="lib/**/*.jar" />
            </fileset>
+           <zipfileset dir="${cassandra.dir}/build/lib/jars/" prefix="lib">
+               <include name="**/*.jar" />
+           </zipfileset>
            <fileset file="${basedir}/storage-conf.xml" />
         </jar>
     </target>
