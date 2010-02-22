@@ -318,6 +318,7 @@ service Cassandra {
     Perform a get for column_path in parallel on the given list<string> keys. The return value maps keys to the
     ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
     the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.  
+    @deprecated; use multiget_slice
   */
   map<string,ColumnOrSuperColumn> multiget(1:required string keyspace, 
                                            2:required list<string> keys, 
