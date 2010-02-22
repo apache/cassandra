@@ -16,6 +16,20 @@
 
 from . import AvroTester
 
+COLUMNS = [
+    dict(name="c0", value="v0", timestamp=1L),
+    dict(name="c1", value="v1", timestamp=1L),
+    dict(name="c2", value="v2", timestamp=1L),
+    dict(name="c3", value="v3", timestamp=1L),
+    dict(name="c4", value="v4", timestamp=1L),
+    dict(name="c5", value="v5", timestamp=1L),
+]
+
+SUPERCOLUMNS = [
+    dict(name="sc0", columns=COLUMNS[:3]),
+    dict(name="sc1", columns=COLUMNS[3:]),
+]
+
 class TestMutations(AvroTester):
     def test_insert_and_get(self):
         "setting and getting a column"
@@ -42,10 +56,14 @@ class TestMutations(AvroTester):
         assert response['column']['name'] == 'c1'
         assert response['column']['value'] == 'v1'
 
+    def test_batch_insert(self):
+        "performing a batch insert operation"
+        # TODO: do
+        pass
+
     def test_get_api_version(self):
         "getting the remote api version string"
-        client = get_avro_client()
-        vers = client.request('get_api_version', {})
+        vers = self.client.request('get_api_version', {})
         assert isinstance(vers, (str,unicode)) and len(vers.split('.')) == 3
 
 # vi:ai sw=4 ts=4 tw=0 et
