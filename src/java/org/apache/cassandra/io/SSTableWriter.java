@@ -128,10 +128,15 @@ public class SSTableWriter extends SSTable
         afterAppend(decoratedKey, currentPosition, value.length);
     }
 
+    public SSTableReader closeAndOpenReader(double cacheFraction) throws IOException
+    {
+        return closeAndOpenReader(cacheFraction, false);
+    }
+
     /**
      * Renames temporary SSTable files to valid data, index, and bloom filter files
      */
-    public SSTableReader closeAndOpenReader(double cacheFraction) throws IOException
+    public SSTableReader closeAndOpenReader(double cacheFraction, boolean temporary) throws IOException
     {
         // bloom filter
         FileOutputStream fos = new FileOutputStream(filterFilename());
@@ -148,9 +153,12 @@ public class SSTableWriter extends SSTable
         // main data
         dataFile.close(); // calls force
 
-        rename(indexFilename());
-        rename(filterFilename());
-        path = rename(path); // important to do this last since index & filter file names are derived from it
+        if (!temporary)
+        {
+            rename(indexFilename());
+            rename(filterFilename());
+            path = rename(path); // important to do this last since index & filter file names are derived from it
+        }
 
         InstrumentedCache<DecoratedKey, PositionSize> keyCache = SSTableReader.createKeyCache((int)(cacheFraction * keysWritten));
         return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);

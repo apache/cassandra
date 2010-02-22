@@ -343,13 +343,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             throw new UnsupportedOperationException("disk full");
         }
-        if (target != null)
-        {
-            // compacting for streaming: send to subdirectory
-            compactionFileLocation = compactionFileLocation + File.separator + DatabaseDescriptor.STREAMING_SUBDIR;
-        }
-        List<SSTableReader> results = new ArrayList<SSTableReader>();
 
+        List<SSTableReader> results = new ArrayList<SSTableReader>();
         long startTime = System.currentTimeMillis();
         long totalkeysWritten = 0;
 
@@ -389,7 +384,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         if (writer != null)
         {
-            results.add(writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name, cfs.getColumnFamilyName())));
+            results.add(writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name, cfs.getColumnFamilyName()), target != null));
             String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
             long dTime = System.currentTimeMillis() - startTime;
             logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));

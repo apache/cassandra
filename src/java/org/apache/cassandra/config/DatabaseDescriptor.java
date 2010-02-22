@@ -47,7 +47,6 @@ import java.net.URL;
 public class DatabaseDescriptor
 {
     private static Logger logger_ = Logger.getLogger(DatabaseDescriptor.class);
-    public static final String STREAMING_SUBDIR = "stream";
 
     // don't capitalize these; we need them to match what's in the config file for CLS.valueOf to parse
     public static enum CommitLogSync {
@@ -712,7 +711,9 @@ public class DatabaseDescriptor
             {
                 String oneDir = dataFile + File.separator + table;
                 FileUtils.createDirectory(oneDir);
-                File streamingDir = new File(oneDir, STREAMING_SUBDIR);
+
+                // remove the deprecated streaming directory.
+                File streamingDir = new File(oneDir, "stream");
                 if (streamingDir.exists())
                     FileUtils.deleteDir(streamingDir);
             }
