@@ -32,7 +32,7 @@ import org.apache.cassandra.io.SSTableAccessor;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import static org.apache.cassandra.Util.createTemporarySSTable;
+import static org.apache.cassandra.io.SSTableUtils.tempSSTableFile;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import static org.junit.Assert.assertTrue;
 
@@ -47,7 +47,7 @@ public class SSTableExportTest
     @Test
     public void testEnumeratekeys() throws IOException
     {
-        File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
         DataOutputBuffer dob = new DataOutputBuffer();
@@ -85,7 +85,7 @@ public class SSTableExportTest
 
     @Test
     public void testExportSimpleCf() throws IOException    {
-        File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
         DataOutputBuffer dob = new DataOutputBuffer();
@@ -125,7 +125,7 @@ public class SSTableExportTest
     @Test
     public void testExportSuperCf() throws IOException
     {
-        File tempSS = createTemporarySSTable("Keyspace1", "Super4");
+        File tempSS = tempSSTableFile("Keyspace1", "Super4");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Super4");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
         DataOutputBuffer dob = new DataOutputBuffer();
@@ -165,7 +165,7 @@ public class SSTableExportTest
     @Test
     public void testRoundTripStandardCf() throws IOException, ParseException
     {
-        File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = ColumnFamily.create("Keyspace1", "Standard1");
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
         DataOutputBuffer dob = new DataOutputBuffer();
@@ -185,7 +185,7 @@ public class SSTableExportTest
         SSTableExport.export(reader, new PrintStream(tempJson.getPath()));
         
         // Import JSON to another SSTable file
-        File tempSS2 = createTemporarySSTable("Keyspace1", "Standard1");
+        File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");
         SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());        
         
         reader = SSTableAccessor.getSSTableReader(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());

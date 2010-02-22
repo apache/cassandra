@@ -118,10 +118,11 @@ public class StreamOut
         int i = 0;
         for (SSTableReader sstable : sstables)
         {
-            for (String filename : sstable.getAllFilenames())
+            for (String component : sstable.getAllComponents())
             {
-                File file = new File(filename);
-                pendingFiles[i++] = new PendingFile(file.getAbsolutePath(), file.length(), table);
+                SSTable.Descriptor desc = sstable.getDescriptor();
+                long filelen = new File(desc.filenameFor(component)).length();
+                pendingFiles[i++] = new PendingFile(desc, component, filelen);
             }
         }
         if (logger.isDebugEnabled())

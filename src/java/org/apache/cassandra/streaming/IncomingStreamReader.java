@@ -50,8 +50,8 @@ public class IncomingStreamReader
     {
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
         if (logger.isDebugEnabled())
-          logger.debug("Creating file for " + pendingFile.getTargetFile());
-        FileOutputStream fos = new FileOutputStream(pendingFile.getTargetFile(), true);
+          logger.debug("Creating file for " + pendingFile.getFilename());
+        FileOutputStream fos = new FileOutputStream(pendingFile.getFilename(), true);
         FileChannel fc = fos.getChannel();
 
         long bytesRead = 0;
@@ -68,7 +68,7 @@ public class IncomingStreamReader
             streamStatus.setAction(CompletedFileStatus.StreamCompletionAction.STREAM);
             handleStreamCompletion(remoteAddress.getAddress());
             /* Delete the orphaned file. */
-            File file = new File(pendingFile.getTargetFile());
+            File file = new File(pendingFile.getFilename());
             file.delete();
             throw ex;
         }

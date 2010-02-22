@@ -84,9 +84,9 @@ public class StreamOutManager
         for (PendingFile pendingFile : pendingFiles)
         {
             if (logger.isDebugEnabled())
-              logger.debug("Adding file " + pendingFile.getTargetFile() + " to be streamed.");
+              logger.debug("Adding file " + pendingFile.getFilename() + " to be streamed.");
             files.add(pendingFile);
-            fileMap.put(pendingFile.getTargetFile(), pendingFile);
+            fileMap.put(pendingFile.getFilename(), pendingFile);
             totalBytes += pendingFile.getExpectedBytes();
         }
     }
@@ -102,7 +102,7 @@ public class StreamOutManager
     {
         if (files.size() > 0)
         {
-            File file = new File(files.get(0).getTargetFile());
+            File file = new File(files.get(0).getFilename());
             if (logger.isDebugEnabled())
               logger.debug("Streaming " + file.length() + " length file " + file + " ...");
             MessagingService.instance.stream(file.getAbsolutePath(), 0L, file.length(), FBUtilities.getLocalAddress(), to);
@@ -117,7 +117,7 @@ public class StreamOutManager
         FileUtils.delete(file);
         PendingFile pf = files.remove(0);
         if (pf != null)
-            fileMap.remove(pf.getTargetFile());
+            fileMap.remove(pf.getFilename());
         if (files.size() > 0)
         {
             startNext();

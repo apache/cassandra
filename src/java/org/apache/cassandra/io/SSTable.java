@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.StringTokenizer;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
@@ -34,6 +35,8 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.db.DecoratedKey;
+
+import com.google.common.base.Objects;
 
 /**
  * This class is built on top of the SequenceFile. It stores
@@ -52,24 +55,32 @@ public abstract class SSTable
     static final Logger logger = Logger.getLogger(SSTable.class);
 
     public static final int FILES_ON_DISK = 3; // data, index, and bloom filter
+    public static final String COMPONENT_DATA = "Data.db";
+    public static final String COMPONENT_INDEX = "Index.db";
+    public static final String COMPONENT_FILTER = "Filter.db";
 
-    protected String path;
+    public static final String COMPONENT_COMPACTED = "Compacted";
+
+    protected Descriptor desc;
     protected IPartitioner partitioner;
     protected BloomFilter bf;
     protected List<KeyPosition> indexPositions;
     protected Map<KeyPosition, PositionSize> spannedIndexDataPositions; // map of index position, to data position, for index entries spanning mmap segments
-    protected String columnFamilyName;
 
     /* Every 128th index entry is loaded into memory so we know where to start looking for the actual key w/o seeking */
     public static final int INDEX_INTERVAL = 128;/* Required extension for temporary files created during compactions. */
     public static final String TEMPFILE_MARKER = "tmp";
 
-    public SSTable(String filename, IPartitioner partitioner)
+    protected SSTable(String filename, IPartitioner partitioner)
     {
-        assert filename.endsWith("-Data.db");
-        columnFamilyName = parseColumnFamilyName(filename);
-        this.path = filename;
+        assert filename.endsWith("-" + COMPONENT_DATA);
+        this.desc = Descriptor.fromFilename(filename);
         this.partitioner = partitioner;
+    }
+
+    public Descriptor getDescriptor()
+    {
+        return desc;
     }
 
     protected static String parseColumnFamilyName(String filename)
@@ -79,21 +90,17 @@ public abstract class SSTable
 
     public static String indexFilename(String dataFile)
     {
-        String[] parts = dataFile.split("-");
-        parts[parts.length - 1] = "Index.db";
-        return StringUtils.join(parts, "-");
+        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_INDEX);
     }
 
     public String indexFilename()
     {
-        return indexFilename(path);
+        return desc.filenameFor(COMPONENT_INDEX);
     }
 
     protected static String compactedFilename(String dataFile)
     {
-        String[] parts = dataFile.split("-");
-        parts[parts.length - 1] = "Compacted";
-        return StringUtils.join(parts, "-");
+        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_COMPACTED);
     }
 
     /**
@@ -121,46 +128,44 @@ public abstract class SSTable
 
     protected String compactedFilename()
     {
-        return compactedFilename(path);
+        return desc.filenameFor(COMPONENT_COMPACTED);
     }
 
     protected static String filterFilename(String dataFile)
     {
-        String[] parts = dataFile.split("-");
-        parts[parts.length - 1] = "Filter.db";
-        return StringUtils.join(parts, "-");
+        return Descriptor.fromFilename(dataFile).filenameFor(COMPONENT_FILTER);
     }
 
     public String filterFilename()
     {
-        return filterFilename(path);
+        return desc.filenameFor(COMPONENT_FILTER);
     }
 
     public String getFilename()
     {
-        return path;
+        return desc.filenameFor(COMPONENT_DATA);
     }
 
-    /** @return full paths to all the files associated w/ this SSTable */
-    public List<String> getAllFilenames()
+    /** @return component names for files associated w/ this SSTable */
+    public List<String> getAllComponents()
     {
         // TODO streaming relies on the -Data (getFilename) file to be last, this is clunky
-        return Arrays.asList(indexFilename(), filterFilename(), getFilename());
+        return Arrays.asList(COMPONENT_FILTER, COMPONENT_INDEX, COMPONENT_DATA);
     }
 
     public String getColumnFamilyName()
     {
-        return columnFamilyName;
+        return desc.cfname;
     }
 
     public String getTableName()
     {
-        return parseTableName(path);
+        return desc.ksname;
     }
 
     public static String parseTableName(String filename)
     {
-        return new File(filename).getParentFile().getName();        
+        return Descriptor.fromFilename(filename).ksname;        
     }
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
@@ -203,9 +208,9 @@ public abstract class SSTable
     public long bytesOnDisk()
     {
         long bytes = 0;
-        for (String fname : getAllFilenames())
+        for (String cname : getAllComponents())
         {
-            bytes += new File(fname).length();
+            bytes += new File(desc.filenameFor(cname)).length();
         }
         return bytes;
     }
@@ -214,7 +219,7 @@ public abstract class SSTable
     public String toString()
     {
         return getClass().getName() + "(" +
-               "path='" + path + '\'' +
+               "path='" + getFilename() + '\'' +
                ')';
     }
 
@@ -227,6 +232,142 @@ public abstract class SSTable
         {
             this.position = position;
             this.size = size;
+        }
+    }
+
+    /**
+     * A SSTable is described by the keyspace and column family it contains data
+     * for, a generation (where higher generations contain more recent data) and
+     * an alphabetic version string.
+     *
+     * A descriptor can be marked as temporary, which influences generated filenames.
+     */
+    public static class Descriptor
+    {
+        public static final String LEGACY_VERSION = "a";
+        public static final String CURRENT_VERSION = "b";
+
+        public final File directory;
+        public final String version;
+        public final String ksname;
+        public final String cfname;
+        public final int generation;
+        public final boolean temporary;
+
+        /**
+         * A descriptor that assumes CURRENT_VERSION.
+         */
+        public Descriptor(File directory, String ksname, String cfname, int generation, boolean temp)
+        {
+            this(CURRENT_VERSION, directory, ksname, cfname, generation, temp);
+        }
+
+        public Descriptor(String version, File directory, String ksname, String cfname, int generation, boolean temp)
+        {
+            assert version != null && directory != null && ksname != null && cfname != null;
+            this.version = version;
+            this.directory = directory;
+            this.ksname = ksname;
+            this.cfname = cfname;
+            this.generation = generation;
+            temporary = temp;
+        }
+
+        /**
+         * @param suffix A component suffix, such as 'Data.db'/'Index.db'/etc
+         * @return A filename for this descriptor with the given suffix.
+         */
+        public String filenameFor(String suffix)
+        {
+            StringBuilder buff = new StringBuilder();
+            buff.append(directory).append(File.separatorChar);
+            buff.append(cfname).append("-");
+            if (temporary)
+                buff.append(TEMPFILE_MARKER).append("-");
+            if (!LEGACY_VERSION.equals(version))
+                buff.append(version).append("-");
+            buff.append(generation).append("-");
+            buff.append(suffix);
+            return buff.toString();
+        }
+
+        /**
+         * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-*"
+         * @param name A full SSTable filename, including the directory.
+         * @return A SSTable.Descriptor for the filename. 
+         */
+        public static Descriptor fromFilename(String filename)
+        {
+            int separatorPos = filename.lastIndexOf(File.separatorChar);
+            assert separatorPos != -1 : "Filename must include parent directory.";
+            File directory = new File(filename.substring(0, separatorPos));
+            String name = filename.substring(separatorPos+1, filename.length());
+
+            // name of parent directory is keyspace name
+            String ksname = directory.getName();
+
+            // tokenize the filename
+            StringTokenizer st = new StringTokenizer(name, "-");
+            String nexttok = null;
+            
+            // all filenames must start with a column family
+            String cfname = st.nextToken();
+
+            // optional temporary marker
+            nexttok = st.nextToken();
+            boolean temporary = false;
+            if (nexttok.equals(TEMPFILE_MARKER))
+            {
+                temporary = true;
+                nexttok = st.nextToken();
+            }
+
+            // optional version string
+            String version = LEGACY_VERSION;
+            if (versionValidate(nexttok))
+            {
+                version = nexttok;
+                nexttok = st.nextToken();
+            }
+            int generation = Integer.parseInt(nexttok);
+
+            return new Descriptor(version, directory, ksname, cfname, generation, temporary);
+        }
+        
+        /**
+         * @return True if the given version string is not empty, and
+         * contains all lowercase letters, as defined by java.lang.Character.
+         */
+        private static boolean versionValidate(String ver)
+        {
+            if (ver.length() < 1) return false;
+            for (char ch : ver.toCharArray())
+                if (!Character.isLetter(ch) || !Character.isLowerCase(ch))
+                    return false;
+            return true;
+        }
+
+        @Override
+        public String toString()
+        {
+            return this.filenameFor("<>");
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == this)
+                return true;
+            if (!(o instanceof Descriptor))
+                return false;
+            Descriptor that = (Descriptor)o;
+            return that.directory.equals(this.directory) && that.generation == this.generation && that.ksname.equals(this.ksname) && that.cfname.equals(this.cfname);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(directory, generation, ksname, cfname);
         }
     }
 }

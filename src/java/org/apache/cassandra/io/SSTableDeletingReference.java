@@ -28,7 +28,7 @@ public class SSTableDeletingReference extends PhantomReference<SSTableReader>
     {
         super(referent, q);
         this.tracker = tracker;
-        this.path = referent.path;
+        this.path = referent.getFilename();
         this.size = referent.bytesOnDisk();
     }
 

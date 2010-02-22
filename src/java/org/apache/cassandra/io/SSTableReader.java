@@ -109,6 +109,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return count;
     }
 
+    public static SSTableReader open(Descriptor desc) throws IOException
+    {
+        return open(desc.filenameFor(COMPONENT_DATA));
+    }
+
     public static SSTableReader open(String dataFileName) throws IOException
     {
         return open(dataFileName,
@@ -178,12 +183,12 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         if (DatabaseDescriptor.getDiskAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
         {
-            int bufferCount = 1 + (int) (new File(path).length() / BUFFER_SIZE);
+            int bufferCount = 1 + (int) (new File(getFilename()).length() / BUFFER_SIZE);
             buffers = new MappedByteBuffer[bufferCount];
             long remaining = length();
             for (int i = 0; i < bufferCount; i++)
             {
-                buffers[i] = mmap(path, i * BUFFER_SIZE, (int) Math.min(remaining, BUFFER_SIZE));
+                buffers[i] = mmap(getFilename(), i * BUFFER_SIZE, (int) Math.min(remaining, BUFFER_SIZE));
                 remaining -= BUFFER_SIZE;
             }
         }
@@ -412,7 +417,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         }
 
         // can't use a MappedFileDataInput here, since we might cross a segment boundary while scanning
-        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(path), "r");
+        BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
         input.seek(sampledPosition.position);
         try
         {
@@ -441,18 +446,18 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public long length()
     {
-        return new File(path).length();
+        return new File(getFilename()).length();
     }
 
     public int compareTo(SSTableReader o)
     {
-        return ColumnFamilyStore.getGenerationFromFileName(path) - ColumnFamilyStore.getGenerationFromFileName(o.path);
+        return desc.generation - o.desc.generation;
     }
 
     public void markCompacted() throws IOException
     {
         if (logger.isDebugEnabled())
-            logger.debug("Marking " + path + " compacted");
+            logger.debug("Marking " + getFilename() + " compacted");
         if (!new File(compactedFilename()).createNewFile())
         {
             throw new IOException("Unable to create compaction marker");
@@ -484,11 +489,11 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         if (buffers == null || (bufferIndex(info.position) != bufferIndex(info.position + info.size)))
         {
-            BufferedRandomAccessFile file = new BufferedRandomAccessFile(path, "r", bufferSize);
+            BufferedRandomAccessFile file = new BufferedRandomAccessFile(getFilename(), "r", bufferSize);
             file.seek(info.position);
             return file;
         }
-        return new MappedFileDataInput(buffers[bufferIndex(info.position)], path, (int) (info.position % BUFFER_SIZE));
+        return new MappedFileDataInput(buffers[bufferIndex(info.position)], getFilename(), (int) (info.position % BUFFER_SIZE));
     }
 
     static int bufferIndex(long position)

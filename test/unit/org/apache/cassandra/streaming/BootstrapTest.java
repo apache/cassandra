@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.SSTable;
 
 import org.junit.Test;
 
@@ -35,23 +36,26 @@ public class BootstrapTest
     @Test
     public void testGetNewNames() throws IOException
     {
-        PendingFile[] pendingFiles = new PendingFile[3];
-        pendingFiles[0] = new PendingFile("/baz/foo/Standard1-500-Data.db", 100, "Keyspace1");
-        pendingFiles[1] = new PendingFile("/bar/foo/Standard1-500-Index.db", 100, "Keyspace1");
-        pendingFiles[2] = new PendingFile("/bad/foo/Standard1-500-Filter.db", 100, "Keyspace1");
+        SSTable.Descriptor desc = SSTable.Descriptor.fromFilename("/Keyspace1/Standard1-500-Data.db");
+        PendingFile[] pendingFiles = new PendingFile[]{
+            new PendingFile(desc, "Data.db", 100),
+            new PendingFile(desc, "Index.db", 100),
+            new PendingFile(desc, "Filter.db",100)};
         StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
-        Map<String, String> fileNames = bivh.getNewNames(pendingFiles);
-        Map<String, String> paths = new HashMap<String, String>();
-        for (String ssName : fileNames.keySet())
-            paths.put(ssName, DatabaseDescriptor.getNextAvailableDataLocation());
-        assertEquals(1, paths.size());
-        String result = fileNames.get("Keyspace1-Standard1-500");
-        assertEquals(true, result.contains("Standard1"));
-        assertEquals(true, result.contains("Data.db"));
-        assertEquals(1, fileNames.entrySet().size());
 
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, pendingFiles[0])).getName().matches("Standard1-tmp-\\d+-Data.db"));
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, pendingFiles[1])).getName().matches("Standard1-tmp-\\d+-Index.db"));
-        assertTrue(new File(bivh.getNewFileNameFromOldContextAndNames(fileNames, paths, pendingFiles[2])).getName().matches("Standard1-tmp-\\d+-Filter.db"));
+        // map the input (remote) contexts to output (local) contexts
+        Map<PendingFile, PendingFile> mapping = bivh.getContextMapping(pendingFiles);
+        assertEquals(pendingFiles.length, mapping.size());
+        for (PendingFile inContext : pendingFiles)
+        {
+            PendingFile outContext = mapping.get(inContext);
+            // filename and generation are expected to have changed
+            assert !inContext.getFilename().equals(outContext.getFilename());
+
+            // nothing else should
+            assertEquals(inContext.getComponent(), outContext.getComponent());
+            assertEquals(inContext.getDescriptor().ksname, outContext.getDescriptor().ksname);
+            assertEquals(inContext.getDescriptor().cfname, outContext.getDescriptor().cfname);
+        }
     }
 }

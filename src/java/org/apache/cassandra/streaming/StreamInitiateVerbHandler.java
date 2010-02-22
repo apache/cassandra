@@ -2,20 +2,18 @@ package org.apache.cassandra.streaming;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.streaming.StreamInitiateMessage;
+import org.apache.cassandra.io.SSTable;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.StreamInitiateMessage;
 import org.apache.cassandra.streaming.StreamInManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -52,24 +50,21 @@ public class StreamInitiateVerbHandler implements IVerbHandler
                 return;
             }
 
-            Map<String, String> fileNames = getNewNames(pendingFiles);
-            Map<String, String> pathNames = new HashMap<String, String>();
-            for (String ssName : fileNames.keySet())
-                pathNames.put(ssName, DatabaseDescriptor.getNextAvailableDataLocation());
             /*
-             * For each of stream context's in the incoming message
-             * generate the new file names and store the new file names
-             * in the StreamContextManager.
-            */
-            for (PendingFile pendingFile : pendingFiles)
+             * For each of the remote files in the incoming message
+             * generate a local pendingFile and store it in the StreamInManager.
+             */
+            for (Map.Entry<PendingFile, PendingFile> pendingFile : getContextMapping(pendingFiles).entrySet())
             {
-                CompletedFileStatus streamStatus = new CompletedFileStatus(pendingFile.getTargetFile(), pendingFile.getExpectedBytes() );
-                String file = getNewFileNameFromOldContextAndNames(fileNames, pathNames, pendingFile);
+                PendingFile remoteFile = pendingFile.getKey();
+                PendingFile localFile = pendingFile.getValue();
+
+                CompletedFileStatus streamStatus = new CompletedFileStatus(remoteFile.getFilename(),
+                                                                           remoteFile.getExpectedBytes());
 
                 if (logger.isDebugEnabled())
-                  logger.debug("Received Data from  : " + message.getFrom() + " " + pendingFile.getTargetFile() + " " + file);
-                pendingFile.setTargetFile(file);
-                addStreamContext(message.getFrom(), pendingFile, streamStatus);
+                  logger.debug("Preparing to receive stream from " + message.getFrom() + ": " + remoteFile + " -> " + localFile);
+                addStreamContext(message.getFrom(), localFile, streamStatus);
             }
 
             StreamInManager.registerStreamCompletionHandler(message.getFrom(), new StreamCompletionHandler());
@@ -84,56 +79,34 @@ public class StreamInitiateVerbHandler implements IVerbHandler
         }
     }
 
-    public String getNewFileNameFromOldContextAndNames(Map<String, String> fileNames,
-                                                       Map<String, String> pathNames,
-                                                       PendingFile pendingFile)
+    /**
+     * Translates remote files to local files by creating a local sstable
+     * per remote sstable.
+     */
+    public LinkedHashMap<PendingFile, PendingFile> getContextMapping(PendingFile[] remoteFiles) throws IOException
     {
-        File sourceFile = new File( pendingFile.getTargetFile() );
-        String[] piece = FBUtilities.strip(sourceFile.getName(), "-");
-        String cfName = piece[0];
-        String ssTableNum = piece[1];
-        String typeOfFile = piece[2];
-
-        String newFileNameExpanded = fileNames.get(pendingFile.getTable() + "-" + cfName + "-" + ssTableNum);
-        String path = pathNames.get(pendingFile.getTable() + "-" + cfName + "-" + ssTableNum);
-        //Drop type (Data.db) from new FileName
-        String newFileName = newFileNameExpanded.replace("Data.db", typeOfFile);
-        return path + File.separator + pendingFile.getTable() + File.separator + newFileName;
-    }
-
-    // todo: this method needs to be private, or package at the very least for easy unit testing.
-    public Map<String, String> getNewNames(PendingFile[] pendingFiles) throws IOException
-    {
-        /*
-         * Mapping for each file with unique CF-i ---> new file name. For eg.
-         * for a file with name <CF>-<i>-Data.db there is a corresponding
-         * <CF>-<i>-Index.db. We maintain a mapping from <CF>-<i> to a newly
-         * generated file name.
-        */
-        Map<String, String> fileNames = new HashMap<String, String>();
-        /* Get the distinct entries from StreamContexts i.e have one entry per Data/Index/Filter file set */
-        Set<String> distinctEntries = new HashSet<String>();
-        for ( PendingFile pendingFile : pendingFiles)
+        /* Create a local sstable for each remote sstable */
+        LinkedHashMap<PendingFile, PendingFile> mapping = new LinkedHashMap<PendingFile, PendingFile>();
+        Map<SSTable.Descriptor, SSTable.Descriptor> sstables = new HashMap<SSTable.Descriptor, SSTable.Descriptor>();
+        for (PendingFile remote : remoteFiles)
         {
-            String[] pieces = FBUtilities.strip(new File(pendingFile.getTargetFile()).getName(), "-");
-            distinctEntries.add(pendingFile.getTable() + "-" + pieces[0] + "-" + pieces[1] );
+            SSTable.Descriptor remotedesc = remote.getDescriptor();
+            SSTable.Descriptor localdesc = sstables.get(remotedesc);
+            if (localdesc == null)
+            {
+                // new local sstable
+                Table table = Table.open(remotedesc.ksname);
+                ColumnFamilyStore cfStore = table.getColumnFamilyStore(remotedesc.cfname);
+
+                localdesc = SSTable.Descriptor.fromFilename(cfStore.getFlushPath());
+                sstables.put(remotedesc, localdesc);
+            }
+
+            // add a local file for this component
+            mapping.put(remote, new PendingFile(localdesc, remote.getComponent(), remote.getExpectedBytes()));
         }
 
-        /* Generate unique file names per entry */
-        for ( String distinctEntry : distinctEntries )
-        {
-            String tableName;
-            String[] pieces = FBUtilities.strip(distinctEntry, "-");
-            tableName = pieces[0];
-            Table table = Table.open( tableName );
-
-            ColumnFamilyStore cfStore = table.getColumnFamilyStore(pieces[1]);
-            if (logger.isDebugEnabled())
-              logger.debug("Generating file name for " + distinctEntry + " ...");
-            fileNames.put(distinctEntry, cfStore.getTempSSTableFileName());
-        }
-
-        return fileNames;
+        return mapping;
     }
 
     private void addStreamContext(InetAddress host, PendingFile pendingFile, CompletedFileStatus streamStatus)

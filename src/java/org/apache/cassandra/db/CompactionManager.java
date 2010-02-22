@@ -290,7 +290,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return 0;
             }
 
-            String newFilename = new File(compactionFileLocation, cfs.getTempSSTableFileName()).getAbsolutePath();
+            String newFilename = new File(cfs.getTempSSTablePath(compactionFileLocation)).getAbsolutePath();
             writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
 
             // validate the CF as we iterate over it
@@ -370,7 +370,7 @@ public class CompactionManager implements CompactionManagerMBean
                 if (writer == null)
                 {
                     FileUtils.createDirectory(compactionFileLocation);
-                    String newFilename = new File(compactionFileLocation, cfs.getTempSSTableFileName()).getAbsolutePath();
+                    String newFilename = new File(cfs.getTempSSTablePath(compactionFileLocation)).getAbsolutePath();
                     writer = new SSTableWriter(newFilename, expectedBloomFilterSize, StorageService.getPartitioner());
                 }
                 writer.append(row.key, row.buffer);

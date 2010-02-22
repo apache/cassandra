@@ -51,7 +51,7 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename, long keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
-        dataFile = new BufferedRandomAccessFile(path, "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
+        dataFile = new BufferedRandomAccessFile(getFilename(), "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
         indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", (int)(DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024));
         bf = BloomFilter.getFilter(keyCount, 15);
     }
@@ -66,7 +66,7 @@ public class SSTableWriter extends SSTable
         {
             logger.info("Last written key : " + lastWrittenKey);
             logger.info("Current key : " + decoratedKey);
-            logger.info("Writing into file " + path);
+            logger.info("Writing into file " + getFilename());
             throw new IOException("Keys must be written in ascending order.");
         }
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
@@ -134,7 +134,8 @@ public class SSTableWriter extends SSTable
     }
 
     /**
-     * Renames temporary SSTable files to valid data, index, and bloom filter files
+     * Renames temporary SSTable files to valid data, index, and bloom filter files.
+     * The SSTableWriter object will no longer be valid.
      */
     public SSTableReader closeAndOpenReader(double cacheFraction, boolean temporary) throws IOException
     {
@@ -153,15 +154,16 @@ public class SSTableWriter extends SSTable
         // main data
         dataFile.close(); // calls force
 
+        String newpath = getFilename();
         if (!temporary)
         {
             rename(indexFilename());
             rename(filterFilename());
-            path = rename(path); // important to do this last since index & filter file names are derived from it
+            newpath = rename(newpath); // important to do this last since index & filter file names are derived from it
         }
 
         InstrumentedCache<DecoratedKey, PositionSize> keyCache = SSTableReader.createKeyCache((int)(cacheFraction * keysWritten));
-        return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);
+        return new SSTableReader(newpath, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);
     }
 
     static String rename(String tmpFilename)

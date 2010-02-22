@@ -18,10 +18,12 @@
 */
 package org.apache.cassandra.io;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
 import org.junit.Test;
+import static org.junit.Assert.*;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
@@ -45,13 +47,13 @@ public class SSTableTest extends CleanupHelper
 
         // verify
         verifySingle(ssTable, bytes, key);
-        ssTable = SSTableReader.open(ssTable.path); // read the index from disk
+        ssTable = SSTableReader.open(ssTable.getDescriptor()); // read the index from disk
         verifySingle(ssTable, bytes, key);
     }
 
     private void verifySingle(SSTableReader sstable, byte[] bytes, String key) throws IOException
     {
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.path, "r");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)).position);
         assert key.equals(file.readUTF());
         int size = file.readInt();
@@ -73,7 +75,7 @@ public class SSTableTest extends CleanupHelper
 
         // verify
         verifyMany(ssTable, map);
-        ssTable = SSTableReader.open(ssTable.path); // read the index from disk
+        ssTable = SSTableReader.open(ssTable.getDescriptor()); // read the index from disk
         verifyMany(ssTable, map);
     }
 
@@ -81,7 +83,7 @@ public class SSTableTest extends CleanupHelper
     {
         List<String> keys = new ArrayList<String>(map.keySet());
         Collections.shuffle(keys);
-        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.path, "r");
+        BufferedRandomAccessFile file = new BufferedRandomAccessFile(sstable.getFilename(), "r");
         for (String key : keys)
         {
             file.seek(sstable.getPosition(sstable.partitioner.decorateKey(key)).position);

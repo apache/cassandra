@@ -29,7 +29,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.SSTableAccessor;
 import org.apache.cassandra.io.SSTableReader;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
-import static org.apache.cassandra.Util.createTemporarySSTable;
+import static org.apache.cassandra.io.SSTableUtils.tempSSTableFile;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
 
@@ -40,7 +40,7 @@ public class SSTableImportTest
     {
         // Import JSON to temp SSTable file
         String jsonUrl = getClass().getClassLoader().getResource("SimpleCF.json").getPath();
-        File tempSS = createTemporarySSTable("Keyspace1", "Standard1");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
         // Verify results
@@ -54,7 +54,7 @@ public class SSTableImportTest
     public void testImportSuperCf() throws IOException, ParseException
     {
         String jsonUrl = getClass().getClassLoader().getResource("SuperCF.json").getPath();
-        File tempSS = createTemporarySSTable("Keyspace1", "Super4");
+        File tempSS = tempSSTableFile("Keyspace1", "Super4");
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
         
         // Verify results

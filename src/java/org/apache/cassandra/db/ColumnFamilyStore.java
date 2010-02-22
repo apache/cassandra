@@ -254,7 +254,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             
             for (File file : files)
             {
-                String filename = file.getName();
+                String filename = file.getAbsolutePath();
                 String cfName = getColumnFamilyFromFileName(filename);
 
                 if (cfName.equals(columnFamily))
@@ -290,7 +290,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             File[] files = new File(directory).listFiles();
             for (File file : files)
             {
-                String cfName = getColumnFamilyFromFileName(file.getName());
+                String cfName = getColumnFamilyFromFileName(file.getAbsolutePath());
                 if (cfName.equals(columnFamily_))
                     fileSet.add(file);
             }
@@ -307,34 +307,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     private static String getColumnFamilyFromFileName(String filename)
-            {
-        return filename.split("-")[0];
+    {
+        return SSTable.Descriptor.fromFilename(filename).cfname;
     }
 
     public static int getGenerationFromFileName(String filename)
     {
-        /*
-         * File name is of the form <table>-<column family>-<index>-Data.db.
-         * This tokenizer will strip the .db portion.
-         */
-        StringTokenizer st = new StringTokenizer(filename, "-");
-        /*
-         * Now I want to get the index portion of the filename. We accumulate
-         * the indices and then sort them to get the max index.
-         */
-        int count = st.countTokens();
-        int i = 0;
-        String index = null;
-        while (st.hasMoreElements())
-        {
-            index = (String) st.nextElement();
-            if (i == (count - 2))
-            {
-                break;
-            }
-            ++i;
-        }
-        return Integer.parseInt(index);
+        return SSTable.Descriptor.fromFilename(filename).generation;
     }
 
     /*
@@ -348,13 +327,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         String location = DatabaseDescriptor.getDataFileLocationForTable(table_, guessedSize);
         if (location == null)
             throw new RuntimeException("Insufficient disk space to flush");
-        return new File(location, getTempSSTableFileName()).getAbsolutePath();
+        return getTempSSTablePath(location);
     }
 
-    public String getTempSSTableFileName()
+    public String getTempSSTablePath(String directory)
     {
-        return String.format("%s-%s-%s-Data.db",
-                             columnFamily_, SSTable.TEMPFILE_MARKER, fileIndexGenerator_.incrementAndGet());
+        SSTable.Descriptor desc = new SSTable.Descriptor(new File(directory),
+                                                         table_,
+                                                         columnFamily_,
+                                                         fileIndexGenerator_.incrementAndGet(),
+                                                         true);
+        return desc.filenameFor("Data.db");
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */

@@ -64,9 +64,11 @@ public class SSTableUtils
         File tabledir = new File(tempdir, tablename);
         tabledir.mkdir();
         tabledir.deleteOnExit();
-        return File.createTempFile(cfname + "-",
-                                   "-" + SSTable.TEMPFILE_MARKER + "-Data.db",
-                                   tabledir);
+        File datafile = new File(new SSTable.Descriptor(tabledir, tablename, cfname, 0,
+                                                        false).filenameFor("Data.db"));
+        assert datafile.createNewFile();
+        datafile.deleteOnExit();
+        return datafile;
     }
 
     public static SSTableReader writeSSTable(Set<String> keys) throws IOException

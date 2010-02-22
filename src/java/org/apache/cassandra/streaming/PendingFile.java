@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.cassandra.io.SSTable;
 
 class PendingFile
 {
@@ -20,47 +21,47 @@ class PendingFile
         return serializer_;
     }
 
-    private String targetFile_;
-    private final long expectedBytes_;
-    private final String table_;
-    private long ptr_;
+    private SSTable.Descriptor desc;        
+    private String component;
+    private long expectedBytes;                     
+    private long ptr;
 
-    public PendingFile(String targetFile, long expectedBytes, String table)
+    public PendingFile(SSTable.Descriptor desc, String component, long expectedBytes)
     {
-        targetFile_ = targetFile;
-        expectedBytes_ = expectedBytes;
-        table_ = table;
-        ptr_ = 0;
+        this.desc = desc;
+        this.component = component;
+        this.expectedBytes = expectedBytes;         
+        ptr = 0;
     }
 
     public void update(long ptr)
     {
-        ptr_ = ptr;
+        this.ptr = ptr;
     }
 
     public long getPtr()
     {
-        return ptr_;
+        return ptr;
     }
 
-    public String getTable()
+    public String getComponent()
     {
-        return table_;
+        return component;
     }
 
-    public String getTargetFile()
+    public SSTable.Descriptor getDescriptor()
     {
-        return targetFile_;
+        return desc;
     }
-
-    public void setTargetFile(String file)
+    
+    public String getFilename()
     {
-        targetFile_ = file;
+        return desc.filenameFor(component);
     }
-
+    
     public long getExpectedBytes()
     {
-        return expectedBytes_;
+        return expectedBytes;
     }
 
     public boolean equals(Object o)
@@ -69,7 +70,7 @@ class PendingFile
             return false;
 
         PendingFile rhs = (PendingFile)o;
-        return targetFile_.hashCode() == rhs.hashCode();
+        return getFilename().equals(rhs.getFilename());
     }
 
     public int hashCode()
@@ -79,24 +80,24 @@ class PendingFile
 
     public String toString()
     {
-        return targetFile_ + ":" + expectedBytes_;
+        return getFilename() + ":" + expectedBytes;
     }
 
     private static class InitiatedFileSerializer implements ICompactSerializer<PendingFile>
     {
         public void serialize(PendingFile sc, DataOutputStream dos) throws IOException
         {
-            dos.writeUTF(sc.targetFile_);
-            dos.writeLong(sc.expectedBytes_);
-            dos.writeUTF(sc.table_);
+            dos.writeUTF(sc.desc.filenameFor(sc.component));
+            dos.writeUTF(sc.component);
+            dos.writeLong(sc.expectedBytes);            
         }
 
         public PendingFile deserialize(DataInputStream dis) throws IOException
         {
-            String targetFile = dis.readUTF();
-            long expectedBytes = dis.readLong();
-            String table = dis.readUTF();
-            return new PendingFile(targetFile, expectedBytes, table);
+            SSTable.Descriptor desc = SSTable.Descriptor.fromFilename(dis.readUTF());
+            String component = dis.readUTF();
+            long expectedBytes = dis.readLong();           
+            return new PendingFile(desc, component, expectedBytes);
         }
     }
 }

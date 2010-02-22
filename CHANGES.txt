@@ -1,5 +1,5 @@
 dev
- *
+ * sstable versioning (CASSANDRA-389)
 
 0.6.0-dev
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)

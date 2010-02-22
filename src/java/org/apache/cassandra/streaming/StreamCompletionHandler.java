@@ -27,24 +27,24 @@ class StreamCompletionHandler implements IStreamComplete
     public void onStreamCompletion(InetAddress host, PendingFile pendingFile, CompletedFileStatus streamStatus) throws IOException
     {
         /* Parse the stream context and the file to the list of SSTables in the associated Column Family Store. */
-        if (pendingFile.getTargetFile().contains("-Data.db"))
+        if (pendingFile.getFilename().contains("-Data.db"))
         {
-            String tableName = pendingFile.getTable();
-            File file = new File( pendingFile.getTargetFile() );
+            String tableName = pendingFile.getDescriptor().ksname;
+            File file = new File( pendingFile.getFilename() );
             String fileName = file.getName();
             String [] temp = fileName.split("-");
 
             //Open the file to see if all parts are now here
             try
             {
-                SSTableReader sstable = SSTableWriter.renameAndOpen(pendingFile.getTargetFile());
+                SSTableReader sstable = SSTableWriter.renameAndOpen(pendingFile.getFilename());
                 //TODO add a sanity check that this sstable has all its parts and is ok
                 Table.open(tableName).getColumnFamilyStore(temp[0]).addSSTable(sstable);
                 logger.info("Streaming added " + sstable.getFilename());
             }
             catch (IOException e)
             {
-                throw new RuntimeException("Not able to add streamed file " + pendingFile.getTargetFile(), e);
+                throw new RuntimeException("Not able to add streamed file " + pendingFile.getFilename(), e);
             }
         }
 
@@ -56,7 +56,7 @@ class StreamCompletionHandler implements IStreamComplete
         /* If we're done with everything for this host, remove from bootstrap sources */
         if (StreamInManager.isDone(host) && StorageService.instance.isBootstrapMode())
         {
-            StorageService.instance.removeBootstrapSource(host, pendingFile.getTable());
+            StorageService.instance.removeBootstrapSource(host, pendingFile.getDescriptor().ksname);
         }
     }
 }
