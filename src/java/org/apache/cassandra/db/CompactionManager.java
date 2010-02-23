@@ -466,7 +466,8 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     // remove and re-add because adding changes the hash
                     buckets.remove(bucket);
-                    averageSize = (averageSize + size) / 2;
+                    long totalSize = bucket.size() * averageSize;
+                    averageSize = (totalSize + size) / (bucket.size() + 1);
                     bucket.add(sstable);
                     buckets.put(bucket, averageSize);
                     bFound = true;
