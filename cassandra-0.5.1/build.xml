@@ -17,8 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="apache-cassandra"
-         xmlns:ivy="antlib:org.apache.ivy.ant">
+<project basedir="." default="build" name="apache-cassandra">
     <property environment="env"/>
     <property file="build.properties" />
     <property name="debuglevel" value="source,lines,vars"/>
@@ -28,13 +27,11 @@
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
-    <property name="build.dir.lib" value="${basedir}/build/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
     <property name="interface.dir" value="${basedir}/interface"/>
-    <property name="interface.thrift.dir" value="${interface.dir}/thrift"/>
-    <property name="interface.avro.dir" value="${interface.dir}/avro/gen-java"/>
+    <property name="interface.src.dir" value="${interface.dir}/gen-java"/>
     <property name="test.dir" value="${basedir}/test"/>
     <property name="test.resources" value="${test.dir}/resources"/>
     <property name="test.classes" value="${build.dir}/test/classes"/>
@@ -42,11 +39,8 @@
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="version" value="0.6.0-beta2"/>
+    <property name="version" value="0.5.1"/>
     <property name="final.name" value="${ant.project.name}-${version}"/>
-    <property name="ivy.version" value="2.1.0" />
-    <property name="ivy.url"
-              value="http://repo2.maven.org/maven2/org/apache/ivy/ivy" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
@@ -55,15 +49,7 @@
     <property name="cobertura.report.dir" value="${cobertura.build.dir}/report"/>
     <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
     <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
-
-    <condition property="ivy.jar.exists">
-      <available file="${build.dir}/ivy-${ivy.version}.jar" />
-    </condition>
-
-    <condition property="is.source.artifact">
-      <available file="${build.src}" type="dir" />
-    </condition>
-
+	
     <!-- 
 	 Add all the dependencies.
     -->
@@ -73,34 +59,22 @@
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
-        <fileset dir="${build.dir.lib}">
-          <include name="**/*.jar" />
-        </fileset>
-        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
     </path>
 
     <!--
 	Setup the output directories.
     -->
     <target name="init">
-        <fail unless="is.source.artifact"
-            message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes}"/>
         <mkdir dir="${test.classes}"/>
         <mkdir dir="${build.src.gen-java}"/>
     </target>
 
     <target name="clean">
-        <delete dir="${build.test.dir}" />
-        <delete dir="${build.classes}" />
+        <delete dir="${build.dir}" />
         <delete dir="${build.src.gen-java}" />
-        <delete dir="${interface.avro.dir}" />
     </target>
     <target depends="clean" name="cleanall"/>
-
-    <target name="realclean" depends="clean">
-        <delete dir="${build.dir}" />
-    </target>
 
     <!--
        This generates the CLI grammar files from Cli.g
@@ -122,115 +96,34 @@
       </java> 
     </target>
 
-    <!--
-       Fetch Ivy and Cassandra's dependencies
-
-       These targets are intentionally free of dependencies so that they
-       can be run stand-alone from a binary release artifact.
-    -->
-    <target name="ivy-download" unless="ivy.jar.exists">
-      <echo>Downloading Ivy...</echo>
-      <mkdir dir="${build.dir}" />
-      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
-           dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
-    </target>
-
-    <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
-      <mkdir dir="${build.dir.lib}"/>
-      <taskdef resource="org/apache/ivy/ant/antlib.xml"
-               uri="antlib:org.apache.ivy.ant"
-               classpathref="cassandra.classpath"/>
-      <property name="ivy.initialized" value="true"/>
-    </target>
-
-    <target name="ivy-retrieve" depends="ivy-init">
-      <ivy:retrieve type="jar,source" conf="default" sync="true"
-             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
-    </target>
-
-    <!--
-       Generate avro code
-    -->
-    <target name="check-avro-generate">
-        <uptodate property="avroUpToDate"
-                  srcfile="${interface.dir}/cassandra.avpr"
-                  targetfile="${interface.avro.dir}/org/apache/cassandra/avro/Cassandra.java" />
-      <taskdef name="protocol"
-               classname="org.apache.avro.specific.ProtocolTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <taskdef name="schema" classname="org.apache.avro.specific.SchemaTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <taskdef name="paranamer" 
-          classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-    </target>
-    <target name="avro-generate" unless="avroUpToDate"
-            depends="init,check-avro-generate">
-      <echo>Generating avro code...</echo>
-      <protocol destdir="${interface.avro.dir}">
-        <fileset dir="${interface.dir}">
-          <include name="**/*.avpr" />
-        </fileset>
-      </protocol>
-  
-      <schema destdir="${interface.avro.dir}">
-        <fileset dir="${interface.dir}">
-          <include name="**/*.avsc" />
-        </fileset>
-      </schema>
-    </target>
-
-    <!--
-       Generate thrift code
-    -->
     <target name="gen-thrift-java">
       <echo>Generating Thrift Java code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
-        <arg line="--gen java" />
-        <arg line="-o ${interface.thrift.dir}" />
-        <arg line="cassandra.thrift" />
+        <arg line="--gen java cassandra.thrift" />
       </exec>
     </target>
     <target name="gen-thrift-py">
       <echo>Generating Thrift Python code from ${basedir}/interface/cassandra.thrift ....</echo>
       <exec executable="thrift" dir="${basedir}/interface">
-        <arg line="--gen py" />
-        <arg line="-o ${interface.thrift.dir}" />
-        <arg line="cassandra.thrift" />
-      </exec>
-    </target>
-    <target name="gen-thrift-perl">
-      <echo>Generating Thrift Perl code from ${basedir}/interface/cassandra.thrift ....</echo>
-      <exec executable="thrift" dir="${basedir}/interface">
-        <arg line="--gen perl" />
-        <arg line="-o ${interface.thrift.dir}" />
-        <arg line="cassandra.thrift" />
+        <arg line="--gen py cassandra.thrift" />
       </exec>
     </target>
 
     <!--
 	The build target builds all the .class files
     -->
-    <target name="build"
-        depends="ivy-retrieve,avro-generate,build-subprojects,build-project"/>
+    <target name="build" depends="build-subprojects,build-project"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	
-    <target depends="init,avro-generate,gen-cli-grammar" name="build-project">
+    <target depends="init,gen-cli-grammar" name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="${build.classes}">
             <src path="${build.src}"/>
             <src path="${build.src.gen-java}"/>
-            <src path="${interface.thrift.dir}/gen-java"/>
-            <src path="${interface.avro.dir}"/>
+            <src path="${interface.src.dir}"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
-
-        <paranamer sourceDirectory="${interface.avro.dir}"
-               outputDirectory="${build.classes}"/>
     </target>
 
     <!--
@@ -280,11 +173,7 @@
         <fileset dir="${basedir}">
           <include name="*.txt" />
         </fileset>
-      </copy>
-      <copy todir="${dist.dir}">
-        <fileset file="build.xml" />
-        <fileset file="ivy.xml" />
-      </copy>
+      </copy> 
       
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -314,7 +203,6 @@
           <include name="**"/>
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
-          <exclude name="interface/avro/**" />
         </tarfileset>
       </tar>
     </target>
@@ -344,7 +232,6 @@
       <formatter type="xml" usefile="true"/>
       <formatter type="brief" usefile="false"/>
       <jvmarg value="-Dstorage-config=${test.conf}"/>
-      <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
       <jvmarg value="-ea"/>
       <classpath>
         <path refid="cassandra.classpath" />
@@ -406,7 +293,7 @@
       <fileset dir="${build.src}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
-      <fileset dir="${interface.thrift.dir}" defaultexcludes="yes">
+      <fileset dir="${interface.src.dir}" defaultexcludes="yes">
         <include name="org/apache/**/*.java"/>
       </fileset>
     </javadoc>
