@@ -1,0 +1,6 @@
+usr/share/cassandra
+usr/sbin
+usr/bin
+etc/cassandra
+var/lib/cassandra
+var/log/cassandra
