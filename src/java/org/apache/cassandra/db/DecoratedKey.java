@@ -23,8 +23,10 @@ import java.io.IOException;
 import java.io.DataInput;
 import java.util.Comparator;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.ICompactSerializer2;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -39,6 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 {
     private static DecoratedKeySerializer serializer = new DecoratedKeySerializer();
+    private static IPartitioner partitioner = StorageService.getPartitioner();
 
     public static DecoratedKeySerializer serializer()
     {
@@ -67,11 +70,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     @Override
     public int hashCode()
     {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((key == null) ? 0 : key.hashCode());
-        result = prime * result + ((token == null) ? 0 : token.hashCode());
-        return result;
+        return token.hashCode();
     }
 
     @Override
@@ -95,7 +94,7 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
 
     public boolean isEmpty()
     {
-        return key != null && key.isEmpty();
+        return token.equals(partitioner.getMinimumToken());
     }
 
     @Override

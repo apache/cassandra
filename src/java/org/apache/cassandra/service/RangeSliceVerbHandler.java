@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.db.RangeSliceCommand;
-import org.apache.cassandra.db.RangeSliceReply;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -36,13 +34,13 @@ public class RangeSliceVerbHandler implements IVerbHandler
         try
         {
             RangeSliceCommand command = RangeSliceCommand.read(message);
-            RangeSliceReply reply = Table.open(command.keyspace).getColumnFamilyStore(command.column_family).getRangeSlice(
-                    command.super_column,
-                    command.startKey,
-                    command.finishKey,
-                    command.max_keys,
-                    command.predicate.slice_range,
-                    command.predicate.column_names);
+            ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
+            RangeSliceReply reply = cfs.getRangeSlice(command.super_column,
+                                                      new DecoratedKey(command.range.left, null),
+                                                      new DecoratedKey(command.range.right, null),
+                                                      command.max_keys,
+                                                      command.predicate.slice_range,
+                                                      command.predicate.column_names);
             Message response = reply.getReply(message);
             if (logger.isDebugEnabled())
                 logger.debug("Sending " + reply+ " to " + message.getMessageId() + "@" + message.getFrom());

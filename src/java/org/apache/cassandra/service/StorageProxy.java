@@ -28,8 +28,10 @@ import java.lang.management.ManagementFactory;
 
 import org.apache.commons.lang.StringUtils;
 
+import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.DataInputBuffer;
 import java.net.InetAddress;
 import org.apache.cassandra.net.IAsyncResult;
@@ -39,8 +41,6 @@ import org.apache.cassandra.utils.TimedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -512,86 +512,153 @@ public class StorageProxy implements StorageProxyMBean
         return rows;
     }
 
-    static List<Pair<String, ColumnFamily>> getRangeSlice(RangeSliceCommand command, int consistency_level) throws IOException, UnavailableException, TimedOutException
+    public static List<Row> getRangeSlice(RangeSliceCommand command, int consistency_level)
+    throws IOException, UnavailableException, TimeoutException
     {
+        if (logger.isDebugEnabled())
+            logger.debug(command);
         long startTime = System.currentTimeMillis();
-        TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
 
-        InetAddress endPoint = StorageService.instance().getPrimary(command.startKey.token);
-        InetAddress startEndpoint = endPoint;
         int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(), DatabaseDescriptor.getReplicationFactor(), consistency_level);
 
-        Map<String, ColumnFamily> rows = new HashMap<String, ColumnFamily>(command.max_keys);
-        do
-        {
-            Range primaryRange = StorageService.instance().getPrimaryRangeForEndPoint(endPoint);
-            List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(primaryRange.right());
-            if (endpoints.size() < responseCount)
-                throw new UnavailableException();
+        List<Pair<AbstractBounds, List<InetAddress>>> ranges = getRestrictedRanges(command.range, command.keyspace, responseCount);
 
-            // to make comparing the results from each node easy, we restrict each command to the data in the primary range for this iteration
-            DecoratedKey startKey;
-            DecoratedKey finishKey;
-            if (primaryRange.left().equals(primaryRange.right()))
-            {
-                startKey = command.startKey;
-                finishKey = command.finishKey;
-            }
-            else
-            {
-                startKey = Collections.max(Arrays.asList(command.startKey, new DecoratedKey(primaryRange.left(), null)));
-                finishKey = command.finishKey.isEmpty()
-                          ? new DecoratedKey(primaryRange.right(), null)
-                          : Collections.min(Arrays.asList(command.finishKey, new DecoratedKey(primaryRange.right(), null)));
-            }
-            RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, startKey, finishKey, command.max_keys);
+        // now scan until we have enough results
+        List<Row> rows = new ArrayList<Row>(command.max_keys);
+        for (Pair<AbstractBounds, List<InetAddress>> pair : getRangeIterator(ranges, command.range.left))
+        {
+            AbstractBounds range = pair.left;
+            List<InetAddress> endpoints = pair.right;
+            RangeSliceCommand c2 = new RangeSliceCommand(command.keyspace, command.column_family, command.super_column, command.predicate, range, command.max_keys);
             Message message = c2.getMessage();
 
             // collect replies and resolve according to consistency level
-            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, primaryRange, endpoints);
-            QuorumResponseHandler<Map<String, ColumnFamily>> handler = new QuorumResponseHandler<Map<String, ColumnFamily>>(responseCount, resolver);
-            if (logger.isDebugEnabled())
-                logger.debug("reading " + command + " for " + primaryRange + " from " + message.getMessageId() + "@" + endPoint);
-            for (InetAddress replicaEndpoint : endpoints)
+            RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(command.keyspace, endpoints);
+            QuorumResponseHandler<List<Row>> handler = new QuorumResponseHandler<List<Row>>(responseCount, resolver);
+
+            for (InetAddress endpoint : endpoints)
             {
-                MessagingService.instance().sendRR(message, replicaEndpoint, handler);
+                MessagingService.instance().sendRR(message, endpoint, handler);
+                if (logger.isDebugEnabled())
+                    logger.debug("reading " + c2 + " from " + message.getMessageId() + "@" + endpoint);
             }
+            // TODO read repair on remaining replicas?
 
             // if we're done, great, otherwise, move to the next range
             try
             {
-                rows.putAll(handler.get());
-            }
-            catch (TimeoutException e)
-            {
-                throw new TimedOutException();
+                if (logger.isDebugEnabled())
+                {
+                    for (Row row : handler.get())
+                    {
+                        logger.debug("range slices read " + row.key);
+                    }
+                }
+                rows.addAll(handler.get());
             }
             catch (DigestMismatchException e)
             {
                 throw new AssertionError(e); // no digests in range slices yet
             }
-            if (rows.size() >= command.max_keys || resolver.completed())
+            if (rows.size() >= command.max_keys)
                 break;
-
-            endPoint = tokenMetadata.getSuccessor(endPoint);
         }
-        while (!endPoint.equals(startEndpoint));
 
-        List<Pair<String, ColumnFamily>> results = new ArrayList<Pair<String, ColumnFamily>>(rows.size());
-        for (Map.Entry<String, ColumnFamily> entry : rows.entrySet())
-        {
-            ColumnFamily cf = entry.getValue();
-            results.add(new Pair<String, ColumnFamily>(entry.getKey(), cf));
-        }
-        Collections.sort(results, new Comparator<Pair<String, ColumnFamily>>()
-        {
-            public int compare(Pair<String, ColumnFamily> o1, Pair<String, ColumnFamily> o2)
-            {
-                return keyComparator.compare(o1.left, o2.left);                
-            }
-        });
         rangeStats.add(System.currentTimeMillis() - startTime);
-        return results;
+        return rows.size() > command.max_keys ? rows.subList(0, command.max_keys) : rows;
+    }
+
+    /**
+     * returns an iterator that will return ranges in ring order, starting with the one that contains the start token
+     */
+    private static Iterable<Pair<AbstractBounds, List<InetAddress>>> getRangeIterator(final List<Pair<AbstractBounds, List<InetAddress>>> ranges, Token start)
+    {
+        // sort ranges in ring order
+        Comparator<Pair<AbstractBounds, List<InetAddress>>> comparator = new Comparator<Pair<AbstractBounds, List<InetAddress>>>()
+        {
+            public int compare(Pair<AbstractBounds, List<InetAddress>> o1, Pair<AbstractBounds, List<InetAddress>> o2)
+            {
+                // no restricted ranges will overlap so we don't need to worry about inclusive vs exclusive left,
+                // just sort by raw token position.
+                return o1.left.left.compareTo(o2.left.left);
+            }
+        };
+        Collections.sort(ranges, comparator);
+
+        // find the one to start with
+        int i;
+        for (i = 0; i < ranges.size(); i++)
+        {
+            AbstractBounds range = ranges.get(i).left;
+            if (range.contains(start) || range.left.equals(start))
+                break;
+        }
+        AbstractBounds range = ranges.get(i).left;
+        assert range.contains(start) || range.left.equals(start); // make sure the loop didn't just end b/c ranges were exhausted
+
+        // return an iterable that starts w/ the correct range and iterates the rest in ring order
+        final int begin = i;
+        return new Iterable<Pair<AbstractBounds, List<InetAddress>>>()
+        {
+            public Iterator<Pair<AbstractBounds, List<InetAddress>>> iterator()
+            {
+                return new AbstractIterator<Pair<AbstractBounds, List<InetAddress>>>()
+                {
+                    int n = 0;
+
+                    protected Pair<AbstractBounds, List<InetAddress>> computeNext()
+                    {
+                        if (n == ranges.size())
+                            return endOfData();
+                        return ranges.get((begin + n++) % ranges.size());
+                    }
+                };
+            }
+        };
+    }
+
+    /**
+     * compute all ranges we're going to query, in sorted order, so that we get the correct results back.
+     *  1) computing range intersections is necessary because nodes can be replica destinations for many ranges,
+     *     so if we do not restrict each scan to the specific range we want we will get duplicate results.
+     *  2) sorting the intersection ranges is necessary because wraparound node ranges can be discontiguous.
+     *     Consider a 2-node ring, (D, T] and (T, D]. A query for [A, Z] will intersect the 2nd node twice,
+     *     at [A, D] and (T, Z]. We need to scan the (D, T] range in between those, or we will skip those
+     *     results entirely if the limit is low enough.
+     *  3) we unwrap the intersection ranges because otherwise we get results in the wrong order.
+     *     Consider a 2-node ring, (D, T] and (T, D].  A query for [D, Z] will get results in the wrong
+     *     order if we use (T, D] directly -- we need to start with that range, because our query starts with
+     *     D, but we don't want any other results from it until after the (D, T] range.  Unwrapping so that
+     *     the ranges we consider are (D, T], (T, MIN], (MIN, D] fixes this.
+     */
+    private static List<Pair<AbstractBounds, List<InetAddress>>> getRestrictedRanges(AbstractBounds queryRange, String keyspace, int responseCount)
+    throws UnavailableException
+    {
+        TokenMetadata tokenMetadata = StorageService.instance().getTokenMetadata();
+        Iterator<Token> iter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left);
+        List<Pair<AbstractBounds, List<InetAddress>>> ranges = new ArrayList<Pair<AbstractBounds, List<InetAddress>>>();
+        while (iter.hasNext())
+        {
+            Token nodeToken = iter.next();
+            Range nodeRange = new Range(tokenMetadata.getPredecessor(nodeToken), nodeToken);
+            List<InetAddress> endpoints = StorageService.instance().getLiveNaturalEndpoints(nodeToken);
+            if (endpoints.size() < responseCount)
+                throw new UnavailableException();
+
+            DatabaseDescriptor.getEndPointSnitch().sortByProximity(FBUtilities.getLocalAddress(), endpoints);
+            List<InetAddress> endpointsForCL = endpoints.subList(0, responseCount);
+            Set<AbstractBounds> restrictedRanges = queryRange.restrictTo(nodeRange);
+            for (AbstractBounds range : restrictedRanges)
+            {
+                for (AbstractBounds unwrapped : range.unwrap())
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("Adding to restricted ranges " + unwrapped + " for " + nodeRange);
+                    ranges.add(new Pair<AbstractBounds, List<InetAddress>>(unwrapped, endpointsForCL));
+                }
+            }
+        }
+        return ranges;
     }
 
     static List<String> getKeyRange(RangeCommand command) throws IOException, UnavailableException, TimedOutException

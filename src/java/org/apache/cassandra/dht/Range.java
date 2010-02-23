@@ -18,13 +18,12 @@
 
 package org.apache.cassandra.dht;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.Serializable;
-import java.util.List;
+import java.util.*;
 
-import org.apache.cassandra.io.ICompactSerializer;
+import org.apache.commons.lang.ObjectUtils;
+
+import org.apache.cassandra.service.StorageService;
 
 
 /**
@@ -32,51 +31,23 @@ import org.apache.cassandra.io.ICompactSerializer;
  *
  * A Range is responsible for the tokens between (left, right].
  */
-public class Range implements Comparable<Range>, Serializable
+public class Range extends AbstractBounds implements Comparable<Range>, Serializable
 {
     public static final long serialVersionUID = 1L;
     
-    private static ICompactSerializer<Range> serializer_;
-    static
-    {
-        serializer_ = new RangeSerializer();
-    }
-    
-    public static ICompactSerializer<Range> serializer()
-    {
-        return serializer_;
-    }
-
-    private final Token left_;
-    private final Token right_;
-
     public Range(Token left, Token right)
     {
-        left_ = left;
-        right_ = right;
+        this(left, right, StorageService.getPartitioner());
     }
 
-    /**
-     * Returns the left endpoint of a range.
-     * @return left endpoint
-     */
-    public Token left()
+    public Range(Token left, Token right, IPartitioner partitioner)
     {
-        return left_;
-    }
-    
-    /**
-     * Returns the right endpoint of a range.
-     * @return right endpoint
-     */
-    public Token right()
-    {
-        return right_;
+        super(left, right, partitioner);
     }
 
     public static boolean contains(Token left, Token right, Token bi)
     {
-        if ( isWrapAround(left, right) )
+        if (isWrapAround(left, right))
         {
             /* 
              * We are wrapping around, so the interval is (a,b] where a >= b,
@@ -85,7 +56,7 @@ public class Range implements Comparable<Range>, Serializable
              * (2) k <= b -- return true
              * (3) b < k <= a -- return false
              */
-            if ( bi.compareTo(left) > 0 )
+            if (bi.compareTo(left) > 0)
                 return true;
             else
                 return right.compareTo(bi) >= 0;
@@ -95,24 +66,36 @@ public class Range implements Comparable<Range>, Serializable
             /*
              * This is the range (a, b] where a < b. 
              */
-            return ( bi.compareTo(left) > 0 && right.compareTo(bi) >= 0 );
-        }        
+            return (bi.compareTo(left) > 0 && right.compareTo(bi) >= 0);
+        }
     }
 
     public boolean contains(Range that)
     {
-        boolean thiswraps = isWrapAround(this.left(), this.right());
-        boolean thatwraps = isWrapAround(that.left(), that.right());
+        if (this.left.equals(this.right))
+        {
+            // full ring always contains all other ranges
+            return true;
+        }
+
+        boolean thiswraps = isWrapAround(left, right);
+        boolean thatwraps = isWrapAround(that.left, that.right);
         if (thiswraps == thatwraps)
-            return this.left().compareTo(that.left()) <= 0 &&
-                that.right().compareTo(this.right()) <= 0;
+        {
+            return left.compareTo(that.left) <= 0 && that.right.compareTo(right) <= 0;
+        }
         else if (thiswraps)
+        {
             // wrapping might contain non-wrapping
-            return this.left().compareTo(that.left()) <= 0 ||
-                that.right().compareTo(this.right()) <= 0;
-        else // (thatwraps)
+            // that is contained if both its tokens are in one of our wrap segments
+            return left.compareTo(that.left) <= 0 || that.right.compareTo(right) <= 0;
+        }
+        else
+        {
+            // (thatwraps)
             // non-wrapping cannot contain wrapping
             return false;
+        }
     }
 
     /**
@@ -123,35 +106,106 @@ public class Range implements Comparable<Range>, Serializable
      */
     public boolean contains(Token bi)
     {
-        return contains(left_, right_, bi);
+        return contains(left, right, bi);
     }
 
     /**
-     * @param range range to check for intersection
+     * @param that range to check for intersection
      * @return true if the given range intersects with this range.
      */
     public boolean intersects(Range that)
     {
-        boolean thiswraps = isWrapAround(this.left(), this.right());
-        boolean thatwraps = isWrapAround(that.left(), that.right());
+        return intersectionWith(that).size() > 0;
+    }
+
+    public static Set<Range> rangeSet(Range ... ranges)
+    {
+        return Collections.unmodifiableSet(new HashSet<Range>(Arrays.asList(ranges)));
+    }
+
+    /**
+     * @param that
+     * @return the intersection of the two Ranges.  this can be two disjoint Ranges if one is wrapping and one is not.
+     * say you have nodes G and M, with query range (D,T]; the intersection is (M-T] and (D-G].
+     * If there is no intersection, an empty list is returned.
+     */
+    public Set<Range> intersectionWith(Range that)
+    {
+        if (this.contains(that))
+            return rangeSet(that);
+        if (that.contains(this))
+            return rangeSet(this);
+
+        boolean thiswraps = isWrapAround(left, right);
+        boolean thatwraps = isWrapAround(that.left, that.right);
+        if (!thiswraps && !thatwraps)
+        {
+            // neither wraps.  the straightforward case.
+            if (!(left.compareTo(that.right) < 0 && that.left.compareTo(right) < 0))
+                return Collections.emptySet();
+            return rangeSet(new Range((Token)ObjectUtils.max(this.left, that.left),
+                                      (Token)ObjectUtils.min(this.right, that.right)));
+        }
         if (thiswraps && thatwraps)
-            // both (must contain the minimum token)
-            return true;
-        else if (!thiswraps && !thatwraps)
-            // neither
-            return this.left().compareTo(that.right()) < 0 &&
-                that.left().compareTo(this.right()) < 0;
-        else
-            // either
-            return this.left().compareTo(that.right()) < 0 ||
-                that.left().compareTo(this.right()) < 0;
+        {
+            // if the starts are the same, one contains the other, which we have already ruled out.
+            assert !this.left.equals(that.left);
+            // two wrapping ranges always intersect.
+            // since we have already determined that neither this nor that contains the other, we have 2 cases,
+            // and mirror images of those case.
+            // (1) both of that's (1, 2] endpoints lie in this's (A, B] right segment:
+            //  ---------B--------A--1----2------>
+            // (2) only that's start endpoint lies in this's right segment:
+            //  ---------B----1---A-------2------>
+            // or, we have the same cases on the left segement, which we can handle by swapping this and that.
+            return this.left.compareTo(that.left) < 0
+                   ? intersectionBothWrapping(this, that)
+                   : intersectionBothWrapping(that, this);
+        }
+        if (thiswraps && !thatwraps)
+            return intersectionOneWrapping(this, that);
+        assert (!thiswraps && thatwraps);
+        return intersectionOneWrapping(that, this);
+    }
+
+    private static Set<Range> intersectionBothWrapping(Range first, Range that)
+    {
+        Set<Range> intersection = new HashSet<Range>(2);
+        if (that.right.compareTo(first.left) > 0)
+            intersection.add(new Range(first.left, that.right));
+        intersection.add(new Range(that.left, first.right));
+        return Collections.unmodifiableSet(intersection);
+    }
+
+    private static Set<Range> intersectionOneWrapping(Range wrapping, Range other)
+    {
+        Set<Range> intersection = new HashSet<Range>(2);
+        if (other.contains(wrapping.right))
+            intersection.add(new Range(other.left, wrapping.right));
+        // need the extra compareto here because ranges are asymmetrical; wrapping.left _is not_ contained by the wrapping range
+        if (other.contains(wrapping.left) && wrapping.left.compareTo(other.right) < 0)
+            intersection.add(new Range(wrapping.left, other.right));
+        return Collections.unmodifiableSet(intersection);
+    }
+
+    public Set<AbstractBounds> restrictTo(Range range)
+    {
+        return (Set) intersectionWith(range);
+    }
+
+    public List<AbstractBounds> unwrap()
+    {
+        if (!isWrapAround() || right.equals(partitioner.getMinimumToken()))
+            return (List)Arrays.asList(this);
+        List<AbstractBounds> unwrapped = new ArrayList<AbstractBounds>(2);
+        unwrapped.add(new Range(left, partitioner.getMinimumToken()));
+        unwrapped.add(new Range(partitioner.getMinimumToken(), right));
+        return unwrapped;
     }
 
     /**
      * Tells if the given range is a wrap around.
-     * @param range
-     * @return
-     */
+         */
     public static boolean isWrapAround(Token left, Token right)
     {
         return left.compareTo(right) >= 0;
@@ -163,13 +217,13 @@ public class Range implements Comparable<Range>, Serializable
          * If the range represented by the "this" pointer
          * is a wrap around then it is the smaller one.
          */
-        if ( isWrapAround(left(), right()) )
+        if ( isWrapAround(left, right) )
             return -1;
-        
-        if ( isWrapAround(rhs.left(), rhs.right()) )
+
+        if ( isWrapAround(rhs.left, rhs.right) )
             return 1;
         
-        return right_.compareTo(rhs.right_);
+        return right.compareTo(rhs.right);
     }
     
 
@@ -189,34 +243,19 @@ public class Range implements Comparable<Range>, Serializable
 
     public boolean equals(Object o)
     {
-        if ( !(o instanceof Range) )
+        if (!(o instanceof Range))
             return false;
         Range rhs = (Range)o;
-        return left_.equals(rhs.left_) && right_.equals(rhs.right_);
-    }
-    
-    @Override
-    public int hashCode()
-    {
-        return toString().hashCode();
+        return left.equals(rhs.left) && right.equals(rhs.right);
     }
     
     public String toString()
     {
-        return "(" + left_ + "," + right_ + "]";
-    }
-}
-
-class RangeSerializer implements ICompactSerializer<Range>
-{
-    public void serialize(Range range, DataOutputStream dos) throws IOException
-    {
-        Token.serializer().serialize(range.left(), dos);
-        Token.serializer().serialize(range.right(), dos);
+        return "(" + left + "," + right + "]";
     }
 
-    public Range deserialize(DataInputStream dis) throws IOException
+    public boolean isWrapAround()
     {
-        return new Range(Token.serializer().deserialize(dis), Token.serializer().deserialize(dis));
+        return isWrapAround(left, right);
     }
 }

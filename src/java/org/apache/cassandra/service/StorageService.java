@@ -399,7 +399,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         Map<Range, List<InetAddress>> rangeToEndPointMap = new HashMap<Range, List<InetAddress>>();
         for (Range range : ranges)
         {
-            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right()));
+            rangeToEndPointMap.put(range, replicationStrategy_.getNaturalEndpoints(range.right));
         }
         return rangeToEndPointMap;
     }
@@ -628,8 +628,8 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // all leaving nodes are gone.
         for (Range range : affectedRanges)
         {
-            List<InetAddress> currentEndPoints = strategy.getNaturalEndpoints(range.right(), tm);
-            List<InetAddress> newEndPoints = strategy.getNaturalEndpoints(range.right(), allLeftMetadata);
+            List<InetAddress> currentEndPoints = strategy.getNaturalEndpoints(range.right, tm);
+            List<InetAddress> newEndPoints = strategy.getNaturalEndpoints(range.right, allLeftMetadata);
             newEndPoints.removeAll(currentEndPoints);
             pendingRanges.putAll(range, newEndPoints);
         }
@@ -734,7 +734,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
 
         // Find (for each range) all nodes that store replicas for these ranges as well
         for (Range range : ranges)
-            currentReplicaEndpoints.put(range, replicationStrategy_.getNaturalEndpoints(range.right(), tokenMetadata_));
+            currentReplicaEndpoints.put(range, replicationStrategy_.getNaturalEndpoints(range.right, tokenMetadata_));
 
         TokenMetadata temp = tokenMetadata_.cloneAfterAllLeft();
 
@@ -752,7 +752,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // range.
         for (Range range : ranges)
         {
-            ArrayList<InetAddress> newReplicaEndpoints = replicationStrategy_.getNaturalEndpoints(range.right(), temp);
+            ArrayList<InetAddress> newReplicaEndpoints = replicationStrategy_.getNaturalEndpoints(range.right, temp);
             newReplicaEndpoints.removeAll(currentReplicaEndpoints.get(range));
             if (logger_.isDebugEnabled())
                 if (newReplicaEndpoints.isEmpty())
@@ -1232,7 +1232,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
         // (we're only operating on 1/128 of the keys remember)
         Range range = getLocalPrimaryRange();
         List<String> tokens = new ArrayList<String>();
-        tokens.add(range.left().toString());
+        tokens.add(range.left.toString());
 
         List<DecoratedKey> decoratedKeys = SSTableReader.getIndexedDecoratedKeys();
         if (decoratedKeys.size() < splits)
@@ -1253,7 +1253,7 @@ public final class StorageService implements IEndPointStateChangeSubscriber, Sto
             }
         }
 
-        tokens.add(range.right().toString());
+        tokens.add(range.right.toString());
         return tokens;
     }
 

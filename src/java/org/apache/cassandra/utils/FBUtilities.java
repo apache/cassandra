@@ -33,6 +33,10 @@ import org.apache.log4j.Logger;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.thrift.TBase;
+import org.apache.thrift.TDeserializer;
+import org.apache.thrift.TException;
+import org.apache.thrift.TSerializer;
 
 public class FBUtilities
 {
@@ -317,5 +321,42 @@ public class FBUtilities
                 return o1.compareTo(o2);
             }
         });
+    }
+
+    public static void serialize(TSerializer serializer, TBase struct, DataOutput out)
+    throws IOException
+    {
+        assert serializer != null;
+        assert struct != null;
+        assert out != null;
+        byte[] bytes;
+        try
+        {
+            bytes = serializer.serialize(struct);
+        }
+        catch (TException e)
+        {
+            throw new RuntimeException(e);
+        }
+        out.writeInt(bytes.length);
+        out.write(bytes);
+    }
+
+    public static void deserialize(TDeserializer deserializer, TBase struct, DataInput in)
+    throws IOException
+    {
+        assert deserializer != null;
+        assert struct != null;
+        assert in != null;
+        byte[] bytes = new byte[in.readInt()];
+        in.readFully(bytes);
+        try
+        {
+            deserializer.deserialize(struct, bytes);
+        }
+        catch (TException ex)
+        {
+            throw new IOException(ex);
+        }
     }
 }

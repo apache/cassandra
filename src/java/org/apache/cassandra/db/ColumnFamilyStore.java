@@ -1532,7 +1532,7 @@ public final class ColumnFamilyStore implements ColumnFamilyStoreMBean
             rows.add(new Row(key, getColumnFamily(filter)));
         }
 
-        return new RangeSliceReply(rows, rr.rangeCompletedLocally);
+        return new RangeSliceReply(rows);
     }
 
     public AbstractType getComparator()

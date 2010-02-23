@@ -215,7 +215,7 @@ public class NodeProbe
         // emphasize that we're showing the right part of each range
         if (ranges.size() > 1)
         {
-            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left()));
+            outs.println(String.format("%-14s%-11s%-14s%-43s", "", "", "", ranges.get(0).left));
         }
         // normal range & node info
         for (Range range : ranges) {
@@ -234,7 +234,7 @@ public class NodeProbe
             String load = loadMap.containsKey(primaryEndpoint) ? loadMap.get(primaryEndpoint) : "?";
             outs.print(String.format("%-14s", load));
 
-            outs.print(String.format("%-43s", range.right()));
+            outs.print(String.format("%-43s", range.right));
 
             String asciiRingArt;
             if (counter == 0)

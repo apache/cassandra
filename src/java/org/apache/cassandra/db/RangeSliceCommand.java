@@ -36,8 +36,14 @@
 
 package org.apache.cassandra.db;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.io.DataInputBuffer;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.net.Message;
@@ -46,19 +52,13 @@ import org.apache.cassandra.service.SlicePredicate;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TDeserializer;
-import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.util.Arrays;
-
 public class RangeSliceCommand
 {
-    private static final SliceCommandSerializer serializer = new SliceCommandSerializer();
-    
+    private static final RangeSliceCommandSerializer serializer = new RangeSliceCommandSerializer();
+
     public final String keyspace;
 
     public final String column_family;
@@ -66,29 +66,21 @@ public class RangeSliceCommand
 
     public final SlicePredicate predicate;
 
-    public final DecoratedKey startKey;
-    public final DecoratedKey finishKey;
+    public final AbstractBounds range;
     public final int max_keys;
 
-    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys)
+    public RangeSliceCommand(String keyspace, ColumnParent column_parent, SlicePredicate predicate, AbstractBounds range, int max_keys)
     {
-        this.keyspace = keyspace;
-        column_family = column_parent.getColumn_family();
-        super_column = column_parent.getSuper_column();
-        this.predicate = predicate;
-        this.startKey = startKey;
-        this.finishKey = finishKey;
-        this.max_keys = max_keys;
+        this(keyspace, column_parent.getColumn_family(), column_parent.getSuper_column(), predicate, range, max_keys);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, byte[] super_column, SlicePredicate predicate, DecoratedKey startKey, DecoratedKey finishKey, int max_keys)
+    public RangeSliceCommand(String keyspace, String column_family, byte[] super_column, SlicePredicate predicate, AbstractBounds range, int max_keys)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
         this.super_column = super_column;
         this.predicate = predicate;
-        this.startKey = startKey;
-        this.finishKey = finishKey;
+        this.range = range;
         this.max_keys = max_keys;
     }
 
@@ -102,16 +94,28 @@ public class RangeSliceCommand
                            Arrays.copyOf(dob.getData(), dob.getLength()));
     }
 
+    @Override
+    public String toString()
+    {
+        return "RangeSliceCommand{" +
+               "keyspace='" + keyspace + '\'' +
+               ", column_family='" + column_family + '\'' +
+               ", super_column=" + super_column +
+               ", predicate=" + predicate +
+               ", range=" + range +
+               ", max_keys=" + max_keys +
+               '}';
+    }
+
     public static RangeSliceCommand read(Message message) throws IOException
     {
         byte[] bytes = message.getMessageBody();
-        DataInputBuffer dib = new DataInputBuffer();
-        dib.reset(bytes, bytes.length);
-        return serializer.deserialize(new DataInputStream(dib));
+        ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+        return serializer.deserialize(new DataInputStream(bis));
     }
 }
 
-class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
+class RangeSliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
 {
     public void serialize(RangeSliceCommand sliceCommand, DataOutputStream dos) throws IOException
     {
@@ -122,19 +126,8 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
             dos.write(sliceCommand.super_column);
 
         TSerializer ser = new TSerializer(new TBinaryProtocol.Factory());
-        try
-        {
-            byte[] serPred = ser.serialize(sliceCommand.predicate);
-            dos.writeInt(serPred.length);
-            dos.write(serPred);
-        }
-        catch (TException ex)
-        {
-            throw new IOException(ex);
-        }
-
-        DecoratedKey.serializer().serialize(sliceCommand.startKey, dos);
-        DecoratedKey.serializer().serialize(sliceCommand.finishKey, dos);
+        FBUtilities.serialize(ser, sliceCommand.predicate, dos);
+        AbstractBounds.serializer().serialize(sliceCommand.range, dos);
         dos.writeInt(sliceCommand.max_keys);
     }
 
@@ -148,29 +141,13 @@ class SliceCommandSerializer implements ICompactSerializer<RangeSliceCommand>
         if (scLength > 0)
             super_column = readBuf(scLength, dis);
 
-        byte[] predBytes = new byte[dis.readInt()];
-        dis.readFully(predBytes);
         TDeserializer dser = new TDeserializer(new TBinaryProtocol.Factory());
-        SlicePredicate pred =  new SlicePredicate();
-        try
-        {
-            dser.deserialize(pred, predBytes);
-        }
-        catch (TException ex)
-        {
-            throw new IOException(ex);
-        }
+        SlicePredicate pred = new SlicePredicate();
+        FBUtilities.deserialize(dser, pred, dis);
 
-        DecoratedKey startKey = DecoratedKey.serializer().deserialize(dis);
-        DecoratedKey finishKey = DecoratedKey.serializer().deserialize(dis);
+        AbstractBounds range = AbstractBounds.serializer().deserialize(dis);
         int max_keys = dis.readInt();
-        return new RangeSliceCommand(keyspace,
-                                     new ColumnParent(column_family, super_column),
-                                     pred,
-                                     startKey,
-                                     finishKey,
-                                     max_keys);
-
+        return new RangeSliceCommand(keyspace, column_family, super_column, pred, range, max_keys);
     }
 
     static byte[] readBuf(int len, DataInputStream dis) throws IOException

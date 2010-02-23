@@ -18,35 +18,28 @@
 
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.DataInputBuffer;
 import org.apache.cassandra.io.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang.StringUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.util.*;
 
 public class RangeSliceReply
 {
     public final List<Row> rows;
-    public final boolean rangeCompletedLocally;
 
-    public RangeSliceReply(List<Row> rows, boolean rangeCompletedLocally)
+    public RangeSliceReply(List<Row> rows)
     {
         this.rows = rows;
-        this.rangeCompletedLocally = rangeCompletedLocally;
     }
 
     public Message getReply(Message originalMessage) throws IOException
     {
         DataOutputBuffer dob = new DataOutputBuffer();
-        dob.writeBoolean(rangeCompletedLocally);
         dob.writeInt(rows.size());
         for (Row row : rows)
         {
@@ -61,21 +54,19 @@ public class RangeSliceReply
     {
         return "RangeSliceReply{" +
                "rows=" + StringUtils.join(rows, ",") +
-               ", rangeCompletedLocally=" + rangeCompletedLocally +
                '}';
     }
 
     public static RangeSliceReply read(byte[] body) throws IOException
     {
-        DataInputBuffer bufIn = new DataInputBuffer();
-        bufIn.reset(body, body.length);
-        boolean completed = bufIn.readBoolean();
-        int rowCount = bufIn.readInt();
+        ByteArrayInputStream bufIn = new ByteArrayInputStream(body);
+        DataInputStream dis = new DataInputStream(bufIn);
+        int rowCount = dis.readInt();
         List<Row> rows = new ArrayList<Row>(rowCount);
         for (int i = 0; i < rowCount; i++)
         {
-            rows.add(Row.serializer().deserialize(bufIn));
+            rows.add(Row.serializer().deserialize(dis));
         }
-        return new RangeSliceReply(rows, completed);
+        return new RangeSliceReply(rows);
     }
 }

@@ -32,6 +32,9 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Token;
 
 public class ThriftValidation
 {
@@ -218,5 +221,24 @@ public class ThriftValidation
             validateRange(keyspace, column_parent, predicate.slice_range);
         else
             validateColumns(keyspace, column_parent, predicate.column_names);
+    }
+
+    public static void validateKeyRange(String start_key, String end_key, int row_count) throws InvalidRequestException
+    {
+        IPartitioner p = StorageService.getPartitioner();
+        Token startToken = p.decorateKey(start_key).token;
+        Token endToken = p.decorateKey(end_key).token;
+        if (startToken.compareTo(endToken) > 0 && !endToken.equals(p.getMinimumToken()))
+        {
+            if (p instanceof RandomPartitioner)
+                throw new InvalidRequestException("start key's md5 sorts after end key's md5.  this is not allowed; you probably should not specify end key at all, under RandomPartitioner");
+            else
+                throw new InvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
+        }
+
+        if (row_count <= 0)
+        {
+            throw new InvalidRequestException("row_count must be positive");
+        }
     }
 }

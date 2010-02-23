@@ -22,6 +22,7 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.log4j.Logger;
 
@@ -32,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.LogUtil;
 import org.apache.cassandra.utils.Pair;
@@ -465,28 +467,27 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamiliesMap;
     }
 
-    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String finish_key, int maxRows, int consistency_level)
-            throws InvalidRequestException, UnavailableException, TException, TimedOutException
+    public List<KeySlice> get_range_slice(String keyspace, ColumnParent column_parent, SlicePredicate predicate, String start_key, String end_key, int maxRows, int consistency_level)
+    throws InvalidRequestException, UnavailableException, TException, TimedOutException
     {
         if (logger.isDebugEnabled())
-            logger.debug("range_slice");
-        ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
-        if (!StorageService.getPartitioner().preservesOrder())
-        {
-            throw new InvalidRequestException("range queries may only be performed against an order-preserving partitioner");
-        }
-        if (maxRows <= 0)
-        {
-            throw new InvalidRequestException("maxRows must be positive");
-        }
+            logger.debug("get_range_slice " + start_key + " to " + end_key);
 
-        List<Pair<String, ColumnFamily>> rows;
+        ThriftValidation.validateColumnParent(keyspace, column_parent);
+        ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
+        ThriftValidation.validateKeyRange(start_key, end_key, maxRows);
+
+        List<Row> rows;
         try
         {
-            DecoratedKey startKey = StorageService.getPartitioner().decorateKey(start_key);
-            DecoratedKey finishKey = StorageService.getPartitioner().decorateKey(finish_key);
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, startKey, finishKey, maxRows), consistency_level);
+            IPartitioner p = StorageService.getPartitioner();
+            Bounds bounds = new Bounds(p.decorateKey(start_key).token, p.decorateKey(end_key).token);
+            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, maxRows), consistency_level);
             assert rows != null;
+        }
+        catch (TimeoutException e)
+        {
+        	throw new TimedOutException();
         }
         catch (IOException e)
         {
@@ -495,10 +496,10 @@ public class CassandraServer implements Cassandra.Iface
 
         List<KeySlice> keySlices = new ArrayList<KeySlice>(rows.size());
         boolean reversed = predicate.slice_range != null && predicate.slice_range.reversed;
-        for (Pair<String, ColumnFamily> row : rows)
+        for (Row row : rows)
         {
-            List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(row.right, column_parent.super_column != null, reversed);
-            keySlices.add(new KeySlice(row.left, thriftifiedColumns));
+            List<ColumnOrSuperColumn> thriftifiedColumns = thriftifyColumnFamily(row.cf, column_parent.super_column != null, reversed);
+            keySlices.add(new KeySlice(row.key, thriftifiedColumns));
         }
 
         return keySlices;
