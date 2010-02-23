@@ -314,6 +314,7 @@
           <include name="**"/>
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
+          <exclude name="interface/avro/**" />
         </tarfileset>
       </tar>
     </target>

@@ -89,7 +89,7 @@ public class CompactionManager implements CompactionManagerMBean
                     return 0;
                 }
                 logger.debug("Checking to see if compaction of " + cfs.columnFamily_ + " would be useful");
-                Set<List<SSTableReader>> buckets = getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+                Set<List<SSTableReader>> buckets = getBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
                 updateEstimateFor(cfs, buckets);
                 
                 for (List<SSTableReader> sstables : buckets)
@@ -441,7 +441,7 @@ public class CompactionManager implements CompactionManagerMBean
     /*
     * Group files of similar size into buckets.
     */
-    static Set<List<SSTableReader>> getCompactionBuckets(Iterable<SSTableReader> files, long min)
+    static Set<List<SSTableReader>> getBuckets(Iterable<SSTableReader> files, long min)
     {
         Map<List<SSTableReader>, Long> buckets = new HashMap<List<SSTableReader>, Long>();
         for (SSTableReader sstable : files)
@@ -461,7 +461,8 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     // remove and re-add because adding changes the hash
                     buckets.remove(bucket);
-                    averageSize = (averageSize + size) / 2;
+                    long totalSize = bucket.size() * averageSize;
+                    averageSize = (totalSize + size) / (bucket.size() + 1);
                     bucket.add(sstable);
                     buckets.put(bucket, averageSize);
                     bFound = true;
@@ -538,7 +539,7 @@ public class CompactionManager implements CompactionManagerMBean
                 public void run ()
                 {
                     logger.debug("Estimating compactions for " + cfs.columnFamily_);
-                    final Set<List<SSTableReader>> buckets = getCompactionBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
+                    final Set<List<SSTableReader>> buckets = getBuckets(cfs.getSSTables(), 50L * 1024L * 1024L);
                     updateEstimateFor(cfs, buckets);
                 }
             };

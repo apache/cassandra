@@ -1,7 +1,10 @@
 dev
  * sstable versioning (CASSANDRA-389)
 
-0.6.0-dev
+0.6.0-RC1
+ * fix compaction bucketing bug (CASSANDRA-814)
+
+0.6.0-beta1/beta2
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
  * remove get_key_range Thrift API, deprecated in 0.5 (CASSANDRA-710)
  * add optional login() Thrift call for authentication (CASSANDRA-547)
@@ -42,7 +45,9 @@ dev
  * allow larger numbers of keys (> 140M) in a sstable bloom filter
    (CASSANDRA-790)
  * include jvm argument improvements from CASSANDRA-504 in debian package
- * change streaming chunk size to 32MB (was 64MB) (CASSANDRA-795)
+ * change streaming chunk size to 32MB to accomodate Windows XP limitations
+   (was 64MB) (CASSANDRA-795)
+ * fix get_range_slice returning results in the wrong order (CASSANDRA-781)
  
 
 0.5.0 final
