@@ -21,6 +21,9 @@ package org.apache.cassandra.config;
 import static org.junit.Assert.assertNotNull;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+
 public class DatabaseDescriptorTest
 {
     @Test
@@ -29,13 +32,32 @@ public class DatabaseDescriptorTest
         assertNotNull(DatabaseDescriptor.getConfigFileName(), "DatabaseDescriptor should always be able to return the file name of the config file");
     }
 
-    /**
-     * Allow modification of replicationFactor for testing purposes.
-     * TODO: A more general method of property modification would be useful, but
-     *       will probably have to wait for a refactor away from all the static fields.
-     */
-    public static void setReplicationFactor(String table, int factor)
+    @Test
+    public void testCFMetaDataSerialization() throws IOException
     {
-        DatabaseDescriptor.setReplicationFactorUnsafe(table, factor);
+        // test serialization of all defined test CFs.
+        for (String table : DatabaseDescriptor.getNonSystemTables())
+        {
+            for (CFMetaData cfm : DatabaseDescriptor.getTableMetaData(table).values())
+            {
+                byte[] ser = CFMetaData.serialize(cfm);
+                CFMetaData cfmDupe = CFMetaData.deserialize(new ByteArrayInputStream(ser));
+                assert cfmDupe != null;
+                assert cfmDupe.equals(cfm);
+            }
+        }
+
+    }
+
+    @Test
+    public void testKSMetaDataSerialization() throws IOException 
+    {
+        for (KSMetaData ksm : DatabaseDescriptor.tables_.values())
+        {
+            byte[] ser = KSMetaData.serialize(ksm);
+            KSMetaData ksmDupe = KSMetaData.deserialize(new ByteArrayInputStream(ser));
+            assert ksmDupe != null;
+            assert ksmDupe.equals(ksm);
+        }
     }
 }

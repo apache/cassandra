@@ -86,4 +86,12 @@ public abstract class AbstractType implements Comparator<byte[]>
         }
         return builder.toString();
     }
+
+    public final boolean equals(Object obj)
+    {
+        if (obj == null)
+            return false;
+        else
+            return obj.getClass().getName().equals(getClass().getName());
+    }
 }

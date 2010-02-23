@@ -19,15 +19,36 @@
 package org.apache.cassandra.config;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class CFMetaData
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+public final class CFMetaData
 {
-    public String tableName;            // name of table which has this column family
-    public String cfName;               // name of the column family
-    public String columnType;           // type: super, standard, etc.
-    public AbstractType comparator;       // name sorted, time stamp sorted etc.
-    public AbstractType subcolumnComparator; // like comparator, for supercolumns
-    public String comment; // for humans only
+    public final String tableName;            // name of table which has this column family
+    public final String cfName;               // name of the column family
+    public final String columnType;           // type: super, standard, etc.
+    public final AbstractType comparator;       // name sorted, time stamp sorted etc.
+    public final AbstractType subcolumnComparator; // like comparator, for supercolumns
+    public final String comment; // for humans only
+    public final double rowCacheSize; // default 0
+    public final double keysCachedFraction; // default 0.01
+
+    CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keysCachedFraction)
+    {
+        this.tableName = tableName;
+        this.cfName = cfName;
+        this.columnType = columnType;
+        this.comparator = comparator;
+        this.subcolumnComparator = subcolumnComparator;
+        this.comment = comment;
+        this.rowCacheSize = rowCacheSize;
+        this.keysCachedFraction = keysCachedFraction;
+    }
 
     // a quick and dirty pretty printer for describing the column family...
     public String pretty()
@@ -35,5 +56,71 @@ public class CFMetaData
         return tableName + "." + cfName + "\n"
                + "Column Family Type: " + columnType + "\n"
                + "Columns Sorted By: " + comparator + "\n";
+    }
+
+    public static byte[] serialize(CFMetaData cfm) throws IOException
+    {
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        DataOutputStream dout = new DataOutputStream(bout);
+        dout.writeUTF(cfm.tableName);
+        dout.writeUTF(cfm.cfName);
+        dout.writeUTF(cfm.columnType);
+        dout.writeUTF(cfm.comparator.getClass().getName());
+        dout.writeBoolean(cfm.subcolumnComparator != null);
+        if (cfm.subcolumnComparator != null)
+            dout.writeUTF(cfm.subcolumnComparator.getClass().getName());
+        dout.writeBoolean(cfm.comment != null);
+        if (cfm.comment != null)
+            dout.writeUTF(cfm.comment);
+        dout.writeDouble(cfm.rowCacheSize);
+        dout.writeDouble(cfm.keysCachedFraction);
+        dout.close();
+        return bout.toByteArray();
+    }
+
+    public static CFMetaData deserialize(InputStream in) throws IOException
+    {
+
+        DataInputStream din = new DataInputStream(in);
+        String tableName = din.readUTF();
+        String cfName = din.readUTF();
+        String columnType = din.readUTF();
+        AbstractType comparator = null;
+        try
+        {
+            comparator = (AbstractType)Class.forName(din.readUTF()).newInstance();
+        }
+        catch (Exception ex)
+        {
+            throw new IOException(ex);
+        }
+        AbstractType subcolumnComparator = null;
+        try
+        {
+            subcolumnComparator = din.readBoolean() ? (AbstractType)Class.forName(din.readUTF()).newInstance() : null;
+        }
+        catch (Exception ex)
+        {
+
+        }
+        String comment = din.readBoolean() ? din.readUTF() : null;
+        double rowCacheSize = din.readDouble();
+        double keysCachedFraction = din.readDouble();
+        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keysCachedFraction);
+    }
+
+    public boolean equals(Object obj)
+    {
+        if (!(obj instanceof CFMetaData))
+            return false;
+        CFMetaData other = (CFMetaData)obj;
+        return other.tableName.equals(tableName)
+                && other.cfName.equals(cfName)
+                && other.columnType.equals(columnType)
+                && other.comparator.equals(comparator)
+                && FBUtilities.equals(other.subcolumnComparator, subcolumnComparator)
+                && FBUtilities.equals(other.comment, comment)
+                && other.rowCacheSize == rowCacheSize
+                && other.keysCachedFraction == keysCachedFraction;
     }
 }

@@ -26,16 +26,19 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.locator.EndPointSnitch;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
+import javax.xml.xpath.XPathExpressionException;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -84,28 +87,12 @@ public class DatabaseDescriptor
     private static double flushDataBufferSizeInMB_ = 32;
     private static double flushIndexBufferSizeInMB_ = 8;
     private static int slicedReadBufferSizeInKB_ = 64;
-    private static Set<String> tables_ = new HashSet<String>();
+
+    static Map<String, KSMetaData> tables_ = new HashMap<String, KSMetaData>();
     private static int bmtThreshold_ = 256;
-
-    private static Map<Pair<String, String>, Double> tableKeysCachedFractions_ = new HashMap<Pair<String, String>, Double>();
-    private static Map<Pair<String, String>, Double> tableRowCacheSizes = new HashMap<Pair<String, String>, Double>();
-
-    /*
-     * A map from table names to the set of column families for the table and the
-     * corresponding meta data for that column family.
-    */
-    private static Map<String, Map<String, CFMetaData>> tableToCFMetaDataMap_;
-
-    // map tables to replication strategies.
-    private static Map<String, Class<AbstractReplicationStrategy>> replicationStrategyClasses_;
-
-    // map tables to replication factors.
-    private static Map<String, Integer> replicationFactors_;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner_;
-
-    private static Map<String, IEndPointSnitch> endPointSnitches_;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     private static int columnIndexSizeInKB_;
@@ -457,170 +444,30 @@ public class DatabaseDescriptor
             if ( value != null)
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
-            tableToCFMetaDataMap_ = new HashMap<String, Map<String, CFMetaData>>();
-            replicationFactors_ = new HashMap<String, Integer>();
-            replicationStrategyClasses_ = new HashMap<String, Class<AbstractReplicationStrategy>>();
-            endPointSnitches_ = new HashMap<String, IEndPointSnitch>();
-
-            /* Read the table related stuff from config */
-            NodeList tables = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
-            int size = tables.getLength();
-            for ( int i = 0; i < size; ++i )
-            {
-                Node table = tables.item(i);
-
-                /* parsing out the table name */
-                String tName = XMLUtils.getAttributeValue(table, "Name");
-                if (tName == null)
-                {
-                    throw new ConfigurationException("Table name attribute is required");
-                }
-                if (tName.equalsIgnoreCase(Table.SYSTEM_TABLE))
-                {
-                    throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
-                }
-                tables_.add(tName);
-                tableToCFMetaDataMap_.put(tName, new HashMap<String, CFMetaData>());
-
-                /* See which replica placement strategy to use */
-                String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/ReplicaPlacementStrategy");
-                if (replicaPlacementStrategyClassName == null)
-                {
-                    throw new ConfigurationException("Missing replicaplacementstrategy directive for " + tName);
-                }
-                try
-                {
-                    Class cls = (Class<AbstractReplicationStrategy>) Class.forName(replicaPlacementStrategyClassName);
-                    replicationStrategyClasses_.put(tName, cls);
-                }
-                catch (ClassNotFoundException e)
-                {
-                    throw new ConfigurationException("Invalid replicaplacementstrategy class " + replicaPlacementStrategyClassName);
-                }
-
-                /* Data replication factor */
-                String replicationFactor = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/ReplicationFactor");
-                if (replicationFactor == null)
-                    throw new ConfigurationException("Missing replicationfactor directory for keyspace " + tName);
-                else
-                    replicationFactors_.put(tName, Integer.parseInt(replicationFactor));
-
-                /* end point snitch */
-                String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/EndPointSnitch");
-                if (endPointSnitchClassName == null)
-                {
-                    throw new ConfigurationException("Missing endpointsnitch directive for keyspace " + tName);
-                }
-                try
-                {
-                    Class cls = Class.forName(endPointSnitchClassName);
-                    endPointSnitches_.put(tName, (IEndPointSnitch)cls.getConstructor().newInstance());
-                }
-                catch (ClassNotFoundException e)
-                {
-                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName);
-                }
-
-                String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + tName + "']/";
-                NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
-
-                //NodeList columnFamilies = xmlUtils.getRequestedNodeList(table, "ColumnFamily");
-                int size2 = columnFamilies.getLength();
-
-                for ( int j = 0; j < size2; ++j )
-                {
-                    Node columnFamily = columnFamilies.item(j);
-                    String cfName = XMLUtils.getAttributeValue(columnFamily, "Name");
-                    if (cfName == null)
-                    {
-                        throw new ConfigurationException("ColumnFamily name attribute is required");
-                    }
-                    String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
-
-                    // Parse out the column type
-                    String rawColumnType = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
-                    String columnType = ColumnFamily.getColumnType(rawColumnType);
-                    if (columnType == null)
-                    {
-                        throw new ConfigurationException("ColumnFamily " + cfName + " has invalid type " + rawColumnType);
-                    }
-
-                    if (XMLUtils.getAttributeValue(columnFamily, "ColumnSort") != null)
-                    {
-                        throw new ConfigurationException("ColumnSort is no longer an accepted attribute.  Use CompareWith instead.");
-                    }
-
-                    // Parse out the column comparator
-                    AbstractType columnComparator = getComparator(columnFamily, "CompareWith");
-                    AbstractType subcolumnComparator = null;
-                    if (columnType.equals("Super"))
-                    {
-                        subcolumnComparator = getComparator(columnFamily, "CompareSubcolumnsWith");
-                    }
-                    else if (XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith") != null)
-                    {
-                        throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
-                    }
-
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCachedFraction")) != null)
-                    {
-                        tableKeysCachedFractions_.put(Pair.create(tName, cfName), Double.valueOf(value));
-                    }
-                    
-                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCached")) != null)
-                    {
-                        if (value.endsWith("%"))
-                        {
-                            tableRowCacheSizes.put(Pair.create(tName, cfName), Double.valueOf(value.substring(0, value.length() - 1)) / 100);
-                        }
-                        else
-                        {
-                            tableRowCacheSizes.put(Pair.create(tName, cfName), Double.valueOf(value));
-                        }
-                    }
-
-                    // Parse out user-specified logical names for the various dimensions
-                    // of a the column family from the config.
-                    String cfComment = xmlUtils.getNodeValue(xqlCF + "Comment");
-
-                    // now populate the column family meta data and
-                    // insert it into the table dictionary.
-                    CFMetaData cfMetaData = new CFMetaData();
-
-                    cfMetaData.tableName = tName;
-                    cfMetaData.cfName = cfName;
-                    cfMetaData.comment = cfComment;
-
-                    cfMetaData.columnType = columnType;
-                    cfMetaData.comparator = columnComparator;
-                    cfMetaData.subcolumnComparator = subcolumnComparator;
-
-                    tableToCFMetaDataMap_.get(tName).put(cfName, cfMetaData);
-                }
-            }
+            readTablesFromXml();
             if (tables_.isEmpty())
                 throw new ConfigurationException("No keyspaces configured");
 
             // Hardcoded system tables
-            tables_.add(Table.SYSTEM_TABLE);
-            Map<String, CFMetaData> systemMetadata = new HashMap<String, CFMetaData>();
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null);
+            tables_.put(Table.SYSTEM_TABLE, systemMeta);
+            systemMeta.cfMetaData.put(SystemTable.STATUS_CF, new CFMetaData(Table.SYSTEM_TABLE,
+                                                                            SystemTable.STATUS_CF,
+                                                                            "Standard",
+                                                                            new UTF8Type(),
+                                                                            null,
+                                                                            "persistent metadata for the local node",
+                                                                            0d,
+                                                                            0.01d));
 
-            CFMetaData data = new CFMetaData();
-            data.cfName = SystemTable.STATUS_CF;
-            data.columnType = "Standard";
-            data.comparator = new UTF8Type();
-            data.comment = "persistent metadata for the local node";
-            systemMetadata.put(data.cfName, data);
-
-            data = new CFMetaData();
-            data.cfName = HintedHandOffManager.HINTS_CF;
-            data.columnType = "Super";
-            data.comparator = new UTF8Type();
-            data.subcolumnComparator = new BytesType();
-            data.comment = "hinted handoff data";
-            systemMetadata.put(data.cfName, data);
-
-            tableToCFMetaDataMap_.put(Table.SYSTEM_TABLE, systemMetadata);
+            systemMeta.cfMetaData.put(HintedHandOffManager.HINTS_CF, new CFMetaData(Table.SYSTEM_TABLE,
+                                                                                    HintedHandOffManager.HINTS_CF,
+                                                                                    "Super",
+                                                                                    new UTF8Type(),
+                                                                                    new BytesType(),
+                                                                                    "hinted handoff data",
+                                                                                    0d,
+                                                                                    0.01d));
 
             /* Load the seeds for node contact points */
             String[] seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
@@ -645,6 +492,200 @@ public class DatabaseDescriptor
         }
     }
 
+    private static void readTablesFromXml() throws ConfigurationException
+    {
+        XMLUtils xmlUtils = null;
+        try
+        {
+            xmlUtils = new XMLUtils(configFileName_);
+        }
+        catch (ParserConfigurationException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (SAXException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+
+        /* Read the table related stuff from config */
+        try
+        {
+            NodeList tables = xmlUtils.getRequestedNodeList("/Storage/Keyspaces/Keyspace");
+            int size = tables.getLength();
+            for ( int i = 0; i < size; ++i )
+            {
+                String value = null;
+                Node table = tables.item(i);
+
+                /* parsing out the table ksName */
+                String ksName = XMLUtils.getAttributeValue(table, "Name");
+                if (ksName == null)
+                {
+                    throw new ConfigurationException("Table name attribute is required");
+                }
+                if (ksName.equalsIgnoreCase(Table.SYSTEM_TABLE))
+                {
+                    throw new ConfigurationException("'system' is a reserved table name for Cassandra internals");
+                }
+
+                /* See which replica placement strategy to use */
+                String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicaPlacementStrategy");
+                if (replicaPlacementStrategyClassName == null)
+                {
+                    throw new ConfigurationException("Missing replicaplacementstrategy directive for " + ksName);
+                }
+                Class<? extends AbstractReplicationStrategy> repStratClass = null;
+                try
+                {
+                    repStratClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(replicaPlacementStrategyClassName);
+                }
+                catch (ClassNotFoundException e)
+                {
+                    throw new ConfigurationException("Invalid replicaplacementstrategy class " + replicaPlacementStrategyClassName);
+                }
+
+                /* Data replication factor */
+                String replicationFactor = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicationFactor");
+                int repFact = -1;
+                if (replicationFactor == null)
+                    throw new ConfigurationException("Missing replicationfactor directory for keyspace " + ksName);
+                else
+                {
+                    repFact = Integer.parseInt(replicationFactor);
+                }
+
+                /* end point snitch */
+                String endPointSnitchClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/EndPointSnitch");
+                if (endPointSnitchClassName == null)
+                {
+                    throw new ConfigurationException("Missing endpointsnitch directive for keyspace " + ksName);
+                }
+                IEndPointSnitch epSnitch = null;
+                try
+                {
+                    Class cls = Class.forName(endPointSnitchClassName);
+                    epSnitch = (IEndPointSnitch)cls.getConstructor().newInstance();
+                }
+                catch (ClassNotFoundException e)
+                {
+                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName);
+                }
+                catch (NoSuchMethodException e)
+                {
+                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
+                }
+                catch (InstantiationException e)
+                {
+                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
+                }
+                catch (IllegalAccessException e)
+                {
+                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
+                }
+                catch (InvocationTargetException e)
+                {
+                    throw new ConfigurationException("Invalid endpointsnitch class " + endPointSnitchClassName + " " + e.getMessage());
+                }
+
+                String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/";
+                NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
+
+                KSMetaData meta = new KSMetaData(ksName, repStratClass, repFact, epSnitch);
+
+                //NodeList columnFamilies = xmlUtils.getRequestedNodeList(table, "ColumnFamily");
+                int size2 = columnFamilies.getLength();
+
+                for ( int j = 0; j < size2; ++j )
+                {
+                    Node columnFamily = columnFamilies.item(j);
+                    String tableName = ksName;
+                    String cfName = XMLUtils.getAttributeValue(columnFamily, "Name");
+                    if (cfName == null)
+                    {
+                        throw new ConfigurationException("ColumnFamily name attribute is required");
+                    }
+                    String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
+
+                    // Parse out the column type
+                    String rawColumnType = XMLUtils.getAttributeValue(columnFamily, "ColumnType");
+                    String columnType = ColumnFamily.getColumnType(rawColumnType);
+                    if (columnType == null)
+                    {
+                        throw new ConfigurationException("ColumnFamily " + cfName + " has invalid type " + rawColumnType);
+                    }
+
+                    if (XMLUtils.getAttributeValue(columnFamily, "ColumnSort") != null)
+                    {
+                        throw new ConfigurationException("ColumnSort is no longer an accepted attribute.  Use CompareWith instead.");
+                    }
+
+                    // Parse out the column comparator
+                    AbstractType comparator = getComparator(columnFamily, "CompareWith");
+                    AbstractType subcolumnComparator = null;
+                    if (columnType.equals("Super"))
+                    {
+                        subcolumnComparator = getComparator(columnFamily, "CompareSubcolumnsWith");
+                    }
+                    else if (XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith") != null)
+                    {
+                        throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
+                    }
+
+                    double keysCachedFraction = 0.01d;
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCachedFraction")) != null)
+                    {
+                        keysCachedFraction = Double.valueOf(value);
+                    }
+
+                    double rowCacheSize = 0;
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCached")) != null)
+                    {
+                        if (value.endsWith("%"))
+                        {
+                            rowCacheSize = Double.valueOf(value.substring(0, value.length() - 1)) / 100;
+                        }
+                        else
+                        {
+                            rowCacheSize = Double.valueOf(value);
+                        }
+                    }
+
+                    // Parse out user-specified logical names for the various dimensions
+                    // of a the column family from the config.
+                    String comment = xmlUtils.getNodeValue(xqlCF + "Comment");
+
+                    // insert it into the table dictionary.
+                    meta.cfMetaData.put(cfName, new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keysCachedFraction));
+                }
+
+                tables_.put(meta.name, meta);
+            }
+        }
+        catch (XPathExpressionException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (TransformerException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+    }
+
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
@@ -655,11 +696,21 @@ public class DatabaseDescriptor
         return thriftFramed_;
     }
 
-    private static AbstractType getComparator(Node columnFamily, String attr)
-    throws ConfigurationException, TransformerException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException
+    private static AbstractType getComparator(Node columnFamily, String attr) throws ConfigurationException
+//    throws ConfigurationException, TransformerException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException
     {
         Class<? extends AbstractType> typeClass;
-        String compareWith = XMLUtils.getAttributeValue(columnFamily, attr);
+        String compareWith = null;
+        try
+        {
+            compareWith = XMLUtils.getAttributeValue(columnFamily, attr);
+        }
+        catch (TransformerException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
         if (compareWith == null)
         {
             typeClass = BytesType.class;
@@ -676,7 +727,34 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Unable to load class " + className + " for " + attr + " attribute");
             }
         }
-        return typeClass.getConstructor().newInstance();
+        try
+        {
+            return typeClass.getConstructor().newInstance();
+        }
+        catch (InstantiationException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IllegalAccessException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (InvocationTargetException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (NoSuchMethodException e)
+        {
+            ConfigurationException ex = new ConfigurationException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     /**
@@ -707,7 +785,7 @@ public class DatabaseDescriptor
         for (String dataFile : dataFileDirectories_)
         {
             FileUtils.createDirectory(dataFile + File.separator + Table.SYSTEM_TABLE);
-            for (String table : tables_)
+            for (String table : tables_.keySet())
             {
                 String oneDir = dataFile + File.separator + table;
                 FileUtils.createDirectory(oneDir);
@@ -729,7 +807,7 @@ public class DatabaseDescriptor
     public static void storeMetadata() throws IOException
     {
         int cfId = 0;
-        Set<String> tables = tableToCFMetaDataMap_.keySet();
+        Set<String> tables = tables_.keySet();
 
         for (String table : tables)
         {
@@ -738,7 +816,7 @@ public class DatabaseDescriptor
             {
                 tmetadata = Table.TableMetadata.instance(table);
                 /* Column families associated with this table */
-                Map<String, CFMetaData> columnFamilies = tableToCFMetaDataMap_.get(table);
+                Map<String, CFMetaData> columnFamilies = tables_.get(table).cfMetaData;
 
                 for (String columnFamily : columnFamilies.keySet())
                 {
@@ -760,12 +838,12 @@ public class DatabaseDescriptor
     
     public static IEndPointSnitch getEndPointSnitch(String table)
     {
-        return endPointSnitches_.get(table);
+        return tables_.get(table).epSnitch;
     }
 
-    public static Class<AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)
+    public static Class<? extends AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)
     {
-        return replicationStrategyClasses_.get(table);
+        return tables_.get(table).repStratClass;
     }
     
     public static String getJobTrackerAddress()
@@ -820,7 +898,9 @@ public class DatabaseDescriptor
     public static Map<String, CFMetaData> getTableMetaData(String tableName)
     {
         assert tableName != null;
-        return tableToCFMetaDataMap_.get(tableName);
+        KSMetaData ksm = tables_.get(tableName);
+        assert ksm != null;
+        return Collections.unmodifiableMap(ksm.cfMetaData);
     }
 
     /*
@@ -831,11 +911,10 @@ public class DatabaseDescriptor
     public static CFMetaData getCFMetaData(String tableName, String cfName)
     {
         assert tableName != null;
-        Map<String, CFMetaData> cfInfo = tableToCFMetaDataMap_.get(tableName);
-        if (cfInfo == null)
+        KSMetaData ksm = tables_.get(tableName);
+        if (ksm == null)
             return null;
-        
-        return cfInfo.get(cfName);
+        return ksm.cfMetaData.get(cfName);
     }
     
     public static String getColumnType(String tableName, String cfName)
@@ -850,12 +929,12 @@ public class DatabaseDescriptor
 
     public static Set<String> getTables()
     {
-        return tables_;
+        return tables_.keySet();
     }
 
     public static List<String> getNonSystemTables()
     {
-        List<String> tables = new ArrayList<String>(tables_);
+        List<String> tables = new ArrayList<String>(tables_.keySet());
         tables.remove(Table.SYSTEM_TABLE);
         return Collections.unmodifiableList(tables);
     }
@@ -877,12 +956,12 @@ public class DatabaseDescriptor
 
     public static int getReplicationFactor(String table)
     {
-        return replicationFactors_.get(table);
+        return tables_.get(table).replicationFactor;
     }
 
     public static int getQuorum(String table)
     {
-        return (replicationFactors_.get(table) / 2) + 1;
+        return (tables_.get(table).replicationFactor / 2) + 1;
     }
 
     public static long getRpcTimeout()
@@ -1006,21 +1085,20 @@ public class DatabaseDescriptor
         return getCFMetaData(tableName, cfName).subcolumnComparator;
     }
 
-    public static Map<String, Map<String, CFMetaData>> getTableToColumnFamilyMap()
-    {
-        return tableToCFMetaDataMap_;
-    }
-
     public static double getKeysCachedFraction(String tableName, String columnFamilyName)
     {
-        Double v = tableKeysCachedFractions_.get(Pair.create(tableName, columnFamilyName));
-        return v == null ? 0.01 : v;
+        CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
+        if (cfm == null)
+            return 0.01d;
+        return cfm.keysCachedFraction;
     }
 
     public static double getRowsCachedFraction(String tableName, String columnFamilyName)
     {
-        Double v = tableRowCacheSizes.get(Pair.create(tableName, columnFamilyName));
-        return v == null ? 0 : v;
+        CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
+        if (cfm == null)
+            return 0.01d;
+        return cfm.rowCacheSize;
     }
 
     private static class ConfigurationException extends Exception
@@ -1098,14 +1176,5 @@ public class DatabaseDescriptor
     public static boolean isAutoBootstrap()
     {
         return autoBootstrap_;
-    }
-
-    /**
-     * For testing purposes.
-     */
-    static void setReplicationFactorUnsafe(String table, int factor)
-    {
-        replicationFactors_.remove(table);
-        replicationFactors_.put(table, factor);
     }
 }
