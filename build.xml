@@ -17,7 +17,7 @@
  ~ specific language governing permissions and limitations
  ~ under the License.
  -->
-<project basedir="." default="build" name="apache-cassandra-incubating"
+<project basedir="." default="build" name="apache-cassandra"
          xmlns:ivy="antlib:org.apache.ivy.ant">
     <property environment="env"/>
     <property file="build.properties" />
