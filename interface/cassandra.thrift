@@ -40,7 +40,7 @@ namespace rb CassandraThrift
 # no promises are made other than "if both are equal, you're good."
 # in particular, don't try to parse numeric information out and assume
 # that a "greater" version is a superset of a "smaller" one.
-const string VERSION = "0.5.0"
+const string VERSION = "0.5.1"
 
 
 #

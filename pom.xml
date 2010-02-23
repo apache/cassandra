@@ -25,7 +25,7 @@
 
   <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra</artifactId>
-  <version>0.5.0</version>
+  <version>0.5.1</version>
   <packaging>jar</packaging>
   <name>Cassandra</name>
   <inceptionYear>2009</inceptionYear>
