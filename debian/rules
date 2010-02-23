@@ -36,10 +36,10 @@ install: build
 	dh_install
 
 	# Copy in the jar and symlink to something stable
-	dh_install build/apache-cassandra-incubating-$(VERSION).jar \
+	dh_install build/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra
-	dh_link usr/share/cassandra/apache-cassandra-incubating-$(VERSION).jar \
-		usr/share/cassandra/apache-cassandra-incubating.jar
+	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
+		usr/share/cassandra/apache-cassandra.jar
 
 # Build architecture-independent files here.
 binary-indep: build install
