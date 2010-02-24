@@ -399,9 +399,15 @@ public class CliClient
 
         byte[] superColumnName = null;
         byte[] columnName = null;
- 
+
+        // table.cf['key']
+        if (columnSpecCnt == 0)
+        {
+            css_.err.println("No column name specified, (type 'help' or '?' for help on syntax).");
+            return;
+        }
         // table.cf['key']['column'] = 'value'
-        if (columnSpecCnt == 1)
+        else if (columnSpecCnt == 1)
         {
             // get the column name
             columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");

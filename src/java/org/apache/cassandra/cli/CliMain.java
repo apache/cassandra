@@ -21,6 +21,7 @@ package org.apache.cassandra.cli;
 import jline.ConsoleReader;
 import jline.History;
 import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -172,9 +173,15 @@ public class CliMain
         {
             cliClient_.executeCLIStmt(query);
         }
+        catch (InvalidRequestException ire)
+        {
+            css_.err.println(ire.why);
+            if (css_.debug)
+                ire.printStackTrace();
+        }
         catch (Exception e)
         {
-            System.err.println("Exception " + e.getMessage());
+            css_.err.println("Exception " + e.getMessage());
             if (css_.debug)
                 e.printStackTrace();
 
