@@ -3,6 +3,7 @@ dev
 
 0.6.0-RC1
  * fix compaction bucketing bug (CASSANDRA-814)
+ * update windows batch file (CASSANDRA-824)
 
 0.6.0-beta1/beta2
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
