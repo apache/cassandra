@@ -183,7 +183,7 @@ public abstract class SSTable
      * in the data file. Binary search is performed on a list of these objects
      * to lookup keys within the SSTable data file.
      */
-    public class KeyPosition implements Comparable<KeyPosition>
+    public static class KeyPosition implements Comparable<KeyPosition>
     {
         public final DecoratedKey key;
         public final long position;

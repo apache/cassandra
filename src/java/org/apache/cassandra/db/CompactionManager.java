@@ -554,7 +554,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private class CompactionExecutor extends DebuggableThreadPoolExecutor
+    private static class CompactionExecutor extends DebuggableThreadPoolExecutor
     {
         private volatile ColumnFamilyStore cfs;
         private volatile CompactionIterator ci;
