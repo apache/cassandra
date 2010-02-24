@@ -264,7 +264,7 @@
     </target>
 
     <!-- creates a release tarball -->	
-    <target name="release" depends="jar,javadoc">
+    <target name="release" depends="jar,javadoc,rat-init">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
@@ -316,6 +316,15 @@
           </not>
         </tarfileset>	
       </tar>
+      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                  reportFile="${build.dir}/${final.name}-bin.rat.txt">
+        <tarfileset>
+          <gzipresource>
+            <file file="${build.dir}/${final.name}-bin.tar.gz" />
+          </gzipresource>
+        </tarfileset>
+      </rat:report>
+
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-src.tar.gz">
 
@@ -325,8 +334,17 @@
           <exclude name="build/**" />
           <exclude name="src/gen-java/**" />
           <exclude name="interface/avro/**" />
+          <exclude name=".git/**" />
         </tarfileset>
       </tar>
+      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                  reportFile="${build.dir}/${final.name}-src.rat.txt">
+        <tarfileset>
+          <gzipresource>
+            <file file="${build.dir}/${final.name}-src.tar.gz" />
+          </gzipresource>
+        </tarfileset>
+      </rat:report>
     </target>
 
   <target name="build-test" depends="build" description="Build the Cassandra classes">
@@ -408,12 +426,19 @@
   <!--
     License audit tool
   -->
-  <target name="rat" depends="ivy-retrieve-qa">
+  <target name="rat-init" depends="ivy-retrieve-qa">
     <typedef resource="org/apache/rat/anttasks/antlib.xml"
              uri="antlib:org.apache.rat.anttasks">
-      <classpath refid="cassandra.classpath" />
+      <classpath>
+        <fileset dir="${build.dir.lib}">
+          <include name="**/apache-rat*.jar"/>
+          <include name="**/commons-*.jar"/>
+        </fileset>
+      </classpath>
     </typedef>
+  </target>
 
+  <target name="rat" depends="rat-init">
     <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                 reportFile="${build.dir}/rat-report.log">
       <fileset dir="."  excludesfile=".rat-excludes" />
