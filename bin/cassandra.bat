@@ -15,8 +15,7 @@
 @REM  limitations under the License.
 
 @echo off
-
-SETLOCAL
+if "%OS%" == "Windows_NT" setlocal
 
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
 if NOT DEFINED CASSANDRA_CONF set CASSANDRA_CONF=%CASSANDRA_HOME%\conf
@@ -24,7 +23,6 @@ if NOT DEFINED CASSANDRA_MAIN set CASSANDRA_MAIN=org.apache.cassandra.thrift.Cas
 if NOT DEFINED JAVA_HOME goto err
 
 REM ***** JAVA options *****
-
 set JAVA_OPTS=^
  -ea^
  -Xdebug^
@@ -45,20 +43,22 @@ set JAVA_OPTS=^
 
 REM ***** CLASSPATH library setting *****
 
-REM Shorten lib path for old platforms
-subst P: "%CASSANDRA_HOME%\lib"
-P:
-set CLASSPATH=P:\
+REM Ensure that any user defined CLASSPATH variables are not used on startup
+set CLASSPATH=
 
-for %%i in (*.jar) do call :append %%i
+REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
+for %%i in (%CASSANDRA_HOME%\lib\*.jar) do call :append %%~fi
+REM In developer mode, we need to include the ivy downloaded jars.
+for %%i in (%CASSANDRA_HOME%\build\lib\jars\*.jar) do call :append %%~fi
 goto okClasspath
 
 :append
-set CLASSPATH=%CLASSPATH%;P:\%*
+set CLASSPATH=%CLASSPATH%;%1%2
 goto :eof
 
 :okClasspath
-set CASSANDRA_CLASSPATH=%CASSANDRA_HOME%;%CASSANDRA_CONF%;%CLASSPATH%;%CASSANDRA_HOME%\build\classes
+REM Include the build\classes directory so it works in development
+set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes
 set CASSANDRA_PARAMS=-Dcassandra -Dstorage-config="%CASSANDRA_CONF%"
 goto runDaemon
 
