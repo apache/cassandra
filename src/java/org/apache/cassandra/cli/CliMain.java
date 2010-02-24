@@ -18,21 +18,22 @@
 
 package org.apache.cassandra.cli;
 
+import jline.ConsoleReader;
+import jline.History;
+import org.apache.cassandra.thrift.Cassandra;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TFramedTransport;
 
-import jline.*;
-import java.io.*;
-
-import org.apache.cassandra.thrift.Cassandra;
+import java.io.File;
+import java.io.IOException;
 
 import static org.apache.cassandra.db.Table.SYSTEM_TABLE;
 
-//
-// Cassandra Command Line Interface (CLI) Main
-//
+/**
+ * Cassandra Command Line Interface (CLI) Main
+ */
 public class CliMain
 {
     public final static String PROMPT = "cassandra";
@@ -44,17 +45,26 @@ public class CliMain
     private static CliClient cliClient_;
     private static CliCompleter completer_ = new CliCompleter();
 
-    // Establish a thrift connection to cassandra instance
+    /**
+     * Establish a thrift connection to cassandra instance
+     *
+     * @param server - hostname or IP of the server
+     * @param port   - Thrift port number
+     */
     public static void connect(String server, int port)
     {
+
         TSocket socket = new TSocket(server, port);
 
         if (transport_ != null)
             transport_.close();
 
-        if (css_.framed) {
+        if (css_.framed)
+        {
             transport_ = new TFramedTransport(socket);
-        } else {
+        }
+        else 
+        {
             transport_ = socket;
         }
 
@@ -65,16 +75,38 @@ public class CliMain
         {
             transport_.open();
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             // Should move this to Log4J as well probably...
-            System.err.println("Exception " + e.getMessage());            
-            e.printStackTrace();
+            css_.err.format("Exception connecting to %s/%d - %s\n", server, port, e.getMessage());
+
+            if (css_.debug)
+                e.printStackTrace();
+
+            return;
         }
 
         thriftClient_ = cassandraClient;
         cliClient_ = new CliClient(css_, thriftClient_);
-        
+
+        // Lookup the cluster name, this is to make it clear which cluster the user is connected to
+        String clusterName;
+
+        try
+        {
+            clusterName = thriftClient_.get_string_property("cluster name");
+        }
+        catch (Exception e)
+        {
+
+            css_.err.println("Exception retrieving information about the cassandra node, check you have connected to the thrift port.");
+
+            if (css_.debug)
+                e.printStackTrace();
+
+            return;
+        }
+
         // Extend the completer with keyspace and column family data.
         try
         {
@@ -83,7 +115,7 @@ public class CliMain
                 // Ignore system column family
                 if (keyspace.equals(SYSTEM_TABLE))
                     continue;
-                
+
                 for (String cf : cliClient_.getCFMetaData(keyspace).keySet())
                 {
                     for (String cmd : completer_.getKeyspaceCommands())
@@ -94,12 +126,18 @@ public class CliMain
         catch (Exception e)
         {
             // Yes, we really do want to ignore any exceptions encountered here.
+            if (css_.debug)
+                e.printStackTrace();
+
+            return;
         }
 
-        css_.out.printf("Connected to %s/%d\n", server, port);
+        css_.out.printf("Connected to: \"%s\" on %s/%d%n", clusterName, server, port);
     }
 
-    // Disconnect thrift connection to cassandra instance
+    /**
+     * Disconnect thrift connection to cassandra instance
+     */
     public static void disconnect()
     {
         if (transport_ != null)
@@ -115,6 +153,9 @@ public class CliMain
         css_.out.println("Type 'help' or '?' for help. Type 'quit' or 'exit' to quit.");
     }
 
+    /**
+     * Checks whether the thrift client is connected.
+     */
     public static boolean isConnected()
     {
         if (thriftClient_ == null)
@@ -131,16 +172,16 @@ public class CliMain
         {
             cliClient_.executeCLIStmt(query);
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             System.err.println("Exception " + e.getMessage());
-            e.printStackTrace(System.err);
+            if (css_.debug)
+                e.printStackTrace();
+
         }
-        return;
     }
 
-
-    public static void main(String args[]) throws IOException  
+    public static void main(String args[]) throws IOException
     {
         // process command line args
         CliOptions cliOptions = new CliOptions();
@@ -151,7 +192,7 @@ public class CliMain
         {
             connect(css_.hostName, css_.thriftPort);
         }
-        else
+        else 
         {
             // If not, client must connect explicitly using the "connect" CLI statement.
             cliClient_ = new CliClient(css_, null);
@@ -161,14 +202,14 @@ public class CliMain
         reader.addCompletor(completer_);
         reader.setBellEnabled(false);
 
-        String historyFile = System.getProperty("user.home") + File.separator  + HISTORYFILE;
+        String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
 
         reader.setHistory(new History(new File(historyFile)));
 
         printBanner();
 
         String line;
-        while ((line = reader.readLine(PROMPT+"> ")) != null)
+        while ((line = reader.readLine(PROMPT + "> ")) != null)
         {
             processCLIStmt(line);
         }

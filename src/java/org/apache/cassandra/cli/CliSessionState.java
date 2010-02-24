@@ -21,12 +21,16 @@ package org.apache.cassandra.cli;
 import java.io.InputStream;
 import java.io.PrintStream;
 
-public class CliSessionState {
+/**
+ * Used to hold the state for the CLI.
+ */
+public class CliSessionState
+{
 
-    public boolean timingOn = false;
     public String  hostName;       // cassandra server name
     public int     thriftPort;     // cassandra server's thrift port
     public boolean framed = false; // cassandra server's framed transport 
+    public boolean debug = false;  // print stack traces when errors occur in the CLI
 
     /*
      * Streams to read/write from
@@ -35,7 +39,8 @@ public class CliSessionState {
     public PrintStream out;
     public PrintStream err;
 
-    public CliSessionState() {
+    public CliSessionState()
+    {
         in = System.in;
         out = System.out;
         err = System.err;
