@@ -1,0 +1,12 @@
+**/*.avpr
+debian/**
+.classpath
+.rat-excludes
+.project
+CHANGES.txt
+.git/**
+**/*.json
+**/*.patch
+interface/*/gen-*/**
+src/gen-java/**
+build/**

@@ -403,7 +403,28 @@
       datafile="${cobertura.datafile}"/>
     <cobertura-report format="xml" destdir="${cobertura.report.dir}" srcdir="${build.src}"
       datafile="${cobertura.datafile}"/>
-  </target>	
+  </target>
+
+  <!--
+    License audit tool
+  -->
+  <target name="rat" depends="ivy-retrieve-qa">
+    <typedef resource="org/apache/rat/anttasks/antlib.xml"
+             uri="antlib:org.apache.rat.anttasks">
+      <classpath refid="cassandra.classpath" />
+    </typedef>
+
+    <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+                reportFile="${build.dir}/rat-report.log">
+      <fileset dir="."  excludesfile=".rat-excludes" />
+    </rat:report>
+    <condition property="rat.passed">
+      <isfileselected file="${build.dir}/rat-report.log">
+        <containsregexp expression="^0 Unknown Licenses"/>
+      </isfileselected>
+    </condition>
+    <fail unless="rat.passed">Unknown licenses: See build/rat-report.log.</fail>
+  </target>
 	
   <target name="javadoc" depends="init">
     <tstamp>
