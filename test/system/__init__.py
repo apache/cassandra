@@ -22,8 +22,11 @@ from thrift.transport import TTransport
 from thrift.transport import TSocket
 from thrift.transport import THttpClient
 from thrift.protocol import TBinaryProtocol
-import avro.ipc as ipc
-import avro.protocol as protocol
+try:
+    import avro.ipc as ipc
+    import avro.protocol as protocol
+except ImportError:
+    pass
 
 # add cassandra directory to sys.path
 L = os.path.abspath(__file__).split(os.path.sep)[:-3]
