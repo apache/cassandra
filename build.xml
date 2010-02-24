@@ -438,7 +438,7 @@
     </typedef>
   </target>
 
-  <target name="rat" depends="rat-init">
+  <target name="rat-check" depends="rat-init">
     <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
                 reportFile="${build.dir}/rat-report.log">
       <fileset dir="."  excludesfile=".rat-excludes" />
@@ -449,6 +449,22 @@
       </isfileselected>
     </condition>
     <fail unless="rat.passed">Unknown licenses: See build/rat-report.log.</fail>
+  </target>
+
+  <target name="rat-write" depends="rat-init">
+    <echo>RAT: invoking addLicense to write missing headers</echo>
+    <java classname="org.apache.rat.Report" fork="true"
+          output="${build.dir}/rat-report.log">
+      <classpath>
+        <fileset dir="${build.dir.lib}">
+          <include name="**/apache-rat*.jar"/>
+          <include name="**/commons-*.jar"/>
+        </fileset>
+      </classpath>
+      <arg value="-a" />
+      <arg value="--force" />
+      <arg value="." />
+    </java>
   </target>
 	
   <target name="javadoc" depends="init">
