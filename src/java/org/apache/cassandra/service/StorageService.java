@@ -610,10 +610,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             }
             if (logger_.isDebugEnabled())
                 logger_.debug("Token " + token + " removed manually (endpoint was " + ((endPointThatLeft == null) ? "unknown" : endPointThatLeft) + ")");
-            if (endPointThatLeft != null)
-            {
-                removeEndPointLocally(endPointThatLeft);
-            }
+            removeEndPointLocally(endPointThatLeft);
         }
 
         // remove token from bootstrap tokens just in case it is still there
