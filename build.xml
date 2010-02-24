@@ -148,6 +148,16 @@
              pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
     </target>
 
+    <target name="ivy-retrieve-build" depends="ivy-init,ivy-retrieve">
+      <ivy:retrieve type="jar,source" conf="build" sync="true"
+             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
+    </target>
+
+    <target name="ivy-retrieve-qa" depends="ivy-init,ivy-retrieve">
+      <ivy:retrieve type="jar,source" conf="qa" sync="true"
+             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
+    </target>
+
     <!--
        Generate avro code
     -->
@@ -215,7 +225,7 @@
 	The build target builds all the .class files
     -->
     <target name="build"
-        depends="ivy-retrieve,avro-generate,build-subprojects,build-project"/>
+        depends="ivy-retrieve-build,avro-generate,build-subprojects,build-project"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	

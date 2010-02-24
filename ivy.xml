@@ -18,6 +18,12 @@
  -->
 <ivy-module version="2.0">
   <info organisation="apache-cassandra" module="cassandra"/>
+
+  <configurations defaultconfmapping="default">
+    <conf name="default"/>
+    <conf name="build" extends="default" />
+  </configurations>
+
   <dependencies>
     <!-- for hadoop -->
     <dependency org="commons-logging" name="commons-logging" rev="1.1.1"/>
@@ -26,7 +32,7 @@
 
     <!-- FIXME: paranamer and jackson can be dropped after we're depending
     on avro (since it depends on them). -->
-    <dependency org="com.thoughtworks.paranamer"
+    <dependency org="com.thoughtworks.paranamer" conf="build->default"
                 name="paranamer-ant" rev="2.1"/>
     <dependency org="org.codehaus.jackson"
                 name="jackson-mapper-asl" rev="1.4.0"/>
@@ -41,7 +47,8 @@
     <dependency org="org.slf4j" name="slf4j-api" rev="1.5.8"/>
     <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.5.8"/>
     <dependency org="com.googlecode.json-simple" name="json-simple" rev="1.1"/>
-    <dependency org="junit" name="junit" rev="4.6"/>
+    <dependency org="junit" name="junit" rev="4.6" conf="build->default" />
+
   </dependencies>
 </ivy-module>
 
