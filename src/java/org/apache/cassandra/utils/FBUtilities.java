@@ -50,7 +50,7 @@ public class FBUtilities
 
     public static final BigInteger TWO = new BigInteger("2");
 
-    private static InetAddress localInetAddress_;
+    private static volatile InetAddress localInetAddress_;
 
     public static String[] strip(String string, String token)
     {

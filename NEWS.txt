@@ -27,6 +27,7 @@ Configuraton
       to occur after the specified number of operations.
     - Like MemtableSizeInMB, BinaryMemtableSizeInMB has been replaced by
       BinaryMemtableThroughputInMB.
+    - Replication factor is now per-keyspace, rather than global.
 
 Thrift API
 ----------
@@ -34,6 +35,10 @@ Thrift API
     - added batch_mutate meethod
     - deprecated multiget and batch_insert methods in favor of
       multiget_slice and batch_mutate, respectively
+    - added ConsistencyLevel.ANY, for when you want write
+      availability even when it may not be readable immediately.
+      Unlike CL.ZERO, though, it will throw an exception if
+      it cannot be written *somewhere*.
 
 JMX metrics
 -----------
