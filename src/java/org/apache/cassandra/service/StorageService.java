@@ -603,7 +603,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             // let's make sure that we're not removing ourselves. This can happen when a node
             // enters ring as a replacement for a removed node. removeToken for the old node is
             // still in gossip, so we will see it.
-            if (endPointThatLeft.equals(FBUtilities.getLocalAddress()))
+            if (FBUtilities.getLocalAddress().equals(endPointThatLeft))
             {
                 logger_.info("Received removeToken gossip about myself. Is this node a replacement for a removed one?");
                 return;

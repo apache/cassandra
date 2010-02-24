@@ -582,7 +582,7 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                bounds = new Bounds(p.decorateKey(range.start_key).token, p.decorateKey(range.end_key).token);
+                bounds = new Bounds(p.getToken(range.start_key), p.getToken(range.end_key));
             }
             rows = StorageProxy.getRangeSlice(new RangeSliceCommand(keyspace, column_parent, predicate, bounds, range.count), consistency_level);
             assert rows != null;
