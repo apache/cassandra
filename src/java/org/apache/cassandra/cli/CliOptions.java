@@ -19,6 +19,11 @@ package org.apache.cassandra.cli;
 
 import org.apache.commons.cli.*;
 
+/**
+ *
+ * Used to process, and act upon the arguments passed to the CLI.
+ *
+ */
 public class CliOptions {
 
     private static Options options = null; // Info about command line options
@@ -28,6 +33,7 @@ public class CliOptions {
     private static final String HOST_OPTION = "host";
     private static final String PORT_OPTION = "port";
     private static final String FRAME_OPTION = "framed";
+    private static final String DEBUG_OPTION = "debug";
 
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
@@ -40,12 +46,13 @@ public class CliOptions {
         options.addOption(HOST_OPTION, true, "cassandra server's host name");
         options.addOption(PORT_OPTION, true, "cassandra server's thrift port");  
         options.addOption(FRAME_OPTION, false, "cassandra server's framed transport");  
+        options.addOption(DEBUG_OPTION, false, "display stack traces");  
     }
 
     private static void printUsage()
     {
         System.err.println("");
-        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--framed]");
+        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--framed] [--debug]");
         System.err.println("");
     }
 
@@ -81,8 +88,15 @@ public class CliOptions {
         }
 
         // Look to see if frame has been specified
-        if (cmd.hasOption(FRAME_OPTION)) {
+        if (cmd.hasOption(FRAME_OPTION))
+        {
             css.framed = true;
+        }
+
+        // Look to see if frame has been specified
+        if (cmd.hasOption(DEBUG_OPTION))
+        {
+            css.debug = true;
         }
 
         // Look for optional args.
