@@ -15,6 +15,8 @@
 # limitations under the License.
 
 from . import AvroTester
+from time import time
+from random import randint
 
 COLUMNS = [
     dict(name="c0", value="v0", timestamp=1L),
@@ -30,31 +32,52 @@ SUPERCOLUMNS = [
     dict(name="sc1", columns=COLUMNS[3:]),
 ]
 
+def _insert_column(client, column):
+    _insert_columns(client, [column])
+
+def _insert_columns(client, columns):
+    params = dict()
+    params['keyspace'] = 'Keyspace1'
+    params['key'] = 'key1'
+    params['column_path'] = dict(column_family='Standard1')
+    params['consistency_level'] = 'ONE'
+
+    for column in columns:
+        params['column_path']['column'] = column['name']
+        params['value'] = column['value']
+        params['timestamp'] = long(time())
+        client.request('insert', params)
+
+def _get_column(client, name):
+    params = dict()
+    params['keyspace'] = 'Keyspace1'
+    params['key'] = 'key1'
+    params['column_path'] = dict(column_family='Standard1', column=name)
+    params['consistency_level'] = 'ONE'
+    return client.request('get', params)
+
+def assert_columns_match(colA, colB):
+    assert colA['name'] == colB['name'], \
+            "column name mismatch: %s != %s" % (colA['name'], colB['name'])
+    assert colA['value'] == colB['value'], \
+            "column value mismatch: %s != %s" % (colA['value'], colB['value'])
+
+def random_column():
+    return COLUMNS[randint(0, len(COLUMNS)-1)]
+
+def random_supercolumn():
+    return SUPERCOLUMNS[randint(0, len(SUPERCOLUMNS)-1)]
+
 class TestMutations(AvroTester):
     def test_insert_and_get(self):
         "setting and getting a column"
-        params = dict()
-        params['keyspace'] = 'Keyspace1'
-        params['key'] = 'key1'
-        params['column_path'] = dict(column_family='Standard1', column='c1')
-        params['value'] = 'v1'
-        params['timestamp'] = 1L
-        params['consistency_level'] = 'ONE'
+        column = random_column()
+        _insert_column(self.client, column)
+        result = _get_column(self.client, column['name'])
 
-        self.client.request('insert', params)
-
-        params = dict()
-        params['keyspace'] = 'Keyspace1'
-        params['key'] = 'key1'
-        params['column_path'] = dict(column_family='Standard1', column='c1')
-        params['consistency_level'] = 'ONE'
-
-        response = self.client.request('get', params)
-
-        assert isinstance(response, dict) and response.has_key('column') \
-                and response['column'].has_key('name')
-        assert response['column']['name'] == 'c1'
-        assert response['column']['value'] == 'v1'
+        assert isinstance(result, dict) and result.has_key('column') \
+                and result['column'].has_key('name')
+        assert_columns_match(result['column'], column)
 
     def test_batch_insert(self):
         "performing a batch insert operation"
