@@ -32,8 +32,8 @@ SUPERCOLUMNS = [
     dict(name="sc1", columns=COLUMNS[3:]),
 ]
 
-def _insert_column(client, column):
-    _insert_columns(client, [column])
+def _insert_column(client, name, value):
+    _insert_columns(client, [(name, value)])
 
 def _insert_columns(client, columns):
     params = dict()
@@ -42,9 +42,9 @@ def _insert_columns(client, columns):
     params['column_path'] = dict(column_family='Standard1')
     params['consistency_level'] = 'ONE'
 
-    for column in columns:
-        params['column_path']['column'] = column['name']
-        params['value'] = column['value']
+    for (name, value) in columns:
+        params['column_path']['column'] = name
+        params['value'] = value
         params['timestamp'] = long(time())
         client.request('insert', params)
 
@@ -100,7 +100,7 @@ class TestRpcOperations(AvroTester):
         "setting and getting a simple column"
         column = random_column()
 
-        _insert_column(self.client, column)
+        _insert_column(self.client, column['name'], column['value'])
         result = _get_column(self.client, column['name'])
 
         assert isinstance(result, dict) and result.has_key('column') \
