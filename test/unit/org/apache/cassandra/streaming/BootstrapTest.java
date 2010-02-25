@@ -36,11 +36,10 @@ public class BootstrapTest
     @Test
     public void testGetNewNames() throws IOException
     {
-        SSTable.Descriptor desc = SSTable.Descriptor.fromFilename("/Keyspace1/Standard1-500-Data.db");
-        PendingFile[] pendingFiles = new PendingFile[]{
-            new PendingFile(desc, "Data.db", 100),
-            new PendingFile(desc, "Index.db", 100),
-            new PendingFile(desc, "Filter.db",100)};
+        SSTable.Descriptor desc = SSTable.Descriptor.fromFilename(new File("Keyspace1", "Standard1-500-Data.db").toString());
+        PendingFile[] pendingFiles = new PendingFile[]{ new PendingFile(desc, "Data.db", 100),
+                                                        new PendingFile(desc, "Index.db", 100),
+                                                        new PendingFile(desc, "Filter.db", 100) };
         StreamInitiateVerbHandler bivh = new StreamInitiateVerbHandler();
 
         // map the input (remote) contexts to output (local) contexts
