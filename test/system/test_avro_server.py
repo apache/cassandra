@@ -68,9 +68,9 @@ def random_column():
 def random_supercolumn():
     return SUPERCOLUMNS[randint(0, len(SUPERCOLUMNS)-1)]
 
-class TestMutations(AvroTester):
-    def test_insert_and_get(self):
-        "setting and getting a column"
+class TestRpcOperations(AvroTester):
+    def test_insert_simple(self):       # Also tests get
+        "setting and getting a simple column"
         column = random_column()
         _insert_column(self.client, column)
         result = _get_column(self.client, column['name'])
@@ -87,6 +87,9 @@ class TestMutations(AvroTester):
     def test_get_api_version(self):
         "getting the remote api version string"
         vers = self.client.request('get_api_version', {})
-        assert isinstance(vers, (str,unicode)) and len(vers.split('.')) == 3
+        assert isinstance(vers, (str,unicode)), "api version is not a string"
+        segs = vers.split('.')
+        assert len(segs) == 3 and len([i for i in segs if i.isdigit()]) == 3, \
+               "incorrect api version format: " + vers
 
 # vi:ai sw=4 ts=4 tw=0 et
