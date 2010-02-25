@@ -48,6 +48,21 @@ def _insert_columns(client, columns):
         params['timestamp'] = long(time())
         client.request('insert', params)
 
+def _insert_supercolumn(client, super_name, name, value):
+    params = dict()
+    params['keyspace'] = 'Keyspace1'
+    params['key'] = 'key1'
+    params['timestamp'] = long(time())
+    params['consistency_level'] = 'ONE'
+
+    params['column_path'] = dict()
+    params['column_path']['column_family'] = 'Super4'
+    params['column_path']['super_column'] = super_name
+    params['column_path']['column'] = name
+    params['value'] = value
+
+    client.request('insert', params)
+
 def _get_column(client, name):
     params = dict()
     params['keyspace'] = 'Keyspace1'
@@ -56,28 +71,53 @@ def _get_column(client, name):
     params['consistency_level'] = 'ONE'
     return client.request('get', params)
 
+def _get_supercolumn(client, super_name, name):
+    params = dict()
+    params['keyspace'] = 'Keyspace1'
+    params['key'] = 'key1'
+    params['column_path'] = dict()
+    params['column_path']['column_family'] = 'Super4'
+    params['column_path']['super_column'] = super_name
+    params['column_path']['column'] = name
+    params['consistency_level'] = 'ONE'
+
+    return client.request('get', params)
+
 def assert_columns_match(colA, colB):
     assert colA['name'] == colB['name'], \
             "column name mismatch: %s != %s" % (colA['name'], colB['name'])
     assert colA['value'] == colB['value'], \
             "column value mismatch: %s != %s" % (colA['value'], colB['value'])
 
-def random_column():
-    return COLUMNS[randint(0, len(COLUMNS)-1)]
+def random_column(columns=COLUMNS):
+    return columns[randint(0, len(columns)-1)]
 
-def random_supercolumn():
-    return SUPERCOLUMNS[randint(0, len(SUPERCOLUMNS)-1)]
+def random_supercolumn(super_columns=SUPERCOLUMNS):
+    return super_columns[randint(0, len(super_columns)-1)]
 
 class TestRpcOperations(AvroTester):
     def test_insert_simple(self):       # Also tests get
         "setting and getting a simple column"
         column = random_column()
+
         _insert_column(self.client, column)
         result = _get_column(self.client, column['name'])
 
         assert isinstance(result, dict) and result.has_key('column') \
                 and result['column'].has_key('name')
         assert_columns_match(result['column'], column)
+
+    def test_insert_super(self):
+        "setting and getting a super column"
+        sc = random_supercolumn()
+        col = random_column(sc['columns'])
+
+        _insert_supercolumn(self.client, sc['name'], col['name'], col['value'])
+        result = _get_supercolumn(self.client, sc['name'], col['name'])
+
+        assert isinstance(result, dict) and result.has_key('column') \
+                and result['column'].has_key('name')
+        assert_columns_match(result['column'], col)
 
     def test_batch_insert(self):
         "performing a batch insert operation"
