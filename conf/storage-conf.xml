@@ -206,7 +206,7 @@
   <!-- Miscellaneous -->
 
   <!-- Time to wait for a reply from other nodes before failing the command -->
-  <RpcTimeoutInMillis>5000</RpcTimeoutInMillis>
+  <RpcTimeoutInMillis>10000</RpcTimeoutInMillis>
   <!-- Size to allow commitlog to grow to before creating a new segment -->
   <CommitLogRotationThresholdInMB>128</CommitLogRotationThresholdInMB>
 
