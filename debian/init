@@ -87,7 +87,7 @@ do_start()
         -Dcom.sun.management.jmxremote.port=8080 \
         -Dcom.sun.management.jmxremote.ssl=false \
         -Dcom.sun.management.jmxremote.authenticate=false \
-        org.apache.cassandra.service.CassandraDaemon
+        org.apache.cassandra.thrift.CassandraDaemon
 
     if ! is_running; then return 2; fi
 }
@@ -104,7 +104,7 @@ do_stop()
 	#   other if a failure occurred
     is_running || return 1
     $JSVC -stop -home $JAVA_HOME -pidfile $PIDFILE \
-            org.apache.cassandra.service.CassandraJsvcDaemon
+            org.apache.cassandra.thrift.CassandraDaemon
     is_running && return 2 || return 0
 }
 
