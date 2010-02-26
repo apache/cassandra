@@ -130,7 +130,7 @@ public class AvroValidation {
     throws InvalidRequestException
     {
         if (cosc.column != null)
-            AvroValidation.validateColumnPath(keyspace, newColumnPath(cfName, cosc.super_column.name, cosc.column.name));
+            AvroValidation.validateColumnPath(keyspace, newColumnPath(cfName, null, cosc.column.name));
 
         if (cosc.super_column != null)
             for (Column c : cosc.super_column.columns)

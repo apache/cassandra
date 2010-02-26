@@ -71,6 +71,7 @@ class RecordFactory
     static ColumnPath newColumnPath(String cfName, ByteBuffer superColumn, ByteBuffer column)
     {
         ColumnPath cPath = new ColumnPath();
+        cPath.column_family = new Utf8(cfName);
         cPath.super_column = superColumn;
         cPath.column = column;
         return cPath;

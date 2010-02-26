@@ -89,6 +89,12 @@ def assert_columns_match(colA, colB):
     assert colA['value'] == colB['value'], \
             "column value mismatch: %s != %s" % (colA['value'], colB['value'])
 
+def assert_cosc(thing, with_supercolumn=False):
+    containing = with_supercolumn and 'super_column' or 'column'
+    assert isinstance(thing, dict), "Expected dict, got %s" % type(thing)
+    assert thing.has_key(containing) and thing[containing].has_key('name'), \
+            "Invalid or missing \"%s\"" % containing
+
 def random_column(columns=COLUMNS):
     return columns[randint(0, len(columns)-1)]
 
@@ -103,8 +109,7 @@ class TestRpcOperations(AvroTester):
         _insert_column(self.client, column['name'], column['value'])
         result = _get_column(self.client, column['name'])
 
-        assert isinstance(result, dict) and result.has_key('column') \
-                and result['column'].has_key('name')
+        assert_cosc(result)
         assert_columns_match(result['column'], column)
 
     def test_insert_super(self):
@@ -115,14 +120,27 @@ class TestRpcOperations(AvroTester):
         _insert_supercolumn(self.client, sc['name'], col['name'], col['value'])
         result = _get_supercolumn(self.client, sc['name'], col['name'])
 
-        assert isinstance(result, dict) and result.has_key('column') \
-                and result['column'].has_key('name')
+        assert_cosc(result)
         assert_columns_match(result['column'], col)
 
     def test_batch_insert(self):
         "performing a batch insert operation"
-        # TODO: do
-        pass
+        params = dict()
+        params['keyspace'] = 'Keyspace1'
+        params['key'] = 'key1'
+        params['consistency_level'] = 'ONE'
+
+        # Map<string, list<ColumnOrSuperColumn>>
+        params['cfmap'] = dict()
+        params['cfmap']['Standard1'] = list()
+
+        for i in range(0,3):
+            params['cfmap']['Standard1'].append(dict(column=COLUMNS[i]))
+
+        self.client.request('batch_insert', params)
+
+        for i in range(0,3):
+            assert_cosc(_get_column(self.client, COLUMNS[i]['name']))
 
     def test_get_api_version(self):
         "getting the remote api version string"
