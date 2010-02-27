@@ -128,7 +128,7 @@ public class BinaryMemtable implements IFlushable
             assert bytes.length > 0;
             writer.append(key, bytes);
         }
-        SSTableReader sstable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(cfs.getTable().name, cfs.getColumnFamilyName()));
+        SSTableReader sstable = writer.closeAndOpenReader();
         logger.info("Completed flushing " + writer.getFilename());
         return sstable;
     }

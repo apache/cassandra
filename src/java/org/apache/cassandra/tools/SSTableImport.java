@@ -161,7 +161,7 @@ public class SSTableImport
                 cfamily.clear();
             }
             
-            writer.closeAndOpenReader(0);
+            writer.closeAndOpenReader();
         }
         catch (ClassCastException cce)
         {

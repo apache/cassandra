@@ -31,7 +31,6 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,8 +41,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MappedFileDataInput;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -112,11 +109,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public static SSTableReader open(String dataFileName) throws IOException
     {
         return open(dataFileName,
-                    StorageService.getPartitioner(),
-                    DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName), parseColumnFamilyName(dataFileName)));
+                    StorageService.getPartitioner());
     }
 
-    public static SSTableReader open(String dataFileName, IPartitioner partitioner, double keysCacheFraction) throws IOException
+    public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
 
@@ -125,10 +121,9 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         logger.info("Sampling index for " + dataFileName);
         sstable.loadIndexFile();
         sstable.loadBloomFilter();
-        if (keysCacheFraction > 0)
-        {
-            sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * keysCacheFraction));
-        }
+
+        long expectedKeys = (sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL;
+        sstable.keyCache = createKeyCache(parseTableName(dataFileName), parseColumnFamilyName(dataFileName), expectedKeys);
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
 
@@ -141,9 +136,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private final MappedByteBuffer[] buffers;
 
 
-    public static InstrumentedCache<DecoratedKey, PositionSize> createKeyCache(int size)
+    public static InstrumentedCache<DecoratedKey, PositionSize> createKeyCache(String ksname, String cfname, long expectedKeys)
     {
-        return new InstrumentedCache<DecoratedKey, PositionSize>(size);
+        int keysToCache = DatabaseDescriptor.getKeysCachedFor(ksname, cfname, expectedKeys);
+        return new InstrumentedCache<DecoratedKey, PositionSize>(keysToCache);
     }
 
     private InstrumentedCache<DecoratedKey, PositionSize> keyCache;
@@ -229,7 +225,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private SSTableReader(String filename, IPartitioner partitioner) throws IOException
     {
-        this(filename, partitioner, null, null, null, SSTableReader.createKeyCache(0));
+        this(filename, partitioner, null, null, null, new InstrumentedCache<DecoratedKey, PositionSize>(0));
     }
 
     public List<KeyPosition> getIndexPositions()

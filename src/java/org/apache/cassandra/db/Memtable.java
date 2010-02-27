@@ -158,7 +158,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
             writer.append(entry.getKey(), buffer);
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(getTableName(), cfs.getColumnFamilyName()));
+        SSTableReader ssTable = writer.closeAndOpenReader();
         logger.info("Completed flushing " + ssTable.getFilename());
         return ssTable;
     }

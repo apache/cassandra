@@ -193,12 +193,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ssTables_ = new SSTableTracker();
         ssTables_.add(sstables);
 
-        double v = DatabaseDescriptor.getRowsCachedFraction(table, columnFamilyName);
-        int cacheSize;
-        if (0 < v && v < 1)
-            cacheSize = Math.max(1, (int)(v * ssTables_.estimatedKeys()));
-        else
-            cacheSize = (int)v;
+        int cacheSize = DatabaseDescriptor.getRowsCachedFor(table, columnFamilyName, ssTables_.estimatedKeys());
         if (logger_.isDebugEnabled())
             logger_.debug("row cache capacity for " + columnFamilyName + " is " + cacheSize);
         rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
