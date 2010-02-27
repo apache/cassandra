@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.cache.JMXAggregatingCacheMBean;
 import org.apache.cassandra.cache.JMXInstrumentedCacheMBean;
 import org.apache.cassandra.concurrent.IExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -333,7 +332,7 @@ public class NodeCmd {
                 outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getRecentWriteLatencyMicros() / 1000) + " ms.");
                 outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
 
-                JMXAggregatingCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
+                JMXInstrumentedCacheMBean keyCacheMBean = probe.getKeyCacheMBean(tableName, cfstore.getColumnFamilyName());
                 if (keyCacheMBean.getCapacity() > 0)
                 {
                     outs.println("\t\tKey cache capacity: " + keyCacheMBean.getCapacity());
