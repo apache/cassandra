@@ -18,51 +18,47 @@
 
 package org.apache.cassandra.db;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.io.Closeable;
 import java.lang.management.ManagementFactory;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
-import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterables;
-import org.apache.cassandra.cache.IAggregatableCacheProvider;
-import org.apache.cassandra.cache.InstrumentedCache;
-import org.apache.cassandra.cache.JMXAggregatingCache;
-import org.apache.cassandra.cache.JMXInstrumentedCache;
 import org.apache.log4j.Logger;
+import org.apache.commons.collections.IteratorUtils;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import org.apache.cassandra.cache.InstrumentedCache;
+import org.apache.cassandra.cache.JMXInstrumentedCache;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.SSTableScanner;
+import org.apache.cassandra.io.SSTableTracker;
 import org.apache.cassandra.io.util.FileUtils;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-
-import org.apache.commons.collections.IteratorUtils;
-
-import com.google.common.collect.Iterators;
-import com.google.common.base.Predicate;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -190,46 +186,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             sstables.add(sstable);
         }
-        ssTables_ = new SSTableTracker();
+        ssTables_ = new SSTableTracker(table, columnFamilyName);
         ssTables_.add(sstables);
 
-        int cacheSize = DatabaseDescriptor.getRowsCachedFor(table, columnFamilyName, ssTables_.estimatedKeys());
+        int rowCacheSize = DatabaseDescriptor.getRowsCachedFor(table, columnFamilyName, ssTables_.estimatedKeys());
         if (logger_.isDebugEnabled())
-            logger_.debug("row cache capacity for " + columnFamilyName + " is " + cacheSize);
-        rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", cacheSize);
-
-        // we don't need to keep a reference to the key cache aggregator, just create it so it registers itself w/ JMX
-        new JMXAggregatingCache(new Iterable<IAggregatableCacheProvider>()
-        {
-            public Iterator<IAggregatableCacheProvider> iterator()
-            {
-                final Iterator<SSTableReader> iter = ssTables_.iterator();
-                return new AbstractIterator<IAggregatableCacheProvider>()
-                {
-                    @Override
-                    protected IAggregatableCacheProvider computeNext()
-                    {
-                        if (!iter.hasNext())
-                            return endOfData();
-
-                        return new IAggregatableCacheProvider()
-                        {
-                            SSTableReader sstable = iter.next();
-
-                            public InstrumentedCache getCache()
-                            {
-                                return sstable.getKeyCache();
-                            }
-
-                            public long getObjectCount()
-                            {
-                                return sstable.getIndexPositions().size() * SSTableReader.indexInterval();
-                            }
-                        };
-                    }
-                };
-            }
-        }, table, columnFamilyName + "KeyCache");
+            logger_.debug("row cache capacity for " + columnFamilyName + " is " + rowCacheSize);
+        rowCache = new JMXInstrumentedCache<String, ColumnFamily>(table, columnFamilyName + "RowCache", rowCacheSize);
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException

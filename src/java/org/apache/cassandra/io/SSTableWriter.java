@@ -21,21 +21,23 @@ package org.apache.cassandra.io;
  */
 
 
-import java.io.*;
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.cache.InstrumentedCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class SSTableWriter extends SSTable
 {
@@ -151,8 +153,7 @@ public class SSTableWriter extends SSTable
         rename(filterFilename());
         path = rename(path); // important to do this last since index & filter file names are derived from it
 
-        InstrumentedCache<DecoratedKey, PositionSize> keyCache = SSTableReader.createKeyCache(getTableName(), getColumnFamilyName(), keysWritten);
-        return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);
+        return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf);
     }
 
     static String rename(String tmpFilename)

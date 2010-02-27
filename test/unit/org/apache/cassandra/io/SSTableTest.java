@@ -41,7 +41,7 @@ public class SSTableTest extends CleanupHelper
 
         TreeMap<String, byte[]> map = new TreeMap<String,byte[]>();
         map.put(key, bytes);
-        SSTableReader ssTable = SSTableUtils.writeRawSSTable("table", "singlewrite", map);
+        SSTableReader ssTable = SSTableUtils.writeRawSSTable("Keyspace1", "Standard1", map);
 
         // verify
         verifySingle(ssTable, bytes, key);
@@ -69,7 +69,7 @@ public class SSTableTest extends CleanupHelper
         }
 
         // write
-        SSTableReader ssTable = SSTableUtils.writeRawSSTable("table", "manywrites", map);
+        SSTableReader ssTable = SSTableUtils.writeRawSSTable("Keyspace1", "Standard2", map);
 
         // verify
         verifyMany(ssTable, map);
