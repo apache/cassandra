@@ -20,6 +20,7 @@ Configuraton
     - Like MemtableSizeInMB, BinaryMemtableSizeInMB has been replaced by
       BinaryMemtableThroughputInMB.
     - Replication factor is now per-keyspace, rather than global.
+    - KeysCachedFraction is deprecated in favor of KeysCached
 
 Thrift API
 ----------
