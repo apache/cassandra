@@ -63,7 +63,6 @@ import java.net.UnknownHostException;
 
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.SelectorManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
@@ -102,7 +101,14 @@ public class CassandraBulkLoader {
 
             System.setProperty("storage-config",cassConfig);
 
-            StorageService.instance().startClient();
+            try
+            {
+                StorageService.instance.initClient();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
             try
             {
                 Thread.sleep(10*1000);
@@ -137,21 +143,21 @@ public class CassandraBulkLoader {
             {
                 throw new RuntimeException(e);
             }
-            StorageService.instance().stopClient();
+            StorageService.instance.stopClient();
         }
 
         public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException
         {
             ColumnFamily columnFamily;
-            String Keyspace = "Keyspace1";
-            String CFName = "Super1";
+            String keyspace = "Keyspace1";
+            String cfName = "Super1";
             Message message;
             List<ColumnFamily> columnFamilies;
             columnFamilies = new LinkedList<ColumnFamily>();
             String line;
 
             /* Create a column family */
-            columnFamily = ColumnFamily.create(Keyspace, CFName);
+            columnFamily = ColumnFamily.create(keyspace, cfName);
             while (values.hasNext()) {
                 // Split the value (line based on your own delimiter)
                 line = values.next().toString();
@@ -160,17 +166,17 @@ public class CassandraBulkLoader {
                 String ColumnName = fields[2];
                 String ColumnValue = fields[3];
                 int timestamp = 0;
-                columnFamily.addColumn(new QueryPath(CFName, SuperColumnName.getBytes("UTF-8"), ColumnName.getBytes("UTF-8")), ColumnValue.getBytes(), timestamp);
+                columnFamily.addColumn(new QueryPath(cfName, SuperColumnName.getBytes("UTF-8"), ColumnName.getBytes("UTF-8")), ColumnValue.getBytes(), timestamp);
             }
 
             columnFamilies.add(columnFamily);
 
             /* Get serialized message to send to cluster */
-            message = createMessage(Keyspace, key.toString(), CFName, columnFamilies);
-            for (InetAddress endpoint: StorageService.instance().getNaturalEndPoints(key.toString()))
+            message = createMessage(keyspace, key.toString(), cfName, columnFamilies);
+            for (InetAddress endpoint: StorageService.instance.getNaturalEndpoints(keyspace, key.toString()))
             {
                 /* Send message to end point */
-                MessagingService.instance().sendOneWay(message, endpoint);
+                MessagingService.instance.sendOneWay(message, endpoint);
             }
             
             output.collect(key, new Text(" inserted into Cassandra node(s)"));
@@ -248,7 +254,7 @@ public class CassandraBulkLoader {
         try
         {
             /* Make message */
-            message = rm.makeRowMutationMessage(StorageService.binaryVerbHandler_);
+            message = rm.makeRowMutationMessage(StorageService.Verb.BINARY);
         }
         catch (IOException e)
         {
