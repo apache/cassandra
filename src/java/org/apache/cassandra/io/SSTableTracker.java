@@ -25,16 +25,35 @@ import java.util.*;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.cache.JMXInstrumentedCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.utils.Pair;
+
+import org.apache.log4j.Logger;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {
+    private static final Logger logger = Logger.getLogger(SSTableTracker.class);
+
     private volatile Set<SSTableReader> sstables;
     private final AtomicLong liveSize = new AtomicLong();
     private final AtomicLong totalSize = new AtomicLong();
 
-    public SSTableTracker()
+    private final String ksname;
+    private final String cfname;
+
+    private final JMXInstrumentedCache<Pair<SSTable.Descriptor,DecoratedKey>,SSTable.PositionSize> keyCache;
+    private final JMXInstrumentedCache<String, ColumnFamily> rowCache;
+
+    public SSTableTracker(String ksname, String cfname)
     {
-        this.sstables = Collections.<SSTableReader>emptySet();
+        this.ksname = ksname;
+        this.cfname = cfname;
+        sstables = Collections.emptySet();
+        keyCache = new JMXInstrumentedCache<Pair<SSTable.Descriptor,DecoratedKey>,SSTable.PositionSize>(ksname, cfname + "KeyCache", 0);
+        rowCache = new JMXInstrumentedCache<String, ColumnFamily>(ksname, cfname + "RowCache", 0);
     }
 
     public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements) throws IOException
@@ -48,7 +67,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
             long size = sstable.bytesOnDisk();
             liveSize.addAndGet(size);
             totalSize.addAndGet(size);
-            sstable.addFinalizingReference(this);
+            sstable.setTrackedBy(this);
         }
 
         for (SSTableReader sstable : oldSSTables)
@@ -60,6 +79,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
         }
 
         sstables = Collections.unmodifiableSet(sstablesNew);
+        updateCacheSizes();
     }
 
     public synchronized void add(Iterable<SSTableReader> sstables)
@@ -78,6 +98,31 @@ public class SSTableTracker implements Iterable<SSTableReader>
     public synchronized void markCompacted(Collection<SSTableReader> compacted) throws IOException
     {
         replace(compacted, Collections.<SSTableReader>emptyList());
+    }
+
+    /**
+     * Resizes the key and row caches based on the current key estimate.
+     */
+    public synchronized void updateCacheSizes()
+    {
+        long keys = estimatedKeys();
+        
+        int keyCacheSize = DatabaseDescriptor.getKeysCachedFor(ksname, cfname, keys);
+        if (keyCacheSize != keyCache.getCapacity())
+        {
+            // update cache size for the new key volume
+            if (logger.isDebugEnabled())
+                logger.debug("key cache capacity for " + cfname + " is " + keyCacheSize);
+            keyCache.setCapacity(keyCacheSize);
+        }
+
+        int rowCacheSize = DatabaseDescriptor.getRowsCachedFor(ksname, cfname, keys);
+        if (rowCacheSize != rowCache.getCapacity())
+        {   
+            if (logger.isDebugEnabled())
+                logger.debug("row cache capacity for " + cfname + " is " + rowCacheSize);
+            rowCache.setCapacity(rowCacheSize);
+        }
     }
 
     // the modifiers create new, unmodifiable objects each time; the volatile fences the assignment
@@ -102,12 +147,17 @@ public class SSTableTracker implements Iterable<SSTableReader>
         sstables = Collections.emptySet();
     }
 
+    public JMXInstrumentedCache<String, ColumnFamily> getRowCache()
+    {
+        return rowCache;
+    }
+
     public long estimatedKeys()
     {
         long n = 0;
         for (SSTableReader sstable : this)
         {
-            n += sstable.getIndexPositions().size() * SSTableReader.INDEX_INTERVAL;
+            n += sstable.estimatedKeys();
         }
         return n;
     }
@@ -125,6 +175,11 @@ public class SSTableTracker implements Iterable<SSTableReader>
     public void spaceReclaimed(long size)
     {
         totalSize.addAndGet(-size);
+    }
+
+    public JMXInstrumentedCache<Pair<SSTable.Descriptor, DecoratedKey>, SSTable.PositionSize> getKeyCache()
+    {
+        return keyCache;
     }
 }
 

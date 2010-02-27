@@ -63,6 +63,21 @@ public class FBUtilities
         return result.toArray( new String[0] );
     }
 
+    /**
+     * Parses a string representing either a fraction, absolute value or percentage.
+     */
+    public static double parseDoubleOrPercent(String value)
+    {
+        if (value.endsWith("%"))
+        {
+            return Double.valueOf(value.substring(0, value.length() - 1)) / 100;
+        }
+        else
+        {
+            return Double.valueOf(value);
+        }
+    }
+
     public static InetAddress getLocalAddress()
     {
         if (localInetAddress_ == null)
@@ -77,6 +92,27 @@ public class FBUtilities
                 throw new RuntimeException(e);
             }
         return localInetAddress_;
+    }
+
+    /**
+     * @param fractOrAbs A double that may represent a fraction or absolute value.
+     * @param total If fractionOrAbs is a fraction, the total to take the fraction from
+     * @return An absolute value which may be larger than the total.
+     */
+    public static long absoluteFromFraction(double fractOrAbs, long total)
+    {
+        if (fractOrAbs < 0)
+            throw new UnsupportedOperationException("unexpected negative value " + fractOrAbs);
+
+        if (0 < fractOrAbs && fractOrAbs < 1)
+        {
+            // fraction
+            return Math.max(1, (long)(fractOrAbs * total));
+        }
+
+        // absolute
+        assert fractOrAbs >= 1 || fractOrAbs == 0;
+        return (long)fractOrAbs;
     }
 
     /**

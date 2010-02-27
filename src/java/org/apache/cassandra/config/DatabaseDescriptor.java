@@ -26,10 +26,10 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.locator.EndPointSnitch;
 import org.apache.cassandra.locator.IEndPointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.XMLUtils;
 import org.apache.log4j.Logger;
 import org.w3c.dom.Node;
@@ -457,8 +457,8 @@ public class DatabaseDescriptor
                                                                             new UTF8Type(),
                                                                             null,
                                                                             "persistent metadata for the local node",
-                                                                            0d,
-                                                                            0.01d));
+                                                                            0.0,
+                                                                            0.01));
 
             systemMeta.cfMetaData.put(HintedHandOffManager.HINTS_CF, new CFMetaData(Table.SYSTEM_TABLE,
                                                                                     HintedHandOffManager.HINTS_CF,
@@ -466,8 +466,8 @@ public class DatabaseDescriptor
                                                                                     new UTF8Type(),
                                                                                     new BytesType(),
                                                                                     "hinted handoff data",
-                                                                                    0d,
-                                                                                    0.01d));
+                                                                                    0.0,
+                                                                                    0.01));
 
             /* Load the seeds for node contact points */
             String[] seeds = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
@@ -642,23 +642,22 @@ public class DatabaseDescriptor
                         throw new ConfigurationException("CompareSubcolumnsWith is only a valid attribute on super columnfamilies (not regular columnfamily " + cfName + ")");
                     }
 
-                    double keysCachedFraction = 0.01d;
+                    double keyCacheSize = CFMetaData.DEFAULT_KEY_CACHE_SIZE;
                     if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCachedFraction")) != null)
                     {
-                        keysCachedFraction = Double.valueOf(value);
+                        keyCacheSize = Double.valueOf(value);
+                        // TODO: KeysCachedFraction deprecated: remove in 1.0
+                        logger_.warn("KeysCachedFraction is deprecated: use KeysCached instead.");
+                    }
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "KeysCached")) != null)
+                    {
+                        keyCacheSize = FBUtilities.parseDoubleOrPercent(value);
                     }
 
-                    double rowCacheSize = 0;
+                    double rowCacheSize = CFMetaData.DEFAULT_ROW_CACHE_SIZE;
                     if ((value = XMLUtils.getAttributeValue(columnFamily, "RowsCached")) != null)
                     {
-                        if (value.endsWith("%"))
-                        {
-                            rowCacheSize = Double.valueOf(value.substring(0, value.length() - 1)) / 100;
-                        }
-                        else
-                        {
-                            rowCacheSize = Double.valueOf(value);
-                        }
+                        rowCacheSize = FBUtilities.parseDoubleOrPercent(value);
                     }
 
                     // Parse out user-specified logical names for the various dimensions
@@ -666,7 +665,7 @@ public class DatabaseDescriptor
                     String comment = xmlUtils.getNodeValue(xqlCF + "Comment");
 
                     // insert it into the table dictionary.
-                    meta.cfMetaData.put(cfName, new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keysCachedFraction));
+                    meta.cfMetaData.put(cfName, new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize));
                 }
 
                 tables_.put(meta.name, meta);
@@ -1085,20 +1084,24 @@ public class DatabaseDescriptor
         return getCFMetaData(tableName, cfName).subcolumnComparator;
     }
 
-    public static double getKeysCachedFraction(String tableName, String columnFamilyName)
+    /**
+     * @return The absolute number of keys that should be cached per table.
+     */
+    public static int getKeysCachedFor(String tableName, String columnFamilyName, long expectedKeys)
     {
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        if (cfm == null)
-            return 0.01d;
-        return cfm.keysCachedFraction;
+        double v = (cfm == null) ? CFMetaData.DEFAULT_KEY_CACHE_SIZE : cfm.keyCacheSize;
+        return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedKeys), Integer.MAX_VALUE);
     }
 
-    public static double getRowsCachedFraction(String tableName, String columnFamilyName)
+    /**
+     * @return The absolute number of rows that should be cached for the columnfamily.
+     */
+    public static int getRowsCachedFor(String tableName, String columnFamilyName, long expectedRows)
     {
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
-        if (cfm == null)
-            return 0.01d;
-        return cfm.rowCacheSize;
+        double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.rowCacheSize;
+        return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
     }
 
     private static class ConfigurationException extends Exception

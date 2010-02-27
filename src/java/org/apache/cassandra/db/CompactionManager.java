@@ -310,7 +310,7 @@ public class CompactionManager implements CompactionManagerMBean
             ci.close();
         }
 
-        SSTableReader ssTable = writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name, cfs.getColumnFamilyName()));
+        SSTableReader ssTable = writer.closeAndOpenReader();
         cfs.replaceCompactedSSTables(sstables, Arrays.asList(ssTable));
         submitMinorIfNeeded(cfs);
 
@@ -384,7 +384,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         if (writer != null)
         {
-            results.add(writer.closeAndOpenReader(DatabaseDescriptor.getKeysCachedFraction(table.name, cfs.getColumnFamilyName()), target != null));
+            results.add(writer.closeAndOpenReader());
             String format = "AntiCompacted to %s.  %d/%d bytes for %d keys.  Time: %dms.";
             long dTime = System.currentTimeMillis() - startTime;
             logger.info(String.format(format, writer.getFilename(), SSTable.getTotalBytes(sstables), results.get(0).length(), totalkeysWritten, dTime));

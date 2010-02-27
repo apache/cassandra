@@ -31,8 +31,8 @@ import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.utils.BloomFilter;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -42,8 +42,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MappedFileDataInput;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 
 /**
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -116,12 +114,10 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     public static SSTableReader open(String dataFileName) throws IOException
     {
-        return open(dataFileName,
-                    StorageService.getPartitioner(),
-                    DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName), parseColumnFamilyName(dataFileName)));
+        return open(dataFileName, StorageService.getPartitioner());
     }
 
-    public static SSTableReader open(String dataFileName, IPartitioner partitioner, double keysCacheFraction) throws IOException
+    public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
 
@@ -130,10 +126,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         logger.info("Sampling index for " + dataFileName);
         sstable.loadIndexFile();
         sstable.loadBloomFilter();
-        if (keysCacheFraction > 0)
-        {
-            sstable.keyCache = createKeyCache((int)((sstable.getIndexPositions().size() + 1) * INDEX_INTERVAL * keysCacheFraction));
-        }
+
         if (logger.isDebugEnabled())
             logger.debug("INDEX LOAD TIME for "  + dataFileName + ": " + (System.currentTimeMillis() - start) + " ms.");
 
@@ -145,23 +138,15 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     private final MappedByteBuffer[] indexBuffers;
     private final MappedByteBuffer[] buffers;
 
-
-    public static InstrumentedCache<DecoratedKey, PositionSize> createKeyCache(int size)
-    {
-        return new InstrumentedCache<DecoratedKey, PositionSize>(size);
-    }
-
-    private InstrumentedCache<DecoratedKey, PositionSize> keyCache;
+    private InstrumentedCache<Pair<Descriptor,DecoratedKey>,PositionSize> keyCache;
 
     SSTableReader(String filename,
                   IPartitioner partitioner,
                   List<KeyPosition> indexPositions, Map<KeyPosition, PositionSize> spannedIndexDataPositions,
-                  BloomFilter bloomFilter,
-                  InstrumentedCache<DecoratedKey, PositionSize> keyCache)
-            throws IOException
+                  BloomFilter bloomFilter)
+    throws IOException
     {
         super(filename, partitioner);
-        assert keyCache != null;
 
         if (DatabaseDescriptor.getIndexAccessMode() == DatabaseDescriptor.DiskAccessMode.mmap)
         {
@@ -201,13 +186,13 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         this.indexPositions = indexPositions;
         this.spannedIndexDataPositions = spannedIndexDataPositions;
         this.bf = bloomFilter;
-        this.keyCache = keyCache;
     }
 
-    public void addFinalizingReference(SSTableTracker tracker)
+    public void setTrackedBy(SSTableTracker tracker)
     {
         phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
         finalizers.add(phantomReference);
+        keyCache = tracker.getKeyCache();
     }
 
     private static MappedByteBuffer mmap(String filename, long start, int size) throws IOException
@@ -234,12 +219,17 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
     private SSTableReader(String filename, IPartitioner partitioner) throws IOException
     {
-        this(filename, partitioner, null, null, null, SSTableReader.createKeyCache(0));
+        this(filename, partitioner, null, null, null);
     }
 
     public List<KeyPosition> getIndexPositions()
     {
         return indexPositions;
+    }
+
+    public long estimatedKeys()
+    {
+        return indexPositions.size() * INDEX_INTERVAL;
     }
 
     void loadBloomFilter() throws IOException
@@ -329,21 +319,29 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
      */
     public PositionSize getPosition(DecoratedKey decoratedKey) throws IOException
     {
+        // first, check bloom filter
         if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
             return null;
-        if (keyCache.getCapacity() > 0)
+
+        // next, the key cache
+        Pair<Descriptor, DecoratedKey> unifiedKey = new Pair<Descriptor, DecoratedKey>(desc, decoratedKey);
+        if (keyCache != null && keyCache.getCapacity() > 0)
         {
-            PositionSize cachedPosition = keyCache.get(decoratedKey);
+            PositionSize cachedPosition = keyCache.get(unifiedKey);
             if (cachedPosition != null)
             {
                 return cachedPosition;
             }
         }
+
+        // next, see if the sampled index says it's impossible for the key to be present
         KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
         if (sampledPosition == null)
         {
             return null;
         }
+
+        // handle exact sampled index hit
         if (spannedIndexDataPositions != null)
         {
             PositionSize info = spannedIndexDataPositions.get(sampledPosition);
@@ -351,6 +349,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                 return info;
         }
 
+        // scan the on-disk index, starting at the nearest sampled position
         long p = sampledPosition.position;
         FileDataInput input;
         if (indexBuffers == null)
@@ -392,8 +391,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     {
                         info = new PositionSize(position, length() - position);
                     }
-                    if (keyCache.getCapacity() > 0)
-                        keyCache.put(decoratedKey, info);
+                    if (keyCache != null && keyCache.getCapacity() > 0)
+                        keyCache.put(unifiedKey, info);
                     return info;
                 }
                 if (v > 0)
@@ -509,11 +508,6 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     public ColumnFamily makeColumnFamily()
     {
         return ColumnFamily.create(getTableName(), getColumnFamilyName());
-    }
-
-    public InstrumentedCache<DecoratedKey, PositionSize> getKeyCache()
-    {
-        return keyCache;
     }
 
     public ICompactSerializer2<IColumn> getColumnSerializer()

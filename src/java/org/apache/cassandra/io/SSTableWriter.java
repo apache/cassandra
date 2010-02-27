@@ -21,22 +21,23 @@ package org.apache.cassandra.io;
  */
 
 
-import java.io.*;
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.apache.log4j.Logger;
 
-import org.apache.cassandra.cache.InstrumentedCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.BufferedRandomAccessFile;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
 
 public class SSTableWriter extends SSTable
 {
@@ -128,16 +129,16 @@ public class SSTableWriter extends SSTable
         afterAppend(decoratedKey, currentPosition, value.length);
     }
 
-    public SSTableReader closeAndOpenReader(double cacheFraction) throws IOException
+    public SSTableReader closeAndOpenReader() throws IOException
     {
-        return closeAndOpenReader(cacheFraction, false);
+        return closeAndOpenReader(false);
     }
 
     /**
      * Renames temporary SSTable files to valid data, index, and bloom filter files.
      * The SSTableWriter object will no longer be valid.
      */
-    public SSTableReader closeAndOpenReader(double cacheFraction, boolean temporary) throws IOException
+    public SSTableReader closeAndOpenReader(boolean temporary) throws IOException
     {
         // bloom filter
         FileOutputStream fos = new FileOutputStream(filterFilename());
@@ -162,8 +163,7 @@ public class SSTableWriter extends SSTable
             newpath = rename(newpath); // important to do this last since index & filter file names are derived from it
         }
 
-        InstrumentedCache<DecoratedKey, PositionSize> keyCache = SSTableReader.createKeyCache((int)(cacheFraction * keysWritten));
-        return new SSTableReader(newpath, partitioner, indexPositions, spannedIndexDataPositions, bf, keyCache);
+        return new SSTableReader(newpath, partitioner, indexPositions, spannedIndexDataPositions, bf);
     }
 
     static String rename(String tmpFilename)
@@ -186,8 +186,7 @@ public class SSTableWriter extends SSTable
         SSTableWriter.rename(filterFilename(dataFileName));
         dataFileName = SSTableWriter.rename(dataFileName);
         return SSTableReader.open(dataFileName,
-                                  StorageService.getPartitioner(),
-                                  DatabaseDescriptor.getKeysCachedFraction(parseTableName(dataFileName), parseColumnFamilyName(dataFileName)));
+                                  StorageService.getPartitioner());
     }
 
 }

@@ -26,7 +26,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.io.SSTableAccessor;
 import org.apache.cassandra.io.SSTableReader;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import static org.apache.cassandra.io.SSTableUtils.tempSSTableFile;
@@ -44,7 +43,7 @@ public class SSTableImportTest
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
         // Verify results
-        SSTableReader reader = SSTableAccessor.getSSTableReader(tempSS.getPath(), DatabaseDescriptor.getPartitioner());
+        SSTableReader reader = SSTableReader.open(tempSS.getPath(), DatabaseDescriptor.getPartitioner());
         NamesQueryFilter qf = new NamesQueryFilter("rowA", new QueryPath("Standard1", null, null), "colAA".getBytes());
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert Arrays.equals(cf.getColumn("colAA".getBytes()).value(), hexToBytes("76616c4141"));
@@ -58,7 +57,7 @@ public class SSTableImportTest
         SSTableImport.importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
         
         // Verify results
-        SSTableReader reader = SSTableAccessor.getSSTableReader(tempSS.getPath(), DatabaseDescriptor.getPartitioner());
+        SSTableReader reader = SSTableReader.open(tempSS.getPath(), DatabaseDescriptor.getPartitioner());
         NamesQueryFilter qf = new NamesQueryFilter("rowA", new QueryPath("Super4", null, null), "superA".getBytes());
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         IColumn superCol = cf.getColumn("superA".getBytes());

@@ -104,6 +104,6 @@ public class SSTableUtils
                           entry.getValue());
         new File(writer.indexFilename()).deleteOnExit();
         new File(writer.filterFilename()).deleteOnExit();
-        return writer.closeAndOpenReader(1.0);
+        return writer.closeAndOpenReader();
     }
 }

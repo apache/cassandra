@@ -28,7 +28,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.SSTableAccessor;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.io.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -67,7 +66,7 @@ public class SSTableExportTest
         dob.reset();
         cfamily.clear();
      
-        writer.closeAndOpenReader(0);
+        writer.closeAndOpenReader();
         
         // Enumerate and verify
         File temp = File.createTempFile("Standard1", ".txt");
@@ -105,7 +104,7 @@ public class SSTableExportTest
         dob.reset();
         cfamily.clear();
      
-        SSTableReader reader = writer.closeAndOpenReader(0);
+        SSTableReader reader = writer.closeAndOpenReader();
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
@@ -145,7 +144,7 @@ public class SSTableExportTest
         dob.reset();
         cfamily.clear();
      
-        SSTableReader reader = writer.closeAndOpenReader(0);
+        SSTableReader reader = writer.closeAndOpenReader();
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Super4", ".json");
@@ -178,7 +177,7 @@ public class SSTableExportTest
         dob.reset();
         cfamily.clear();
         
-        SSTableReader reader = writer.closeAndOpenReader(0);
+        SSTableReader reader = writer.closeAndOpenReader();
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
@@ -188,7 +187,7 @@ public class SSTableExportTest
         File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");
         SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());        
         
-        reader = SSTableAccessor.getSSTableReader(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());
+        reader = SSTableReader.open(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());
         NamesQueryFilter qf = new NamesQueryFilter("rowA", new QueryPath("Standard1", null, null), "name".getBytes());
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assertTrue(cf != null);

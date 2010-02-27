@@ -40,11 +40,11 @@
    <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
    <Keyspaces>
      <Keyspace Name = "Keyspace1">
-       <ColumnFamily Name="Standard1" RowsCached="10%" KeysCachedFraction="0"/>
+       <ColumnFamily Name="Standard1" RowsCached="10%" KeysCached="0"/>
        <ColumnFamily Name="Standard2"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong1"/>
        <ColumnFamily CompareWith="LongType" Name="StandardLong2"/>
-       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super1" RowsCached="1000" KeysCachedFraction="0"/>
+       <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super1" RowsCached="1000" KeysCached="0"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super2"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="LongType" Name="Super3"/>
        <ColumnFamily ColumnType="Super" CompareSubcolumnsWith="UTF8Type" Name="Super4"/>

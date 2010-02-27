@@ -83,25 +83,22 @@
        ~ An optional `Comment` attribute may be used to attach additional
        ~ human-readable information about the column family to its definition.
        ~ 
-       ~ The optional KeysCachedFraction attribute specifies
-       ~ The fraction of keys per sstable whose locations we keep in
+       ~ The optional KeysCached attribute specifies
+       ~ the number of keys per sstable whose locations we keep in
        ~ memory in "mostly LRU" order.  (JUST the key locations, NOT any
-       ~ column values.) The amount of memory used by the default setting of 
-       ~ 0.01 is comparable to the amount used by the internal per-sstable key
-       ~ index. Consider increasing this if you have fewer, wider rows.
-       ~ Set to 0 to disable entirely.
+       ~ column values.) Specify a fraction (value less than 1), a percentage
+       ~ (ending in a % sign) or an absolute number of keys to cache. 
        ~
        ~ The optional RowsCached attribute specifies the number of rows
-       ~ whose entire contents we cache in memory, either as a fixed number
-       ~ of rows or as a percent of rows in the ColumnFamily.  
-       ~ Do not use this on ColumnFamilies with large rows, or
-       ~ ColumnFamilies with high write:read ratios.  As with key caching,
-       ~ valid values are from 0 to 1.  The default 0 disables it entirely.
+       ~ whose entire contents we cache in memory. Do not use this on
+       ~ ColumnFamilies with large rows, or ColumnFamilies with high write:read
+       ~ ratios. Specify a fraction (value less than 1), a percentage (ending in
+       ~ a % sign) or an absolute number of rows to cache. 
       -->
       <ColumnFamily CompareWith="BytesType" 
                     Name="Standard1" 
                     RowsCached="10%"
-                    KeysCachedFraction="0"/>
+                    KeysCached="0"/>
       <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
       <ColumnFamily CompareWith="TimeUUIDType" Name="StandardByUUID1"/>
       <ColumnFamily ColumnType="Super"
@@ -109,7 +106,7 @@
                     CompareSubcolumnsWith="UTF8Type"
                     Name="Super1"
                     RowsCached="1000"
-                    KeysCachedFraction="0"
+                    KeysCached="50%"
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
 
       <!--

@@ -29,6 +29,9 @@ import java.io.InputStream;
 
 public final class CFMetaData
 {
+    public final static double DEFAULT_KEY_CACHE_SIZE = 0.1;
+    public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
+
     public final String tableName;            // name of table which has this column family
     public final String cfName;               // name of the column family
     public final String columnType;           // type: super, standard, etc.
@@ -36,9 +39,9 @@ public final class CFMetaData
     public final AbstractType subcolumnComparator; // like comparator, for supercolumns
     public final String comment; // for humans only
     public final double rowCacheSize; // default 0
-    public final double keysCachedFraction; // default 0.01
+    public final double keyCacheSize; // default 0.01
 
-    CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keysCachedFraction)
+    CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
     {
         this.tableName = tableName;
         this.cfName = cfName;
@@ -47,7 +50,7 @@ public final class CFMetaData
         this.subcolumnComparator = subcolumnComparator;
         this.comment = comment;
         this.rowCacheSize = rowCacheSize;
-        this.keysCachedFraction = keysCachedFraction;
+        this.keyCacheSize = keyCacheSize;
     }
 
     // a quick and dirty pretty printer for describing the column family...
@@ -73,7 +76,7 @@ public final class CFMetaData
         if (cfm.comment != null)
             dout.writeUTF(cfm.comment);
         dout.writeDouble(cfm.rowCacheSize);
-        dout.writeDouble(cfm.keysCachedFraction);
+        dout.writeDouble(cfm.keyCacheSize);
         dout.close();
         return bout.toByteArray();
     }
@@ -105,8 +108,8 @@ public final class CFMetaData
         }
         String comment = din.readBoolean() ? din.readUTF() : null;
         double rowCacheSize = din.readDouble();
-        double keysCachedFraction = din.readDouble();
-        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keysCachedFraction);
+        double keyCacheSize = din.readDouble();
+        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize);
     }
 
     public boolean equals(Object obj)
@@ -121,6 +124,6 @@ public final class CFMetaData
                 && FBUtilities.equals(other.subcolumnComparator, subcolumnComparator)
                 && FBUtilities.equals(other.comment, comment)
                 && other.rowCacheSize == rowCacheSize
-                && other.keysCachedFraction == keysCachedFraction;
+                && other.keyCacheSize == keyCacheSize;
     }
 }
