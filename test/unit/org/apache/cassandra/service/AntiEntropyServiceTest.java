@@ -61,9 +61,7 @@ public class AntiEntropyServiceTest extends CleanupHelper
         if (!initialized)
         {
             LOCAL = FBUtilities.getLocalAddress();
-            tablename = DatabaseDescriptor.getTables().iterator().next();
-            // bump the replication factor so that local overlaps with REMOTE below
-            DatabaseDescriptorTest.setReplicationFactor(tablename, 2);
+            tablename = "Keyspace4";
 
             StorageService.instance.initServer();
             // generate a fake endpoint for which we can spoof receiving/sending trees

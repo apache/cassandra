@@ -250,13 +250,13 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public static AbstractReplicationStrategy getReplicationStrategy(TokenMetadata tokenMetadata, String table)
     {
         AbstractReplicationStrategy replicationStrategy = null;
-        Class<AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass(table);
+        Class<? extends AbstractReplicationStrategy> cls = DatabaseDescriptor.getReplicaPlacementStrategyClass(table);
         if (cls == null)
             throw new RuntimeException(String.format("No replica strategy configured for %s", table));
         Class [] parameterTypes = new Class[] { TokenMetadata.class, IEndPointSnitch.class};
         try
         {
-            Constructor<AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
+            Constructor<? extends AbstractReplicationStrategy> constructor = cls.getConstructor(parameterTypes);
             replicationStrategy = constructor.newInstance(tokenMetadata, DatabaseDescriptor.getEndPointSnitch(table));
         }
         catch (Exception e)
