@@ -229,9 +229,8 @@ public class ThriftValidation
             }
         }
 
-        if (cosc.column == null && cosc.super_column == null) {
+        if (cosc.column == null && cosc.super_column == null)
             throw new InvalidRequestException("ColumnOrSuperColumn must have one or both of Column or SuperColumn");
-        }
     }
 
     public static void validateMutation(String keyspace, String cfName, Mutation mut)
@@ -240,9 +239,8 @@ public class ThriftValidation
         ColumnOrSuperColumn cosc = mut.column_or_supercolumn;
         Deletion del = mut.deletion;
 
-        if (cosc != null && del != null) {
+        if (cosc != null && del != null)
             throw new InvalidRequestException("Mutation may have either a ColumnOrSuperColumn or a Deletion, but not both");
-        }
 
         if (cosc != null)
         {
@@ -269,23 +267,20 @@ public class ThriftValidation
         {
             validateSlicePredicate(keyspace, cfName, del.super_column, del.predicate);
             if (del.predicate.slice_range != null)
-                throw new InvalidRequestException("Deletion does not yet work correctly with SliceRanges.");
+                throw new InvalidRequestException("Deletion does not yet support SliceRange predicates.");
         }
     }
 
     public static void validateSlicePredicate(String keyspace, String cfName, byte[] scName, SlicePredicate predicate) throws InvalidRequestException
     {
-        if (predicate.column_names == null && predicate.slice_range == null) {
+        if (predicate.column_names == null && predicate.slice_range == null)
             throw new InvalidRequestException("A SlicePredicate must be given a list of Columns, a SliceRange, or both");
-        }
 
-        if (predicate.slice_range != null) {
+        if (predicate.slice_range != null)
             validateRange(keyspace, createColumnParent(cfName, scName), predicate.slice_range);
-        }
 
-        if (predicate.column_names != null) {
+        if (predicate.column_names != null)
             validateColumns(keyspace, cfName, scName, predicate.column_names);
-        }
     }
 
     public static void validatePredicate(String keyspace, ColumnParent column_parent, SlicePredicate predicate)
