@@ -1054,13 +1054,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void invalidateCachedRow(String key)
     {
-        if (ssTables_.getRowCache() != null)
-            ssTables_.getRowCache().remove(key);
+        ssTables_.getRowCache().remove(key);
     }
 
     public void forceMajorCompaction()
     {
         CompactionManager.instance.submitMajor(this);
+    }
+
+    public void invalidateRowCache()
+    {
+        ssTables_.getRowCache().clear();
     }
 
     public static Iterable<ColumnFamilyStore> all()

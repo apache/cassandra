@@ -113,4 +113,9 @@ public interface ColumnFamilyStoreMBean
      * force a major compaction of this column family
      */
     public void forceMajorCompaction();
+
+    /**
+     * invalidate the row cache; for use after bulk loading via BinaryMemtable
+     */
+    public void invalidateRowCache();
 }
