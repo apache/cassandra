@@ -3,6 +3,8 @@
  * update windows batch file (CASSANDRA-824)
  * deprecate KeysCachedFraction configuration directive in favor
    of KeysCached; move to unified-per-CF key cache (CASSANDRA-801)
+ * add invalidateRowCache to ColumnFamilyStoreMBean (CASSANDRA-761)
+
 
 0.6.0-beta1/beta2
  * add batch_mutate thrift command, deprecating batch_insert (CASSANDRA-336)
