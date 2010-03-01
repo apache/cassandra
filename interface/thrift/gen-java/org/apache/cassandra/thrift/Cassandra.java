@@ -77,6 +77,7 @@ public class Cassandra {
      * Perform a get for column_path in parallel on the given list<string> keys. The return value maps keys to the
      * ColumnOrSuperColumn found. If no value corresponding to a key is present, the key will still be in the map, but both
      * the column and super_column references of the ColumnOrSuperColumn object it maps to will be null.
+     * @deprecated; use multiget_slice
      * 
      * @param keyspace
      * @param keys
@@ -1119,7 +1120,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         login_args args = new login_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("login", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         login_result result = new login_result();
         try {
@@ -1149,7 +1160,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_args args = new get_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_result result = new get_result();
         try {
@@ -1183,7 +1204,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_slice_args args = new get_slice_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get_slice", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_slice_result result = new get_slice_result();
         try {
@@ -1215,7 +1246,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         multiget_args args = new multiget_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("multiget", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         multiget_result result = new multiget_result();
         try {
@@ -1247,7 +1288,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         multiget_slice_args args = new multiget_slice_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("multiget_slice", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         multiget_slice_result result = new multiget_slice_result();
         try {
@@ -1279,7 +1330,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_count_args args = new get_count_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get_count", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_count_result result = new get_count_result();
         try {
@@ -1312,7 +1373,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_range_slice_args args = new get_range_slice_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get_range_slice", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_range_slice_result result = new get_range_slice_result();
         try {
@@ -1344,7 +1415,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_range_slices_args args = new get_range_slices_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get_range_slices", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_range_slices_result result = new get_range_slices_result();
         try {
@@ -1376,7 +1457,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         insert_args args = new insert_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("insert", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         insert_result result = new insert_result();
         try {
@@ -1408,7 +1499,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         batch_insert_args args = new batch_insert_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("batch_insert", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         batch_insert_result result = new batch_insert_result();
         try {
@@ -1440,7 +1541,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         remove_args args = new remove_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("remove", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         remove_result result = new remove_result();
         try {
@@ -1472,7 +1583,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         batch_mutate_args args = new batch_mutate_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("batch_mutate", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         batch_mutate_result result = new batch_mutate_result();
         try {
@@ -1504,7 +1625,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_string_property_args args = new get_string_property_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get_string_property", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_string_property_result result = new get_string_property_result();
         result.success = iface_.get_string_property(args.property);
@@ -1520,7 +1651,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         get_string_list_property_args args = new get_string_list_property_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("get_string_list_property", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         get_string_list_property_result result = new get_string_list_property_result();
         result.success = iface_.get_string_list_property(args.property);
@@ -1536,7 +1677,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         describe_keyspaces_args args = new describe_keyspaces_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_keyspaces", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         describe_keyspaces_result result = new describe_keyspaces_result();
         result.success = iface_.describe_keyspaces();
@@ -1552,7 +1703,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         describe_cluster_name_args args = new describe_cluster_name_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_cluster_name", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         describe_cluster_name_result result = new describe_cluster_name_result();
         result.success = iface_.describe_cluster_name();
@@ -1568,7 +1729,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         describe_version_args args = new describe_version_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_version", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         describe_version_result result = new describe_version_result();
         result.success = iface_.describe_version();
@@ -1584,7 +1755,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         describe_ring_args args = new describe_ring_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_ring", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         describe_ring_result result = new describe_ring_result();
         result.success = iface_.describe_ring(args.keyspace);
@@ -1600,7 +1781,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         describe_keyspace_args args = new describe_keyspace_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_keyspace", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         describe_keyspace_result result = new describe_keyspace_result();
         try {
@@ -1628,7 +1819,17 @@ public class Cassandra {
       public void process(int seqid, TProtocol iprot, TProtocol oprot) throws TException
       {
         describe_splits_args args = new describe_splits_args();
-        args.read(iprot);
+        try {
+          args.read(iprot);
+        } catch (TProtocolException e) {
+          iprot.readMessageEnd();
+          TApplicationException x = new TApplicationException(TApplicationException.PROTOCOL_ERROR, e.getMessage());
+          oprot.writeMessageBegin(new TMessage("describe_splits", TMessageType.EXCEPTION, seqid));
+          x.write(oprot);
+          oprot.writeMessageEnd();
+          oprot.getTransport().flush();
+          return;
+        }
         iprot.readMessageEnd();
         describe_splits_result result = new describe_splits_result();
         result.success = iface_.describe_splits(args.start_token, args.end_token, args.keys_per_split);
@@ -1905,29 +2106,26 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case AUTH_REQUEST:
-              if (field.type == TType.STRUCT) {
-                this.auth_request = new AuthenticationRequest();
-                this.auth_request.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // AUTH_REQUEST
+            if (field.type == TType.STRUCT) {
+              this.auth_request = new AuthenticationRequest();
+              this.auth_request.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -2251,21 +2449,23 @@ public class Cassandra {
       int lastComparison = 0;
       login_result typedOther = (login_result)other;
 
-      lastComparison = Boolean.valueOf(isSetAuthnx()).compareTo(isSetAuthnx());
+      lastComparison = Boolean.valueOf(isSetAuthnx()).compareTo(typedOther.isSetAuthnx());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(authnx, typedOther.authnx);
+      if (isSetAuthnx()) {        lastComparison = TBaseHelper.compareTo(authnx, typedOther.authnx);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetAuthzx()).compareTo(typedOther.isSetAuthzx());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetAuthzx()).compareTo(isSetAuthzx());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(authzx, typedOther.authzx);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetAuthzx()) {        lastComparison = TBaseHelper.compareTo(authzx, typedOther.authzx);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -2279,30 +2479,27 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case AUTHNX:
-              if (field.type == TType.STRUCT) {
-                this.authnx = new AuthenticationException();
-                this.authnx.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case AUTHZX:
-              if (field.type == TType.STRUCT) {
-                this.authzx = new AuthorizationException();
-                this.authzx.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // AUTHNX
+            if (field.type == TType.STRUCT) {
+              this.authnx = new AuthenticationException();
+              this.authnx.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // AUTHZX
+            if (field.type == TType.STRUCT) {
+              this.authzx = new AuthorizationException();
+              this.authzx.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -2748,37 +2945,41 @@ public class Cassandra {
       int lastComparison = 0;
       get_args typedOther = (get_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (isSetKey()) {        lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(typedOther.isSetColumn_path());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (isSetColumn_path()) {        lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -2792,43 +2993,40 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEY:
-              if (field.type == TType.STRING) {
-                this.key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PATH:
-              if (field.type == TType.STRUCT) {
-                this.column_path = new ColumnPath();
-                this.column_path.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEY
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PATH
+            if (field.type == TType.STRUCT) {
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -3352,45 +3550,50 @@ public class Cassandra {
       int lastComparison = 0;
       get_result typedOther = (get_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetNfe()).compareTo(typedOther.isSetNfe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetNfe()) {        lastComparison = TBaseHelper.compareTo(nfe, typedOther.nfe);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetNfe()).compareTo(isSetNfe());
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(nfe, typedOther.nfe);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -3404,54 +3607,51 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.STRUCT) {
-                this.success = new ColumnOrSuperColumn();
-                this.success.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case NFE:
-              if (field.type == TType.STRUCT) {
-                this.nfe = new NotFoundException();
-                this.nfe.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRUCT) {
+              this.success = new ColumnOrSuperColumn();
+              this.success.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // NFE
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -3989,45 +4189,50 @@ public class Cassandra {
       int lastComparison = 0;
       get_slice_args typedOther = (get_slice_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (isSetKey()) {        lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
+      if (isSetPredicate()) {        lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -4041,51 +4246,48 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEY:
-              if (field.type == TType.STRING) {
-                this.key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PARENT:
-              if (field.type == TType.STRUCT) {
-                this.column_parent = new ColumnParent();
-                this.column_parent.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case PREDICATE:
-              if (field.type == TType.STRUCT) {
-                this.predicate = new SlicePredicate();
-                this.predicate.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEY
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PARENT
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // PREDICATE
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -4589,37 +4791,41 @@ public class Cassandra {
       int lastComparison = 0;
       get_slice_result typedOther = (get_slice_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -4633,56 +4839,53 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.LIST) {
+              {
+                TList _list21 = iprot.readListBegin();
+                this.success = new ArrayList<ColumnOrSuperColumn>(_list21.size);
+                for (int _i22 = 0; _i22 < _list21.size; ++_i22)
                 {
-                  TList _list21 = iprot.readListBegin();
-                  this.success = new ArrayList<ColumnOrSuperColumn>(_list21.size);
-                  for (int _i22 = 0; _i22 < _list21.size; ++_i22)
-                  {
-                    ColumnOrSuperColumn _elem23;
-                    _elem23 = new ColumnOrSuperColumn();
-                    _elem23.read(iprot);
-                    this.success.add(_elem23);
-                  }
-                  iprot.readListEnd();
+                  ColumnOrSuperColumn _elem23;
+                  _elem23 = new ColumnOrSuperColumn();
+                  _elem23.read(iprot);
+                  this.success.add(_elem23);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -5179,37 +5382,41 @@ public class Cassandra {
       int lastComparison = 0;
       multiget_args typedOther = (multiget_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(typedOther.isSetKeys());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(isSetKeys());
+      if (isSetKeys()) {        lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(typedOther.isSetColumn_path());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
+      if (isSetColumn_path()) {        lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -5223,53 +5430,50 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEYS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEYS
+            if (field.type == TType.LIST) {
+              {
+                TList _list25 = iprot.readListBegin();
+                this.keys = new ArrayList<String>(_list25.size);
+                for (int _i26 = 0; _i26 < _list25.size; ++_i26)
                 {
-                  TList _list25 = iprot.readListBegin();
-                  this.keys = new ArrayList<String>(_list25.size);
-                  for (int _i26 = 0; _i26 < _list25.size; ++_i26)
-                  {
-                    String _elem27;
-                    _elem27 = iprot.readString();
-                    this.keys.add(_elem27);
-                  }
-                  iprot.readListEnd();
+                  String _elem27;
+                  _elem27 = iprot.readString();
+                  this.keys.add(_elem27);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-            case COLUMN_PATH:
-              if (field.type == TType.STRUCT) {
-                this.column_path = new ColumnPath();
-                this.column_path.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PATH
+            if (field.type == TType.STRUCT) {
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -5770,58 +5974,55 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.MAP) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.MAP) {
+              {
+                TMap _map29 = iprot.readMapBegin();
+                this.success = new HashMap<String,ColumnOrSuperColumn>(2*_map29.size);
+                for (int _i30 = 0; _i30 < _map29.size; ++_i30)
                 {
-                  TMap _map29 = iprot.readMapBegin();
-                  this.success = new HashMap<String,ColumnOrSuperColumn>(2*_map29.size);
-                  for (int _i30 = 0; _i30 < _map29.size; ++_i30)
-                  {
-                    String _key31;
-                    ColumnOrSuperColumn _val32;
-                    _key31 = iprot.readString();
-                    _val32 = new ColumnOrSuperColumn();
-                    _val32.read(iprot);
-                    this.success.put(_key31, _val32);
-                  }
-                  iprot.readMapEnd();
+                  String _key31;
+                  ColumnOrSuperColumn _val32;
+                  _key31 = iprot.readString();
+                  _val32 = new ColumnOrSuperColumn();
+                  _val32.read(iprot);
+                  this.success.put(_key31, _val32);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readMapEnd();
               }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -6375,45 +6576,50 @@ public class Cassandra {
       int lastComparison = 0;
       multiget_slice_args typedOther = (multiget_slice_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(typedOther.isSetKeys());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKeys()).compareTo(isSetKeys());
+      if (isSetKeys()) {        lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keys, typedOther.keys);
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
+      if (isSetPredicate()) {        lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -6427,61 +6633,58 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEYS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEYS
+            if (field.type == TType.LIST) {
+              {
+                TList _list34 = iprot.readListBegin();
+                this.keys = new ArrayList<String>(_list34.size);
+                for (int _i35 = 0; _i35 < _list34.size; ++_i35)
                 {
-                  TList _list34 = iprot.readListBegin();
-                  this.keys = new ArrayList<String>(_list34.size);
-                  for (int _i35 = 0; _i35 < _list34.size; ++_i35)
-                  {
-                    String _elem36;
-                    _elem36 = iprot.readString();
-                    this.keys.add(_elem36);
-                  }
-                  iprot.readListEnd();
+                  String _elem36;
+                  _elem36 = iprot.readString();
+                  this.keys.add(_elem36);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-            case COLUMN_PARENT:
-              if (field.type == TType.STRUCT) {
-                this.column_parent = new ColumnParent();
-                this.column_parent.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case PREDICATE:
-              if (field.type == TType.STRUCT) {
-                this.predicate = new SlicePredicate();
-                this.predicate.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PARENT
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // PREDICATE
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -7002,68 +7205,65 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.MAP) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.MAP) {
+              {
+                TMap _map38 = iprot.readMapBegin();
+                this.success = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map38.size);
+                for (int _i39 = 0; _i39 < _map38.size; ++_i39)
                 {
-                  TMap _map38 = iprot.readMapBegin();
-                  this.success = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map38.size);
-                  for (int _i39 = 0; _i39 < _map38.size; ++_i39)
+                  String _key40;
+                  List<ColumnOrSuperColumn> _val41;
+                  _key40 = iprot.readString();
                   {
-                    String _key40;
-                    List<ColumnOrSuperColumn> _val41;
-                    _key40 = iprot.readString();
+                    TList _list42 = iprot.readListBegin();
+                    _val41 = new ArrayList<ColumnOrSuperColumn>(_list42.size);
+                    for (int _i43 = 0; _i43 < _list42.size; ++_i43)
                     {
-                      TList _list42 = iprot.readListBegin();
-                      _val41 = new ArrayList<ColumnOrSuperColumn>(_list42.size);
-                      for (int _i43 = 0; _i43 < _list42.size; ++_i43)
-                      {
-                        ColumnOrSuperColumn _elem44;
-                        _elem44 = new ColumnOrSuperColumn();
-                        _elem44.read(iprot);
-                        _val41.add(_elem44);
-                      }
-                      iprot.readListEnd();
+                      ColumnOrSuperColumn _elem44;
+                      _elem44 = new ColumnOrSuperColumn();
+                      _elem44.read(iprot);
+                      _val41.add(_elem44);
                     }
-                    this.success.put(_key40, _val41);
+                    iprot.readListEnd();
                   }
-                  iprot.readMapEnd();
+                  this.success.put(_key40, _val41);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readMapEnd();
               }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -7548,37 +7748,41 @@ public class Cassandra {
       int lastComparison = 0;
       get_count_args typedOther = (get_count_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (isSetKey()) {        lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -7592,43 +7796,40 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEY:
-              if (field.type == TType.STRING) {
-                this.key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PARENT:
-              if (field.type == TType.STRUCT) {
-                this.column_parent = new ColumnParent();
-                this.column_parent.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEY
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PARENT
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -8098,37 +8299,41 @@ public class Cassandra {
       int lastComparison = 0;
       get_count_result typedOther = (get_count_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -8142,46 +8347,43 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.I32) {
-                this.success = iprot.readI32();
-                setSuccessIsSet(true);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.I32) {
+              this.success = iprot.readI32();
+              setSuccessIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -8823,61 +9025,68 @@ public class Cassandra {
       int lastComparison = 0;
       get_range_slice_args typedOther = (get_range_slice_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+      if (isSetPredicate()) {        lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetStart_key()).compareTo(typedOther.isSetStart_key());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
+      if (isSetStart_key()) {        lastComparison = TBaseHelper.compareTo(start_key, typedOther.start_key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetFinish_key()).compareTo(typedOther.isSetFinish_key());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+      if (isSetFinish_key()) {        lastComparison = TBaseHelper.compareTo(finish_key, typedOther.finish_key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetRow_count()).compareTo(typedOther.isSetRow_count());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetStart_key()).compareTo(isSetStart_key());
+      if (isSetRow_count()) {        lastComparison = TBaseHelper.compareTo(row_count, typedOther.row_count);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(start_key, typedOther.start_key);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetFinish_key()).compareTo(isSetFinish_key());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(finish_key, typedOther.finish_key);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetRow_count()).compareTo(isSetRow_count());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(row_count, typedOther.row_count);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -8891,66 +9100,63 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PARENT:
-              if (field.type == TType.STRUCT) {
-                this.column_parent = new ColumnParent();
-                this.column_parent.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case PREDICATE:
-              if (field.type == TType.STRUCT) {
-                this.predicate = new SlicePredicate();
-                this.predicate.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case START_KEY:
-              if (field.type == TType.STRING) {
-                this.start_key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case FINISH_KEY:
-              if (field.type == TType.STRING) {
-                this.finish_key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case ROW_COUNT:
-              if (field.type == TType.I32) {
-                this.row_count = iprot.readI32();
-                setRow_countIsSet(true);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // COLUMN_PARENT
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // PREDICATE
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // START_KEY
+            if (field.type == TType.STRING) {
+              this.start_key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // FINISH_KEY
+            if (field.type == TType.STRING) {
+              this.finish_key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 6: // ROW_COUNT
+            if (field.type == TType.I32) {
+              this.row_count = iprot.readI32();
+              setRow_countIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 7: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -9481,37 +9687,41 @@ public class Cassandra {
       int lastComparison = 0;
       get_range_slice_result typedOther = (get_range_slice_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -9525,56 +9735,53 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.LIST) {
+              {
+                TList _list47 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list47.size);
+                for (int _i48 = 0; _i48 < _list47.size; ++_i48)
                 {
-                  TList _list47 = iprot.readListBegin();
-                  this.success = new ArrayList<KeySlice>(_list47.size);
-                  for (int _i48 = 0; _i48 < _list47.size; ++_i48)
-                  {
-                    KeySlice _elem49;
-                    _elem49 = new KeySlice();
-                    _elem49.read(iprot);
-                    this.success.add(_elem49);
-                  }
-                  iprot.readListEnd();
+                  KeySlice _elem49;
+                  _elem49 = new KeySlice();
+                  _elem49.read(iprot);
+                  this.success.add(_elem49);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -10107,45 +10314,50 @@ public class Cassandra {
       int lastComparison = 0;
       get_range_slices_args typedOther = (get_range_slices_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(typedOther.isSetColumn_parent());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_parent()).compareTo(isSetColumn_parent());
+      if (isSetColumn_parent()) {        lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(column_parent, typedOther.column_parent);
+      if (isSetPredicate()) {        lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetRange()).compareTo(typedOther.isSetRange());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
+      if (isSetRange()) {        lastComparison = TBaseHelper.compareTo(range, typedOther.range);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetRange()).compareTo(isSetRange());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(range, typedOther.range);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -10159,52 +10371,49 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PARENT:
-              if (field.type == TType.STRUCT) {
-                this.column_parent = new ColumnParent();
-                this.column_parent.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case PREDICATE:
-              if (field.type == TType.STRUCT) {
-                this.predicate = new SlicePredicate();
-                this.predicate.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case RANGE:
-              if (field.type == TType.STRUCT) {
-                this.range = new KeyRange();
-                this.range.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // COLUMN_PARENT
+            if (field.type == TType.STRUCT) {
+              this.column_parent = new ColumnParent();
+              this.column_parent.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // PREDICATE
+            if (field.type == TType.STRUCT) {
+              this.predicate = new SlicePredicate();
+              this.predicate.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // RANGE
+            if (field.type == TType.STRUCT) {
+              this.range = new KeyRange();
+              this.range.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -10708,37 +10917,41 @@ public class Cassandra {
       int lastComparison = 0;
       get_range_slices_result typedOther = (get_range_slices_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -10752,56 +10965,53 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.LIST) {
+              {
+                TList _list51 = iprot.readListBegin();
+                this.success = new ArrayList<KeySlice>(_list51.size);
+                for (int _i52 = 0; _i52 < _list51.size; ++_i52)
                 {
-                  TList _list51 = iprot.readListBegin();
-                  this.success = new ArrayList<KeySlice>(_list51.size);
-                  for (int _i52 = 0; _i52 < _list51.size; ++_i52)
-                  {
-                    KeySlice _elem53;
-                    _elem53 = new KeySlice();
-                    _elem53.read(iprot);
-                    this.success.add(_elem53);
-                  }
-                  iprot.readListEnd();
+                  KeySlice _elem53;
+                  _elem53 = new KeySlice();
+                  _elem53.read(iprot);
+                  this.success.add(_elem53);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -11393,53 +11603,59 @@ public class Cassandra {
       int lastComparison = 0;
       insert_args typedOther = (insert_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (isSetKey()) {        lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(typedOther.isSetColumn_path());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (isSetColumn_path()) {        lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetValue()).compareTo(typedOther.isSetValue());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
+      if (isSetValue()) {        lastComparison = TBaseHelper.compareTo(value, typedOther.value);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+      if (isSetTimestamp()) {        lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetValue()).compareTo(isSetValue());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(value, typedOther.value);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(isSetTimestamp());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -11453,58 +11669,55 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEY:
-              if (field.type == TType.STRING) {
-                this.key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PATH:
-              if (field.type == TType.STRUCT) {
-                this.column_path = new ColumnPath();
-                this.column_path.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case VALUE:
-              if (field.type == TType.STRING) {
-                this.value = iprot.readBinary();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TIMESTAMP:
-              if (field.type == TType.I64) {
-                this.timestamp = iprot.readI64();
-                setTimestampIsSet(true);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEY
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PATH
+            if (field.type == TType.STRUCT) {
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // VALUE
+            if (field.type == TType.STRING) {
+              this.value = iprot.readBinary();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // TIMESTAMP
+            if (field.type == TType.I64) {
+              this.timestamp = iprot.readI64();
+              setTimestampIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 6: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -11948,29 +12161,32 @@ public class Cassandra {
       int lastComparison = 0;
       insert_result typedOther = (insert_result)other;
 
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -11984,38 +12200,35 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -12503,65 +12716,62 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEY:
-              if (field.type == TType.STRING) {
-                this.key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CFMAP:
-              if (field.type == TType.MAP) {
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEY
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // CFMAP
+            if (field.type == TType.MAP) {
+              {
+                TMap _map55 = iprot.readMapBegin();
+                this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map55.size);
+                for (int _i56 = 0; _i56 < _map55.size; ++_i56)
                 {
-                  TMap _map55 = iprot.readMapBegin();
-                  this.cfmap = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map55.size);
-                  for (int _i56 = 0; _i56 < _map55.size; ++_i56)
+                  String _key57;
+                  List<ColumnOrSuperColumn> _val58;
+                  _key57 = iprot.readString();
                   {
-                    String _key57;
-                    List<ColumnOrSuperColumn> _val58;
-                    _key57 = iprot.readString();
+                    TList _list59 = iprot.readListBegin();
+                    _val58 = new ArrayList<ColumnOrSuperColumn>(_list59.size);
+                    for (int _i60 = 0; _i60 < _list59.size; ++_i60)
                     {
-                      TList _list59 = iprot.readListBegin();
-                      _val58 = new ArrayList<ColumnOrSuperColumn>(_list59.size);
-                      for (int _i60 = 0; _i60 < _list59.size; ++_i60)
-                      {
-                        ColumnOrSuperColumn _elem61;
-                        _elem61 = new ColumnOrSuperColumn();
-                        _elem61.read(iprot);
-                        _val58.add(_elem61);
-                      }
-                      iprot.readListEnd();
+                      ColumnOrSuperColumn _elem61;
+                      _elem61 = new ColumnOrSuperColumn();
+                      _elem61.read(iprot);
+                      _val58.add(_elem61);
                     }
-                    this.cfmap.put(_key57, _val58);
+                    iprot.readListEnd();
                   }
-                  iprot.readMapEnd();
+                  this.cfmap.put(_key57, _val58);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readMapEnd();
               }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -12988,29 +13198,32 @@ public class Cassandra {
       int lastComparison = 0;
       batch_insert_result typedOther = (batch_insert_result)other;
 
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -13024,38 +13237,35 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -13571,45 +13781,50 @@ public class Cassandra {
       int lastComparison = 0;
       remove_args typedOther = (remove_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+      if (isSetKey()) {        lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(typedOther.isSetColumn_path());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (isSetColumn_path()) {        lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetColumn_path()).compareTo(isSetColumn_path());
+      if (isSetTimestamp()) {        lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(column_path, typedOther.column_path);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(isSetTimestamp());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(isSetConsistency_level());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetConsistency_level()) {        lastComparison = TBaseHelper.compareTo(consistency_level, typedOther.consistency_level);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -13623,51 +13838,48 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEY:
-              if (field.type == TType.STRING) {
-                this.key = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case COLUMN_PATH:
-              if (field.type == TType.STRUCT) {
-                this.column_path = new ColumnPath();
-                this.column_path.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TIMESTAMP:
-              if (field.type == TType.I64) {
-                this.timestamp = iprot.readI64();
-                setTimestampIsSet(true);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // KEY
+            if (field.type == TType.STRING) {
+              this.key = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // COLUMN_PATH
+            if (field.type == TType.STRUCT) {
+              this.column_path = new ColumnPath();
+              this.column_path.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 4: // TIMESTAMP
+            if (field.type == TType.I64) {
+              this.timestamp = iprot.readI64();
+              setTimestampIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 5: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -14087,29 +14299,32 @@ public class Cassandra {
       int lastComparison = 0;
       remove_result typedOther = (remove_result)other;
 
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -14123,38 +14338,35 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -14599,70 +14811,67 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case MUTATION_MAP:
-              if (field.type == TType.MAP) {
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // MUTATION_MAP
+            if (field.type == TType.MAP) {
+              {
+                TMap _map64 = iprot.readMapBegin();
+                this.mutation_map = new HashMap<String,Map<String,List<Mutation>>>(2*_map64.size);
+                for (int _i65 = 0; _i65 < _map64.size; ++_i65)
                 {
-                  TMap _map64 = iprot.readMapBegin();
-                  this.mutation_map = new HashMap<String,Map<String,List<Mutation>>>(2*_map64.size);
-                  for (int _i65 = 0; _i65 < _map64.size; ++_i65)
+                  String _key66;
+                  Map<String,List<Mutation>> _val67;
+                  _key66 = iprot.readString();
                   {
-                    String _key66;
-                    Map<String,List<Mutation>> _val67;
-                    _key66 = iprot.readString();
+                    TMap _map68 = iprot.readMapBegin();
+                    _val67 = new HashMap<String,List<Mutation>>(2*_map68.size);
+                    for (int _i69 = 0; _i69 < _map68.size; ++_i69)
                     {
-                      TMap _map68 = iprot.readMapBegin();
-                      _val67 = new HashMap<String,List<Mutation>>(2*_map68.size);
-                      for (int _i69 = 0; _i69 < _map68.size; ++_i69)
+                      String _key70;
+                      List<Mutation> _val71;
+                      _key70 = iprot.readString();
                       {
-                        String _key70;
-                        List<Mutation> _val71;
-                        _key70 = iprot.readString();
+                        TList _list72 = iprot.readListBegin();
+                        _val71 = new ArrayList<Mutation>(_list72.size);
+                        for (int _i73 = 0; _i73 < _list72.size; ++_i73)
                         {
-                          TList _list72 = iprot.readListBegin();
-                          _val71 = new ArrayList<Mutation>(_list72.size);
-                          for (int _i73 = 0; _i73 < _list72.size; ++_i73)
-                          {
-                            Mutation _elem74;
-                            _elem74 = new Mutation();
-                            _elem74.read(iprot);
-                            _val71.add(_elem74);
-                          }
-                          iprot.readListEnd();
+                          Mutation _elem74;
+                          _elem74 = new Mutation();
+                          _elem74.read(iprot);
+                          _val71.add(_elem74);
                         }
-                        _val67.put(_key70, _val71);
+                        iprot.readListEnd();
                       }
-                      iprot.readMapEnd();
+                      _val67.put(_key70, _val71);
                     }
-                    this.mutation_map.put(_key66, _val67);
+                    iprot.readMapEnd();
                   }
-                  iprot.readMapEnd();
+                  this.mutation_map.put(_key66, _val67);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readMapEnd();
               }
-              break;
-            case CONSISTENCY_LEVEL:
-              if (field.type == TType.I32) {
-                this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // CONSISTENCY_LEVEL
+            if (field.type == TType.I32) {
+              this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -15081,29 +15290,32 @@ public class Cassandra {
       int lastComparison = 0;
       batch_mutate_result typedOther = (batch_mutate_result)other;
 
-      lastComparison = Boolean.valueOf(isSetIre()).compareTo(isSetIre());
+      lastComparison = Boolean.valueOf(isSetIre()).compareTo(typedOther.isSetIre());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+      if (isSetIre()) {        lastComparison = TBaseHelper.compareTo(ire, typedOther.ire);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetUe()).compareTo(typedOther.isSetUe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetUe()).compareTo(isSetUe());
+      if (isSetUe()) {        lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetTe()).compareTo(typedOther.isSetTe());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(ue, typedOther.ue);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetTe()).compareTo(isSetTe());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(te, typedOther.te);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetTe()) {        lastComparison = TBaseHelper.compareTo(te, typedOther.te);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -15117,38 +15329,35 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case IRE:
-              if (field.type == TType.STRUCT) {
-                this.ire = new InvalidRequestException();
-                this.ire.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case UE:
-              if (field.type == TType.STRUCT) {
-                this.ue = new UnavailableException();
-                this.ue.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case TE:
-              if (field.type == TType.STRUCT) {
-                this.te = new TimedOutException();
-                this.te.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // IRE
+            if (field.type == TType.STRUCT) {
+              this.ire = new InvalidRequestException();
+              this.ire.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // UE
+            if (field.type == TType.STRUCT) {
+              this.ue = new UnavailableException();
+              this.ue.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // TE
+            if (field.type == TType.STRUCT) {
+              this.te = new TimedOutException();
+              this.te.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -15420,13 +15629,14 @@ public class Cassandra {
       int lastComparison = 0;
       get_string_property_args typedOther = (get_string_property_args)other;
 
-      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(isSetProperty());
+      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(typedOther.isSetProperty());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(property, typedOther.property);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetProperty()) {        lastComparison = TBaseHelper.compareTo(property, typedOther.property);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -15440,21 +15650,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case PROPERTY:
-              if (field.type == TType.STRING) {
-                this.property = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // PROPERTY
+            if (field.type == TType.STRING) {
+              this.property = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -15706,13 +15913,14 @@ public class Cassandra {
       int lastComparison = 0;
       get_string_property_result typedOther = (get_string_property_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -15726,21 +15934,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.STRING) {
-                this.success = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -15988,13 +16193,14 @@ public class Cassandra {
       int lastComparison = 0;
       get_string_list_property_args typedOther = (get_string_list_property_args)other;
 
-      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(isSetProperty());
+      lastComparison = Boolean.valueOf(isSetProperty()).compareTo(typedOther.isSetProperty());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(property, typedOther.property);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetProperty()) {        lastComparison = TBaseHelper.compareTo(property, typedOther.property);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -16008,21 +16214,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case PROPERTY:
-              if (field.type == TType.STRING) {
-                this.property = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // PROPERTY
+            if (field.type == TType.STRING) {
+              this.property = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -16294,13 +16497,14 @@ public class Cassandra {
       int lastComparison = 0;
       get_string_list_property_result typedOther = (get_string_list_property_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -16314,31 +16518,28 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.LIST) {
+              {
+                TList _list78 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list78.size);
+                for (int _i79 = 0; _i79 < _list78.size; ++_i79)
                 {
-                  TList _list78 = iprot.readListBegin();
-                  this.success = new ArrayList<String>(_list78.size);
-                  for (int _i79 = 0; _i79 < _list78.size; ++_i79)
-                  {
-                    String _elem80;
-                    _elem80 = iprot.readString();
-                    this.success.add(_elem80);
-                  }
-                  iprot.readListEnd();
+                  String _elem80;
+                  _elem80 = iprot.readString();
+                  this.success.add(_elem80);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -16542,14 +16743,11 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -16807,31 +17005,28 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.SET) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.SET) {
+              {
+                TSet _set82 = iprot.readSetBegin();
+                this.success = new HashSet<String>(2*_set82.size);
+                for (int _i83 = 0; _i83 < _set82.size; ++_i83)
                 {
-                  TSet _set82 = iprot.readSetBegin();
-                  this.success = new HashSet<String>(2*_set82.size);
-                  for (int _i83 = 0; _i83 < _set82.size; ++_i83)
-                  {
-                    String _elem84;
-                    _elem84 = iprot.readString();
-                    this.success.add(_elem84);
-                  }
-                  iprot.readSetEnd();
+                  String _elem84;
+                  _elem84 = iprot.readString();
+                  this.success.add(_elem84);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readSetEnd();
               }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -17035,14 +17230,11 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -17279,13 +17471,14 @@ public class Cassandra {
       int lastComparison = 0;
       describe_cluster_name_result typedOther = (describe_cluster_name_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -17299,21 +17492,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.STRING) {
-                this.success = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -17510,14 +17700,11 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -17754,13 +17941,14 @@ public class Cassandra {
       int lastComparison = 0;
       describe_version_result typedOther = (describe_version_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -17774,21 +17962,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.STRING) {
-                this.success = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.STRING) {
+              this.success = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -18036,13 +18221,14 @@ public class Cassandra {
       int lastComparison = 0;
       describe_ring_args typedOther = (describe_ring_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -18056,21 +18242,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -18342,13 +18525,14 @@ public class Cassandra {
       int lastComparison = 0;
       describe_ring_result typedOther = (describe_ring_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -18362,32 +18546,29 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.LIST) {
+              {
+                TList _list86 = iprot.readListBegin();
+                this.success = new ArrayList<TokenRange>(_list86.size);
+                for (int _i87 = 0; _i87 < _list86.size; ++_i87)
                 {
-                  TList _list86 = iprot.readListBegin();
-                  this.success = new ArrayList<TokenRange>(_list86.size);
-                  for (int _i87 = 0; _i87 < _list86.size; ++_i87)
-                  {
-                    TokenRange _elem88;
-                    _elem88 = new TokenRange();
-                    _elem88.read(iprot);
-                    this.success.add(_elem88);
-                  }
-                  iprot.readListEnd();
+                  TokenRange _elem88;
+                  _elem88 = new TokenRange();
+                  _elem88.read(iprot);
+                  this.success.add(_elem88);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -18642,13 +18823,14 @@ public class Cassandra {
       int lastComparison = 0;
       describe_keyspace_args typedOther = (describe_keyspace_args)other;
 
-      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(isSetKeyspace());
+      lastComparison = Boolean.valueOf(isSetKeyspace()).compareTo(typedOther.isSetKeyspace());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetKeyspace()) {        lastComparison = TBaseHelper.compareTo(keyspace, typedOther.keyspace);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -18662,21 +18844,18 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case KEYSPACE:
-              if (field.type == TType.STRING) {
-                this.keyspace = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // KEYSPACE
+            if (field.type == TType.STRING) {
+              this.keyspace = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -19023,53 +19202,50 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.MAP) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.MAP) {
+              {
+                TMap _map90 = iprot.readMapBegin();
+                this.success = new HashMap<String,Map<String,String>>(2*_map90.size);
+                for (int _i91 = 0; _i91 < _map90.size; ++_i91)
                 {
-                  TMap _map90 = iprot.readMapBegin();
-                  this.success = new HashMap<String,Map<String,String>>(2*_map90.size);
-                  for (int _i91 = 0; _i91 < _map90.size; ++_i91)
+                  String _key92;
+                  Map<String,String> _val93;
+                  _key92 = iprot.readString();
                   {
-                    String _key92;
-                    Map<String,String> _val93;
-                    _key92 = iprot.readString();
+                    TMap _map94 = iprot.readMapBegin();
+                    _val93 = new HashMap<String,String>(2*_map94.size);
+                    for (int _i95 = 0; _i95 < _map94.size; ++_i95)
                     {
-                      TMap _map94 = iprot.readMapBegin();
-                      _val93 = new HashMap<String,String>(2*_map94.size);
-                      for (int _i95 = 0; _i95 < _map94.size; ++_i95)
-                      {
-                        String _key96;
-                        String _val97;
-                        _key96 = iprot.readString();
-                        _val97 = iprot.readString();
-                        _val93.put(_key96, _val97);
-                      }
-                      iprot.readMapEnd();
+                      String _key96;
+                      String _val97;
+                      _key96 = iprot.readString();
+                      _val97 = iprot.readString();
+                      _val93.put(_key96, _val97);
                     }
-                    this.success.put(_key92, _val93);
+                    iprot.readMapEnd();
                   }
-                  iprot.readMapEnd();
+                  this.success.put(_key92, _val93);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readMapEnd();
               }
-              break;
-            case NFE:
-              if (field.type == TType.STRUCT) {
-                this.nfe = new NotFoundException();
-                this.nfe.read(iprot);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 1: // NFE
+            if (field.type == TType.STRUCT) {
+              this.nfe = new NotFoundException();
+              this.nfe.read(iprot);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -19459,29 +19635,32 @@ public class Cassandra {
       int lastComparison = 0;
       describe_splits_args typedOther = (describe_splits_args)other;
 
-      lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(isSetStart_token());
+      lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(typedOther.isSetStart_token());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+      if (isSetStart_token()) {        lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(typedOther.isSetEnd_token());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(isSetEnd_token());
+      if (isSetEnd_token()) {        lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetKeys_per_split()).compareTo(typedOther.isSetKeys_per_split());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = Boolean.valueOf(isSetKeys_per_split()).compareTo(isSetKeys_per_split());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      lastComparison = TBaseHelper.compareTo(keys_per_split, typedOther.keys_per_split);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetKeys_per_split()) {        lastComparison = TBaseHelper.compareTo(keys_per_split, typedOther.keys_per_split);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -19495,36 +19674,33 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case START_TOKEN:
-              if (field.type == TType.STRING) {
-                this.start_token = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case END_TOKEN:
-              if (field.type == TType.STRING) {
-                this.end_token = iprot.readString();
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-            case KEYS_PER_SPLIT:
-              if (field.type == TType.I32) {
-                this.keys_per_split = iprot.readI32();
-                setKeys_per_splitIsSet(true);
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
-              }
-              break;
-          }
-          iprot.readFieldEnd();
+        switch (field.id) {
+          case 1: // START_TOKEN
+            if (field.type == TType.STRING) {
+              this.start_token = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 2: // END_TOKEN
+            if (field.type == TType.STRING) {
+              this.end_token = iprot.readString();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          case 3: // KEYS_PER_SPLIT
+            if (field.type == TType.I32) {
+              this.keys_per_split = iprot.readI32();
+              setKeys_per_splitIsSet(true);
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 
@@ -19823,13 +19999,14 @@ public class Cassandra {
       int lastComparison = 0;
       describe_splits_result typedOther = (describe_splits_result)other;
 
-      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(isSetSuccess());
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      lastComparison = TBaseHelper.compareTo(success, typedOther.success);
-      if (lastComparison != 0) {
-        return lastComparison;
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
       }
       return 0;
     }
@@ -19843,31 +20020,28 @@ public class Cassandra {
         if (field.type == TType.STOP) { 
           break;
         }
-        _Fields fieldId = _Fields.findByThriftId(field.id);
-        if (fieldId == null) {
-          TProtocolUtil.skip(iprot, field.type);
-        } else {
-          switch (fieldId) {
-            case SUCCESS:
-              if (field.type == TType.LIST) {
+        switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.LIST) {
+              {
+                TList _list100 = iprot.readListBegin();
+                this.success = new ArrayList<String>(_list100.size);
+                for (int _i101 = 0; _i101 < _list100.size; ++_i101)
                 {
-                  TList _list100 = iprot.readListBegin();
-                  this.success = new ArrayList<String>(_list100.size);
-                  for (int _i101 = 0; _i101 < _list100.size; ++_i101)
-                  {
-                    String _elem102;
-                    _elem102 = iprot.readString();
-                    this.success.add(_elem102);
-                  }
-                  iprot.readListEnd();
+                  String _elem102;
+                  _elem102 = iprot.readString();
+                  this.success.add(_elem102);
                 }
-              } else { 
-                TProtocolUtil.skip(iprot, field.type);
+                iprot.readListEnd();
               }
-              break;
-          }
-          iprot.readFieldEnd();
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
+          default:
+            TProtocolUtil.skip(iprot, field.type);
         }
+        iprot.readFieldEnd();
       }
       iprot.readStructEnd();
 

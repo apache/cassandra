@@ -382,29 +382,32 @@ public class TokenRange implements TBase<TokenRange._Fields>, java.io.Serializab
     int lastComparison = 0;
     TokenRange typedOther = (TokenRange)other;
 
-    lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(isSetStart_token());
+    lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(typedOther.isSetStart_token());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+    if (isSetStart_token()) {      lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(typedOther.isSetEnd_token());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(isSetEnd_token());
+    if (isSetEnd_token()) {      lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetEndpoints()).compareTo(typedOther.isSetEndpoints());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = Boolean.valueOf(isSetEndpoints()).compareTo(isSetEndpoints());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(endpoints, typedOther.endpoints);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetEndpoints()) {      lastComparison = TBaseHelper.compareTo(endpoints, typedOther.endpoints);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -418,45 +421,42 @@ public class TokenRange implements TBase<TokenRange._Fields>, java.io.Serializab
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case START_TOKEN:
-            if (field.type == TType.STRING) {
-              this.start_token = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case END_TOKEN:
-            if (field.type == TType.STRING) {
-              this.end_token = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case ENDPOINTS:
-            if (field.type == TType.LIST) {
+      switch (field.id) {
+        case 1: // START_TOKEN
+          if (field.type == TType.STRING) {
+            this.start_token = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // END_TOKEN
+          if (field.type == TType.STRING) {
+            this.end_token = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 3: // ENDPOINTS
+          if (field.type == TType.LIST) {
+            {
+              TList _list12 = iprot.readListBegin();
+              this.endpoints = new ArrayList<String>(_list12.size);
+              for (int _i13 = 0; _i13 < _list12.size; ++_i13)
               {
-                TList _list12 = iprot.readListBegin();
-                this.endpoints = new ArrayList<String>(_list12.size);
-                for (int _i13 = 0; _i13 < _list12.size; ++_i13)
-                {
-                  String _elem14;
-                  _elem14 = iprot.readString();
-                  this.endpoints.add(_elem14);
-                }
-                iprot.readListEnd();
+                String _elem14;
+                _elem14 = iprot.readString();
+                this.endpoints.add(_elem14);
               }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
+              iprot.readListEnd();
             }
-            break;
-        }
-        iprot.readFieldEnd();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

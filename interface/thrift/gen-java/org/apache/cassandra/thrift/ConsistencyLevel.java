@@ -66,12 +66,6 @@ public enum ConsistencyLevel implements TEnum {
   ALL(5),
   ANY(6);
 
-  private static final Map<Integer, ConsistencyLevel> BY_VALUE = new HashMap<Integer,ConsistencyLevel>() {{
-    for(ConsistencyLevel val : ConsistencyLevel.values()) {
-      put(val.getValue(), val);
-    }
-  }};
-
   private final int value;
 
   private ConsistencyLevel(int value) {
@@ -90,6 +84,23 @@ public enum ConsistencyLevel implements TEnum {
    * @return null if the value is not found.
    */
   public static ConsistencyLevel findByValue(int value) { 
-    return BY_VALUE.get(value);
+    switch (value) {
+      case 0:
+        return ZERO;
+      case 1:
+        return ONE;
+      case 2:
+        return QUORUM;
+      case 3:
+        return DCQUORUM;
+      case 4:
+        return DCQUORUMSYNC;
+      case 5:
+        return ALL;
+      case 6:
+        return ANY;
+      default:
+        return null;
+    }
   }
 }

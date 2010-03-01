@@ -302,21 +302,23 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
     int lastComparison = 0;
     Mutation typedOther = (Mutation)other;
 
-    lastComparison = Boolean.valueOf(isSetColumn_or_supercolumn()).compareTo(isSetColumn_or_supercolumn());
+    lastComparison = Boolean.valueOf(isSetColumn_or_supercolumn()).compareTo(typedOther.isSetColumn_or_supercolumn());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(column_or_supercolumn, typedOther.column_or_supercolumn);
+    if (isSetColumn_or_supercolumn()) {      lastComparison = TBaseHelper.compareTo(column_or_supercolumn, typedOther.column_or_supercolumn);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetDeletion()).compareTo(typedOther.isSetDeletion());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetDeletion()).compareTo(isSetDeletion());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(deletion, typedOther.deletion);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetDeletion()) {      lastComparison = TBaseHelper.compareTo(deletion, typedOther.deletion);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -330,30 +332,27 @@ public class Mutation implements TBase<Mutation._Fields>, java.io.Serializable, 
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case COLUMN_OR_SUPERCOLUMN:
-            if (field.type == TType.STRUCT) {
-              this.column_or_supercolumn = new ColumnOrSuperColumn();
-              this.column_or_supercolumn.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case DELETION:
-            if (field.type == TType.STRUCT) {
-              this.deletion = new Deletion();
-              this.deletion.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 1: // COLUMN_OR_SUPERCOLUMN
+          if (field.type == TType.STRUCT) {
+            this.column_or_supercolumn = new ColumnOrSuperColumn();
+            this.column_or_supercolumn.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // DELETION
+          if (field.type == TType.STRUCT) {
+            this.deletion = new Deletion();
+            this.deletion.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

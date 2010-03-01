@@ -493,6 +493,8 @@ class TestMutations(ThriftTester):
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', column='x'*(2**16)), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
 
     def test_bad_calls(self):
+        # missing arguments
+        _expect_exception(lambda: client.insert(None, None, None, None, None, None), TApplicationException)
         # supercolumn in a non-super CF
         _expect_exception(lambda: client.insert('Keyspace1', 'key1', ColumnPath('Standard1', 'x', 'y'), 'value', 0, ConsistencyLevel.ONE), InvalidRequestException)
         # key too long

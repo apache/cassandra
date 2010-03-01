@@ -331,21 +331,23 @@ public class SlicePredicate implements TBase<SlicePredicate._Fields>, java.io.Se
     int lastComparison = 0;
     SlicePredicate typedOther = (SlicePredicate)other;
 
-    lastComparison = Boolean.valueOf(isSetColumn_names()).compareTo(isSetColumn_names());
+    lastComparison = Boolean.valueOf(isSetColumn_names()).compareTo(typedOther.isSetColumn_names());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(column_names, typedOther.column_names);
+    if (isSetColumn_names()) {      lastComparison = TBaseHelper.compareTo(column_names, typedOther.column_names);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetSlice_range()).compareTo(typedOther.isSetSlice_range());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetSlice_range()).compareTo(isSetSlice_range());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(slice_range, typedOther.slice_range);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetSlice_range()) {      lastComparison = TBaseHelper.compareTo(slice_range, typedOther.slice_range);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -359,39 +361,36 @@ public class SlicePredicate implements TBase<SlicePredicate._Fields>, java.io.Se
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case COLUMN_NAMES:
-            if (field.type == TType.LIST) {
+      switch (field.id) {
+        case 1: // COLUMN_NAMES
+          if (field.type == TType.LIST) {
+            {
+              TList _list4 = iprot.readListBegin();
+              this.column_names = new ArrayList<byte[]>(_list4.size);
+              for (int _i5 = 0; _i5 < _list4.size; ++_i5)
               {
-                TList _list4 = iprot.readListBegin();
-                this.column_names = new ArrayList<byte[]>(_list4.size);
-                for (int _i5 = 0; _i5 < _list4.size; ++_i5)
-                {
-                  byte[] _elem6;
-                  _elem6 = iprot.readBinary();
-                  this.column_names.add(_elem6);
-                }
-                iprot.readListEnd();
+                byte[] _elem6;
+                _elem6 = iprot.readBinary();
+                this.column_names.add(_elem6);
               }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
+              iprot.readListEnd();
             }
-            break;
-          case SLICE_RANGE:
-            if (field.type == TType.STRUCT) {
-              this.slice_range = new SliceRange();
-              this.slice_range.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // SLICE_RANGE
+          if (field.type == TType.STRUCT) {
+            this.slice_range = new SliceRange();
+            this.slice_range.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

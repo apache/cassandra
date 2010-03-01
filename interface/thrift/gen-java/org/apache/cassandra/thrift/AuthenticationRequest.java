@@ -279,33 +279,30 @@ public class AuthenticationRequest implements TBase<AuthenticationRequest._Field
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case CREDENTIALS:
-            if (field.type == TType.MAP) {
+      switch (field.id) {
+        case 1: // CREDENTIALS
+          if (field.type == TType.MAP) {
+            {
+              TMap _map16 = iprot.readMapBegin();
+              this.credentials = new HashMap<String,String>(2*_map16.size);
+              for (int _i17 = 0; _i17 < _map16.size; ++_i17)
               {
-                TMap _map16 = iprot.readMapBegin();
-                this.credentials = new HashMap<String,String>(2*_map16.size);
-                for (int _i17 = 0; _i17 < _map16.size; ++_i17)
-                {
-                  String _key18;
-                  String _val19;
-                  _key18 = iprot.readString();
-                  _val19 = iprot.readString();
-                  this.credentials.put(_key18, _val19);
-                }
-                iprot.readMapEnd();
+                String _key18;
+                String _val19;
+                _key18 = iprot.readString();
+                _val19 = iprot.readString();
+                this.credentials.put(_key18, _val19);
               }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
+              iprot.readMapEnd();
             }
-            break;
-        }
-        iprot.readFieldEnd();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

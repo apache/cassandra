@@ -333,21 +333,23 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
     int lastComparison = 0;
     KeySlice typedOther = (KeySlice)other;
 
-    lastComparison = Boolean.valueOf(isSetKey()).compareTo(isSetKey());
+    lastComparison = Boolean.valueOf(isSetKey()).compareTo(typedOther.isSetKey());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+    if (isSetKey()) {      lastComparison = TBaseHelper.compareTo(key, typedOther.key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetColumns()).compareTo(typedOther.isSetColumns());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetColumns()).compareTo(isSetColumns());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(columns, typedOther.columns);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetColumns()) {      lastComparison = TBaseHelper.compareTo(columns, typedOther.columns);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -361,39 +363,36 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case KEY:
-            if (field.type == TType.STRING) {
-              this.key = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case COLUMNS:
-            if (field.type == TType.LIST) {
+      switch (field.id) {
+        case 1: // KEY
+          if (field.type == TType.STRING) {
+            this.key = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // COLUMNS
+          if (field.type == TType.LIST) {
+            {
+              TList _list8 = iprot.readListBegin();
+              this.columns = new ArrayList<ColumnOrSuperColumn>(_list8.size);
+              for (int _i9 = 0; _i9 < _list8.size; ++_i9)
               {
-                TList _list8 = iprot.readListBegin();
-                this.columns = new ArrayList<ColumnOrSuperColumn>(_list8.size);
-                for (int _i9 = 0; _i9 < _list8.size; ++_i9)
-                {
-                  ColumnOrSuperColumn _elem10;
-                  _elem10 = new ColumnOrSuperColumn();
-                  _elem10.read(iprot);
-                  this.columns.add(_elem10);
-                }
-                iprot.readListEnd();
+                ColumnOrSuperColumn _elem10;
+                _elem10 = new ColumnOrSuperColumn();
+                _elem10.read(iprot);
+                this.columns.add(_elem10);
               }
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
+              iprot.readListEnd();
             }
-            break;
-        }
-        iprot.readFieldEnd();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 
