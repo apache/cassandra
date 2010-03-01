@@ -5,7 +5,7 @@ Features
 --------
     - row caching: configure with the RowsCached attribute in
       ColumnFamily definition
-    - Hadoop map/reduce support see contrib/word_count for an example
+    - Hadoop map/reduce support: see contrib/word_count for an example
     - experimental authentication support, described under
       Authenticator in storage.conf
 

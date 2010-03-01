@@ -35,6 +35,7 @@
    (CASSANDRA-799)
  * use while loop instead of recursion when trimming sstables compaction list 
    to avoid blowing stack in pathological cases (CASSANDRA-804)
+ * basic Hadoop map/reduce support (CASSANDRA-342)
 
 
 0.5.1
