@@ -361,29 +361,32 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
     int lastComparison = 0;
     Deletion typedOther = (Deletion)other;
 
-    lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(isSetTimestamp());
+    lastComparison = Boolean.valueOf(isSetTimestamp()).compareTo(typedOther.isSetTimestamp());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+    if (isSetTimestamp()) {      lastComparison = TBaseHelper.compareTo(timestamp, typedOther.timestamp);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(typedOther.isSetSuper_column());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(isSetSuper_column());
+    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(typedOther.isSetPredicate());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = Boolean.valueOf(isSetPredicate()).compareTo(isSetPredicate());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetPredicate()) {      lastComparison = TBaseHelper.compareTo(predicate, typedOther.predicate);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -397,37 +400,34 @@ public class Deletion implements TBase<Deletion._Fields>, java.io.Serializable, 
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case TIMESTAMP:
-            if (field.type == TType.I64) {
-              this.timestamp = iprot.readI64();
-              setTimestampIsSet(true);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case SUPER_COLUMN:
-            if (field.type == TType.STRING) {
-              this.super_column = iprot.readBinary();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case PREDICATE:
-            if (field.type == TType.STRUCT) {
-              this.predicate = new SlicePredicate();
-              this.predicate.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 1: // TIMESTAMP
+          if (field.type == TType.I64) {
+            this.timestamp = iprot.readI64();
+            setTimestampIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // SUPER_COLUMN
+          if (field.type == TType.STRING) {
+            this.super_column = iprot.readBinary();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 3: // PREDICATE
+          if (field.type == TType.STRUCT) {
+            this.predicate = new SlicePredicate();
+            this.predicate.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

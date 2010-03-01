@@ -441,37 +441,41 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     int lastComparison = 0;
     SliceRange typedOther = (SliceRange)other;
 
-    lastComparison = Boolean.valueOf(isSetStart()).compareTo(isSetStart());
+    lastComparison = Boolean.valueOf(isSetStart()).compareTo(typedOther.isSetStart());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(start, typedOther.start);
+    if (isSetStart()) {      lastComparison = TBaseHelper.compareTo(start, typedOther.start);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetFinish()).compareTo(typedOther.isSetFinish());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetFinish()).compareTo(isSetFinish());
+    if (isSetFinish()) {      lastComparison = TBaseHelper.compareTo(finish, typedOther.finish);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetReversed()).compareTo(typedOther.isSetReversed());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(finish, typedOther.finish);
+    if (isSetReversed()) {      lastComparison = TBaseHelper.compareTo(reversed, typedOther.reversed);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCount()).compareTo(typedOther.isSetCount());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetReversed()).compareTo(isSetReversed());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(reversed, typedOther.reversed);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = Boolean.valueOf(isSetCount()).compareTo(isSetCount());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(count, typedOther.count);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -485,44 +489,41 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case START:
-            if (field.type == TType.STRING) {
-              this.start = iprot.readBinary();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case FINISH:
-            if (field.type == TType.STRING) {
-              this.finish = iprot.readBinary();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case REVERSED:
-            if (field.type == TType.BOOL) {
-              this.reversed = iprot.readBool();
-              setReversedIsSet(true);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case COUNT:
-            if (field.type == TType.I32) {
-              this.count = iprot.readI32();
-              setCountIsSet(true);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 1: // START
+          if (field.type == TType.STRING) {
+            this.start = iprot.readBinary();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // FINISH
+          if (field.type == TType.STRING) {
+            this.finish = iprot.readBinary();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 3: // REVERSED
+          if (field.type == TType.BOOL) {
+            this.reversed = iprot.readBool();
+            setReversedIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 4: // COUNT
+          if (field.type == TType.I32) {
+            this.count = iprot.readI32();
+            setCountIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

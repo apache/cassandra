@@ -254,13 +254,14 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
     int lastComparison = 0;
     InvalidRequestException typedOther = (InvalidRequestException)other;
 
-    lastComparison = Boolean.valueOf(isSetWhy()).compareTo(isSetWhy());
+    lastComparison = Boolean.valueOf(isSetWhy()).compareTo(typedOther.isSetWhy());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(why, typedOther.why);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetWhy()) {      lastComparison = TBaseHelper.compareTo(why, typedOther.why);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -274,21 +275,18 @@ public class InvalidRequestException extends Exception implements TBase<InvalidR
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case WHY:
-            if (field.type == TType.STRING) {
-              this.why = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 1: // WHY
+          if (field.type == TType.STRING) {
+            this.why = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

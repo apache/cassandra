@@ -478,45 +478,50 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
     int lastComparison = 0;
     KeyRange typedOther = (KeyRange)other;
 
-    lastComparison = Boolean.valueOf(isSetStart_key()).compareTo(isSetStart_key());
+    lastComparison = Boolean.valueOf(isSetStart_key()).compareTo(typedOther.isSetStart_key());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(start_key, typedOther.start_key);
+    if (isSetStart_key()) {      lastComparison = TBaseHelper.compareTo(start_key, typedOther.start_key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetEnd_key()).compareTo(typedOther.isSetEnd_key());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetEnd_key()).compareTo(isSetEnd_key());
+    if (isSetEnd_key()) {      lastComparison = TBaseHelper.compareTo(end_key, typedOther.end_key);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(typedOther.isSetStart_token());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(end_key, typedOther.end_key);
+    if (isSetStart_token()) {      lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(typedOther.isSetEnd_token());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetStart_token()).compareTo(isSetStart_token());
+    if (isSetEnd_token()) {      lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetCount()).compareTo(typedOther.isSetCount());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(start_token, typedOther.start_token);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = Boolean.valueOf(isSetEnd_token()).compareTo(isSetEnd_token());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(end_token, typedOther.end_token);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = Boolean.valueOf(isSetCount()).compareTo(isSetCount());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(count, typedOther.count);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetCount()) {      lastComparison = TBaseHelper.compareTo(count, typedOther.count);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -530,50 +535,47 @@ public class KeyRange implements TBase<KeyRange._Fields>, java.io.Serializable, 
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case START_KEY:
-            if (field.type == TType.STRING) {
-              this.start_key = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case END_KEY:
-            if (field.type == TType.STRING) {
-              this.end_key = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case START_TOKEN:
-            if (field.type == TType.STRING) {
-              this.start_token = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case END_TOKEN:
-            if (field.type == TType.STRING) {
-              this.end_token = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case COUNT:
-            if (field.type == TType.I32) {
-              this.count = iprot.readI32();
-              setCountIsSet(true);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 1: // START_KEY
+          if (field.type == TType.STRING) {
+            this.start_key = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // END_KEY
+          if (field.type == TType.STRING) {
+            this.end_key = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 3: // START_TOKEN
+          if (field.type == TType.STRING) {
+            this.start_token = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 4: // END_TOKEN
+          if (field.type == TType.STRING) {
+            this.end_token = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 5: // COUNT
+          if (field.type == TType.I32) {
+            this.count = iprot.readI32();
+            setCountIsSet(true);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

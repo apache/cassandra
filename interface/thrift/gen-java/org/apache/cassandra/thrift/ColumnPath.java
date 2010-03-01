@@ -370,29 +370,32 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
     int lastComparison = 0;
     ColumnPath typedOther = (ColumnPath)other;
 
-    lastComparison = Boolean.valueOf(isSetColumn_family()).compareTo(isSetColumn_family());
+    lastComparison = Boolean.valueOf(isSetColumn_family()).compareTo(typedOther.isSetColumn_family());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(column_family, typedOther.column_family);
+    if (isSetColumn_family()) {      lastComparison = TBaseHelper.compareTo(column_family, typedOther.column_family);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(typedOther.isSetSuper_column());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(isSetSuper_column());
+    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(typedOther.isSetColumn());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(isSetColumn());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(column, typedOther.column);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetColumn()) {      lastComparison = TBaseHelper.compareTo(column, typedOther.column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -406,35 +409,32 @@ public class ColumnPath implements TBase<ColumnPath._Fields>, java.io.Serializab
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case COLUMN_FAMILY:
-            if (field.type == TType.STRING) {
-              this.column_family = iprot.readString();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case SUPER_COLUMN:
-            if (field.type == TType.STRING) {
-              this.super_column = iprot.readBinary();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case COLUMN:
-            if (field.type == TType.STRING) {
-              this.column = iprot.readBinary();
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 3: // COLUMN_FAMILY
+          if (field.type == TType.STRING) {
+            this.column_family = iprot.readString();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 4: // SUPER_COLUMN
+          if (field.type == TType.STRING) {
+            this.super_column = iprot.readBinary();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 5: // COLUMN
+          if (field.type == TType.STRING) {
+            this.column = iprot.readBinary();
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 

@@ -307,21 +307,23 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn._Fields>, 
     int lastComparison = 0;
     ColumnOrSuperColumn typedOther = (ColumnOrSuperColumn)other;
 
-    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(isSetColumn());
+    lastComparison = Boolean.valueOf(isSetColumn()).compareTo(typedOther.isSetColumn());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = TBaseHelper.compareTo(column, typedOther.column);
+    if (isSetColumn()) {      lastComparison = TBaseHelper.compareTo(column, typedOther.column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(typedOther.isSetSuper_column());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    lastComparison = Boolean.valueOf(isSetSuper_column()).compareTo(isSetSuper_column());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
-    if (lastComparison != 0) {
-      return lastComparison;
+    if (isSetSuper_column()) {      lastComparison = TBaseHelper.compareTo(super_column, typedOther.super_column);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
     }
     return 0;
   }
@@ -335,30 +337,27 @@ public class ColumnOrSuperColumn implements TBase<ColumnOrSuperColumn._Fields>, 
       if (field.type == TType.STOP) { 
         break;
       }
-      _Fields fieldId = _Fields.findByThriftId(field.id);
-      if (fieldId == null) {
-        TProtocolUtil.skip(iprot, field.type);
-      } else {
-        switch (fieldId) {
-          case COLUMN:
-            if (field.type == TType.STRUCT) {
-              this.column = new Column();
-              this.column.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-          case SUPER_COLUMN:
-            if (field.type == TType.STRUCT) {
-              this.super_column = new SuperColumn();
-              this.super_column.read(iprot);
-            } else { 
-              TProtocolUtil.skip(iprot, field.type);
-            }
-            break;
-        }
-        iprot.readFieldEnd();
+      switch (field.id) {
+        case 1: // COLUMN
+          if (field.type == TType.STRUCT) {
+            this.column = new Column();
+            this.column.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        case 2: // SUPER_COLUMN
+          if (field.type == TType.STRUCT) {
+            this.super_column = new SuperColumn();
+            this.super_column.read(iprot);
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
+        default:
+          TProtocolUtil.skip(iprot, field.type);
       }
+      iprot.readFieldEnd();
     }
     iprot.readStructEnd();
 
