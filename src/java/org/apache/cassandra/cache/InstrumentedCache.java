@@ -31,7 +31,8 @@ public class InstrumentedCache<K, V>
     private final ConcurrentLinkedHashMap<K, V> map;
     private final AtomicLong requests = new AtomicLong(0);
     private final AtomicLong hits = new AtomicLong(0);
-    long lastRequests, lastHits;
+    private final AtomicLong lastRequests = new AtomicLong(0);
+    private final AtomicLong lastHits = new AtomicLong(0);
 
     public InstrumentedCache(int capacity)
     {
@@ -95,12 +96,19 @@ public class InstrumentedCache<K, V>
         long h = hits.get();
         try
         {
-            return ((double)(h - lastHits)) / (r - lastRequests);
+            return ((double)(h - lastHits.get())) / (r - lastRequests.get());
         }
         finally
         {
-            lastRequests = r;
-            lastHits = h;
+            lastRequests.set(r);
+            lastHits.set(h);
         }
+    }
+
+    public void clear()
+    {
+        map.clear();
+        requests.set(0);
+        hits.set(0);
     }
 }
