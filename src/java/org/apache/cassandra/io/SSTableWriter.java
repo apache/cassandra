@@ -131,15 +131,6 @@ public class SSTableWriter extends SSTable
 
     public SSTableReader closeAndOpenReader() throws IOException
     {
-        return closeAndOpenReader(false);
-    }
-
-    /**
-     * Renames temporary SSTable files to valid data, index, and bloom filter files.
-     * The SSTableWriter object will no longer be valid.
-     */
-    public SSTableReader closeAndOpenReader(boolean temporary) throws IOException
-    {
         // bloom filter
         FileOutputStream fos = new FileOutputStream(filterFilename());
         DataOutputStream stream = new DataOutputStream(fos);
@@ -156,12 +147,9 @@ public class SSTableWriter extends SSTable
         dataFile.close(); // calls force
 
         String newpath = getFilename();
-        if (!temporary)
-        {
-            rename(indexFilename());
-            rename(filterFilename());
-            newpath = rename(newpath); // important to do this last since index & filter file names are derived from it
-        }
+        rename(indexFilename());
+        rename(filterFilename());
+        newpath = rename(newpath); // important to do this last since index & filter file names are derived from it
 
         return new SSTableReader(newpath, partitioner, indexPositions, spannedIndexDataPositions, bf);
     }
