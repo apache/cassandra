@@ -253,6 +253,7 @@ public abstract class SSTable
         public final String cfname;
         public final int generation;
         public final boolean temporary;
+        private final int hashCode;
 
         /**
          * A descriptor that assumes CURRENT_VERSION.
@@ -271,6 +272,7 @@ public abstract class SSTable
             this.cfname = cfname;
             this.generation = generation;
             temporary = temp;
+            hashCode = Objects.hashCode(directory, generation, ksname, cfname);
         }
 
         /**
@@ -293,7 +295,7 @@ public abstract class SSTable
 
         /**
          * Filename of the form "<ksname>/<cfname>-[tmp-][<version>-]<gen>-*"
-         * @param name A full SSTable filename, including the directory.
+         * @param filename A full SSTable filename, including the directory.
          * @return A SSTable.Descriptor for the filename. 
          */
         public static Descriptor fromFilename(String filename)
@@ -367,7 +369,7 @@ public abstract class SSTable
         @Override
         public int hashCode()
         {
-            return Objects.hashCode(directory, generation, ksname, cfname);
+            return hashCode;
         }
     }
 }
