@@ -89,10 +89,6 @@ public abstract class AbstractReplicationStrategy
             }
             else
             {
-                // Ignore targets that have died when bootstrapping
-                if (!tokenMetadata_.isMember(ep))
-                    continue;
-
                 // find another endpoint to store a hint on.  prefer endpoints that aren't already in use
                 InetAddress hintLocation = null;
                 List<InetAddress> preferred = endPointSnitch.getSortedListByProximity(ep, liveNodes);

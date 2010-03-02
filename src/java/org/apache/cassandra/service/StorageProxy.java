@@ -183,7 +183,7 @@ public class StorageProxy implements StorageProxyMBean
                 mostRecentRowMutation = rm;
                 List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.getTable(), rm.key());
                 Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.getTable(), rm.key(), naturalEndpoints);
-                int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
+                int blockFor = determineBlockFor(endpointMap.size(), consistency_level);
                 
                 // avoid starting a write we know can't achieve the required consistency
                 assureSufficientLiveNodes(endpointMap, blockFor, consistency_level);
@@ -292,40 +292,25 @@ public class StorageProxy implements StorageProxyMBean
         StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
     }
 
-    private static int determineBlockFor(int naturalTargets, int hintedTargets, ConsistencyLevel consistency_level)
+    private static int determineBlockFor(int expandedTargets, ConsistencyLevel consistency_level)
     {
-        assert naturalTargets >= 1;
-        assert hintedTargets >= naturalTargets;
-
-        int bootstrapTargets = hintedTargets - naturalTargets;
-        int blockFor;
-        if (consistency_level == ConsistencyLevel.ONE)
+        switch (consistency_level)
         {
-            blockFor = 1 + bootstrapTargets;
+            case ONE:
+            case ANY:
+                return 1;
+            case QUORUM:
+                return (expandedTargets / 2) + 1;
+            case DCQUORUM:
+            case DCQUORUMSYNC:
+                // TODO this is broken
+                return expandedTargets;
+            case ALL:
+                return expandedTargets;
+            default:
+                throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
         }
-        else if (consistency_level == ConsistencyLevel.QUORUM)
-        {
-            blockFor = (naturalTargets / 2) + 1 + bootstrapTargets;
-        }
-        else if (consistency_level == ConsistencyLevel.DCQUORUM || consistency_level == ConsistencyLevel.DCQUORUMSYNC)
-        {
-            // TODO this is broken
-            blockFor = naturalTargets;
-        }
-        else if (consistency_level == ConsistencyLevel.ALL)
-        {
-            blockFor = naturalTargets + bootstrapTargets;
-        }
-        else if (consistency_level == ConsistencyLevel.ANY)
-        {
-            blockFor = 1;
-        }
-        else
-        {
-            throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
-        }
-        return blockFor;
-    }    
+    }
 
     /**
      * Read the data from one replica.  When we get
@@ -443,7 +428,7 @@ public class StorageProxy implements StorageProxyMBean
             InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
             List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
             final String table = command.table;
-            int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
+            int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
             if (endpointList.size() < responseCount)
                 throw new UnavailableException();
 
@@ -547,7 +532,7 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
 
         final String table = command.keyspace;
-        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
+        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
 
         List<Pair<AbstractBounds, List<InetAddress>>> ranges = getRestrictedRanges(command.range, command.keyspace, responseCount);
 
