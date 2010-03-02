@@ -4,6 +4,8 @@
  * deprecate KeysCachedFraction configuration directive in favor
    of KeysCached; move to unified-per-CF key cache (CASSANDRA-801)
  * add invalidateRowCache to ColumnFamilyStoreMBean (CASSANDRA-761)
+ * send Handoff hints to natural locations to reduce load on
+   remaining nodes in a failure scenario (CASSANDRA-822)
 
 
 0.6.0-beta1/beta2
