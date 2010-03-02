@@ -1177,18 +1177,6 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     }
 
     /**
-     * This method returns the N endpoints that are responsible for storing the
-     * specified key i.e for replication.
-     *
-     * @param key - key for which we need to find the endpoint return value -
-     * the endpoint responsible for this key
-     */
-    public Map<InetAddress, InetAddress> getHintedEndpointMap(String table, String key, List<InetAddress> naturalEndpoints)
-    {
-        return getReplicationStrategy(table).getHintedEndpoints(partitioner_.getToken(key), table, naturalEndpoints);
-    }
-
-    /**
      * This function finds the closest live endpoint that contains a given key.
      */
     public InetAddress findSuitableEndPoint(String table, String key) throws IOException, UnavailableException

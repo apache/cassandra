@@ -52,6 +52,11 @@ public abstract class AbstractReplicationStrategy
         snitch_ = snitch;
     }
 
+    /**
+     * get the endpoints that should store the given Token, for the given table.
+     * Note that while the endpoints are conceptually a Set (no duplicates will be included),
+     * we return a List to avoid an extra allocation when sorting by proximity later.
+     */
     public abstract ArrayList<InetAddress> getNaturalEndpoints(Token token, TokenMetadata metadata, String table);
     
     public WriteResponseHandler getWriteResponseHandler(int blockFor, ConsistencyLevel consistency_level, String table)
@@ -65,51 +70,43 @@ public abstract class AbstractReplicationStrategy
     }
     
     /**
-     * returns map of {ultimate target: destination}, where if destination is not the same
-     * as the ultimate target, it is a "hinted" node, a node that will deliver the data to
+     * returns multimap of {live destination: ultimate targets}, where if target is not the same
+     * as the destination, it is a "hinted" write, and will need to be sent to
      * the ultimate target when it becomes alive again.
-     *
-     * A destination node may be the destination for multiple targets.
      */
-    public Map<InetAddress, InetAddress> getHintedEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    public Multimap<InetAddress, InetAddress> getHintedEndpoints(String table, Collection<InetAddress> targets)
     {
-        Collection<InetAddress> targets = getWriteEndpoints(token, table, naturalEndpoints);
-        Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
-        Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
+        Multimap<InetAddress, InetAddress> map = HashMultimap.create(targets.size(), 1);
 
         IEndPointSnitch endPointSnitch = DatabaseDescriptor.getEndPointSnitch(table);
-        Set<InetAddress> liveNodes = Gossiper.instance.getLiveMembers();
 
+        // first, add the live endpoints
         for (InetAddress ep : targets)
         {
             if (FailureDetector.instance.isAlive(ep))
-            {
                 map.put(ep, ep);
-                usedEndpoints.add(ep);
-            }
-            else
-            {
-                // find another endpoint to store a hint on.  prefer endpoints that aren't already in use
-                InetAddress hintLocation = null;
-                List<InetAddress> preferred = endPointSnitch.getSortedListByProximity(ep, liveNodes);
+        }
 
-                for (InetAddress hintCandidate : preferred)
-                {
-                    if (!targets.contains(hintCandidate)
-                        && !usedEndpoints.contains(hintCandidate)
-                        && tokenMetadata_.isMember(hintCandidate))
-                    {
-                        hintLocation = hintCandidate;
-                        break;
-                    }
-                }
-                // if all endpoints are already in use, might as well store it locally to save the network trip
-                if (hintLocation == null)
-                    hintLocation = FBUtilities.getLocalAddress();
+        if (map.size() == targets.size())
+            return map; // everything was alive
 
-                map.put(ep, hintLocation);
-                usedEndpoints.add(hintLocation);
-            }
+        // assign dead endpoints to be hinted to the closest live one, or to the local node
+        // (since it is trivially the closest) if none are alive.  This way, the cost of doing
+        // a hint is only adding the hint header, rather than doing a full extra write, if any
+        // destination nodes are alive.
+        //
+        // we do a 2nd pass on targets instead of using temporary storage,
+        // to optimize for the common case (everything was alive).
+        InetAddress localAddress = FBUtilities.getLocalAddress();
+        for (InetAddress ep : targets)
+        {
+            if (map.containsKey(ep))
+                continue;
+
+            InetAddress destination = map.isEmpty()
+                                    ? localAddress
+                                    : endPointSnitch.getSortedListByProximity(localAddress, map.keySet()).get(0);
+            map.put(destination, ep);
         }
 
         return map;
