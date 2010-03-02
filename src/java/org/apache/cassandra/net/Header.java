@@ -99,34 +99,14 @@ public class Header
         messageId_ = id;
     }
     
-    void setMessageType(String type)
-    {
-        type_ = type;
-    }
-    
-    void setMessageVerb(StorageService.Verb verb)
-    {
-        verb_ = verb;
-    }
-    
     byte[] getDetail(Object key)
     {
         return details_.get(key);
     }
-    
-    void removeDetail(Object key)
-    {
-        details_.remove(key);
-    }
-    
-    void addDetail(String key, byte[] value)
+
+    void setDetail(String key, byte[] value)
     {
         details_.put(key, value);
-    }
-    
-    Map<String, byte[]> getDetails()
-    {
-        return details_;
     }
 }
 

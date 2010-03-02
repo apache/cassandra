@@ -27,11 +27,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.lang.management.ManagementFactory;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import java.net.InetAddress;
@@ -145,7 +144,7 @@ public class StorageProxy implements StorageProxyMBean
                         else
                         {
                             Message hintedMessage = rm.makeRowMutationMessage();
-                            hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
+                            addHintHeader(hintedMessage, target);
                             if (logger.isDebugEnabled())
                                 logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
                             MessagingService.instance.sendOneWay(hintedMessage, hintedTarget);
@@ -163,7 +162,14 @@ public class StorageProxy implements StorageProxyMBean
             writeStats.addNano(System.nanoTime() - startTime);
         }
     }
-    
+
+    private static void addHintHeader(Message message, InetAddress target)
+    {
+        byte[] oldHint = message.getHeader(RowMutation.HINT);
+        byte[] hint = oldHint == null ? target.getAddress() : ArrayUtils.addAll(oldHint, target.getAddress());
+        message.setHeader(RowMutation.HINT, hint);
+    }
+
     public static void mutateBlocking(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         long startTime = System.nanoTime();
@@ -214,7 +220,7 @@ public class StorageProxy implements StorageProxyMBean
                     else
                     {
                         Message hintedMessage = rm.makeRowMutationMessage();
-                        hintedMessage.addHeader(RowMutation.HINT, naturalTarget.getAddress());
+                        addHintHeader(hintedMessage, naturalTarget);
                         // (hints are part of the callback and count towards consistency only under CL.ANY
                         if (consistency_level == ConsistencyLevel.ANY)
                             MessagingService.instance.addCallback(responseHandler, hintedMessage.getMessageId());
@@ -343,7 +349,7 @@ public class StorageProxy implements StorageProxyMBean
 
             if (logger.isDebugEnabled())
                 logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
+            message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
             iars.add(MessagingService.instance.sendRR(message, endPoint));
         }
 
