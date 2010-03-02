@@ -31,7 +31,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.WriteResponseHandler;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -65,43 +64,6 @@ public abstract class AbstractReplicationStrategy
         return getNaturalEndpoints(token, tokenMetadata_, table);
     }
     
-    /*
-     * This method returns the hint map. The key is the endpoint
-     * on which the data is being placed and the value is the
-     * endpoint to which it should be forwarded.
-     */
-    public Map<InetAddress, InetAddress> getHintedEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
-    {
-        return getHintedMapForEndpoints(table, getWriteEndpoints(token, table, naturalEndpoints));
-    }
-
-    /**
-     * write endpoints may be different from read endpoints, because read endpoints only need care about the
-     * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping
-     * into the ring, and write data there too so that they stay up to date during the bootstrap process.
-     * Thus, this method may return more nodes than the Replication Factor.
-     *
-     * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
-     * todo: this method should be moved into TokenMetadata.
-     */
-    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
-    {
-        if (tokenMetadata_.getPendingRanges(table).isEmpty())
-            return naturalEndpoints;
-
-        List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
-
-        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(table).entrySet())
-        {
-            if (entry.getKey().contains(token))
-            {
-                endpoints.addAll(entry.getValue());
-            }
-        }
-
-        return endpoints;
-    }
-
     /**
      * returns map of {ultimate target: destination}, where if destination is not the same
      * as the ultimate target, it is a "hinted" node, a node that will deliver the data to
@@ -109,8 +71,9 @@ public abstract class AbstractReplicationStrategy
      *
      * A destination node may be the destination for multiple targets.
      */
-    private Map<InetAddress, InetAddress> getHintedMapForEndpoints(String table, Collection<InetAddress> targets)
+    public Map<InetAddress, InetAddress> getHintedEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
+        Collection<InetAddress> targets = getWriteEndpoints(token, table, naturalEndpoints);
         Set<InetAddress> usedEndpoints = new HashSet<InetAddress>();
         Map<InetAddress, InetAddress> map = new HashMap<InetAddress, InetAddress>();
 
@@ -154,6 +117,35 @@ public abstract class AbstractReplicationStrategy
         }
 
         return map;
+    }
+
+    /**
+     * write endpoints may be different from read endpoints, because read endpoints only need care about the
+     * "natural" nodes for a token, but write endpoints also need to account for nodes that are bootstrapping
+     * into the ring, and write data there too so that they stay up to date during the bootstrap process.
+     * Thus, this method may return more nodes than the Replication Factor.
+     *
+     * If possible, will return the same collection it was passed, for efficiency.
+     *
+     * Only ReplicationStrategy should care about this method (higher level users should only ask for Hinted).
+     * todo: this method should be moved into TokenMetadata.
+     */
+    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    {
+        if (tokenMetadata_.getPendingRanges(table).isEmpty())
+            return naturalEndpoints;
+
+        List<InetAddress> endpoints = new ArrayList<InetAddress>(naturalEndpoints);
+
+        for (Map.Entry<Range, Collection<InetAddress>> entry : tokenMetadata_.getPendingRanges(table).entrySet())
+        {
+            if (entry.getKey().contains(token))
+            {
+                endpoints.addAll(entry.getValue());
+            }
+        }
+
+        return endpoints;
     }
 
     /*
