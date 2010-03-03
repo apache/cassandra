@@ -21,6 +21,8 @@ Configuraton
       BinaryMemtableThroughputInMB.
     - Replication factor is now per-keyspace, rather than global.
     - KeysCachedFraction is deprecated in favor of KeysCached
+    - RowWarningThresholdInMB added, to warn before very large rows
+      get big enough to threaten node stability
 
 Thrift API
 ----------
