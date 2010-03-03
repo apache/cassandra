@@ -91,6 +91,8 @@ public class DatabaseDescriptor
 
     static Map<String, KSMetaData> tables = new HashMap<String, KSMetaData>();
     private static int bmtThreshold = 256;
+    /* if this a row exceeds this threshold, we issue warnings during compaction */
+    private static long rowWarningThreshold = 512 * 1024 * 1024;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -436,6 +438,13 @@ public class DatabaseDescriptor
                 columnIndexSizeInKB = Integer.parseInt(columnIndexSize);
             }
 
+            String rowWarning = xmlUtils.getNodeValue("/Storage/RowWarningThresholdInMB");
+            if (rowWarning != null)
+            {
+                rowWarningThreshold = Integer.parseInt(rowWarning) * 1024 * 1024;
+                if (rowWarningThreshold <= 0)
+                    throw new ConfigurationException("Row warning threshold must be a positive integer");
+            }
             /* data file and commit log directories. they get created later, when they're needed. */
             dataFileDirectories = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
             logFileDirectory = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
@@ -982,6 +991,11 @@ public class DatabaseDescriptor
         return concurrentWriters;
     }
 
+    public static long getRowWarningThreshold()
+    {
+        return rowWarningThreshold;
+    }
+    
     public static String[] getAllDataFileLocations()
     {
         return dataFileDirectories;
