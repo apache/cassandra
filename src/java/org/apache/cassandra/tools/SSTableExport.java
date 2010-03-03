@@ -21,8 +21,8 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.*;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
@@ -47,6 +47,7 @@ public class SSTableExport
     private static int INPUT_FILE_BUFFER_SIZE = 8 * 1024 * 1024;
 
     private static final String KEY_OPTION = "k";
+    private static final String EXCLUDEKEY_OPTION = "x";
     private static final String ENUMERATEKEYS_OPTION = "e";
     private static Options options;
     private static CommandLine cmd;
@@ -59,6 +60,11 @@ public class SSTableExport
         // Number of times -k <key> can be passed on the command line.
         optKey.setArgs(500);
         options.addOption(optKey);
+
+        Option excludeKey = new Option(EXCLUDEKEY_OPTION, true, "Excluded row key");
+        // Number of times -x <key> can be passed on the command line.
+        excludeKey.setArgs(500);
+        options.addOption(excludeKey);
 
         Option optEnumerate = new Option(ENUMERATEKEYS_OPTION, false, "enumerate keys only");
         options.addOption(optEnumerate);
@@ -180,18 +186,21 @@ public class SSTableExport
      * @param keys the keys corresponding to the rows to export
      * @throws IOException on failure to read/write input/output
      */
-    public static void export(String ssTableFile, PrintStream outs, String[] keys)
+    public static void export(String ssTableFile, PrintStream outs, String[] keys, String[] excludes)
     throws IOException
     {
         SSTableReader reader = SSTableReader.open(ssTableFile);
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
+        Set<String> excludeSet = new HashSet<String>(Arrays.asList(excludes));
         int i = 0;
         
         outs.println("{");
         
         for (String key : keys)
         {
+            if (excludeSet.contains(key))
+                continue;
             DecoratedKey<?> dk = partitioner.decorateKey(key);
             scanner.seekTo(dk);
             
@@ -232,23 +241,26 @@ public class SSTableExport
      * @param keys the keys corresponding to the rows to export
      * @throws IOException on failure to read/write input/output
      */
-    public static void export(String ssTableFile, String outFile, String[] keys) throws IOException
+    public static void export(String ssTableFile, String outFile, String[] keys, String[] excludes) throws IOException
     {
         PrintStream outs = new PrintStream(outFile);
-        export(ssTableFile, outs, keys);
+        export(ssTableFile, outs, keys, excludes);
     }
     
     // This is necessary to accommodate the test suite since you cannot open a Reader more
     // than once from within the same process.
-    static void export(SSTableReader reader, PrintStream outs) throws IOException
+    static void export(SSTableReader reader, PrintStream outs, String[] excludes) throws IOException
     {
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
-        
+        Set<String> excludeSet = new HashSet<String>(Arrays.asList(excludes));
+
         outs.println("{");
         
         while(scanner.hasNext())
         {
             IteratingRow row = scanner.next();
+            if (excludeSet.contains(row.getKey().key))
+                continue;
             try
             {
                 String jsonOut = serializeRow(row);
@@ -281,10 +293,10 @@ public class SSTableExport
      * @param outs PrintStream to write the output to
      * @throws IOException on failure to read/write input/output
      */
-    public static void export(String ssTableFile, PrintStream outs) throws IOException
+    public static void export(String ssTableFile, PrintStream outs, String[] excludes) throws IOException
     {
         SSTableReader reader = SSTableReader.open(ssTableFile);
-        export(reader, outs);
+        export(reader, outs, excludes);
     }
     
     /**
@@ -294,10 +306,10 @@ public class SSTableExport
      * @param outFile file to write output to
      * @throws IOException on failure to read/write SSTable/output file
      */
-    public static void export(String ssTableFile, String outFile) throws IOException
+    public static void export(String ssTableFile, String outFile, String[] excludes) throws IOException
     {
         PrintStream outs = new PrintStream(outFile);
-        export(ssTableFile, outs);
+        export(ssTableFile, outs, excludes);
     }
     
     /**
@@ -306,9 +318,9 @@ public class SSTableExport
      * @param ssTableFile SSTable to export
      * @throws IOException on failure to read/write SSTable/standard out
      */
-    public static void export(String ssTableFile) throws IOException
+    public static void export(String ssTableFile, String[] excludes) throws IOException
     {
-        export(ssTableFile, System.out);
+        export(ssTableFile, System.out, excludes);
     }
 
     /**
@@ -320,7 +332,7 @@ public class SSTableExport
      */
     public static void main(String[] args) throws IOException
     {
-        String usage = String.format("Usage: %s <sstable> [-k key [-k key [...]]]%n", SSTableExport.class.getName());
+        String usage = String.format("Usage: %s <sstable> [-k key [-k key [...]] -x key [-x key [...]]]%n", SSTableExport.class.getName());
         
         CommandLineParser parser = new PosixParser();
         try
@@ -343,15 +355,16 @@ public class SSTableExport
         
 
         String[] keys = cmd.getOptionValues(KEY_OPTION);
+        String[] excludes = cmd.getOptionValues(EXCLUDEKEY_OPTION);
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
         
         if (cmd.hasOption(ENUMERATEKEYS_OPTION))
             enumeratekeys(ssTableFileName, System.out);
         else {
             if ((keys != null) && (keys.length > 0))
-                export(ssTableFileName, System.out, keys);
+                export(ssTableFileName, System.out, keys, excludes);
             else
-                export(ssTableFileName);
+                export(ssTableFileName, excludes);
         }
         System.exit(0);
     }
