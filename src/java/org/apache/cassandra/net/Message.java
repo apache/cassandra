@@ -21,7 +21,6 @@ package org.apache.cassandra.net;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Map;
 import java.net.InetAddress;
 
 import org.apache.cassandra.concurrent.StageManager;
@@ -64,14 +63,9 @@ public class Message
         return header_.getDetail(key);
     }
     
-    public void addHeader(String key, byte[] value)
+    public void setHeader(String key, byte[] value)
     {
-        header_.addDetail(key, value);
-    }
-    
-    public Map<String, byte[]> getHeaders()
-    {
-        return header_.getDetails();
+        header_.setDetail(key, value);
     }
 
     public byte[] getMessageBody()

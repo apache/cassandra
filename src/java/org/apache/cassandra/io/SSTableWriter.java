@@ -168,6 +168,11 @@ public class SSTableWriter extends SSTable
         return filename;
     }
 
+    public long getFilePointer()
+    {
+        return dataFile.getFilePointer();
+    }
+    
     public static SSTableReader renameAndOpen(String dataFileName) throws IOException
     {
         SSTableWriter.rename(indexFilename(dataFileName));

@@ -7,6 +7,12 @@ dev
  * deprecate KeysCachedFraction configuration directive in favor
    of KeysCached; move to unified-per-CF key cache (CASSANDRA-801)
  * add invalidateRowCache to ColumnFamilyStoreMBean (CASSANDRA-761)
+ * send Handoff hints to natural locations to reduce load on
+   remaining nodes in a failure scenario (CASSANDRA-822)
+ * Add RowWarningThresholdInMB configuration option to warn before very 
+   large rows get big enough to threaten node stability, and -x option to
+   be able to remove them with sstable2json if the warning is unheeded
+   until it's too late (CASSANDRA-843)
 
 
 0.6.0-beta1/beta2

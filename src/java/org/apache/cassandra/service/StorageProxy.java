@@ -20,39 +20,40 @@ package org.apache.cassandra.service;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
-import java.lang.management.ManagementFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
+import org.apache.log4j.Logger;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
+import com.google.common.collect.Multimap;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import java.net.InetAddress;
-
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LatencyTracker;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.concurrent.StageManager;
-
-import org.apache.log4j.Logger;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 
 public class StorageProxy implements StorageProxyMBean
@@ -102,25 +103,30 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
         try
         {
+            StorageService ss = StorageService.instance;
             for (final RowMutation rm: mutations)
             {
                 try
                 {
-                    List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.getTable(), rm.key());
-                    Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.getTable(), rm.key(), naturalEndpoints);
+                    String table = rm.getTable();
+                    AbstractReplicationStrategy rs = ss.getReplicationStrategy(table);
+
+                    List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
+                    Multimap<InetAddress,InetAddress> hintedEndpoints = rs.getHintedEndpoints(table, naturalEndpoints);
                     Message unhintedMessage = null; // lazy initialize for non-local, unhinted writes
 
                     // 3 cases:
                     // 1. local, unhinted write: run directly on write stage
                     // 2. non-local, unhinted write: send row mutation message
                     // 3. hinted write: add hint header, and send message
-                    for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+                    for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
                     {
-                        InetAddress target = entry.getKey();
-                        InetAddress hintedTarget = entry.getValue();
-                        if (target.equals(hintedTarget))
+                        InetAddress destination = entry.getKey();
+                        Collection<InetAddress> targets = entry.getValue();
+                        if (targets.size() == 1 && targets.iterator().next().equals(destination))
                         {
-                            if (target.equals(FBUtilities.getLocalAddress()))
+                            // unhinted writes
+                            if (destination.equals(FBUtilities.getLocalAddress()))
                             {
                                 if (logger.isDebugEnabled())
                                     logger.debug("insert writing local key " + rm.key());
@@ -138,17 +144,24 @@ public class StorageProxy implements StorageProxyMBean
                                 if (unhintedMessage == null)
                                     unhintedMessage = rm.makeRowMutationMessage();
                                 if (logger.isDebugEnabled())
-                                    logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + target);
-                                MessagingService.instance.sendOneWay(unhintedMessage, target);
+                                    logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                                MessagingService.instance.sendOneWay(unhintedMessage, destination);
                             }
                         }
                         else
                         {
+                            // hinted
                             Message hintedMessage = rm.makeRowMutationMessage();
-                            hintedMessage.addHeader(RowMutation.HINT, target.getAddress());
-                            if (logger.isDebugEnabled())
-                                logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + hintedTarget + " for " + target);
-                            MessagingService.instance.sendOneWay(hintedMessage, hintedTarget);
+                            for (InetAddress target : targets)
+                            {
+                                if (!target.equals(destination))
+                                {
+                                    addHintHeader(hintedMessage, target);
+                                    if (logger.isDebugEnabled())
+                                        logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                                }
+                            }
+                            MessagingService.instance.sendOneWay(hintedMessage, destination);
                         }
                     }
                 }
@@ -163,38 +176,50 @@ public class StorageProxy implements StorageProxyMBean
             writeStats.addNano(System.nanoTime() - startTime);
         }
     }
-    
+
+    private static void addHintHeader(Message message, InetAddress target)
+    {
+        byte[] oldHint = message.getHeader(RowMutation.HINT);
+        byte[] hint = oldHint == null ? target.getAddress() : ArrayUtils.addAll(oldHint, target.getAddress());
+        message.setHeader(RowMutation.HINT, hint);
+    }
+
     public static void mutateBlocking(List<RowMutation> mutations, ConsistencyLevel consistency_level) throws UnavailableException, TimeoutException
     {
         long startTime = System.nanoTime();
         ArrayList<WriteResponseHandler> responseHandlers = new ArrayList<WriteResponseHandler>();
 
         RowMutation mostRecentRowMutation = null;
+        StorageService ss = StorageService.instance;
         try
         {
-            for (RowMutation rm: mutations)
+            for (RowMutation rm : mutations)
             {
                 mostRecentRowMutation = rm;
-                List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(rm.getTable(), rm.key());
-                Map<InetAddress, InetAddress> endpointMap = StorageService.instance.getHintedEndpointMap(rm.getTable(), rm.key(), naturalEndpoints);
-                int blockFor = determineBlockFor(naturalEndpoints.size(), endpointMap.size(), consistency_level);
-                
+                String table = rm.getTable();
+                AbstractReplicationStrategy rs = ss.getReplicationStrategy(table);
+
+                List<InetAddress> naturalEndpoints = ss.getNaturalEndpoints(table, rm.key());
+                Collection<InetAddress> writeEndpoints = rs.getWriteEndpoints(StorageService.getPartitioner().getToken(rm.key()), table, naturalEndpoints);
+                Multimap<InetAddress, InetAddress> hintedEndpoints = rs.getHintedEndpoints(table, writeEndpoints);
+                int blockFor = determineBlockFor(writeEndpoints.size(), consistency_level);
+
                 // avoid starting a write we know can't achieve the required consistency
-                assureSufficientLiveNodes(endpointMap, blockFor, consistency_level);
+                assureSufficientLiveNodes(blockFor, writeEndpoints, hintedEndpoints, consistency_level);
                 
-                // send out the writes, as in insert() above, but this time with a callback that tracks responses
-                final WriteResponseHandler responseHandler = StorageService.instance.getWriteResponseHandler(blockFor, consistency_level, rm.getTable());
+                // send out the writes, as in mutate() above, but this time with a callback that tracks responses
+                final WriteResponseHandler responseHandler = ss.getWriteResponseHandler(blockFor, consistency_level, table);
                 responseHandlers.add(responseHandler);
                 Message unhintedMessage = null;
-                for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
+                for (Map.Entry<InetAddress, Collection<InetAddress>> entry : hintedEndpoints.asMap().entrySet())
                 {
-                    InetAddress naturalTarget = entry.getKey();
-                    InetAddress maybeHintedTarget = entry.getValue();
-    
-                    if (naturalTarget.equals(maybeHintedTarget))
+                    InetAddress destination = entry.getKey();
+                    Collection<InetAddress> targets = entry.getValue();
+
+                    if (targets.size() == 1 && targets.iterator().next().equals(destination))
                     {
-                        // not hinted
-                        if (naturalTarget.equals(FBUtilities.getLocalAddress()))
+                        // unhinted writes
+                        if (destination.equals(FBUtilities.getLocalAddress()))
                         {
                             insertLocalMessage(rm, responseHandler);
                         }
@@ -207,20 +232,27 @@ public class StorageProxy implements StorageProxyMBean
                                 MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
-                                logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + naturalTarget);
-                            MessagingService.instance.sendOneWay(unhintedMessage, naturalTarget);
+                                logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
+                            MessagingService.instance.sendOneWay(unhintedMessage, destination);
                         }
                     }
                     else
                     {
+                        // hinted
                         Message hintedMessage = rm.makeRowMutationMessage();
-                        hintedMessage.addHeader(RowMutation.HINT, naturalTarget.getAddress());
-                        // (hints are part of the callback and count towards consistency only under CL.ANY
-                        if (consistency_level == ConsistencyLevel.ANY)
+                        for (InetAddress target : targets)
+                        {
+                            if (!target.equals(destination))
+                            {
+                                addHintHeader(hintedMessage, target);
+                                if (logger.isDebugEnabled())
+                                    logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + destination + " for " + target);
+                            }
+                        }
+                        // (non-destination hints are part of the callback and count towards consistency only under CL.ANY)
+                        if (writeEndpoints.contains(destination) || consistency_level == ConsistencyLevel.ANY)
                             MessagingService.instance.addCallback(responseHandler, hintedMessage.getMessageId());
-                        if (logger.isDebugEnabled())
-                            logger.debug("insert writing key " + rm.key() + " to " + hintedMessage.getMessageId() + "@" + maybeHintedTarget + " for " + naturalTarget);
-                        MessagingService.instance.sendOneWay(hintedMessage, maybeHintedTarget);
+                        MessagingService.instance.sendOneWay(hintedMessage, destination);
                     }
                 }
             }
@@ -244,30 +276,26 @@ public class StorageProxy implements StorageProxyMBean
 
     }
 
-    private static void assureSufficientLiveNodes(Map<InetAddress, InetAddress> endpointMap, int blockFor, ConsistencyLevel consistencyLevel)
+    private static void assureSufficientLiveNodes(int blockFor, Collection<InetAddress> writeEndpoints, Multimap<InetAddress, InetAddress> hintedEndpoints, ConsistencyLevel consistencyLevel)
             throws UnavailableException
     {
         if (consistencyLevel == ConsistencyLevel.ANY)
         {
             // ensure there are blockFor distinct living nodes (hints are ok).
-            if (new HashSet(endpointMap.values()).size() < blockFor)
+            if (hintedEndpoints.keySet().size() < blockFor)
                 throw new UnavailableException();
         }
-        else
+
+        // count destinations that are part of the desired target set
+        int liveNodes = 0;
+        for (InetAddress destination : hintedEndpoints.keySet())
         {
-            // only count live + unhinted nodes.
-            int liveNodes = 0;
-            for (Map.Entry<InetAddress, InetAddress> entry : endpointMap.entrySet())
-            {
-                if (entry.getKey().equals(entry.getValue()))
-                {
-                    liveNodes++;
-                }
-            }
-            if (liveNodes < blockFor)
-            {
-                throw new UnavailableException();
-            }
+            if (writeEndpoints.contains(destination))
+                liveNodes++;
+        }
+        if (liveNodes < blockFor)
+        {
+            throw new UnavailableException();
         }
     }
 
@@ -286,40 +314,25 @@ public class StorageProxy implements StorageProxyMBean
         StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
     }
 
-    private static int determineBlockFor(int naturalTargets, int hintedTargets, ConsistencyLevel consistency_level)
+    private static int determineBlockFor(int expandedTargets, ConsistencyLevel consistency_level)
     {
-        assert naturalTargets >= 1;
-        assert hintedTargets >= naturalTargets;
-
-        int bootstrapTargets = hintedTargets - naturalTargets;
-        int blockFor;
-        if (consistency_level == ConsistencyLevel.ONE)
+        switch (consistency_level)
         {
-            blockFor = 1 + bootstrapTargets;
+            case ONE:
+            case ANY:
+                return 1;
+            case QUORUM:
+                return (expandedTargets / 2) + 1;
+            case DCQUORUM:
+            case DCQUORUMSYNC:
+                // TODO this is broken
+                return expandedTargets;
+            case ALL:
+                return expandedTargets;
+            default:
+                throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
         }
-        else if (consistency_level == ConsistencyLevel.QUORUM)
-        {
-            blockFor = (naturalTargets / 2) + 1 + bootstrapTargets;
-        }
-        else if (consistency_level == ConsistencyLevel.DCQUORUM || consistency_level == ConsistencyLevel.DCQUORUMSYNC)
-        {
-            // TODO this is broken
-            blockFor = naturalTargets;
-        }
-        else if (consistency_level == ConsistencyLevel.ALL)
-        {
-            blockFor = naturalTargets + bootstrapTargets;
-        }
-        else if (consistency_level == ConsistencyLevel.ANY)
-        {
-            blockFor = 1;
-        }
-        else
-        {
-            throw new UnsupportedOperationException("invalid consistency level " + consistency_level);
-        }
-        return blockFor;
-    }    
+    }
 
     /**
      * Read the data from one replica.  When we get
@@ -343,7 +356,7 @@ public class StorageProxy implements StorageProxyMBean
 
             if (logger.isDebugEnabled())
                 logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            message.addHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
+            message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
             iars.add(MessagingService.instance.sendRR(message, endPoint));
         }
 
@@ -437,7 +450,7 @@ public class StorageProxy implements StorageProxyMBean
             InetAddress dataPoint = StorageService.instance.findSuitableEndPoint(command.table, command.key);
             List<InetAddress> endpointList = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
             final String table = command.table;
-            int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
+            int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
             if (endpointList.size() < responseCount)
                 throw new UnavailableException();
 
@@ -541,7 +554,7 @@ public class StorageProxy implements StorageProxyMBean
         long startTime = System.nanoTime();
 
         final String table = command.keyspace;
-        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), DatabaseDescriptor.getReplicationFactor(table), consistency_level);
+        int responseCount = determineBlockFor(DatabaseDescriptor.getReplicationFactor(table), consistency_level);
 
         List<Pair<AbstractBounds, List<InetAddress>>> ranges = getRestrictedRanges(command.range, command.keyspace, responseCount);
 

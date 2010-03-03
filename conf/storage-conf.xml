@@ -259,6 +259,14 @@
   <DiskAccessMode>auto</DiskAccessMode>
 
   <!--
+   ~ Size of compacted row above which to log a warning.  (If compacted
+   ~ rows do not fit in memory, Cassandra will crash.  This is explained
+   ~ in http://wiki.apache.org/cassandra/CassandraLimitations and is
+   ~ scheduled to be fixed in 0.7.)
+  -->
+  <RowWarningThresholdInMB>512</RowWarningThresholdInMB>
+
+  <!--
    ~ Buffer size to use when performing contiguous column slices. Increase
    ~ this to the size of the column slices you typically perform. 
    ~ (Name-based queries are performed with a buffer size of 

@@ -103,12 +103,19 @@ public class SSTableExportTest
         writer.append(partitioner.decorateKey("rowB"), dob);
         dob.reset();
         cfamily.clear();
-     
+
+        // Add rowExclude
+        cfamily.addColumn(new QueryPath("Standard1", null, "colX".getBytes()), "valX".getBytes(), 1, false);
+        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
+        writer.append(partitioner.decorateKey("rowExclude"), dob);
+        dob.reset();
+        cfamily.clear();
+
         SSTableReader reader = writer.closeAndOpenReader();
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{"rowExclude"});
         
         JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
         
@@ -119,6 +126,9 @@ public class SSTableExportTest
         JSONArray rowB = (JSONArray)json.get("rowB");
         JSONArray colB = (JSONArray)rowB.get(0);
         assert !(Boolean)colB.get(3);
+
+        JSONArray rowExclude = (JSONArray)json.get("rowExclude");
+        assert rowExclude == null;
     }
 
     @Test
@@ -143,12 +153,19 @@ public class SSTableExportTest
         writer.append(partitioner.decorateKey("rowB"), dob);
         dob.reset();
         cfamily.clear();
-     
+
+        // Add rowExclude
+        cfamily.addColumn(new QueryPath("Super4", "superX".getBytes(), "colX".getBytes()), "valX".getBytes(), 1, false);
+        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
+        writer.append(partitioner.decorateKey("rowExclude"), dob);
+        dob.reset();
+        cfamily.clear();
+
         SSTableReader reader = writer.closeAndOpenReader();
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Super4", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{"rowExclude"});
         
         JSONObject json = (JSONObject)JSONValue.parse(new FileReader(tempJson));
         
@@ -156,9 +173,10 @@ public class SSTableExportTest
         JSONObject superA = (JSONObject)rowA.get(cfamily.getComparator().getString("superA".getBytes()));
         JSONArray subColumns = (JSONArray)superA.get("subColumns");
         JSONArray colA = (JSONArray)subColumns.get(0);
-        
+        JSONObject rowExclude = (JSONObject)json.get("rowExclude");
         assert Arrays.equals(hexToBytes((String)colA.get(1)), "valA".getBytes());
-        assert !(Boolean)colA.get(3);       
+        assert !(Boolean)colA.get(3);
+        assert rowExclude == null;
     }
     
     @Test
@@ -176,12 +194,19 @@ public class SSTableExportTest
         writer.append(partitioner.decorateKey("rowA"), dob);
         dob.reset();
         cfamily.clear();
-        
+
+        // Add rowExclude
+        cfamily.addColumn(new QueryPath("Standard1", null, "name".getBytes()), "val".getBytes(), 1, false);
+        ColumnFamily.serializer().serializeWithIndexes(cfamily, dob);
+        writer.append(partitioner.decorateKey("rowExclude"), dob);
+        dob.reset();
+        cfamily.clear();
+
         SSTableReader reader = writer.closeAndOpenReader();
         
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{"rowExclude"});
         
         // Import JSON to another SSTable file
         File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");
@@ -192,6 +217,11 @@ public class SSTableExportTest
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assertTrue(cf != null);
         assertTrue(Arrays.equals(cf.getColumn("name".getBytes()).value(), hexToBytes("76616c")));
+
+        qf = new NamesQueryFilter("rowExclude", new QueryPath("Standard1", null, null), "name".getBytes());
+        cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
+        assert cf == null;
+
     }
     
 }

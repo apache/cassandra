@@ -299,9 +299,15 @@ public class CompactionManager implements CompactionManagerMBean
             while (nni.hasNext())
             {
                 CompactionIterator.CompactedRow row = nni.next();
+                long prevpos = writer.getFilePointer();
+
                 writer.append(row.key, row.buffer);
                 validator.add(row);
                 totalkeysWritten++;
+
+                long rowsize = writer.getFilePointer() - prevpos;
+                if (rowsize > DatabaseDescriptor.getRowWarningThreshold())
+                    logger.warn("Large row " + row.key.key + " in " + cfs.getColumnFamilyName() + " " + rowsize + " bytes");
             }
             validator.complete();
         }

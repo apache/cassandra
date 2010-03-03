@@ -52,7 +52,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testKSMetaDataSerialization() throws IOException 
     {
-        for (KSMetaData ksm : DatabaseDescriptor.tables_.values())
+        for (KSMetaData ksm : DatabaseDescriptor.tables.values())
         {
             byte[] ser = KSMetaData.serialize(ksm);
             KSMetaData ksmDupe = KSMetaData.deserialize(new ByteArrayInputStream(ser));

@@ -21,12 +21,15 @@ package org.apache.cassandra.db;
 import java.io.*;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
@@ -45,15 +48,21 @@ public class RowMutationVerbHandler implements IVerbHandler
 
             /* Check if there were any hints in this message */
             byte[] hintedBytes = message.getHeader(RowMutation.HINT);
-            if ( hintedBytes != null && hintedBytes.length > 0 )
+            if (hintedBytes != null)
             {
-            	InetAddress hint = InetAddress.getByAddress(hintedBytes);
-                if (logger_.isDebugEnabled())
-                  logger_.debug("Adding hint for " + hint);
-                /* add necessary hints to this mutation */
-                RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.getTable());
-                hintedMutation.addHints(rm.key(), hintedBytes);
-                hintedMutation.apply();
+                assert hintedBytes.length > 0;
+                ByteBuffer bb = ByteBuffer.wrap(hintedBytes);
+                byte[] addressBytes = new byte[FBUtilities.getLocalAddress().getAddress().length];
+                while (bb.remaining() > 0)
+                {
+                    bb.get(addressBytes);
+                    InetAddress hint = InetAddress.getByAddress(addressBytes);
+                    if (logger_.isDebugEnabled())
+                        logger_.debug("Adding hint for " + hint);
+                    RowMutation hintedMutation = new RowMutation(Table.SYSTEM_TABLE, rm.getTable());
+                    hintedMutation.addHints(rm.key(), addressBytes);
+                    hintedMutation.apply();
+                }
             }
 
             Table.open(rm.getTable()).apply(rm, bytes, true);
