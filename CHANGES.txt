@@ -10,6 +10,7 @@
    large rows get big enough to threaten node stability, and -x option to
    be able to remove them with sstable2json if the warning is unheeded
    until it's too late (CASSANDRA-843)
+ * Add logging of GC activity (CASSANDRA-813)
 
 
 0.6.0-beta1/beta2

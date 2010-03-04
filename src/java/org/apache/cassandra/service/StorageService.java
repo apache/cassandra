@@ -302,6 +302,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         isClientMode = false;
         storageMetadata_ = SystemTable.initMetadata();
         DatabaseDescriptor.createAllDirectories();
+        GCInspector.instance.start();
         logger_.info("Starting up server gossip");
 
         MessagingService.instance.listen(FBUtilities.getLocalAddress());
