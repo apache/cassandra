@@ -46,6 +46,7 @@ import org.apache.log4j.Logger;
 public class Table 
 {
     public static final String SYSTEM_TABLE = "system";
+    public static final String DEFINITIONS = "definitions";
 
     private static final Logger logger = Logger.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";

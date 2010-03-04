@@ -24,6 +24,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.locator.IEndPointSnitch;
@@ -457,7 +458,7 @@ public class DatabaseDescriptor
             readTablesFromXml();
             if (tables.isEmpty())
                 throw new ConfigurationException("No keyspaces configured");
-
+ 
             // Hardcoded system tables
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
@@ -478,6 +479,12 @@ public class DatabaseDescriptor
                                                                                     "hinted handoff data",
                                                                                     0.0,
                                                                                     0.01));
+
+            // todo: fill in repStrat and epSnitch when this table is set to replicate.
+            KSMetaData ksDefs = new KSMetaData(Table.DEFINITIONS, null, -1, null);
+            ksDefs.cfMetaData.put(DefsTable.MIGRATIONS_CF, new CFMetaData(ksDefs.name, DefsTable.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0));
+            ksDefs.cfMetaData.put(DefsTable.SCHEMA_CF, new CFMetaData(ksDefs.name, DefsTable.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0));
+            tables.put(Table.DEFINITIONS, ksDefs);
 
             /* Load the seeds for node contact points */
             String[] seedsxml = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
@@ -945,6 +952,7 @@ public class DatabaseDescriptor
     {
         List<String> tableslist = new ArrayList<String>(tables.keySet());
         tableslist.remove(Table.SYSTEM_TABLE);
+        tableslist.remove(Table.DEFINITIONS);
         return Collections.unmodifiableList(tableslist);
     }
 
@@ -1117,6 +1125,11 @@ public class DatabaseDescriptor
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
         double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.rowCacheSize;
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
+    }
+
+    public static KSMetaData getTableDefinition(String table)
+    {
+        return tables.get(table);
     }
 
     private static class ConfigurationException extends Exception

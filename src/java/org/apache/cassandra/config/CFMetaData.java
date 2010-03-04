@@ -41,7 +41,7 @@ public final class CFMetaData
     public final double rowCacheSize; // default 0
     public final double keyCacheSize; // default 0.01
 
-    CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
+    public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
     {
         this.tableName = tableName;
         this.cfName = cfName;
