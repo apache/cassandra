@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.sstable.SSTable;
 
 import org.junit.Test;
 

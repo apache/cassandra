@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.io;
+package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 import java.util.*;
@@ -30,7 +30,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 /**
  * Provides helper to serialize, deserialize and use column indexes.
  */
-
 public class IndexHelper
 {
 

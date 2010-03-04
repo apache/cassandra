@@ -30,8 +30,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.SSTableDeletingReference;
-import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableDeletingReference;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 
 import java.net.InetAddress;

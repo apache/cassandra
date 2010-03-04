@@ -16,7 +16,8 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.io;
+
+package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.IOException;

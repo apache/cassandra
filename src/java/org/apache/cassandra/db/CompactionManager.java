@@ -32,6 +32,7 @@ import org.apache.log4j.Logger;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.*;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.AntiEntropyService;

@@ -28,10 +28,10 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.SSTableWriter;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import static org.apache.cassandra.io.SSTableUtils.tempSSTableFile;
+import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import static org.junit.Assert.assertTrue;
 

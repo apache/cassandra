@@ -26,7 +26,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Arrays;
 
-import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;

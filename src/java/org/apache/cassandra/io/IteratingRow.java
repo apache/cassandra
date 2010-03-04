@@ -27,9 +27,12 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.service.StorageService;
+
 import com.google.common.collect.AbstractIterator;
 
 public class IteratingRow extends AbstractIterator<IColumn> implements Comparable<IteratingRow>

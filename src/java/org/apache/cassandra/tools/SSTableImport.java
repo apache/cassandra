@@ -28,7 +28,7 @@ import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.SSTableWriter;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import static org.apache.cassandra.utils.FBUtilities.hexToBytes;
 import org.apache.commons.cli.*;
 import org.json.simple.JSONArray;

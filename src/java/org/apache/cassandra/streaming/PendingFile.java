@@ -26,7 +26,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.sstable.SSTable;
 
 class PendingFile
 {

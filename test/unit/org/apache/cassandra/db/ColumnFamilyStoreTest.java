@@ -40,7 +40,7 @@ import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableReader;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
 {

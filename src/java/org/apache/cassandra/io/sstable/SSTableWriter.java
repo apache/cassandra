@@ -1,6 +1,4 @@
-package org.apache.cassandra.io;
-/*
- * 
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,9 @@ package org.apache.cassandra.io;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
  */
 
+package org.apache.cassandra.io.sstable;
 
 import java.io.DataOutputStream;
 import java.io.FileOutputStream;

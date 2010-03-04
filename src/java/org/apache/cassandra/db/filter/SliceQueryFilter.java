@@ -30,7 +30,7 @@ import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.apache.commons.collections.IteratorUtils;
 
 import com.google.common.collect.Collections2;
-import org.apache.cassandra.io.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 

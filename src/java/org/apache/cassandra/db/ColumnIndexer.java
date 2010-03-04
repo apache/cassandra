@@ -27,7 +27,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.IndexHelper;
+import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -35,7 +35,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 /**
  * Help to create an index for a column family based on size of columns
  */
-
 public class ColumnIndexer
 {
 	/**

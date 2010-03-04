@@ -1,6 +1,4 @@
-package org.apache.cassandra.streaming;
-/*
- * 
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,9 +15,9 @@ package org.apache.cassandra.streaming;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
  */
 
+package org.apache.cassandra.streaming;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,8 +26,8 @@ import java.net.InetAddress;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.SSTableWriter;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.IStreamComplete;
 import org.apache.cassandra.streaming.StreamInManager;
