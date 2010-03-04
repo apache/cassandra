@@ -44,6 +44,7 @@ public class ClientOnlyExample
         }
         catch (Exception ex)
         {
+            throw new AssertionError(ex);
         }
 
         // do some writing.
@@ -51,7 +52,7 @@ public class ClientOnlyExample
         for (int i = 0; i < 100; i++)
         {
             RowMutation change = new RowMutation("Keyspace1", "key" + i);
-            ColumnPath cp = new ColumnPath("Standard1").setSuper_column(null).setColumn(("colb").getBytes());
+            ColumnPath cp = new ColumnPath("Standard1").setColumn(("colb").getBytes());
             change.add(new QueryPath(cp), ("value" + i).getBytes(), 0);
 
             // don't call change.apply().  The reason is that is makes a static call into Table, which will perform
@@ -65,6 +66,7 @@ public class ClientOnlyExample
             }
             catch (Exception ex)
             {
+                throw new AssertionError(ex);
             }
             System.out.println("wrote key" + i);
         }
@@ -82,6 +84,7 @@ public class ClientOnlyExample
         }
         catch (Exception ex)
         {
+            throw new AssertionError(ex);
         }
 
         // do some queries.
@@ -119,7 +122,6 @@ public class ClientOnlyExample
             {
                 throw new RuntimeException(e);
             }
-
         }
 
         // no need to do this:
