@@ -29,8 +29,6 @@ import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
-import static org.apache.cassandra.thrift.ThriftGlue.*;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -218,14 +216,14 @@ public class ThriftValidation
     {
         if (cosc.column != null)
         {
-            ThriftValidation.validateColumnPath(keyspace, createColumnPath(cfName, null, cosc.column.name));
+            ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(null).setColumn(cosc.column.name));
         }
 
         if (cosc.super_column != null)
         {
             for (Column c : cosc.super_column.columns)
             {
-                ThriftValidation.validateColumnPath(keyspace, createColumnPath(cfName, cosc.super_column.name, c.name));
+                ThriftValidation.validateColumnPath(keyspace, new ColumnPath(cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
             }
         }
 
@@ -277,7 +275,7 @@ public class ThriftValidation
             throw new InvalidRequestException("A SlicePredicate must be given a list of Columns, a SliceRange, or both");
 
         if (predicate.slice_range != null)
-            validateRange(keyspace, createColumnParent(cfName, scName), predicate.slice_range);
+            validateRange(keyspace, new ColumnParent(cfName).setSuper_column(scName), predicate.slice_range);
 
         if (predicate.column_names != null)
             validateColumns(keyspace, cfName, scName, predicate.column_names);

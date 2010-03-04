@@ -25,8 +25,6 @@ import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
-import static org.apache.cassandra.thrift.ThriftGlue.createColumnPath;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
@@ -89,7 +87,7 @@ public class TestRingCache
         for (int nRows = minRow; nRows < maxRow; nRows++)
         {
             String row = rowPrefix + nRows;
-            ColumnPath col = createColumnPath("Standard1", null, "col1".getBytes());
+            ColumnPath col = new ColumnPath("Standard1").setSuper_column(null).setColumn("col1".getBytes());
 
             List<InetAddress> endPoints = ringCache.getEndPoint(table, row);
             String hosts="";

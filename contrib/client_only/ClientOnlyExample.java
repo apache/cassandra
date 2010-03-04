@@ -24,8 +24,6 @@ import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.UnavailableException;
 
-import static org.apache.cassandra.thrift.ThriftGlue.createColumnPath;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,7 +51,7 @@ public class ClientOnlyExample
         for (int i = 0; i < 100; i++)
         {
             RowMutation change = new RowMutation("Keyspace1", "key" + i);
-            ColumnPath cp = createColumnPath("Standard1", null, ("colb").getBytes());
+            ColumnPath cp = new ColumnPath("Standard1").setSuper_column(null).setColumn(("colb").getBytes());
             change.add(new QueryPath(cp), ("value" + i).getBytes(), 0);
 
             // don't call change.apply().  The reason is that is makes a static call into Table, which will perform

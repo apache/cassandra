@@ -40,12 +40,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
 import org.json.simple.JSONValue;
-
-import static org.apache.cassandra.thrift.ThriftGlue.createColumnOrSuperColumn_Column;
-import static org.apache.cassandra.thrift.ThriftGlue.createColumnOrSuperColumn_SuperColumn;
 
 public class CassandraServer implements Cassandra.Iface
 {
@@ -147,7 +143,7 @@ public class CassandraServer implements Cassandra.Iface
                 continue;
             }
             Column thrift_column = new Column(column.name(), column.value(), column.timestamp());
-            thriftColumns.add(createColumnOrSuperColumn_Column(thrift_column));
+            thriftColumns.add(new ColumnOrSuperColumn().setColumn(thrift_column));
         }
 
         // we have to do the reversing here, since internally we pass results around in ColumnFamily
@@ -169,7 +165,7 @@ public class CassandraServer implements Cassandra.Iface
                 continue;
             }
             SuperColumn superColumn = new SuperColumn(column.name(), subcolumns);
-            thriftSuperColumns.add(createColumnOrSuperColumn_SuperColumn(superColumn));
+            thriftSuperColumns.add(new ColumnOrSuperColumn().setSuper_column(superColumn));
         }
 
         if (reverseOrder)
