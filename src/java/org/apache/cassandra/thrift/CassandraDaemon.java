@@ -105,8 +105,7 @@ public class CassandraDaemon
         // Transport
         TServerSocket tServerSocket = new TServerSocket(new InetSocketAddress(listenAddr, listenPort));
         
-        if (logger.isDebugEnabled())
-            logger.debug(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
+        logger.info(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
 
         // Protocol factory
         TProtocolFactory tProtocolFactory = new TBinaryProtocol.Factory();
@@ -153,6 +152,8 @@ public class CassandraDaemon
     /** hook for JSVC */
     public void stop()
     {
+        // this doesn't entirely shut down Cassandra, just the Thrift server.
+        // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
         serverEngine.stop();
     }
@@ -160,7 +161,9 @@ public class CassandraDaemon
     
     /** hook for JSVC */
     public void destroy()
-    {        
+    {
+        // this is supposed to "destroy any object created in init", but
+        // StorageService et al. are crash-only, so we no-op here.
     }
     
     public static void main(String[] args)
