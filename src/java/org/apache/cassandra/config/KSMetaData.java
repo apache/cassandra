@@ -34,17 +34,17 @@ import java.util.Map;
 public final class KSMetaData
 {
     public final String name;
-    public final Class<? extends AbstractReplicationStrategy> repStratClass;
+    public final Class<? extends AbstractReplicationStrategy> strategyClass;
     public final int replicationFactor;
-    public final IEndPointSnitch epSnitch;
+    public final IEndPointSnitch snitch;
     private final Map<String, CFMetaData> cfMetaData;
 
-    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> repStratClass, int replicationFactor, IEndPointSnitch epSnitch, CFMetaData... cfDefs)
+    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, IEndPointSnitch snitch, CFMetaData... cfDefs)
     {
         this.name = name;
-        this.repStratClass = repStratClass;
+        this.strategyClass = strategyClass;
         this.replicationFactor = replicationFactor;
-        this.epSnitch = epSnitch;
+        this.snitch = snitch;
         Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
         for (CFMetaData cfm : cfDefs)
             cfmap.put(cfm.cfName, cfm);
@@ -59,7 +59,7 @@ public final class KSMetaData
             return false;
         KSMetaData other = (KSMetaData)obj;
         return other.name.equals(name)
-                && FBUtilities.equals(other.repStratClass, repStratClass)
+                && FBUtilities.equals(other.strategyClass, strategyClass)
                 && other.replicationFactor == replicationFactor
                 && sameEpSnitch(other, this)
                 && other.cfMetaData.size() == cfMetaData.size()
@@ -69,14 +69,14 @@ public final class KSMetaData
     // epsnitches generally have no state, so comparing class names is sufficient.
     private static boolean sameEpSnitch(KSMetaData a, KSMetaData b)
     {
-        if (a.epSnitch == null && b.epSnitch == null)
+        if (a.snitch == null && b.snitch == null)
             return true;
-        else if (a.epSnitch == null && b.epSnitch != null)
+        else if (a.snitch == null && b.snitch != null)
             return false;
-        else if (a.epSnitch != null && b.epSnitch == null)
+        else if (a.snitch != null && b.snitch == null)
             return false;
         else
-            return a.epSnitch.getClass().getName().equals(b.epSnitch.getClass().getName());
+            return a.snitch.getClass().getName().equals(b.snitch.getClass().getName());
     }
 
     public Map<String, CFMetaData> cfMetaData()
@@ -89,13 +89,13 @@ public final class KSMetaData
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(bout);
         dout.writeUTF(ksm.name);
-        dout.writeBoolean(ksm.repStratClass != null);
-        if (ksm.repStratClass != null)
-            dout.writeUTF(ksm.repStratClass.getName());
+        dout.writeBoolean(ksm.strategyClass != null);
+        if (ksm.strategyClass != null)
+            dout.writeUTF(ksm.strategyClass.getName());
         dout.writeInt(ksm.replicationFactor);
-        dout.writeBoolean(ksm.epSnitch != null);
-        if (ksm.epSnitch != null)
-            dout.writeUTF(ksm.epSnitch.getClass().getName());
+        dout.writeBoolean(ksm.snitch != null);
+        if (ksm.snitch != null)
+            dout.writeUTF(ksm.snitch.getClass().getName());
         dout.writeInt(ksm.cfMetaData.size());
         for (CFMetaData cfm : ksm.cfMetaData.values())
             dout.write(CFMetaData.serialize(cfm));

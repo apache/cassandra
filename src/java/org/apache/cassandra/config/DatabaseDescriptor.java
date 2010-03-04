@@ -562,29 +562,29 @@ public class DatabaseDescriptor
                 }
 
                 /* See which replica placement strategy to use */
-                String replicaPlacementStrategyClassName = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicaPlacementStrategy");
-                if (replicaPlacementStrategyClassName == null)
+                value = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicaPlacementStrategy");
+                if (value == null)
                 {
                     throw new ConfigurationException("Missing replicaplacementstrategy directive for " + ksName);
                 }
-                Class<? extends AbstractReplicationStrategy> repStratClass = null;
+                Class<? extends AbstractReplicationStrategy> strategyClass = null;
                 try
                 {
-                    repStratClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(replicaPlacementStrategyClassName);
+                    strategyClass = (Class<? extends AbstractReplicationStrategy>) Class.forName(value);
                 }
                 catch (ClassNotFoundException e)
                 {
-                    throw new ConfigurationException("Invalid replicaplacementstrategy class " + replicaPlacementStrategyClassName);
+                    throw new ConfigurationException("Invalid replicaplacementstrategy class " + value);
                 }
 
                 /* Data replication factor */
-                String replicationFactor = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicationFactor");
-                int repFact = -1;
-                if (replicationFactor == null)
+                value = xmlUtils.getNodeValue("/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/ReplicationFactor");
+                int replicationFactor = -1;
+                if (value == null)
                     throw new ConfigurationException("Missing replicationfactor directory for keyspace " + ksName);
                 else
                 {
-                    repFact = Integer.parseInt(replicationFactor);
+                    replicationFactor = Integer.parseInt(value);
                 }
 
                 /* end point snitch */
@@ -593,11 +593,11 @@ public class DatabaseDescriptor
                 {
                     throw new ConfigurationException("Missing endpointsnitch directive for keyspace " + ksName);
                 }
-                IEndPointSnitch epSnitch = null;
+                IEndPointSnitch snitch = null;
                 try
                 {
                     Class cls = Class.forName(endPointSnitchClassName);
-                    epSnitch = (IEndPointSnitch)cls.getConstructor().newInstance();
+                    snitch = (IEndPointSnitch)cls.getConstructor().newInstance();
                 }
                 catch (ClassNotFoundException e)
                 {
@@ -688,7 +688,7 @@ public class DatabaseDescriptor
                     cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize);
                 }
 
-                KSMetaData meta = new KSMetaData(ksName, repStratClass, repFact, epSnitch, cfDefs);
+                KSMetaData meta = new KSMetaData(ksName, strategyClass, replicationFactor, snitch, cfDefs);
                 tables.put(meta.name, meta);
             }
         }
@@ -830,12 +830,12 @@ public class DatabaseDescriptor
     
     public static IEndPointSnitch getEndPointSnitch(String table)
     {
-        return tables.get(table).epSnitch;
+        return tables.get(table).snitch;
     }
 
     public static Class<? extends AbstractReplicationStrategy> getReplicaPlacementStrategyClass(String table)
     {
-        return tables.get(table).repStratClass;
+        return tables.get(table).strategyClass;
     }
     
     public static String getJobTrackerAddress()
