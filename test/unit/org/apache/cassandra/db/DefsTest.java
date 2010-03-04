@@ -59,44 +59,46 @@ public class DefsTest
             assert defined.equals(loaded);
         }
 
+        // Uncomment when updates are supported.
         // make a change and compare.
-        KSMetaData loadedKs = defs.iterator().next();
-        KSMetaData changed = DatabaseDescriptor.getTableDefinition(loadedKs.name);
-        changed.cfMetaData.put("newly defined cf", new CFMetaData(changed.name,
-                                                                  "newly defined cf",
-                                                                  "Standard",
-                                                                  new TimeUUIDType(),
-                                                                  null,
-                                                                  "this is to test a newly added table",
-                                                                  0.2d,
-                                                                  0.3d));
-        assert !changed.equals(loadedKs);
-
-        UUID second = UUIDGen.makeType1UUID("01:23:45:ab:cd:ef");
-        DefsTable.dumpToStorage(second);
-        defs = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(second));
-
-        // defs should equal what is in DD.
-        assert defs.size() > 0;
-        assert defs.size() == DatabaseDescriptor.getNonSystemTables().size();
-        for (KSMetaData loaded : defs)
-        {
-            KSMetaData defined = DatabaseDescriptor.getTableDefinition(loaded.name);
-            assert defined.equals(loaded);
-        }
-
-        // should be the same *except* for loadedKs.
-        List<KSMetaData> originals = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(first));
-        assert originals.size() == defs.size();
-        for (int i = 0; i < defs.size(); i++)
-        {
-            KSMetaData a = originals.get(i);
-            KSMetaData b = defs.get(i);
-            if (a.name.equals(changed.name))
-                assert !a.equals(b);
-            else
-                assert a.equals(b);
-        }
+//        KSMetaData loadedKs = defs.iterator().next();
+//        KSMetaData changed = DatabaseDescriptor.getTableDefinition(loadedKs.name);
+//
+//        changed.cfMetaData.put("newly defined cf", new CFMetaData(changed.name,
+//                                                                  "newly defined cf",
+//                                                                  "Standard",
+//                                                                  new TimeUUIDType(),
+//                                                                  null,
+//                                                                  "this is to test a newly added table",
+//                                                                  0.2d,
+//                                                                  0.3d));
+//        assert !changed.equals(loadedKs);
+//
+//        UUID second = UUIDGen.makeType1UUID("01:23:45:ab:cd:ef");
+//        DefsTable.dumpToStorage(second);
+//        defs = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(second));
+//
+//        // defs should equal what is in DD.
+//        assert defs.size() > 0;
+//        assert defs.size() == DatabaseDescriptor.getNonSystemTables().size();
+//        for (KSMetaData loaded : defs)
+//        {
+//            KSMetaData defined = DatabaseDescriptor.getTableDefinition(loaded.name);
+//            assert defined.equals(loaded);
+//        }
+//
+//        // should be the same *except* for loadedKs.
+//        List<KSMetaData> originals = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(first));
+//        assert originals.size() == defs.size();
+//        for (int i = 0; i < defs.size(); i++)
+//        {
+//            KSMetaData a = originals.get(i);
+//            KSMetaData b = defs.get(i);
+//            if (a.name.equals(changed.name))
+//                assert !a.equals(b);
+//            else
+//                assert a.equals(b);
+//        }
     }
 
     

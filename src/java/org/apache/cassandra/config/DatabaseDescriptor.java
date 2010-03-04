@@ -460,30 +460,35 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("No keyspaces configured");
  
             // Hardcoded system tables
-            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null);
+            final CFMetaData[] systemCfDefs = new CFMetaData[]
+            {
+                new CFMetaData(Table.SYSTEM_TABLE,
+                               SystemTable.STATUS_CF,
+                               "Standard",
+                               new UTF8Type(),
+                               null,
+                               "persistent metadata for the local node",
+                               0,
+                               0.01),
+                new CFMetaData(Table.SYSTEM_TABLE,
+                               HintedHandOffManager.HINTS_CF,
+                               "Super",
+                               new UTF8Type(),
+                               new BytesType(),
+                               "hinted handoff data",
+                               0,
+                               0.01)
+            };
+            KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null, systemCfDefs);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
-            systemMeta.cfMetaData.put(SystemTable.STATUS_CF, new CFMetaData(Table.SYSTEM_TABLE,
-                                                                            SystemTable.STATUS_CF,
-                                                                            "Standard",
-                                                                            new UTF8Type(),
-                                                                            null,
-                                                                            "persistent metadata for the local node",
-                                                                            0.0,
-                                                                            0.01));
-
-            systemMeta.cfMetaData.put(HintedHandOffManager.HINTS_CF, new CFMetaData(Table.SYSTEM_TABLE,
-                                                                                    HintedHandOffManager.HINTS_CF,
-                                                                                    "Super",
-                                                                                    new UTF8Type(),
-                                                                                    new BytesType(),
-                                                                                    "hinted handoff data",
-                                                                                    0.0,
-                                                                                    0.01));
 
             // todo: fill in repStrat and epSnitch when this table is set to replicate.
-            KSMetaData ksDefs = new KSMetaData(Table.DEFINITIONS, null, -1, null);
-            ksDefs.cfMetaData.put(DefsTable.MIGRATIONS_CF, new CFMetaData(ksDefs.name, DefsTable.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0));
-            ksDefs.cfMetaData.put(DefsTable.SCHEMA_CF, new CFMetaData(ksDefs.name, DefsTable.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0));
+            CFMetaData[] definitionCfDefs = new CFMetaData[]
+            {
+                new CFMetaData(Table.DEFINITIONS, DefsTable.MIGRATIONS_CF, "Standard", new TimeUUIDType(), null, "individual schema mutations", 0, 0),
+                new CFMetaData(Table.DEFINITIONS, DefsTable.SCHEMA_CF, "Standard", new UTF8Type(), null, "current state of the schema", 0, 0)
+            };
+            KSMetaData ksDefs = new KSMetaData(Table.DEFINITIONS, null, -1, null, definitionCfDefs);
             tables.put(Table.DEFINITIONS, ksDefs);
 
             /* Load the seeds for node contact points */
@@ -618,11 +623,9 @@ public class DatabaseDescriptor
                 String xqlTable = "/Storage/Keyspaces/Keyspace[@Name='" + ksName + "']/";
                 NodeList columnFamilies = xmlUtils.getRequestedNodeList(xqlTable + "ColumnFamily");
 
-                KSMetaData meta = new KSMetaData(ksName, repStratClass, repFact, epSnitch);
-
                 //NodeList columnFamilies = xmlUtils.getRequestedNodeList(table, "ColumnFamily");
                 int size2 = columnFamilies.getLength();
-
+                CFMetaData[] cfDefs = new CFMetaData[size2];
                 for ( int j = 0; j < size2; ++j )
                 {
                     Node columnFamily = columnFamilies.item(j);
@@ -682,9 +685,10 @@ public class DatabaseDescriptor
                     String comment = xmlUtils.getNodeValue(xqlCF + "Comment");
 
                     // insert it into the table dictionary.
-                    meta.cfMetaData.put(cfName, new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize));
+                    cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize);
                 }
 
+                KSMetaData meta = new KSMetaData(ksName, repStratClass, repFact, epSnitch, cfDefs);
                 tables.put(meta.name, meta);
             }
         }
@@ -832,7 +836,7 @@ public class DatabaseDescriptor
             {
                 tmetadata = Table.TableMetadata.instance(table);
                 /* Column families associated with this table */
-                Map<String, CFMetaData> columnFamilies = tables.get(table).cfMetaData;
+                Map<String, CFMetaData> columnFamilies = tables.get(table).cfMetaData();
 
                 for (String columnFamily : columnFamilies.keySet())
                 {
@@ -916,7 +920,7 @@ public class DatabaseDescriptor
         assert tableName != null;
         KSMetaData ksm = tables.get(tableName);
         assert ksm != null;
-        return Collections.unmodifiableMap(ksm.cfMetaData);
+        return ksm.cfMetaData();
     }
 
     /*
@@ -930,7 +934,7 @@ public class DatabaseDescriptor
         KSMetaData ksm = tables.get(tableName);
         if (ksm == null)
             return null;
-        return ksm.cfMetaData.get(cfName);
+        return ksm.cfMetaData().get(cfName);
     }
     
     public static String getColumnType(String tableName, String cfName)

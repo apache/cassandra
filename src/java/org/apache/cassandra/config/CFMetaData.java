@@ -104,7 +104,7 @@ public final class CFMetaData
         }
         catch (Exception ex)
         {
-
+            throw new IOException(ex);
         }
         String comment = din.readBoolean() ? din.readUTF() : null;
         double rowCacheSize = din.readDouble();

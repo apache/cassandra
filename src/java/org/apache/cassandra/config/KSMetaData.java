@@ -27,6 +27,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,14 +37,18 @@ public final class KSMetaData
     public final Class<? extends AbstractReplicationStrategy> repStratClass;
     public final int replicationFactor;
     public final IEndPointSnitch epSnitch;
-    public final Map<String, CFMetaData> cfMetaData = new HashMap<String, CFMetaData>();
+    private final Map<String, CFMetaData> cfMetaData;
 
-    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> repStratClass, int replicationFactor, IEndPointSnitch epSnitch)
+    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> repStratClass, int replicationFactor, IEndPointSnitch epSnitch, CFMetaData... cfDefs)
     {
         this.name = name;
         this.repStratClass = repStratClass;
         this.replicationFactor = replicationFactor;
         this.epSnitch = epSnitch;
+        Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
+        for (CFMetaData cfm : cfDefs)
+            cfmap.put(cfm.cfName, cfm);
+        this.cfMetaData = Collections.<String, CFMetaData>unmodifiableMap(cfmap);
     }
     
     public boolean equals(Object obj)
@@ -72,6 +77,11 @@ public final class KSMetaData
             return false;
         else
             return a.epSnitch.getClass().getName().equals(b.epSnitch.getClass().getName());
+    }
+
+    public Map<String, CFMetaData> cfMetaData()
+    {
+        return cfMetaData;
     }
     
     public static byte[] serialize(KSMetaData ksm) throws IOException
@@ -117,20 +127,21 @@ public final class KSMetaData
             throw new IOException(ex);
         }
         int cfsz = din.readInt();
-        KSMetaData ksm = new KSMetaData(name, repStratClass, replicationFactor, epSnitch);
+        CFMetaData[] cfMetaData = new CFMetaData[cfsz];
         for (int i = 0; i < cfsz; i++)
         {
             try
             {
-                CFMetaData cfm = CFMetaData.deserialize(din);
-                ksm.cfMetaData.put(cfm.cfName, cfm);
+                cfMetaData[i] = CFMetaData.deserialize(din);
             }
             catch (IOException ex)
             {
-                System.err.println(ksm.name);
+                System.err.println(name);
                 throw ex;
             }
         }
+
+        KSMetaData ksm = new KSMetaData(name, repStratClass, replicationFactor, epSnitch, cfMetaData);
         return ksm;
     }
 }
