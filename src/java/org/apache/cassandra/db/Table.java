@@ -71,115 +71,11 @@ public class Table
         }
     }
 
-    /*
-     * This class represents the metadata of this Table. The metadata
-     * is basically the column family name and the ID associated with
-     * this column family. We use this ID in the Commit Log header to
-     * determine when a log file that has been rolled can be deleted.
-    */
-    public static class TableMetadata
-    {
-        private static HashMap<String,TableMetadata> tableMetadataMap = new HashMap<String,TableMetadata>();
-        private static Map<Integer, String> idCfMap_ = new HashMap<Integer, String>();
-
-        static
-        {
-            try
-            {
-                DatabaseDescriptor.storeMetadata();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public static synchronized Table.TableMetadata instance(String tableName) throws IOException
-        {
-            if ( tableMetadataMap.get(tableName) == null )
-            {
-                tableMetadataMap.put(tableName, new Table.TableMetadata());
-            }
-            return tableMetadataMap.get(tableName);
-        }
-
-        /* The mapping between column family and the column type. */
-        private Map<String, String> cfTypeMap_ = new HashMap<String, String>();
-        private Map<String, Integer> cfIdMap_ = new HashMap<String, Integer>();
-
-        public void add(String cf, int id)
-        {
-            add(cf, id, "Standard");
-        }
-        
-        public void add(String cf, int id, String type)
-        {
-            if (logger.isDebugEnabled())
-              logger.debug("adding " + cf + " as " + id);
-            assert !idCfMap_.containsKey(id);
-            cfIdMap_.put(cf, id);
-            idCfMap_.put(id, cf);
-            cfTypeMap_.put(cf, type);
-        }
-        
-        public boolean isEmpty()
-        {
-            return cfIdMap_.isEmpty();
-        }
-
-        int getColumnFamilyId(String columnFamily)
-        {
-            return cfIdMap_.get(columnFamily);
-        }
-
-        public static String getColumnFamilyName(int id)
-        {
-            return idCfMap_.get(id);
-        }
-        
-        String getColumnFamilyType(String cfName)
-        {
-            return cfTypeMap_.get(cfName);
-        }
-
-        Set<String> getColumnFamilies()
-        {
-            return cfIdMap_.keySet();
-        }
-        
-        int size()
-        {
-            return cfIdMap_.size();
-        }
-        
-        boolean isValidColumnFamily(String cfName)
-        {
-            return cfIdMap_.containsKey(cfName);
-        }
-
-        public String toString()
-        {
-            return "TableMetadata(" + FBUtilities.mapToString(cfIdMap_) + ")";
-        }
-
-        public static int getColumnFamilyCount()
-        {
-            return idCfMap_.size();
-        }
-
-        public static String getColumnFamilyIDString()
-        {
-            return FBUtilities.mapToString(tableMetadataMap);
-        }
-    }
-
     /** Table objects, one per keyspace.  only one instance should ever exist for any given keyspace. */
     private static final Map<String, Table> instances = new NonBlockingHashMap<String, Table>();
 
     /* Table name. */
     public final String name;
-    /* Handle to the Table Metadata */
-    private final Table.TableMetadata tableMetadata;
     /* ColumnFamilyStore per column family */
     private final Map<String, ColumnFamilyStore> columnFamilyStores = new HashMap<String, ColumnFamilyStore>();
     // cache application CFs since Range queries ask for them a _lot_
@@ -207,7 +103,7 @@ public class Table
         
     public Set<String> getColumnFamilies()
     {
-        return tableMetadata.getColumnFamilies();
+        return DatabaseDescriptor.getTableDefinition(name).cfMetaData().keySet();
     }
 
     public Collection<ColumnFamilyStore> getColumnFamilyStores()
@@ -228,7 +124,7 @@ public class Table
         if (name.equals(SYSTEM_TABLE))
             throw new RuntimeException("Cleanup of the system table is neither necessary nor wise");
 
-        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
+        Set<String> columnFamilies = getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
@@ -285,7 +181,7 @@ public class Table
     public List<SSTableReader> forceAntiCompaction(Collection<Range> ranges, InetAddress target)
     {
         List<SSTableReader> allResults = new ArrayList<SSTableReader>();
-        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
+        Set<String> columnFamilies = getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
@@ -307,7 +203,7 @@ public class Table
     */
     public void forceCompaction()
     {
-        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
+        Set<String> columnFamilies = getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
@@ -319,7 +215,7 @@ public class Table
     List<SSTableReader> getAllSSTablesOnDisk()
     {
         List<SSTableReader> list = new ArrayList<SSTableReader>();
-        Set<String> columnFamilies = tableMetadata.getColumnFamilies();
+        Set<String> columnFamilies = getColumnFamilies();
         for ( String columnFamily : columnFamilies )
         {
             ColumnFamilyStore cfStore = columnFamilyStores.get( columnFamily );
@@ -333,8 +229,7 @@ public class Table
     {
         name = table;
         waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch;
-        tableMetadata = Table.TableMetadata.instance(table);
-        for (String columnFamily : tableMetadata.getColumnFamilies())
+        for (String columnFamily : getColumnFamilies())
         {
             columnFamilyStores.put(columnFamily, ColumnFamilyStore.createColumnFamilyStore(table, columnFamily));
         }
@@ -362,7 +257,7 @@ public class Table
 
     public int getColumnFamilyId(String columnFamily)
     {
-        return tableMetadata.getColumnFamilyId(columnFamily);
+        return DatabaseDescriptor.getTableDefinition(name).cfMetaData().get(columnFamily).cfId;
     }
 
     /**

@@ -818,34 +818,6 @@ public class DatabaseDescriptor
         }
     }
 
-    /**
-     * Create the metadata tables. This table has information about
-     * the table name and the column families that make up the table.
-     * Each column family also has an associated ID which is an int.
-    */
-    // TODO duplicating data b/t tablemetadata and CFMetaData is confusing and error-prone
-    public static void storeMetadata() throws IOException
-    {
-        int cfId = 0;
-        Set<String> tableset = tables.keySet();
-
-        for (String table : tableset)
-        {
-            Table.TableMetadata tmetadata = Table.TableMetadata.instance(table);
-            if (tmetadata.isEmpty())
-            {
-                tmetadata = Table.TableMetadata.instance(table);
-                /* Column families associated with this table */
-                Map<String, CFMetaData> columnFamilies = tables.get(table).cfMetaData();
-
-                for (String columnFamily : columnFamilies.keySet())
-                {
-                    tmetadata.add(columnFamily, cfId++, DatabaseDescriptor.getColumnType(table, columnFamily));
-                }
-            }
-        }
-    }
-
     public static int getGcGraceInSeconds()
     {
         return gcGraceInSeconds;

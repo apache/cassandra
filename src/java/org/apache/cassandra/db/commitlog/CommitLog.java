@@ -72,7 +72,7 @@ public class CommitLog
 {
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
 
-    private static final Logger logger = Logger.getLogger(CommitLog.class);
+    static final Logger logger = Logger.getLogger(CommitLog.class);
 
     public static CommitLog instance()
     {
@@ -108,8 +108,7 @@ public class CommitLog
     {
         // all old segments are recovered and deleted before CommitLog is instantiated.
         // All we need to do is create a new one.
-        int cfSize = Table.TableMetadata.getColumnFamilyCount();
-        segments.add(new CommitLogSegment(cfSize));
+        segments.add(new CommitLogSegment());
         
         if (DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.periodic)
         {
@@ -368,7 +367,7 @@ public class CommitLog
     private void discardCompletedSegmentsInternal(CommitLogSegment.CommitLogContext context, int id) throws IOException
     {
         if (logger.isDebugEnabled())
-            logger.debug("discard completed log segments for " + context + ", column family " + id + ". CFIDs are " + Table.TableMetadata.getColumnFamilyIDString());
+            logger.debug("discard completed log segments for " + context + ", column family " + id + ".");
 
         /*
          * log replay assumes that we only have to look at entries past the last
@@ -441,7 +440,7 @@ public class CommitLog
             if (currentSegment().length() >= SEGMENT_SIZE)
             {
                 sync();
-                segments.add(new CommitLogSegment(currentSegment().getHeader().getColumnFamilyCount()));
+                segments.add(new CommitLogSegment());
             }
 
             return context;

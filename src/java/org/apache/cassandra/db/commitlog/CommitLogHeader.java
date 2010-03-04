@@ -19,46 +19,41 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
-import java.util.BitSet;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
-import org.apache.cassandra.utils.BitSetSerializer;
 
 class CommitLogHeader
-{
+{    
     private static CommitLogHeaderSerializer serializer = new CommitLogHeaderSerializer();
 
-    static CommitLogHeaderSerializer serializer()
+    static int getLowestPosition(CommitLogHeader clheader)
     {
-        return serializer;
-    }
-        
-    static int getLowestPosition(CommitLogHeader clHeader)
-    {
-        int minPosition = Integer.MAX_VALUE;
-        for ( int position : clHeader.lastFlushedAt)
-        {
-            if ( position < minPosition && position > 0)
+        return clheader.lastFlushedAt.size() == 0 ? 0 : Collections.min(clheader.lastFlushedAt.values(), new Comparator<Integer>(){
+            public int compare(Integer o1, Integer o2)
             {
-                minPosition = position;
+                if (o1 == 0)
+                    return 1;
+                else if (o2 == 0)
+                    return -1;
+                else
+                    return o1 - o2;
             }
-        }
-        
-        if(minPosition == Integer.MAX_VALUE)
-            minPosition = 0;
-        return minPosition;
+        });
     }
 
-    private BitSet dirty; // columnfamilies with un-flushed data in this CommitLog
-    private int[] lastFlushedAt; // position at which each CF was last flushed
+    private Map<Integer, Integer> lastFlushedAt; // position at which each CF was last flushed
+    private final int maxSerializedSize;
     
-    CommitLogHeader(int size)
+    CommitLogHeader()
     {
-        dirty = new BitSet(size);
-        lastFlushedAt = new int[size];
+        lastFlushedAt = new HashMap<Integer, Integer>();
+        maxSerializedSize = 8 * CFMetaData.getCfCount();
     }
     
     /*
@@ -66,62 +61,58 @@ class CommitLogHeader
      * also builds an index of position to column family
      * Id.
     */
-    CommitLogHeader(BitSet dirty, int[] lastFlushedAt)
+    private CommitLogHeader(Map<Integer, Integer> lastFlushedAt)
     {
-        this.dirty = dirty;
+        assert lastFlushedAt.size() <= CFMetaData.getCfCount();
         this.lastFlushedAt = lastFlushedAt;
+        maxSerializedSize = 8 * CFMetaData.getCfCount();
     }
         
-    boolean isDirty(int index)
+    boolean isDirty(int cfId)
     {
-        return dirty.get(index);
+        return lastFlushedAt.containsKey(cfId);
     } 
     
     int getPosition(int index)
     {
-        return lastFlushedAt[index];
+        Integer x = lastFlushedAt.get(index);
+        return x == null ? 0 : x;
     }
     
-    void turnOn(int index, long position)
+    void turnOn(int cfId, long position)
     {
-        dirty.set(index);
-        lastFlushedAt[index] = (int) position;
+        lastFlushedAt.put(cfId, (int)position);
     }
 
-    void turnOff(int index)
+    void turnOff(int cfId)
     {
-        dirty.set(index, false);
-        lastFlushedAt[index] = 0;
+        lastFlushedAt.remove(cfId);
     }
 
     boolean isSafeToDelete() throws IOException
     {
-        return dirty.isEmpty();
+        return lastFlushedAt.isEmpty();
     }
 
     byte[] toByteArray() throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(maxSerializedSize);
         DataOutputStream dos = new DataOutputStream(bos);        
-        CommitLogHeader.serializer().serialize(this, dos);
-        return bos.toByteArray();
+        serializer.serialize(this, dos);
+        byte[] src = bos.toByteArray();
+        assert src.length < maxSerializedSize;
+        byte[] dst = new byte[maxSerializedSize];
+        System.arraycopy(src, 0, dst, 0, src.length);
+        return dst;
     }
     
     public String toString()
     {
         StringBuilder sb = new StringBuilder("");
-        sb.append("CLH(dirty={");
-        for ( int i = 0; i < dirty.size(); ++i )
+        sb.append("CLH(dirty+flushed={");
+        for (Map.Entry<Integer, Integer> entry : lastFlushedAt.entrySet())
         {
-            if (dirty.get(i))
-            {
-                sb.append(Table.TableMetadata.getColumnFamilyName(i)).append(", ");
-            }
-        }
-        sb.append("}, flushed={");
-        for (int i = 0; i < lastFlushedAt.length; i++)
-        {
-            sb.append(Table.TableMetadata.getColumnFamilyName(i)).append(": ").append(lastFlushedAt[i]).append(", ");
+            sb.append(CFMetaData.getName(entry.getKey())).append(": ").append(entry.getValue()).append(", ");
         }
         sb.append("})");
         return sb.toString();
@@ -130,51 +121,39 @@ class CommitLogHeader
     public String dirtyString()
     {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < dirty.length(); i++)
-        {
-            if (dirty.get(i))
-            {
-                sb.append(i).append(", ");
-            }
-        }
+        for (Map.Entry<Integer, Integer> entry : lastFlushedAt.entrySet())
+            sb.append(entry.getKey()).append(", ");
         return sb.toString();
     }
 
     static CommitLogHeader readCommitLogHeader(BufferedRandomAccessFile logReader) throws IOException
     {
-        int size = (int)logReader.readLong();
-        byte[] bytes = new byte[size];
-        logReader.read(bytes);
+        int statedSize = logReader.readInt();
+        byte[] bytes = new byte[statedSize];
+        logReader.readFully(bytes);
         ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
-        return serializer().deserialize(new DataInputStream(byteStream));
-    }
-
-    public int getColumnFamilyCount()
-    {
-        return lastFlushedAt.length;
+        return serializer.deserialize(new DataInputStream(byteStream));
     }
 
     static class CommitLogHeaderSerializer implements ICompactSerializer<CommitLogHeader>
     {
         public void serialize(CommitLogHeader clHeader, DataOutputStream dos) throws IOException
         {
-            BitSetSerializer.serialize(clHeader.dirty, dos);
-            dos.writeInt(clHeader.lastFlushedAt.length);
-            for (int position : clHeader.lastFlushedAt)
+            dos.writeInt(clHeader.lastFlushedAt.size());
+            for (Map.Entry<Integer, Integer> entry : clHeader.lastFlushedAt.entrySet())
             {
-                dos.writeInt(position);
+                dos.writeInt(entry.getKey());
+                dos.writeInt(entry.getValue());
             }
         }
 
         public CommitLogHeader deserialize(DataInputStream dis) throws IOException
         {
-            BitSet bitFlags = BitSetSerializer.deserialize(dis);
-            int[] position = new int[dis.readInt()];
-            for (int i = 0; i < position.length; ++i)
-            {
-                position[i] = dis.readInt();
-            }
-            return new CommitLogHeader(bitFlags, position);
+            int lfSz = dis.readInt();
+            Map<Integer, Integer> lastFlushedAt = new HashMap<Integer, Integer>();
+            for (int i = 0; i < lfSz; i++)
+                lastFlushedAt.put(dis.readInt(), dis.readInt());
+            return new CommitLogHeader(lastFlushedAt);
         }
     }
 }

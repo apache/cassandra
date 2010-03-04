@@ -43,9 +43,9 @@ public class CommitLogSegment
     private final BufferedRandomAccessFile logWriter;
     private final CommitLogHeader header;
 
-    public CommitLogSegment(int cfCount)
+    public CommitLogSegment()
     {
-        this.header = new CommitLogHeader(cfCount);
+        this.header = new CommitLogHeader();
         String logFile = DatabaseDescriptor.getLogFileLocation() + File.separator + "CommitLog-" + System.currentTimeMillis() + ".log";
         logger.info("Creating new commitlog segment " + logFile);
 
@@ -78,7 +78,7 @@ public class CommitLogSegment
 
     private void writeCommitLogHeader(byte[] bytes) throws IOException
     {
-        logWriter.writeLong(bytes.length);
+        logWriter.writeInt(bytes.length);
         logWriter.write(bytes);
         logWriter.sync();
     }

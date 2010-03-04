@@ -26,12 +26,37 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class CFMetaData
 {
     public final static double DEFAULT_KEY_CACHE_SIZE = 0.1;
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
 
+    private static final AtomicInteger idGen = new AtomicInteger(0);
+    private static final Map<Integer, String> idToName = new HashMap<Integer, String>();
+    
+    // this only gets used by a toString method.
+    public static final String getName(int id)
+    {
+        return idToName.get(id);
+    }
+    
+    public static final int getCfCount() 
+    {
+        return idToName.size();
+    }
+    
+    // this gets called after initialization to make sure that id generation happens properly.
+    public static final void fixMaxId()
+    {
+        int maxId = Collections.max(idToName.keySet());
+        idGen.set(maxId + 1);
+    }
+    
     public final String tableName;            // name of table which has this column family
     public final String cfName;               // name of the column family
     public final String columnType;           // type: super, standard, etc.
@@ -40,8 +65,9 @@ public final class CFMetaData
     public final String comment; // for humans only
     public final double rowCacheSize; // default 0
     public final double keyCacheSize; // default 0.01
+    public final transient int cfId;
 
-    public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
+    private CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize, int cfId)
     {
         this.tableName = tableName;
         this.cfName = cfName;
@@ -51,6 +77,13 @@ public final class CFMetaData
         this.comment = comment;
         this.rowCacheSize = rowCacheSize;
         this.keyCacheSize = keyCacheSize;
+        this.cfId = cfId;
+    }
+    
+    public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
+    {
+        this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, nextId());
+        idToName.put(cfId, cfName);
     }
 
     // a quick and dirty pretty printer for describing the column family...
@@ -77,6 +110,7 @@ public final class CFMetaData
             dout.writeUTF(cfm.comment);
         dout.writeDouble(cfm.rowCacheSize);
         dout.writeDouble(cfm.keyCacheSize);
+        dout.writeInt(cfm.cfId);
         dout.close();
         return bout.toByteArray();
     }
@@ -109,7 +143,8 @@ public final class CFMetaData
         String comment = din.readBoolean() ? din.readUTF() : null;
         double rowCacheSize = din.readDouble();
         double keyCacheSize = din.readDouble();
-        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize);
+        int cfId = din.readInt();
+        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, cfId);
     }
 
     public boolean equals(Object obj)
@@ -124,6 +159,12 @@ public final class CFMetaData
                 && FBUtilities.equals(other.subcolumnComparator, subcolumnComparator)
                 && FBUtilities.equals(other.comment, comment)
                 && other.rowCacheSize == rowCacheSize
-                && other.keyCacheSize == keyCacheSize;
+                && other.keyCacheSize == keyCacheSize
+                && other.cfId == cfId;
+    }
+    
+    private static int nextId() 
+    {
+        return idGen.getAndIncrement();
     }
 }
