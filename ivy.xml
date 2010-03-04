@@ -35,15 +35,15 @@
 
     <dependency org="com.google.collections" name="google-collections"
                 rev="1.0"/>
-    <dependency org="commons-cli" name="commons-cli" rev="1.1"/>
+    <dependency org="commons-cli" name="commons-cli" rev="1.2"/>
     <dependency org="commons-collections" name="commons-collections"
                 rev="3.2.1"/>
-    <dependency org="commons-lang" name="commons-lang" rev="2.4"/>
+    <dependency org="commons-lang" name="commons-lang" rev="2.5"/>
     <dependency org="jline" name="jline" rev="0.9.94"/>
-    <dependency org="org.slf4j" name="slf4j-api" rev="1.5.8"/>
-    <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.5.8"/>
+    <dependency org="org.slf4j" name="slf4j-api" rev="1.5.11"/>
+    <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.5.11"/>
     <dependency org="com.googlecode.json-simple" name="json-simple" rev="1.1"/>
-    <dependency org="junit" name="junit" rev="4.6" conf="build->default" />
+    <dependency org="junit" name="junit" rev="4.8.1" conf="build->default" />
 
     <dependency org="org.apache.rat" name="apache-rat" rev="0.6"
                 conf="qa->default"/>
