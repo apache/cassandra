@@ -22,35 +22,44 @@ package org.apache.cassandra.db.filter;
 
 
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.apache.commons.collections.IteratorUtils;
 
+import com.google.common.collect.Collections2;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
 
 public class SliceQueryFilter extends QueryFilter
 {
     private static Logger logger = Logger.getLogger(SliceQueryFilter.class);
 
     public final byte[] start, finish;
+    public final List<byte[]> bitmasks;
     public final boolean reversed;
     public final int count;
 
     public SliceQueryFilter(String key, QueryPath columnParent, byte[] start, byte[] finish, boolean reversed, int count)
+    {
+        this(key, columnParent, start, finish, null, reversed, count);
+    }
+
+    public SliceQueryFilter(String key, QueryPath columnParent, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
     {
         super(key, columnParent);
         this.start = start;
         this.finish = finish;
         this.reversed = reversed;
         this.count = count;
+        this.bitmasks = bitmasks;
     }
 
     public ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator)
@@ -60,7 +69,10 @@ public class SliceQueryFilter extends QueryFilter
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
     {
-        return new SSTableSliceIterator(sstable, key, start, finish, reversed);
+        Predicate<IColumn> predicate = (bitmasks == null || bitmasks.isEmpty())
+                                       ? Predicates.<IColumn>alwaysTrue()
+                                       : getBitmaskMatchColumnPredicate();
+        return new SSTableSliceIterator(sstable, key, start, finish, predicate, reversed);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)
@@ -77,6 +89,12 @@ public class SliceQueryFilter extends QueryFilter
         else
         {
             subcolumns = superColumn.getSubColumns().iterator();
+        }
+
+        // now apply the predicate
+        if (bitmasks != null && !bitmasks.isEmpty())
+        {
+            subcolumns = Iterators.filter(subcolumns, getBitmaskMatchColumnPredicate());
         }
 
         // iterate until we get to the "real" start column
@@ -132,5 +150,49 @@ public class SliceQueryFilter extends QueryFilter
             if (QueryFilter.isRelevant(column, container, gcBefore))
                 container.addColumn(column);
         }
+    }
+
+    public Collection<IColumn> applyPredicate(Collection<IColumn> columns)
+    {
+        if (bitmasks == null || bitmasks.isEmpty())
+            return columns;
+
+        return Collections2.filter(columns, getBitmaskMatchColumnPredicate());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Predicate<IColumn> getBitmaskMatchColumnPredicate()
+    {
+        Predicate<IColumn>[] predicates = new Predicate[bitmasks.size()];
+        for (int i = 0; i < bitmasks.size(); i++)
+        {
+            final byte[] bitmask = bitmasks.get(i);
+            predicates[i] = new Predicate<IColumn>()
+            {
+                public boolean apply(IColumn col)
+                {
+                    return matchesBitmask(bitmask, col.name());
+                }
+            };
+        }
+        return Predicates.or(predicates);
+    }
+
+    public static boolean matchesBitmask(byte[] bitmask, byte[] name)
+    {
+        assert name != null;
+        assert bitmask != null;
+
+        int len = Math.min(bitmask.length, name.length);
+
+        for (int i = 0; i < len; i++)
+        {
+            if ((bitmask[i] & name[i]) == 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

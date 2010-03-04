@@ -1,5 +1,7 @@
 dev
  * sstable versioning (CASSANDRA-389)
+ * bitmask matching in SliceRange queries (CASSANDRA-764)
+
 
 0.6.0-RC1
  * fix compaction bucketing bug (CASSANDRA-814)

@@ -67,4 +67,17 @@ public class ThriftGlue
         return ret;
     }
 
+    public static SliceRange createSliceRange(byte[] start, byte[] finish, boolean reversed, int count)
+    {
+        SliceRange range = new SliceRange(start, finish, reversed, count);
+        return range;
+    }
+
+    public static SliceRange createSliceRange(byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
+    {
+        SliceRange range = new SliceRange(start, finish, reversed, count);
+        range.setBitmasks(bitmasks);
+        return range;
+    }
+
 }

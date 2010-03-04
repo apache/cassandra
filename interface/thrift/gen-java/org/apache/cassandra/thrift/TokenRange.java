@@ -439,13 +439,13 @@ public class TokenRange implements TBase<TokenRange._Fields>, java.io.Serializab
         case 3: // ENDPOINTS
           if (field.type == TType.LIST) {
             {
-              TList _list12 = iprot.readListBegin();
-              this.endpoints = new ArrayList<String>(_list12.size);
-              for (int _i13 = 0; _i13 < _list12.size; ++_i13)
+              TList _list16 = iprot.readListBegin();
+              this.endpoints = new ArrayList<String>(_list16.size);
+              for (int _i17 = 0; _i17 < _list16.size; ++_i17)
               {
-                String _elem14;
-                _elem14 = iprot.readString();
-                this.endpoints.add(_elem14);
+                String _elem18;
+                _elem18 = iprot.readString();
+                this.endpoints.add(_elem18);
               }
               iprot.readListEnd();
             }
@@ -482,9 +482,9 @@ public class TokenRange implements TBase<TokenRange._Fields>, java.io.Serializab
       oprot.writeFieldBegin(ENDPOINTS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRING, this.endpoints.size()));
-        for (String _iter15 : this.endpoints)
+        for (String _iter19 : this.endpoints)
         {
-          oprot.writeString(_iter15);
+          oprot.writeString(_iter19);
         }
         oprot.writeListEnd();
       }

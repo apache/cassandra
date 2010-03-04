@@ -662,6 +662,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.getRecentLatencyMicros();
     }
 
+    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit) throws IOException
+    {
+        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, bitmasks, reversed, limit));
+    }
+
     public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit) throws IOException
     {
         return getColumnFamily(new SliceQueryFilter(key, path, start, finish, reversed, limit));
@@ -968,7 +973,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             columnNameSet.addAll(columnNames);
         for (String key : keys)
         {
-            QueryFilter filter = sliceRange == null ? new NamesQueryFilter(key, queryPath, columnNameSet) : new SliceQueryFilter(key, queryPath, sliceRange.start, sliceRange.finish, sliceRange.reversed, sliceRange.count);
+            QueryFilter filter = sliceRange == null ? new NamesQueryFilter(key, queryPath, columnNameSet) : new SliceQueryFilter(key, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
             rows.add(new Row(key, getColumnFamily(filter)));
         }
 

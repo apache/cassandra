@@ -374,14 +374,14 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
         case 2: // COLUMNS
           if (field.type == TType.LIST) {
             {
-              TList _list8 = iprot.readListBegin();
-              this.columns = new ArrayList<ColumnOrSuperColumn>(_list8.size);
-              for (int _i9 = 0; _i9 < _list8.size; ++_i9)
+              TList _list12 = iprot.readListBegin();
+              this.columns = new ArrayList<ColumnOrSuperColumn>(_list12.size);
+              for (int _i13 = 0; _i13 < _list12.size; ++_i13)
               {
-                ColumnOrSuperColumn _elem10;
-                _elem10 = new ColumnOrSuperColumn();
-                _elem10.read(iprot);
-                this.columns.add(_elem10);
+                ColumnOrSuperColumn _elem14;
+                _elem14 = new ColumnOrSuperColumn();
+                _elem14.read(iprot);
+                this.columns.add(_elem14);
               }
               iprot.readListEnd();
             }
@@ -413,9 +413,9 @@ public class KeySlice implements TBase<KeySlice._Fields>, java.io.Serializable, 
       oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
       {
         oprot.writeListBegin(new TList(TType.STRUCT, this.columns.size()));
-        for (ColumnOrSuperColumn _iter11 : this.columns)
+        for (ColumnOrSuperColumn _iter15 : this.columns)
         {
-          _iter11.write(oprot);
+          _iter15.write(oprot);
         }
         oprot.writeListEnd();
       }

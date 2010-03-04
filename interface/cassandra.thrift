@@ -46,7 +46,7 @@ namespace rb CassandraThrift
 #           for every edit that doesn't result in a change to major/minor.
 #
 # See the Semantic Versioning Specification (SemVer) http://semver.org.
-const string VERSION = "2.1.0"
+const string VERSION = "2.2.0"
 
 #
 # data structures
@@ -204,12 +204,14 @@ struct ColumnPath {
                   materialize the whole result into memory before returning it to the client, so be aware that you may
                   be better served by iterating through slices by passing the last value of one call in as the 'start'
                   of the next instead of increasing 'count' arbitrarily large.
+    @param bitmasks. A list of OR-ed binary AND masks applied to the result set.
  */
 struct SliceRange {
     1: required binary start,
     2: required binary finish,
     3: required bool reversed=0,
     4: required i32 count=100,
+    5: optional list<binary> bitmasks,
 }
 
 /**

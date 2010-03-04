@@ -59,6 +59,7 @@ import org.apache.thrift.protocol.*;
  *               materialize the whole result into memory before returning it to the client, so be aware that you may
  *               be better served by iterating through slices by passing the last value of one call in as the 'start'
  *               of the next instead of increasing 'count' arbitrarily large.
+ * @param bitmasks. A list of OR-ed binary AND masks applied to the result set.
  */
 public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializable, Cloneable, Comparable<SliceRange> {
   private static final TStruct STRUCT_DESC = new TStruct("SliceRange");
@@ -67,18 +68,21 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
   private static final TField FINISH_FIELD_DESC = new TField("finish", TType.STRING, (short)2);
   private static final TField REVERSED_FIELD_DESC = new TField("reversed", TType.BOOL, (short)3);
   private static final TField COUNT_FIELD_DESC = new TField("count", TType.I32, (short)4);
+  private static final TField BITMASKS_FIELD_DESC = new TField("bitmasks", TType.LIST, (short)5);
 
   public byte[] start;
   public byte[] finish;
   public boolean reversed;
   public int count;
+  public List<byte[]> bitmasks;
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements TFieldIdEnum {
     START((short)1, "start"),
     FINISH((short)2, "finish"),
     REVERSED((short)3, "reversed"),
-    COUNT((short)4, "count");
+    COUNT((short)4, "count"),
+    BITMASKS((short)5, "bitmasks");
 
     private static final Map<Integer, _Fields> byId = new HashMap<Integer, _Fields>();
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
@@ -145,6 +149,9 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
         new FieldValueMetaData(TType.BOOL)));
     put(_Fields.COUNT, new FieldMetaData("count", TFieldRequirementType.REQUIRED, 
         new FieldValueMetaData(TType.I32)));
+    put(_Fields.BITMASKS, new FieldMetaData("bitmasks", TFieldRequirementType.OPTIONAL, 
+        new ListMetaData(TType.LIST, 
+            new FieldValueMetaData(TType.STRING))));
   }});
 
   static {
@@ -189,6 +196,15 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     }
     this.reversed = other.reversed;
     this.count = other.count;
+    if (other.isSetBitmasks()) {
+      List<byte[]> __this__bitmasks = new ArrayList<byte[]>();
+      for (byte[] other_element : other.bitmasks) {
+        byte[] temp_binary_element = new byte[other_element.length];
+        System.arraycopy(other_element, 0, temp_binary_element, 0, other_element.length);
+        __this__bitmasks.add(temp_binary_element);
+      }
+      this.bitmasks = __this__bitmasks;
+    }
   }
 
   public SliceRange deepCopy() {
@@ -294,6 +310,45 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     __isset_bit_vector.set(__COUNT_ISSET_ID, value);
   }
 
+  public int getBitmasksSize() {
+    return (this.bitmasks == null) ? 0 : this.bitmasks.size();
+  }
+
+  public java.util.Iterator<byte[]> getBitmasksIterator() {
+    return (this.bitmasks == null) ? null : this.bitmasks.iterator();
+  }
+
+  public void addToBitmasks(byte[] elem) {
+    if (this.bitmasks == null) {
+      this.bitmasks = new ArrayList<byte[]>();
+    }
+    this.bitmasks.add(elem);
+  }
+
+  public List<byte[]> getBitmasks() {
+    return this.bitmasks;
+  }
+
+  public SliceRange setBitmasks(List<byte[]> bitmasks) {
+    this.bitmasks = bitmasks;
+    return this;
+  }
+
+  public void unsetBitmasks() {
+    this.bitmasks = null;
+  }
+
+  /** Returns true if field bitmasks is set (has been asigned a value) and false otherwise */
+  public boolean isSetBitmasks() {
+    return this.bitmasks != null;
+  }
+
+  public void setBitmasksIsSet(boolean value) {
+    if (!value) {
+      this.bitmasks = null;
+    }
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case START:
@@ -328,6 +383,14 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
       }
       break;
 
+    case BITMASKS:
+      if (value == null) {
+        unsetBitmasks();
+      } else {
+        setBitmasks((List<byte[]>)value);
+      }
+      break;
+
     }
   }
 
@@ -349,6 +412,9 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     case COUNT:
       return new Integer(getCount());
 
+    case BITMASKS:
+      return getBitmasks();
+
     }
     throw new IllegalStateException();
   }
@@ -368,6 +434,8 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
       return isSetReversed();
     case COUNT:
       return isSetCount();
+    case BITMASKS:
+      return isSetBitmasks();
     }
     throw new IllegalStateException();
   }
@@ -425,6 +493,15 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
         return false;
     }
 
+    boolean this_present_bitmasks = true && this.isSetBitmasks();
+    boolean that_present_bitmasks = true && that.isSetBitmasks();
+    if (this_present_bitmasks || that_present_bitmasks) {
+      if (!(this_present_bitmasks && that_present_bitmasks))
+        return false;
+      if (!this.bitmasks.equals(that.bitmasks))
+        return false;
+    }
+
     return true;
   }
 
@@ -477,6 +554,15 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
         return lastComparison;
       }
     }
+    lastComparison = Boolean.valueOf(isSetBitmasks()).compareTo(typedOther.isSetBitmasks());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetBitmasks()) {      lastComparison = TBaseHelper.compareTo(bitmasks, typedOther.bitmasks);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -520,6 +606,23 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
             TProtocolUtil.skip(iprot, field.type);
           }
           break;
+        case 5: // BITMASKS
+          if (field.type == TType.LIST) {
+            {
+              TList _list4 = iprot.readListBegin();
+              this.bitmasks = new ArrayList<byte[]>(_list4.size);
+              for (int _i5 = 0; _i5 < _list4.size; ++_i5)
+              {
+                byte[] _elem6;
+                _elem6 = iprot.readBinary();
+                this.bitmasks.add(_elem6);
+              }
+              iprot.readListEnd();
+            }
+          } else { 
+            TProtocolUtil.skip(iprot, field.type);
+          }
+          break;
         default:
           TProtocolUtil.skip(iprot, field.type);
       }
@@ -557,6 +660,20 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     oprot.writeFieldBegin(COUNT_FIELD_DESC);
     oprot.writeI32(this.count);
     oprot.writeFieldEnd();
+    if (this.bitmasks != null) {
+      if (isSetBitmasks()) {
+        oprot.writeFieldBegin(BITMASKS_FIELD_DESC);
+        {
+          oprot.writeListBegin(new TList(TType.STRING, this.bitmasks.size()));
+          for (byte[] _iter7 : this.bitmasks)
+          {
+            oprot.writeBinary(_iter7);
+          }
+          oprot.writeListEnd();
+        }
+        oprot.writeFieldEnd();
+      }
+    }
     oprot.writeFieldStop();
     oprot.writeStructEnd();
   }
@@ -599,6 +716,16 @@ public class SliceRange implements TBase<SliceRange._Fields>, java.io.Serializab
     sb.append("count:");
     sb.append(this.count);
     first = false;
+    if (isSetBitmasks()) {
+      if (!first) sb.append(", ");
+      sb.append("bitmasks:");
+      if (this.bitmasks == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.bitmasks);
+      }
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }

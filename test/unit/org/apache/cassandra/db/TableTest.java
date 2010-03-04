@@ -22,8 +22,12 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.Predicate;
+import org.apache.commons.collections.PredicateUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.junit.Test;
@@ -216,6 +220,70 @@ public class TableTest extends CleanupHelper
                 // test reversed, from end, spanning a segment.
                 cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "".getBytes(), "col288".getBytes(), true, 12);
                 assertColumns(cf, "col288", "col289", "col290", "col291", "col292", "col293", "col294", "col295", "col296", "col297", "col298", "col299");
+            }
+        };
+
+        reTest(table.getColumnFamilyStore("Standard1"), verify);
+    }
+
+    @Test
+    public void testGetSliceWithBitmasks() throws Throwable
+    {
+        // tests slicing against data from one row in a memtable and then flushed to an sstable
+        final Table table = Table.open("Keyspace1");
+        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final String ROW = "row-bitmasktest";
+        final NumberFormat fmt = new DecimalFormat("000");
+
+        RowMutation rm = new RowMutation("Keyspace1", ROW);
+        ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+        // at this rate, we're getting 78-79 cos/block, assuming the blocks are set to be about 4k.
+        // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
+        for (int i = 0; i < 300; i++)
+            cf.addColumn(column("col" + fmt.format(i), "omg!thisisthevalue!"+i, 1L));
+        rm.add(cf);
+        rm.apply();
+
+        Runnable verify = new WrappedRunnable()
+        {
+            public void runMayThrow() throws Exception
+            {
+                ColumnFamily cf;
+
+                // blocks are partitioned like this: 000-097, 098-193, 194-289, 290-299, assuming a 4k column index size.
+                assert DatabaseDescriptor.getColumnIndexSize() == 4096 : "Unexpected column index size, block boundaries won't be where tests expect them.";
+
+                for (String[] bitmaskTests: new String[][] { {}, {"test one", "test two" }, { new String(new byte[] { 0, 1, 0x20, (byte) 0xff }) } })
+                {
+                    ArrayList<byte[]> bitmasks = new ArrayList<byte[]>(bitmaskTests.length);
+
+                    // test forward, spanning a segment.
+                    cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col096".getBytes(), "col099".getBytes(), bitmasks, false, 4);
+                    assertBitmaskedColumns(cf, bitmasks, "col096", "col097", "col098", "col099");
+
+                    // test reversed, spanning a segment.
+                    cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col099".getBytes(), "col096".getBytes(), bitmasks, true, 4);
+                    assertBitmaskedColumns(cf, bitmasks, "col096", "col097", "col098", "col099");
+
+                    // test forward, within a segment.
+                    cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col100".getBytes(), "col103".getBytes(), bitmasks, false, 4);
+                    assertBitmaskedColumns(cf, bitmasks, "col100", "col101", "col102", "col103");
+
+                    // test reversed, within a segment.
+                    cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "col103".getBytes(), "col100".getBytes(), bitmasks, true, 4);
+                    assertBitmaskedColumns(cf, bitmasks, "col100", "col101", "col102", "col103");
+
+                    // test forward from beginning, spanning a segment.
+                    String[] strCols = new String[100]; // col000-col099
+                    for (int i = 0; i < 100; i++)
+                        strCols[i] = "col" + fmt.format(i);
+                    cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "".getBytes(), "col099".getBytes(), bitmasks, false, 100);
+                    assertBitmaskedColumns(cf, bitmasks, strCols);
+
+                    // test reversed, from end, spanning a segment.
+                    cf = cfStore.getColumnFamily(ROW, new QueryPath("Standard1"), "".getBytes(), "col288".getBytes(), bitmasks, true, 12);
+                    assertBitmaskedColumns(cf, bitmasks, "col288", "col289", "col290", "col291", "col292", "col293", "col294", "col295", "col296", "col297", "col298", "col299");
+                }
             }
         };
 
@@ -447,14 +515,66 @@ public class TableTest extends CleanupHelper
 
     public static void assertColumns(ColumnFamily cf, String... columnNames)
     {
+        assertBitmaskedColumnsNameArray(cf, null, columnNames);
+    }
+
+    public static void assertBitmaskedColumns(ColumnFamily cf, List<byte[]> bitmasks, String... unfilteredColumnNames)
+    {
+        assertBitmaskedColumnsNameArray(cf, bitmasks, unfilteredColumnNames);
+    }
+
+    public static void assertBitmaskedColumnsNameArray(ColumnFamily cf, List<byte[]> bitmasks, String[] unfilteredColumnNames)
+    {
         Collection<IColumn> columns = cf == null ? new TreeSet<IColumn>() : cf.getSortedColumns();
         List<String> L = new ArrayList<String>();
         for (IColumn column : columns)
         {
             L.add(new String(column.name()));
         }
-        assert Arrays.equals(L.toArray(new String[columns.size()]), columnNames)
-                : "Columns [" + ((cf == null) ? "" : cf.getComparator().getColumnsString(columns)) + "]"
-                  + " is not expected [" + StringUtils.join(columnNames, ",") + "]";
+
+        List<String> names = new ArrayList<String>(unfilteredColumnNames.length);
+
+        names.addAll(Arrays.asList(unfilteredColumnNames));
+
+        if (bitmasks != null && bitmasks.size() > 0)
+        {
+            List<Predicate> predicates = new ArrayList<Predicate>(bitmasks.size());
+            for (final byte[] bitmask: bitmasks)
+            {
+                predicates.add(new Predicate()
+                {
+                    public boolean evaluate(Object o)
+                    {
+                        try
+                        {
+                            return SliceQueryFilter.matchesBitmask(bitmask, o.toString().getBytes("UTF-8"));
+                        }
+                        catch (UnsupportedEncodingException e)
+                        {
+                            return false;
+                        }
+                    }
+                });
+            }
+
+            CollectionUtils.filter(names, PredicateUtils.anyPredicate(predicates));
+        }
+
+        String[] columnNames = names.toArray(new String[0]);
+        String[] la = L.toArray(new String[columns.size()]);
+        StringBuffer lasb = new StringBuffer();
+        for (String l: la)
+        {
+            lasb.append(l);
+            lasb.append(", ");
+        }
+
+        assert Arrays.equals(la, columnNames)
+                : String.format("Columns [%s(as string: %s)])] is not expected [%s] (bitmasks %s)",
+                                ((cf == null) ? "" : cf.getComparator().getColumnsString(columns)),
+                                lasb.toString(),
+                                StringUtils.join(columnNames, ","),
+                                SliceFromReadCommand.getBitmaskDescription(bitmasks));
+                                
     }
 }

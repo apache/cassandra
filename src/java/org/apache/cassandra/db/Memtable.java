@@ -204,7 +204,10 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     {
         final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(getTableName(), filter.getColumnFamilyName()) : cf.cloneMeShallow();
 
-        final IColumn columns[] = (cf == null ? columnFamily : cf).getSortedColumns().toArray(new IColumn[columnFamily.getSortedColumns().size()]);
+        Collection<IColumn> rawColumns = (cf == null ? columnFamily : cf).getSortedColumns();
+        Collection<IColumn> filteredColumns = filter.applyPredicate(rawColumns);
+
+        final IColumn columns[] = filteredColumns.toArray(new IColumn[0]);
         // TODO if we are dealing with supercolumns, we need to clone them while we have the read lock since they can be modified later
         if (filter.reversed)
             ArrayUtils.reverse(columns);

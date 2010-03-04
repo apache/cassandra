@@ -31,6 +31,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 
 /**
@@ -38,16 +40,19 @@ import com.google.common.collect.AbstractIterator;
  */
 class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIterator
 {
+    private final Predicate<IColumn> predicate;
     private final boolean reversed;
     private final byte[] startColumn;
     private final byte[] finishColumn;
     private final AbstractType comparator;
     private ColumnGroupReader reader;
 
-    public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, byte[] finishColumn, boolean reversed)
+    public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
     throws IOException
     {
         this.reversed = reversed;
+
+        this.predicate = predicate;
 
         /* Morph key into actual key based on the partition type. */
         DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
@@ -60,6 +65,14 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     }
 
     private boolean isColumnNeeded(IColumn column)
+    {
+        if (!isColumnNeededByRange(column))
+            return false;
+
+        return predicate.apply(column);
+    }
+
+    private boolean isColumnNeededByRange(IColumn column)
     {
         if (startColumn.length == 0 && finishColumn.length == 0)
             return true;
