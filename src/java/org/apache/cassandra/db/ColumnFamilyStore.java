@@ -1084,16 +1084,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(stores);
     }
 
-    public Iterable<SSTable.KeyPosition> allIndexPositions()
+    public Iterable<DecoratedKey> allKeySamples()
     {
         Collection<SSTableReader> sstables = getSSTables();
-        Iterable<SSTable.KeyPosition>[] positions = new Iterable[sstables.size()];
+        Iterable<DecoratedKey>[] samples = new Iterable[sstables.size()];
         int i = 0;
         for (SSTableReader sstable: sstables)
         {
-            positions[i++] = sstable.getIndexPositions();
+            samples[i++] = sstable.getKeySamples();
         }
-        return Iterables.concat(positions);
+        return Iterables.concat(samples);
     }
 
     /**

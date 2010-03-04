@@ -1221,10 +1221,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            for (DecoratedKey sample : cfs.allKeySamples())
+            for (SSTable.KeyPosition info: cfs.allIndexPositions())
             {
-                if (range.contains(sample.token))
-                    keys.add(sample);
+                if (range.contains(info.key.token))
+                    keys.add(info.key);
             }
         }
         FBUtilities.sortSampledKeys(keys, range);
@@ -1250,10 +1250,10 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            for (DecoratedKey key : cfs.allKeySamples())
+            for (SSTable.KeyPosition info: cfs.allIndexPositions())
             {
-                if (range.contains(key.token))
-                    keys.add(key);
+                if (range.contains(info.key.token))
+                    keys.add(info.key);
             }
         }
         FBUtilities.sortSampledKeys(keys, range);

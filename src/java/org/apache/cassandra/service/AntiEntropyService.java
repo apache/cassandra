@@ -367,8 +367,8 @@ public class AntiEntropyService
             }
             if (cfs != null) // TODO test w/ valid CF definitions, this if{} shouldn't be necessary
             {
-                for (SSTable.KeyPosition info: cfs.allIndexPositions())
-                    keys.add(info.key);
+                for (DecoratedKey sample : cfs.allKeySamples())
+                    keys.add(sample);
             }
 
             if (keys.isEmpty())

@@ -163,7 +163,7 @@ public class TableTest extends CleanupHelper
 
         Collection<SSTableReader> ssTables = table.getColumnFamilyStore("Standard2").getSSTables();
         assertEquals(1, ssTables.size());
-        ssTables.iterator().next().forceBloomFilterFailures();
+        ssTables.iterator().next().forceFilterFailures();
         validateGetSliceNoMatch(table);
     }
 

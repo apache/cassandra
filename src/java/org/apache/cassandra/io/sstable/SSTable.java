@@ -76,6 +76,17 @@ public abstract class SSTable
         this.partitioner = partitioner;
     }
 
+    protected SSTable(Descriptor desc, IPartitioner partitioner)
+    {
+        this.desc = desc;
+        this.partitioner = partitioner;
+    }
+
+    public IPartitioner getPartitioner()
+    {
+        return partitioner;
+    }
+
     public Descriptor getDescriptor()
     {
         return desc;
@@ -334,6 +345,14 @@ public abstract class SSTable
             return new Descriptor(version, directory, ksname, cfname, generation, temporary);
         }
         
+        /**
+         * @return A clone of this descriptor with the given 'temporary' status.
+         */
+        public Descriptor asTemporary(boolean temporary)
+        {
+            return new Descriptor(version, directory, ksname, cfname, generation, temporary);
+        }
+
         /**
          * @return True if the given version string is not empty, and
          * contains all lowercase letters, as defined by java.lang.Character.

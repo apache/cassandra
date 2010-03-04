@@ -60,7 +60,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
 
         for (SSTableReader sstable : replacements)
         {
-            assert sstable.getIndexPositions() != null;
+            assert sstable.getKeySamples() != null;
             sstablesNew.add(sstable);
             long size = sstable.bytesOnDisk();
             liveSize.addAndGet(size);
