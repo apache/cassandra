@@ -47,6 +47,12 @@
 
     <dependency org="org.apache.rat" name="apache-rat" rev="0.6"
                 conf="qa->default"/>
+    <dependency org="org.mortbay.jetty" name="jetty" rev="6.1.21"/>
+
+	<dependency org="org.safehaus.jug" name="jug" rev="2.0.0"> 
+      <!-- I can't figure out how to tell ivy to grab the classifier=asl version of this lib, so I force it. -->
+	  <artifact name="jug" type="jar" ext="jar" url="http://repo1.maven.org/maven2/org/safehaus/jug/jug/2.0.0/jug-2.0.0-asl.jar"/>
+	</dependency>
   </dependencies>
 </ivy-module>
 
