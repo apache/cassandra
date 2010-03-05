@@ -38,6 +38,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.SuperColumn;
 import org.apache.cassandra.utils.Pair;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -47,11 +48,13 @@ import org.apache.thrift.transport.TTransportException;
 
 public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byte[], IColumn>>
 {
-    private static final int ROWS_PER_RANGE_QUERY = 1024;
-
     private ColumnFamilySplit split;
     private RowIterator iter;
     private Pair<String, SortedMap<byte[], IColumn>> currentRow;
+    private SlicePredicate predicate;
+    private int rowCount;
+    private String cfName;
+    private String keyspace;
 
     public void close() {}
     
@@ -73,6 +76,11 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
+        Configuration conf = context.getConfiguration();
+        predicate = ConfigHelper.getSlicePredicate(conf);
+        rowCount = ConfigHelper.getInputSplitSize(conf);
+        cfName = ConfigHelper.getColumnFamily(conf);
+        keyspace = ConfigHelper.getKeyspace(conf);
         iter = new RowIterator();
     }
     
@@ -89,7 +97,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
 
         private List<KeySlice> rows;
         private int i = 0;
-        private AbstractType comparator = DatabaseDescriptor.getComparator(split.getTable(), split.getColumnFamily());
+        private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
 
         private void maybeInit()
         {
@@ -107,14 +115,14 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             {
                 throw new RuntimeException(e);
             }
-            KeyRange keyRange = new KeyRange(ROWS_PER_RANGE_QUERY)
+            KeyRange keyRange = new KeyRange(rowCount)
                                 .setStart_token(split.getStartToken())
                                 .setEnd_token(split.getEndToken());
             try
             {
-                rows = client.get_range_slices(split.getTable(),
-                                               new ColumnParent(split.getColumnFamily()),
-                                               split.getPredicate(),
+                rows = client.get_range_slices(keyspace,
+                                               new ColumnParent(cfName),
+                                               predicate,
                                                keyRange,
                                                ConsistencyLevel.ONE);
             }
@@ -196,7 +204,7 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
 
     private IColumn unthriftifySuper(SuperColumn super_column)
     {
-        AbstractType subComparator = DatabaseDescriptor.getSubComparator(split.getTable(), split.getColumnFamily());
+        AbstractType subComparator = DatabaseDescriptor.getSubComparator(keyspace, cfName);
         org.apache.cassandra.db.SuperColumn sc = new org.apache.cassandra.db.SuperColumn(super_column.name, subComparator);
         for (Column column : super_column.columns)
         {

@@ -25,6 +25,7 @@ import org.apache.log4j.Logger;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
+import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
@@ -127,9 +128,9 @@ public class WordCount extends Configured implements Tool
             job.setInputFormatClass(ColumnFamilyInputFormat.class);
             FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX + i));
 
-            ColumnFamilyInputFormat.setColumnFamily(job, KEYSPACE, COLUMN_FAMILY);
+            ConfigHelper.setColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
             SlicePredicate predicate = new SlicePredicate().setColumn_names(Arrays.asList(columnName.getBytes()));
-            ColumnFamilyInputFormat.setSlicePredicate(job, predicate);
+            ConfigHelper.setSlicePredicate(job.getConfiguration(), predicate);
 
             job.waitForCompletion(true);
         }

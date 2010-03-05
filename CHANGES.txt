@@ -17,6 +17,7 @@ dev
    until it's too late (CASSANDRA-843)
  * Add logging of GC activity (CASSANDRA-813)
  * fix ConcurrentModificationException in commitlog discard (CASSANDRA-853)
+ * Fix hardcoded row count in Hadoop RecordReader (CASSANDRA-837)
 
 
 0.6.0-beta1/beta2
