@@ -381,8 +381,10 @@ public class CommitLog
          * these files the header needs to modified by resetting the dirty
          * bit corresponding to the flushed CF.
         */
-        for (CommitLogSegment segment : segments)
+        Iterator<CommitLogSegment> iter = segments.iterator();
+        while (iter.hasNext())
         {
+            CommitLogSegment segment = iter.next();
             CommitLogHeader header = segment.getHeader();
             if (segment.equals(context.getSegment()))
             {
@@ -405,7 +407,7 @@ public class CommitLog
                 DeletionService.submitDelete(segment.getPath());
                 // usually this will be the first (remaining) segment, but not always, if segment A contains
                 // writes to a CF that is unflushed but is followed by segment B whose CFs are all flushed.
-                segments.remove(segment);
+                iter.remove();
             }
             else
             {
