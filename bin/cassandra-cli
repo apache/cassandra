@@ -43,6 +43,8 @@ if [ -z $CLASSPATH ]; then
     exit 1
 fi
 
-$JAVA -ea -cp $CLASSPATH  org.apache.cassandra.cli.CliMain "$@"
+$JAVA -ea -cp $CLASSPATH \
+        -Dlog4j.configuration=log4j-tools.properties \
+        org.apache.cassandra.cli.CliMain "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et
