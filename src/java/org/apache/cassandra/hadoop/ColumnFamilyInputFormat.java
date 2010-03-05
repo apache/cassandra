@@ -42,17 +42,13 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
 
     private static final Logger logger = Logger.getLogger(StorageService.class);
 
-    private String keyspace;
-    private String columnFamily;
-    private SlicePredicate predicate;
-
-    private void validateConfiguration()
+    private void validateConfiguration(Configuration conf)
     {
-        if (keyspace == null || columnFamily == null)
+        if (ConfigHelper.getKeyspace(conf) == null || ConfigHelper.getColumnFamily(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setColumnFamily()");
         }
-        if (predicate == null)
+        if (ConfigHelper.getSlicePredicate(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the predicate with setPredicate");
         }
@@ -61,13 +57,11 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
     public List<InputSplit> getSplits(JobContext context) throws IOException
     {
         Configuration conf = context.getConfiguration();
-        predicate = ConfigHelper.getSlicePredicate(conf);
-        keyspace = ConfigHelper.getKeyspace(conf);
-        columnFamily = ConfigHelper.getColumnFamily(conf);
-        validateConfiguration();
+
+        validateConfiguration(conf);
 
         // cannonical ranges and nodes holding replicas
-        List<TokenRange> masterRangeNodes = getRangeMap();
+        List<TokenRange> masterRangeNodes = getRangeMap(ConfigHelper.getKeyspace(conf));
 
         int splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
         
@@ -91,7 +85,7 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
             int i = 1;
             for ( ; i < tokens.size(); i++)
             {
-                ColumnFamilySplit split = new ColumnFamilySplit(keyspace, columnFamily, predicate, tokens.get(i - 1), tokens.get(i), endpoints);
+                ColumnFamilySplit split = new ColumnFamilySplit(tokens.get(i - 1), tokens.get(i), endpoints);
                 logger.debug("adding " + split);
                 splits.add(split);
             }
@@ -128,7 +122,7 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
         return splits;
     }
 
-    private List<TokenRange> getRangeMap() throws IOException
+    private List<TokenRange> getRangeMap(String keyspace) throws IOException
     {
         TSocket socket = new TSocket(DatabaseDescriptor.getSeeds().iterator().next().getHostAddress(),
                                      DatabaseDescriptor.getThriftPort());
