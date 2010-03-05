@@ -22,117 +22,29 @@ package org.apache.cassandra.hadoop;
 
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.*;
 
 import org.apache.log4j.Logger;
-import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
-import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
-import org.apache.thrift.TSerializer;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TJSONProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransportException;
 
 public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[], IColumn>>
 {
-    private static final String KEYSPACE_CONFIG = "cassandra.input.keyspace";
-    private static final String COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
-    private static final String PREDICATE_CONFIG = "cassandra.input.predicate";
-    private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
 
     private static final Logger logger = Logger.getLogger(StorageService.class);
 
     private String keyspace;
     private String columnFamily;
     private SlicePredicate predicate;
-
-    public static void setColumnFamily(Job job, String keyspace, String columnFamily)
-    {
-        if (keyspace == null)
-        {
-            throw new UnsupportedOperationException("keyspace may not be null");
-        }
-        if (columnFamily == null)
-        {
-            throw new UnsupportedOperationException("columnfamily may not be null");
-        }
-        try
-        {
-            ThriftValidation.validateColumnFamily(keyspace, columnFamily);
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
-        Configuration conf = job.getConfiguration();
-        conf.set(KEYSPACE_CONFIG, keyspace);
-        conf.set(COLUMNFAMILY_CONFIG, columnFamily);
-    }
-
-    /**
-     * Set the size of the input split.
-     * This affects the number of maps created, if the number is too small
-     * the overhead of each map will take up the bulk of the job time.
-     *  
-     * @param job Job you are about to run.
-     * @param splitsize Size of the input split
-     */
-    public static void setInputSplitSize(Job job, int splitsize)
-    {
-        job.getConfiguration().setInt(INPUT_SPLIT_SIZE_CONFIG, splitsize);
-    }
-    
-    public static void setSlicePredicate(Job job, SlicePredicate predicate)
-    {
-        Configuration conf = job.getConfiguration();
-        conf.set(PREDICATE_CONFIG, predicateToString(predicate));
-    }
-
-    private static String predicateToString(SlicePredicate predicate)
-    {
-        assert predicate != null;
-        // this is so awful it's kind of cool!
-        TSerializer serializer = new TSerializer(new TJSONProtocol.Factory());
-        try
-        {
-            return serializer.toString(predicate, "UTF-8");
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private SlicePredicate predicateFromString(String st)
-    {
-        assert st != null;
-        TDeserializer deserializer = new TDeserializer(new TJSONProtocol.Factory());
-        SlicePredicate predicate = new SlicePredicate();
-        try
-        {
-            deserializer.deserialize(predicate, st, "UTF-8");
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return predicate;
-    }
 
     private void validateConfiguration()
     {
@@ -149,15 +61,15 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
     public List<InputSplit> getSplits(JobContext context) throws IOException
     {
         Configuration conf = context.getConfiguration();
-        keyspace = conf.get(KEYSPACE_CONFIG);
-        columnFamily = conf.get(COLUMNFAMILY_CONFIG);
-        predicate = predicateFromString(conf.get(PREDICATE_CONFIG));
+        predicate = ConfigHelper.getSlicePredicate(conf);
+        keyspace = ConfigHelper.getKeyspace(conf);
+        columnFamily = ConfigHelper.getColumnFamily(conf);
         validateConfiguration();
 
         // cannonical ranges and nodes holding replicas
         List<TokenRange> masterRangeNodes = getRangeMap();
 
-        int splitsize = context.getConfiguration().getInt(INPUT_SPLIT_SIZE_CONFIG, 16384);
+        int splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
         
         // cannonical ranges, split into pieces:
         // for each range, pick a live owner and ask it to compute bite-sized splits
