@@ -211,7 +211,15 @@ public class CliMain
 
         String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
 
-        reader.setHistory(new History(new File(historyFile)));
+        try
+        {
+            History history = new History(new File(historyFile));
+            reader.setHistory(history);
+        }
+        catch (IOException exp)
+        {
+            css_.err.printf("Unable to open %s for writing%n", historyFile);
+        }
 
         printBanner();
 
