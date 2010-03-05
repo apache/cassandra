@@ -28,7 +28,7 @@ except ImportError:
     from threading import Thread
     from thread import get_ident
     from array import array
-from md5 import md5
+from hashlib import md5
 import time, random, sys, os
 from random import randint, gauss
 from optparse import OptionParser
