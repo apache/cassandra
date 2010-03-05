@@ -11,6 +11,7 @@
    be able to remove them with sstable2json if the warning is unheeded
    until it's too late (CASSANDRA-843)
  * Add logging of GC activity (CASSANDRA-813)
+ * fix ConcurrentModificationException in commitlog discard (CASSANDRA-853)
 
 
 0.6.0-beta1/beta2
