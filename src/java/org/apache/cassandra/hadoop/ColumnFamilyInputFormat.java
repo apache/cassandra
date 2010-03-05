@@ -37,6 +37,24 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransportException;
 
+/**
+ * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
+ *
+ * At minimum, you need to set the CF and predicate (description of columns to extract from each row)
+ * in your Hadoop job Configuration.  The ConfigHelper class is provided to make this
+ * simple:
+ *   ConfigHelper.setColumnFamily
+ *   ConfigHelper.setSlicePredicate
+ *
+ * You can also configure the number of rows per InputSplit with
+ *   ConfigHelper.setInputSplitSize
+ * This should be "as big as possible, but no bigger."  Each InputSplit is read from Cassandra
+ * with a single get_slice_range query, and the per-call overhead of get_slice_range is high,
+ * so larger split sizes are better -- but if it is too large, you will run out of memory,
+ * since no paging is done (yet).
+ *
+ * The default split size is 4096 rows.
+ */
 public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[], IColumn>>
 {
 

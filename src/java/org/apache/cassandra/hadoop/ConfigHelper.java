@@ -16,7 +16,15 @@ public class ConfigHelper
     private static final String COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
     private static final String PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
+    private static final int DEFAULT_SPLIT_SIZE = 4096;
 
+    /**
+     * Set the keyspace and column family for this job.
+     *
+     * @param conf Job configuration you are about to run
+     * @param keyspace
+     * @param columnFamily
+     */
     public static void setColumnFamily(Configuration conf, String keyspace, String columnFamily)
     {
         if (keyspace == null)
@@ -44,7 +52,7 @@ public class ConfigHelper
      * This affects the number of maps created, if the number is too small
      * the overhead of each map will take up the bulk of the job time.
      *
-     * @param conf Job configuration you are about to run.
+     * @param conf Job configuration you are about to run
      * @param splitsize Size of the input split
      */
     public static void setInputSplitSize(Configuration conf, int splitsize)
@@ -54,9 +62,15 @@ public class ConfigHelper
 
     public static int getInputSplitSize(Configuration conf)
     {
-        return conf.getInt(INPUT_SPLIT_SIZE_CONFIG, 4096);
+        return conf.getInt(INPUT_SPLIT_SIZE_CONFIG, DEFAULT_SPLIT_SIZE);
     }
 
+    /**
+     * Set the predicate that determines what columns will be selected from each row.
+     *
+     * @param conf Job configuration you are about to run
+     * @param predicate
+     */
     public static void setSlicePredicate(Configuration conf, SlicePredicate predicate)
     {
         conf.set(PREDICATE_CONFIG, predicateToString(predicate));
