@@ -40,7 +40,7 @@ from thrift.protocol import TBinaryProtocol
 
 try:
     from cassandra import Cassandra
-    from Cassandra.ttypes import *
+    from cassandra.ttypes import *
 except ImportError:
     # add cassandra directory to sys.path
     L = os.path.abspath(__file__).split(os.path.sep)[:-3]
