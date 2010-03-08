@@ -26,7 +26,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 
-import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -34,7 +33,7 @@ import org.apache.cassandra.thrift.AuthorizationException;
 public class SimpleAuthenticator implements IAuthenticator
 {
     public final static String PASSWD_FILENAME_PROPERTY        = "passwd.properties";
-    public final static String AUTHORIZATION_FILENAME_PROPERTY = "authorization.properties";
+    public final static String ACCESS_FILENAME_PROPERTY        = "access.properties";
     public final static String PMODE_PROPERTY                  = "passwd.mode";
     public static final String USERNAME_KEY                    = "username";
     public static final String PASSWORD_KEY                    = "password";
@@ -118,7 +117,7 @@ public class SimpleAuthenticator implements IAuthenticator
 
         // if we're here, the authentication succeeded. Now let's see if the user is authorized for this keyspace.
 
-        String afilename = System.getProperty(AUTHORIZATION_FILENAME_PROPERTY);
+        String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
         boolean authorized = false;
         try
         {
@@ -140,11 +139,11 @@ public class SimpleAuthenticator implements IAuthenticator
         }
         catch (FileNotFoundException e)
         {
-            throw new RuntimeException("Authorization table file given by property " + AUTHORIZATION_FILENAME_PROPERTY + " could not be found: " + e.getMessage());
+            throw new RuntimeException("Authorization table file given by property " + ACCESS_FILENAME_PROPERTY + " could not be found: " + e.getMessage());
         }
         catch (IOException e)
         {
-            throw new RuntimeException("Authorization table file given by property " + AUTHORIZATION_FILENAME_PROPERTY + " could not be opened: " + e.getMessage());
+            throw new RuntimeException("Authorization table file given by property " + ACCESS_FILENAME_PROPERTY + " could not be opened: " + e.getMessage());
         }
         catch (Exception e)
         {
