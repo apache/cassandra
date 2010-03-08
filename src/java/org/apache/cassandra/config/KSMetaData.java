@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndPointSnitch;
-import org.apache.cassandra.utils.FBUtilities;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -30,6 +29,8 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.commons.lang.ObjectUtils;
 
 public final class KSMetaData
 {
@@ -59,7 +60,7 @@ public final class KSMetaData
             return false;
         KSMetaData other = (KSMetaData)obj;
         return other.name.equals(name)
-                && FBUtilities.equals(other.strategyClass, strategyClass)
+                && ObjectUtils.equals(other.strategyClass, strategyClass)
                 && other.replicationFactor == replicationFactor
                 && sameEpSnitch(other, this)
                 && other.cfMetaData.size() == cfMetaData.size()

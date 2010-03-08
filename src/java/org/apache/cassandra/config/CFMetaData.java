@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.commons.lang.ObjectUtils;
+
 public final class CFMetaData
 {
     public final static double DEFAULT_KEY_CACHE_SIZE = 0.1;
@@ -156,8 +158,8 @@ public final class CFMetaData
                 && other.cfName.equals(cfName)
                 && other.columnType.equals(columnType)
                 && other.comparator.equals(comparator)
-                && FBUtilities.equals(other.subcolumnComparator, subcolumnComparator)
-                && FBUtilities.equals(other.comment, comment)
+                && ObjectUtils.equals(other.subcolumnComparator, subcolumnComparator)
+                && ObjectUtils.equals(other.comment, comment)
                 && other.rowCacheSize == rowCacheSize
                 && other.keyCacheSize == keyCacheSize
                 && other.cfId == cfId;
