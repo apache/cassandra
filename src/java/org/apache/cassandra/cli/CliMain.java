@@ -20,8 +20,13 @@ package org.apache.cassandra.cli;
 
 import jline.ConsoleReader;
 import jline.History;
+import org.apache.cassandra.auth.SimpleAuthenticator;
+import org.apache.cassandra.thrift.AuthenticationException;
+import org.apache.cassandra.thrift.AuthenticationRequest;
+import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -29,6 +34,8 @@ import org.apache.thrift.transport.TTransport;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.apache.cassandra.db.Table.SYSTEM_TABLE;
 
@@ -89,7 +96,36 @@ public class CliMain
 
         thriftClient_ = cassandraClient;
         cliClient_ = new CliClient(css_, thriftClient_);
-
+        
+        // Authenticate
+        Map<String, String> credentials = new HashMap<String, String>();
+        credentials.put(SimpleAuthenticator.USERNAME_KEY, css_.username);
+        credentials.put(SimpleAuthenticator.PASSWORD_KEY, css_.password);
+        AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
+        try 
+        {
+            thriftClient_.login(css_.keyspace, authRequest);
+        } 
+        catch (AuthenticationException e) 
+        {
+            css_.err.println("Exception during authentication to the cassandra node, " +
+            		"verify you are using correct credentials.");
+            return;
+        } 
+        catch (AuthorizationException e) 
+        {
+            css_.err.println("You are not authorized to use keyspace: " + css_.keyspace);
+            return;
+        } 
+        catch (TException e) 
+        {
+            if (css_.debug)
+                e.printStackTrace();
+            
+            css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
+            return;
+        }
+        
         // Lookup the cluster name, this is to make it clear which cluster the user is connected to
         String clusterName;
 

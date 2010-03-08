@@ -34,6 +34,9 @@ public class CliOptions {
     private static final String PORT_OPTION = "port";
     private static final String FRAME_OPTION = "framed";
     private static final String DEBUG_OPTION = "debug";
+    private static final String USERNAME_OPTION = "username";
+    private static final String PASSWORD_OPTION = "password";
+    private static final String KEYSPACE_OPTION = "keyspace";
 
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
@@ -47,12 +50,15 @@ public class CliOptions {
         options.addOption(PORT_OPTION, true, "cassandra server's thrift port");  
         options.addOption(FRAME_OPTION, false, "cassandra server's framed transport");  
         options.addOption(DEBUG_OPTION, false, "display stack traces");  
+        options.addOption(USERNAME_OPTION, true, "username for cassandra authentication");
+        options.addOption(PASSWORD_OPTION, true, "password for cassandra authentication");
+        options.addOption(KEYSPACE_OPTION, true, "cassandra keyspace user is authenticated against");
     }
 
     private static void printUsage()
     {
         System.err.println("");
-        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--framed] [--debug]");
+        System.err.println("Usage: cassandra-cli --host hostname [--port <portname>] [--framed] [--debug] [--username username] [--password password] [--keyspace keyspace]");
         System.err.println("");
     }
 
@@ -107,6 +113,22 @@ public class CliOptions {
         else
         {
             css.thriftPort = DEFAULT_THRIFT_PORT;
+        }
+     
+        // Look for authentication credentials (username and password)
+        if (cmd.hasOption(USERNAME_OPTION)) 
+        {
+        	css.username = cmd.getOptionValue(USERNAME_OPTION);
+        }
+        if (cmd.hasOption(PASSWORD_OPTION))
+        {
+        	css.password = cmd.getOptionValue(PASSWORD_OPTION);
+        }
+        
+        // Look for keyspace
+        if (cmd.hasOption(KEYSPACE_OPTION)) 
+        {
+        	css.keyspace = cmd.getOptionValue(KEYSPACE_OPTION);
         }
     }
 }
