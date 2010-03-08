@@ -31,13 +31,12 @@ import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.streaming.StreamInitiateMessage;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.StreamOutManager;
+
 
 /**
  * This class handles streaming data from one node to another.
@@ -57,6 +56,13 @@ public class StreamOut
     private static Logger logger = Logger.getLogger(StreamOut.class);
 
     static String TABLE_NAME = "STREAMING-TABLE-NAME";
+    
+    private static void updateStatus(String msg)
+    {
+        StreamingService.instance.setStatus(msg);
+        if (logger.isInfoEnabled() && !StreamingService.NOTHING.equals(msg))
+            logger.info(msg);
+    }
 
     /**
      * Split out files for all tables on disk locally for each range and then stream them to the target endpoint.
@@ -65,8 +71,7 @@ public class StreamOut
     {
         assert ranges.size() > 0;
 
-        if (logger.isDebugEnabled())
-            logger.debug("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
+        logger.debug("Beginning transfer process to " + target + " for ranges " + StringUtils.join(ranges, ", "));
 
         /*
          * (1) dump all the memtables to disk.
@@ -76,8 +81,7 @@ public class StreamOut
         try
         {
             Table table = Table.open(tableName);
-            if (logger.isDebugEnabled())
-                logger.debug("Flushing memtables ...");
+            updateStatus("Flushing memtables for " + tableName + "...");
             for (Future f : table.flush())
             {
                 try
@@ -93,14 +97,17 @@ public class StreamOut
                     throw new RuntimeException(e);
                 }
             }
-            if (logger.isDebugEnabled())
-                logger.debug("Performing anticompaction ...");
+            updateStatus("Performing anticompaction ...");
             /* Get the list of files that need to be streamed */
             transferSSTables(target, table.forceAntiCompaction(ranges, target), tableName); // SSTR GC deletes the file when done
         }
         catch (IOException e)
         {
             throw new IOError(e);
+        }
+        finally
+        {
+            StreamingService.instance.setStatus(StreamingService.NOTHING);
         }
         if (callback != null)
             callback.run();
@@ -124,23 +131,21 @@ public class StreamOut
             }
         }
         if (logger.isDebugEnabled())
-          logger.debug("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
-
+            logger.debug("Stream context metadata " + StringUtils.join(pendingFiles, ", " + " " + sstables.size() + " sstables."));
         StreamOutManager.get(target).addFilesToStream(pendingFiles);
         StreamInitiateMessage biMessage = new StreamInitiateMessage(pendingFiles);
         Message message = StreamInitiateMessage.makeStreamInitiateMessage(biMessage);
         message.setHeader(StreamOut.TABLE_NAME, table.getBytes());
-        if (logger.isDebugEnabled())
-          logger.debug("Sending a stream initiate message to " + target + " ...");
+        updateStatus("Sending a stream initiate message to " + target + " ...");
         MessagingService.instance.sendOneWay(message, target);
 
         if (pendingFiles.length > 0)
         {
-            logger.info("Waiting for transfer to " + target + " to complete");
+            StreamingService.instance.setStatus("Waiting for transfer to " + target + " to complete");
             StreamOutManager.get(target).waitForStreamCompletion();
             // todo: it would be good if there were a dafe way to remove the StreamManager for target.
             // (StreamManager will delete the streamed file on completion.)
-            logger.info("Done with transfer to " + target);
+            updateStatus("Done with transfer to " + target);
         }
     }
 

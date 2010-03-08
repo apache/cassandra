@@ -18,6 +18,8 @@ dev
  * Add logging of GC activity (CASSANDRA-813)
  * fix ConcurrentModificationException in commitlog discard (CASSANDRA-853)
  * Fix hardcoded row count in Hadoop RecordReader (CASSANDRA-837)
+ * Add a jmx status to the streaming service and change several DEBUG
+   messages to INFO (CASSANDRA-845)
 
 
 0.6.0-beta1/beta2
