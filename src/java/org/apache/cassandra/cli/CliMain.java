@@ -235,9 +235,11 @@ public class CliMain
         {
             connect(css_.hostName, css_.thriftPort);
         }
-        else 
+        
+        if ( cliClient_ == null )
         {
-            // If not, client must connect explicitly using the "connect" CLI statement.
+            // Connection parameter was either invalid or not present.
+            // User must connect explicitly using the "connect" CLI statement.
             cliClient_ = new CliClient(css_, null);
         }
 

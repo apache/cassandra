@@ -20,6 +20,9 @@ dev
  * Fix hardcoded row count in Hadoop RecordReader (CASSANDRA-837)
  * Add a jmx status to the streaming service and change several DEBUG
    messages to INFO (CASSANDRA-845)
+ * fix classpath in cassandra-cli.bat for Windows (CASSANDRA-858)
+ * allow re-specifying host, port to cassandra-cli if invalid ones
+   are first tried (CASSANDRA-867)
 
 
 0.6.0-beta1/beta2
