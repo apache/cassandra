@@ -18,6 +18,8 @@
  * fix classpath in cassandra-cli.bat for Windows (CASSANDRA-858)
  * allow re-specifying host, port to cassandra-cli if invalid ones
    are first tried (CASSANDRA-867)
+ * fix race condition handling rpc timeout in the coordinator
+   (CASSANDRA-864)
 
 
 0.6.0-beta1/beta2

@@ -23,6 +23,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.db.ColumnFamily;
@@ -63,7 +64,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
       * repair request should be scheduled.
       *
       */
-	public Row resolve(List<Message> responses) throws DigestMismatchException, IOException
+	public Row resolve(Collection<Message> responses) throws DigestMismatchException, IOException
     {
         long startTime = System.currentTimeMillis();
 		List<ColumnFamily> versions = new ArrayList<ColumnFamily>();
@@ -159,7 +160,7 @@ public class ReadResponseResolver implements IResponseResolver<Row>
         return resolved;
     }
 
-	public boolean isDataPresent(List<Message> responses)
+	public boolean isDataPresent(Collection<Message> responses)
 	{
         if (responses.size() < responseCount)
             return false;

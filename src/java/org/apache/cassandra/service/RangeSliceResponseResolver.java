@@ -51,7 +51,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         this.table = table;
     }
 
-    public List<Row> resolve(List<Message> responses) throws DigestMismatchException, IOException
+    public List<Row> resolve(Collection<Message> responses) throws DigestMismatchException, IOException
     {
         CollatingIterator collator = new CollatingIterator(new Comparator<Pair<Row,InetAddress>>()
         {
@@ -99,7 +99,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
         return resolvedRows;
     }
 
-    public boolean isDataPresent(List<Message> responses)
+    public boolean isDataPresent(Collection<Message> responses)
     {
         return responses.size() >= sources.size();
     }

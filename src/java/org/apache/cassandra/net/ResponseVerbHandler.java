@@ -32,10 +32,7 @@ public class ResponseVerbHandler implements IVerbHandler
         {
             if (logger_.isDebugEnabled())
                 logger_.debug("Processing response on a callback from " + message.getMessageId() + "@" + message.getFrom());
-            synchronized (cb)
-            {
-                cb.response(message);
-            }
+            cb.response(message);
         }
         else
         {

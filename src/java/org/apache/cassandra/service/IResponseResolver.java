@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Collection;
 import java.util.List;
 import java.io.IOException;
 
@@ -33,7 +34,7 @@ public interface IResponseResolver<T> {
 	 * repairs . Hence you need to derive a response resolver based on your
 	 * needs from this interface.
 	 */
-	public T resolve(List<Message> responses) throws DigestMismatchException, IOException;
-	public boolean isDataPresent(List<Message> responses);
+	public T resolve(Collection<Message> responses) throws DigestMismatchException, IOException;
+	public boolean isDataPresent(Collection<Message> responses);
 
 }

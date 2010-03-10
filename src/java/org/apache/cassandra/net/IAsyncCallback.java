@@ -18,11 +18,16 @@
 
 package org.apache.cassandra.net;
 
+/**
+ * implementors of IAsyncCallback need to make sure that any public methods
+ * are threadsafe with respect to response() being called from the message
+ * service.  In particular, if any shared state is referenced, making
+ * response alone synchronized will not suffice.
+ */
 public interface IAsyncCallback 
 {
 	/**
 	 * @param msg response received.
-     * Calls to response() are serialized by ResponseVerbHandler.
 	 */
 	public void response(Message msg);
 }

@@ -18,8 +18,11 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.io.IOException;
@@ -36,14 +39,14 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
 {
     protected static final Logger logger = Logger.getLogger( QuorumResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
-    protected final List<Message> responses;
+    protected final Collection<Message> responses;
     private IResponseResolver<T> responseResolver;
     private final long startTime;
 
     public QuorumResponseHandler(int responseCount, IResponseResolver<T> responseResolver)
     {
-        responses = new ArrayList<Message>(responseCount);
-        this.responseResolver =  responseResolver;
+        responses = new LinkedBlockingQueue<Message>();
+        this.responseResolver = responseResolver;
         startTime = System.currentTimeMillis();
     }
     
@@ -85,9 +88,6 @@ public class QuorumResponseHandler<T> implements IAsyncCallback
     
     public void response(Message message)
     {
-        if (condition.isSignaled())
-            return;
-
         responses.add(message);
         if (responseResolver.isDataPresent(responses))
         {
