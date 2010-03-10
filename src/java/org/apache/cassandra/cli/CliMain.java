@@ -97,33 +97,36 @@ public class CliMain
         thriftClient_ = cassandraClient;
         cliClient_ = new CliClient(css_, thriftClient_);
         
-        // Authenticate
-        Map<String, String> credentials = new HashMap<String, String>();
-        credentials.put(SimpleAuthenticator.USERNAME_KEY, css_.username);
-        credentials.put(SimpleAuthenticator.PASSWORD_KEY, css_.password);
-        AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
-        try 
+        if ((css_.username != null) && (css_.password != null) && (css_.keyspace != null))
         {
-            thriftClient_.login(css_.keyspace, authRequest);
-        } 
-        catch (AuthenticationException e) 
-        {
-            css_.err.println("Exception during authentication to the cassandra node, " +
-            		"verify you are using correct credentials.");
-            return;
-        } 
-        catch (AuthorizationException e) 
-        {
-            css_.err.println("You are not authorized to use keyspace: " + css_.keyspace);
-            return;
-        } 
-        catch (TException e) 
-        {
-            if (css_.debug)
-                e.printStackTrace();
-            
-            css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
-            return;
+            // Authenticate 
+            Map<String, String> credentials = new HashMap<String, String>();
+            credentials.put(SimpleAuthenticator.USERNAME_KEY, css_.username);
+            credentials.put(SimpleAuthenticator.PASSWORD_KEY, css_.password);
+            AuthenticationRequest authRequest = new AuthenticationRequest(credentials);
+            try 
+            {
+                thriftClient_.login(css_.keyspace, authRequest);
+            } 
+            catch (AuthenticationException e) 
+            {
+                css_.err.println("Exception during authentication to the cassandra node, " +
+                		"verify you are using correct credentials.");
+                return;
+            } 
+            catch (AuthorizationException e) 
+            {
+                css_.err.println("You are not authorized to use keyspace: " + css_.keyspace);
+                return;
+            } 
+            catch (TException e) 
+            {
+                if (css_.debug)
+                    e.printStackTrace();
+                
+                css_.err.println("Login failure. Did you specify 'keyspace', 'username' and 'password'?");
+                return;
+            }
         }
         
         // Lookup the cluster name, this is to make it clear which cluster the user is connected to
