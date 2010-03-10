@@ -25,9 +25,9 @@ import java.nio.ByteBuffer;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.util.Utf8;
 
-class RecordFactory
+public class AvroRecordFactory
 {
-    static Column newColumn(ByteBuffer name, ByteBuffer value, long timestamp)
+    public static Column newColumn(ByteBuffer name, ByteBuffer value, long timestamp)
     {
         Column column = new Column();
         column.name = name;
@@ -36,12 +36,12 @@ class RecordFactory
         return column;
     }
     
-    static Column newColumn(byte[] name, byte[] value, long timestamp)
+    public static Column newColumn(byte[] name, byte[] value, long timestamp)
     {
         return newColumn(ByteBuffer.wrap(name), ByteBuffer.wrap(value), timestamp);
     }
     
-    static SuperColumn newSuperColumn(ByteBuffer name, GenericArray<Column> columns)
+    public static SuperColumn newSuperColumn(ByteBuffer name, GenericArray<Column> columns)
     {
         SuperColumn column = new SuperColumn();
         column.name = name;
@@ -49,32 +49,39 @@ class RecordFactory
         return column;
     }
     
-    static SuperColumn newSuperColumn(byte[] name, GenericArray<Column> columns)
+    public static SuperColumn newSuperColumn(byte[] name, GenericArray<Column> columns)
     {
         return newSuperColumn(ByteBuffer.wrap(name), columns);
     }
     
-    static ColumnOrSuperColumn newColumnOrSuperColumn(Column column)
+    public static ColumnOrSuperColumn newColumnOrSuperColumn(Column column)
     {
         ColumnOrSuperColumn col = new ColumnOrSuperColumn();
         col.column = column;
         return col;
     }
     
-    static ColumnOrSuperColumn newColumnOrSuperColumn(SuperColumn superColumn)
+    public static ColumnOrSuperColumn newColumnOrSuperColumn(SuperColumn superColumn)
     {
         ColumnOrSuperColumn column = new ColumnOrSuperColumn();
         column.super_column = superColumn;
         return column;
     }
 
-    static ColumnPath newColumnPath(String cfName, ByteBuffer superColumn, ByteBuffer column)
+    public static ColumnPath newColumnPath(String cfName, ByteBuffer superColumn, ByteBuffer column)
     {
         ColumnPath cPath = new ColumnPath();
         cPath.column_family = new Utf8(cfName);
         cPath.super_column = superColumn;
         cPath.column = column;
         return cPath;
+    }
+
+    public static ColumnPath newColumnPath(String cfName, byte[] superColumn, byte[] column)
+    {
+        ByteBuffer wrappedSuperColumn = (superColumn != null) ? ByteBuffer.wrap(superColumn) : null;
+        ByteBuffer wrappedColumn = (column != null) ? ByteBuffer.wrap(column) : null;
+        return newColumnPath(cfName, wrappedSuperColumn, wrappedColumn);
     }
 }
 

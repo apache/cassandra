@@ -46,7 +46,7 @@ import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.log4j.Logger;
-import static org.apache.cassandra.avro.RecordFactory.*;
+import static org.apache.cassandra.avro.AvroRecordFactory.*;
 import static org.apache.cassandra.avro.ErrorFactory.*;
 
 public class CassandraServer implements Cassandra {

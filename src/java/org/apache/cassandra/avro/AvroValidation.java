@@ -30,7 +30,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.MarshalException;
 
 import static org.apache.cassandra.avro.ErrorFactory.newInvalidRequestException;
-import static org.apache.cassandra.avro.RecordFactory.newColumnPath;
+import static org.apache.cassandra.avro.AvroRecordFactory.newColumnPath;
 
 /**
  * The Avro analogue to org.apache.cassandra.service.ThriftValidation
