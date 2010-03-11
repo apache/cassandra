@@ -88,6 +88,12 @@ public class ColumnFamily implements IColumnContainer
         columnSerializer_ = columnType.equals("Standard") ? Column.serializer() : SuperColumn.serializer(subcolumnComparator);
         columns_ = new ConcurrentSkipListMap<byte[], IColumn>(comparator);
     }
+    
+    /** called during CL recovery when it is determined that a CF name was changed. */
+    public void rename(String newName)
+    {
+        name_ = newName;
+    }
 
     public ColumnFamily cloneMeShallow()
     {

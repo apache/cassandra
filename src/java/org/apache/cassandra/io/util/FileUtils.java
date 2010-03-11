@@ -47,6 +47,15 @@ public class FileUtils
             throw new IOException("Failed to delete " + file.getAbsolutePath());
         }
     }
+    
+    public static void renameWithConfirm(File from, File to) throws IOException
+    {
+        assert from.exists();
+        if (logger_.isDebugEnabled())
+            logger_.debug((String.format("Renaming %s to %s", from.getPath(), to.getPath())));
+        if (!from.renameTo(to))
+            throw new IOException(String.format("Failed to rename %s to %s", from.getPath(), to.getPath()));
+    }
 
     public static class FileComparator implements Comparator<File>
     {

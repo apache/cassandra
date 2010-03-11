@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.config;
 
-import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -44,11 +45,18 @@ public final class CFMetaData
 
     private static final AtomicInteger idGen = new AtomicInteger(0);
     
+    private static final Map<Integer, String> currentCfNames = new HashMap<Integer, String>();
+    
     private static final Map<Pair<String, String>, Integer> cfIdMap = new HashMap<Pair<String, String>, Integer>();
     
     public static final Map<Pair<String, String>, Integer> getCfIdMap()
     {
         return Collections.unmodifiableMap(cfIdMap);    
+    }
+    
+    public static final String getCurrentName(int id)
+    {
+        return currentCfNames.get(id);
     }
     
     // this gets called after initialization to make sure that id generation happens properly.
@@ -79,12 +87,20 @@ public final class CFMetaData
         this.rowCacheSize = rowCacheSize;
         this.keyCacheSize = keyCacheSize;
         this.cfId = cfId;
+        currentCfNames.put(cfId, cfName);
+        cfIdMap.put(new Pair<String, String>(tableName, cfName), cfId);
     }
     
     public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
     {
         this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, nextId());
-        cfIdMap.put(new Pair<String, String>(tableName, cfName), cfId);
+    }
+    
+    /** clones an existing CFMetaData using the same id. */
+    public static CFMetaData rename(CFMetaData cfm, String newName)
+    {
+        purge(cfm);
+        return new CFMetaData(cfm.tableName, newName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.cfId);
     }
     
     /** used for evicting cf data out of static tracking collections. */
@@ -125,7 +141,6 @@ public final class CFMetaData
 
     public static CFMetaData deserialize(InputStream in) throws IOException
     {
-
         DataInputStream din = new DataInputStream(in);
         String tableName = din.readUTF();
         String cfName = din.readUTF();

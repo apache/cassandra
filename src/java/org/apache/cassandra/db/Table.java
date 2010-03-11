@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -85,23 +86,7 @@ public class Table
 
     // this lock blocks other threads from opening a table during critical operations.
     public static final Lock openLock = new ReentrantLock();
-
-    public static void reinitialize(String table) throws IOException
-    {
-        // todo: should I acquire the flusherLock too to prevent writes during the switch?
-        // or should there be a per/keyspace table modification lock?
-        openLock.lock();
-        try
-        {
-            instances.remove(table);
-            open(table);
-        }
-        finally
-        {
-            openLock.unlock();
-        }
-    }
-
+    
     public static Table open(String table) throws IOException
     {
         Table tableInstance = instances.get(table);
@@ -126,7 +111,16 @@ public class Table
         }
         return tableInstance;
     }
-        
+    
+    // prepares a table to be replaced
+    public static void close(String table) throws IOException
+    {
+        // yes, I see the irony.
+        Table t = open(table);
+        if (t != null)
+            open(table).release();
+    }
+    
     public Set<String> getColumnFamilies()
     {
         return DatabaseDescriptor.getTableDefinition(name).cfMetaData().keySet();
@@ -279,6 +273,40 @@ public class Table
                 }
             }
         }, checkMs, checkMs);
+    }
+    
+    // undoes the constructor.
+    private void release() throws IOException
+    {
+        openLock.lock();
+        try
+        {
+            instances.remove(name);
+            for (String cfName : getColumnFamilies())
+            {
+                // clear out memtables.
+                ColumnFamilyStore cfs = columnFamilyStores.remove(cfName);
+                if (cfs != null)
+                {
+                    try
+                    {
+                        cfs.forceBlockingFlush();
+                    }
+                    catch (ExecutionException e)
+                    {
+                        throw new IOException(e);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new IOException(e);
+                    }
+                }
+            }
+        }
+        finally 
+        {
+            openLock.unlock();
+        }
     }
 
     /**

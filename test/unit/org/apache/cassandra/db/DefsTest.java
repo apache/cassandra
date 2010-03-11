@@ -26,19 +26,16 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -92,6 +89,7 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
+        
         ColumnFamily cfam = store.getColumnFamily(new NamesQueryFilter("key0", new QueryPath(cf), "col0".getBytes()));
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
@@ -116,7 +114,7 @@ public class DefsTest extends CleanupHelper
         assert store != null;
         store.forceBlockingFlush();
         store.getFlushPath();
-        assert getFiles(cfm.tableName, cfm.cfName).size() > 0;
+        assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
         DefsTable.drop(cfm, true);
         
@@ -136,25 +134,51 @@ public class DefsTest extends CleanupHelper
         }
         
         // verify that the files are gone.
-        assert getFiles(cfm.tableName, cfm.cfName).size() == 0;
-    }
+        assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() == 0;
+    }    
     
-    private static Collection<File> getFiles(String table, final String cf)
+    @Test
+    public void renameCf() throws IOException, ConfigurationException, ExecutionException, InterruptedException
     {
-        List<File> found = new ArrayList<File>();
-        for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
-        {
-            File[] dbFiles = new File(path).listFiles(new FileFilter()
-            {
-                public boolean accept(File pathname)
-                {
-                    return pathname.getName().startsWith(cf + "-") && pathname.getName().endsWith(".db") && pathname.exists();
-                            
-                }
-            });
-            for (File f : dbFiles)
-                found.add(f);
-        }
-        return found;
+        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace2");
+        assert ks != null;
+        final CFMetaData oldCfm = ks.cfMetaData().get("Standard1");
+        assert oldCfm != null;
+        
+        // write some data, force a flush, then verify that files exist on disk.
+        RowMutation rm = new RowMutation(ks.name, "key0");
+        for (int i = 0; i < 100; i++)
+            rm.add(new QueryPath(oldCfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+        rm.apply();
+        ColumnFamilyStore store = Table.open(oldCfm.tableName).getColumnFamilyStore(oldCfm.cfName);
+        assert store != null;
+        store.forceBlockingFlush();
+        int fileCount = DefsTable.getFiles(oldCfm.tableName, oldCfm.cfName).size();
+        assert fileCount > 0;
+        
+        final String newCfmName = "St4ndard1Replacement";
+        DefsTable.rename(oldCfm, newCfmName);
+        
+        assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
+        assert DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(newCfmName);
+        
+        // verify that new files are there.
+        assert DefsTable.getFiles(oldCfm.tableName, newCfmName).size() == fileCount;
+        
+        // do some reads.
+        store = Table.open(oldCfm.tableName).getColumnFamilyStore(newCfmName);
+        assert store != null;
+        ColumnFamily cfam = store.getColumnFamily(new SliceQueryFilter("key0", new QueryPath(newCfmName), "".getBytes(), "".getBytes(), false, 1000));
+        assert cfam.getSortedColumns().size() == 100; // should be good enough?
+        
+        // do some writes
+        rm = new RowMutation(ks.name, "key0");
+        rm.add(new QueryPath(newCfmName, null, "col5".getBytes()), "updated".getBytes(), 2L);
+        rm.apply();
+        store.forceBlockingFlush();
+        
+        cfam = store.getColumnFamily(new NamesQueryFilter("key0", new QueryPath(newCfmName), "col5".getBytes()));
+        assert cfam.getColumnCount() == 1;
+        assert Arrays.equals(cfam.getColumn("col5".getBytes()).value(), "updated".getBytes());
     }
 }

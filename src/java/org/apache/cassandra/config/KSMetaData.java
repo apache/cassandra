@@ -86,7 +86,7 @@ public final class KSMetaData
     {
         return cfMetaData;
     }
-    
+        
     public static byte[] serialize(KSMetaData ksm) throws IOException
     {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();

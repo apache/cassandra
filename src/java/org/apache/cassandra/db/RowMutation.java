@@ -127,9 +127,9 @@ public class RowMutation
     }
 
     /** should only be called by commitlog replay code */
-    public void removeColumnFamily(ColumnFamily columnFamily)
+    public void removeColumnFamily(String cfName)
     {
-        modifications_.remove(columnFamily.name());
+        modifications_.remove(cfName);
     }
     
     public boolean isEmpty()

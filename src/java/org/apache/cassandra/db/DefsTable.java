@@ -22,18 +22,21 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -70,7 +73,8 @@ public class DefsTable
 
             // reinitialize the table.
             DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-            Table.reinitialize(ksm.name);
+            Table.close(ksm.name);
+            Table.open(ksm.name);
             
             // force creation of a new commit log segment.
             CommitLog.instance().forceNewSegment();
@@ -110,7 +114,8 @@ public class DefsTable
             // reinitialize the table.
             CFMetaData.purge(cfm);
             DatabaseDescriptor.setTableDefinition(ksm, newVersion);
-            Table.reinitialize(ksm.name);
+            Table.close(ksm.name);
+            Table.open(ksm.name);
             
             // indicate that some files need to be deleted (eventually)
             SystemTable.markForRemoval(cfm);
@@ -138,6 +143,61 @@ public class DefsTable
             {
                 throw new RuntimeException(e);
             }
+        }
+    }
+    
+    public static synchronized void rename(CFMetaData oldCfm, String newName) throws IOException, ConfigurationException
+    {
+        Table.openLock.lock();
+        try
+        {
+            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(oldCfm.tableName);
+            if (ksm == null)
+                throw new ConfigurationException("Keyspace does not already exist.");
+            if (!ksm.cfMetaData().containsKey(oldCfm.cfName))
+                throw new ConfigurationException("CF is not defined in that keyspace.");
+            if (ksm.cfMetaData().containsKey(newName))
+                throw new ConfigurationException("CF is already defined in that keyspace.");
+            
+            // clone the ksm, replacing cfm with the new one.
+            List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+            newCfs.remove(oldCfm);
+            assert newCfs.size() == ksm.cfMetaData().size() - 1;
+            CFMetaData newCfm = CFMetaData.rename(oldCfm, newName);
+            newCfs.add(newCfm);
+            ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
+            
+            // store it
+            UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+            RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
+            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
+            rm.apply();
+            
+            // reset defs.
+            DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+            Table.close(ksm.name);
+            
+            // rename the files.
+            try
+            {
+                renameStorageFiles(ksm.name, oldCfm.cfName, newCfm.cfName);
+            }
+            catch (IOException e)
+            {
+                // todo: is this a big enough problem to bring the entire node down?  For sure, it is something that needs to be addressed immediately.
+                ConfigurationException cex = new ConfigurationException("Critical: encountered IOException while attempting to rename CF storage files for " + oldCfm.cfName);
+                cex.initCause(e);
+                throw cex;
+            }
+            
+            
+            Table.open(ksm.name);
+            
+            CommitLog.instance().forceNewSegment();
+        }
+        finally
+        {
+            Table.openLock.unlock();
         }
     }
 
@@ -168,5 +228,47 @@ public class DefsTable
             tables.add(ks);
         }
         return tables;
+    }
+    
+    static Collection<File> getFiles(String table, final String cf)
+    {
+        List<File> found = new ArrayList<File>();
+        for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
+        {
+            File[] dbFiles = new File(path).listFiles(new FileFilter()
+            {
+                public boolean accept(File pathname)
+                {
+                    return pathname.getName().startsWith(cf + "-") && pathname.getName().endsWith(".db") && pathname.exists();
+                            
+                }
+            });
+            for (File f : dbFiles)
+                found.add(f);
+        }
+        return found;
+    }
+    
+    // if this errors out, we are in a world of hurt.
+    private static void renameStorageFiles(String table, String oldCfName, String newCfName) throws IOException
+    {
+        // complete as much of the job as possible.  Don't let errors long the way prevent as much renaming as possible
+        // from happening.
+        IOException mostRecentProblem = null;
+        for (File existing : getFiles(table, oldCfName))
+        {
+            try
+            {
+                String newFileName = existing.getName().replaceFirst("\\w+-", newCfName + "-");
+                FileUtils.renameWithConfirm(existing, new File(existing.getParent(), newFileName));
+            }
+            catch (IOException ex)
+            {
+                mostRecentProblem = ex;
+            }
+        }
+        if (mostRecentProblem != null)
+            throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
+        
     }
 }
