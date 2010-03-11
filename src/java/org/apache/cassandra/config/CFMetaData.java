@@ -54,7 +54,8 @@ public final class CFMetaData
     // this gets called after initialization to make sure that id generation happens properly.
     public static final void fixMaxId()
     {
-        idGen.set(Collections.max(cfIdMap.values()) + 1);
+        // never set it to less than 1000. this ensures that we have enough system CFids for future use.
+        idGen.set(Math.max(Collections.max(cfIdMap.values()) + 1, 1000));
     }
     
     public final String tableName;            // name of table which has this column family

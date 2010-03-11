@@ -455,10 +455,6 @@ public class DatabaseDescriptor
             if ( value != null)
                 CommitLog.setSegmentSize(Integer.parseInt(value) * 1024 * 1024);
 
-            readTablesFromXml();
-            if (tables.isEmpty())
-                throw new ConfigurationException("No keyspaces configured");
- 
             // Hardcoded system tables
             final CFMetaData[] systemCfDefs = new CFMetaData[]
             {
@@ -490,7 +486,15 @@ public class DatabaseDescriptor
             };
             KSMetaData ksDefs = new KSMetaData(Table.DEFINITIONS, null, -1, null, definitionCfDefs);
             tables.put(Table.DEFINITIONS, ksDefs);
-
+            
+            // NOTE: make sure that all system CFMs defined by now. calling fixMaxId at this point will set the base id
+            // to a value that leaves room for future system cfms.
+            CFMetaData.fixMaxId();
+            
+            // todo: if tables are defined in the system store, use those.  load from xml otherwise.
+            readTablesFromXml();
+            CFMetaData.fixMaxId();
+            
             /* Load the seeds for node contact points */
             String[] seedsxml = xmlUtils.getNodeValues("/Storage/Seeds/Seed");
             if (seedsxml.length <= 0)
@@ -704,7 +708,6 @@ public class DatabaseDescriptor
             ex.initCause(e);
             throw ex;
         }
-        CFMetaData.fixMaxId();
     }
 
     public static IAuthenticator getAuthenticator()
