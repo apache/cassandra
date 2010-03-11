@@ -18,8 +18,12 @@
 
 package org.apache.cassandra.config;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -39,24 +43,18 @@ public final class CFMetaData
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
 
     private static final AtomicInteger idGen = new AtomicInteger(0);
-    private static final Map<Integer, String> idToName = new HashMap<Integer, String>();
     
-    // this only gets used by a toString method.
-    public static final String getName(int id)
-    {
-        return idToName.get(id);
-    }
+    private static final Map<Pair<String, String>, Integer> cfIdMap = new HashMap<Pair<String, String>, Integer>();
     
-    public static final int getCfCount() 
+    public static final Map<Pair<String, String>, Integer> getCfIdMap()
     {
-        return idToName.size();
+        return Collections.unmodifiableMap(cfIdMap);    
     }
     
     // this gets called after initialization to make sure that id generation happens properly.
     public static final void fixMaxId()
     {
-        int maxId = Collections.max(idToName.keySet());
-        idGen.set(maxId + 1);
+        idGen.set(Collections.max(cfIdMap.values()) + 1);
     }
     
     public final String tableName;            // name of table which has this column family
@@ -85,7 +83,7 @@ public final class CFMetaData
     public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
     {
         this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, nextId());
-        idToName.put(cfId, cfName);
+        cfIdMap.put(new Pair<String, String>(tableName, cfName), cfId);
     }
 
     // a quick and dirty pretty printer for describing the column family...

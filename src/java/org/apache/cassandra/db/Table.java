@@ -255,11 +255,6 @@ public class Table
         }, checkMs, checkMs);
     }
 
-    public int getColumnFamilyId(String columnFamily)
-    {
-        return DatabaseDescriptor.getTableDefinition(name).cfMetaData().get(columnFamily).cfId;
-    }
-
     /**
      * Selects the specified column family for the specified key.
     */

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -100,11 +101,22 @@ public class CommitLogSegment
             // update header
             for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
             {
-                int id = table.getColumnFamilyId(columnFamily.name());
-                if (!header.isDirty(id))
+                // we can ignore the serialized map in the header (and avoid deserializing it) since we know we are
+                // writing the cfs as they exist now.  check for null cfm in case a cl write goes through after the cf is 
+                // defined but before a new segment is created.
+                CFMetaData cfm = DatabaseDescriptor.getTableDefinition(table.name).cfMetaData().get(columnFamily.name());
+                if (cfm == null)
                 {
-                    header.turnOn(id, logWriter.getFilePointer());
-                    seekAndWriteCommitLogHeader(header.toByteArray());
+                    logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.name());
+                }
+                else
+                {
+                    int id = cfm.cfId;
+                    if (!header.isDirty(id))
+                    {
+                        header.turnOn(id, logWriter.getFilePointer());
+                        seekAndWriteCommitLogHeader(header.toByteArray());
+                    }
                 }
             }
 

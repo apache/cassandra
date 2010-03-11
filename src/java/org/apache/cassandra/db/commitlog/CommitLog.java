@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.db.commitlog;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
@@ -25,6 +28,7 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.concurrent.StageManager;
 
@@ -178,6 +182,7 @@ public class CommitLog
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
             BufferedRandomAccessFile reader = new BufferedRandomAccessFile(file.getAbsolutePath(), "r", bufferSize);
             final CommitLogHeader clHeader = CommitLogHeader.readCommitLogHeader(reader);
+            final Map<Pair<String, String>, Integer> cfIdMap = clHeader.getCfIdMap();
             /* seek to the lowest position where any CF has non-flushed data */
             int lowPos = CommitLogHeader.getLowestPosition(clHeader);
             if (lowPos == 0)
@@ -235,7 +240,7 @@ public class CommitLog
                         /* remove column families that have already been flushed before applying the rest */
                         for (ColumnFamily columnFamily : columnFamilies)
                         {
-                            int id = table.getColumnFamilyId(columnFamily.name());
+                            int id = cfIdMap.get(new Pair<String, String>(table.name, columnFamily.name()));
                             if (!clHeader.isDirty(id) || entryLocation < clHeader.getPosition(id))
                             {
                                 rm.removeColumnFamily(columnFamily);
@@ -332,14 +337,13 @@ public class CommitLog
      * The bit flag associated with this column family is set in the
      * header and this is used to decide if the log file can be deleted.
     */
-    public void discardCompletedSegments(final String tableName, final String cf, final CommitLogSegment.CommitLogContext context) throws IOException
+    public void discardCompletedSegments(final int cfId, final CommitLogSegment.CommitLogContext context) throws IOException
     {
         Callable task = new Callable()
         {
             public Object call() throws IOException
             {
-                int id = Table.open(tableName).getColumnFamilyId(cf);
-                discardCompletedSegmentsInternal(context, id);
+                discardCompletedSegmentsInternal(context, cfId);
                 return null;
             }
         };

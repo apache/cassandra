@@ -704,6 +704,7 @@ public class DatabaseDescriptor
             ex.initCause(e);
             throw ex;
         }
+        CFMetaData.fixMaxId();
     }
 
     public static IAuthenticator getAuthenticator()
