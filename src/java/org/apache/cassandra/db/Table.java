@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.Future;
 
@@ -81,6 +83,25 @@ public class Table
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
 
+    // this lock blocks other threads from opening a table during critical operations.
+    public static final Lock openLock = new ReentrantLock();
+
+    public static void reinitialize(String table) throws IOException
+    {
+        // todo: should I acquire the flusherLock too to prevent writes during the switch?
+        // or should there be a per/keyspace table modification lock?
+        openLock.lock();
+        try
+        {
+            instances.remove(table);
+            open(table);
+        }
+        finally
+        {
+            openLock.unlock();
+        }
+    }
+
     public static Table open(String table) throws IOException
     {
         Table tableInstance = instances.get(table);
@@ -88,7 +109,8 @@ public class Table
         {
             // instantiate the Table.  we could use putIfAbsent but it's important to making sure it is only done once
             // per keyspace, so we synchronize and re-check before doing it.
-            synchronized (Table.class)
+            openLock.lock();
+            try
             {
                 tableInstance = instances.get(table);
                 if (tableInstance == null)
@@ -96,6 +118,10 @@ public class Table
                     tableInstance = new Table(table);
                     instances.put(table, tableInstance);
                 }
+            }
+            finally
+            {
+                openLock.unlock();
             }
         }
         return tableInstance;

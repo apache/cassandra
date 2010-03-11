@@ -21,14 +21,20 @@ package org.apache.cassandra.db;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,7 +43,44 @@ public class DefsTable
     public static final String MIGRATIONS_CF = "Migrations";
     public static final String SCHEMA_CF = "Schema";
 
-    public static void dumpToStorage(UUID version) throws IOException
+    /** add a column family. */
+    public static synchronized void add(CFMetaData cfm) throws IOException, ConfigurationException
+    {
+        Table.openLock.lock();
+        try
+        {
+            // make sure the ks is real and the cf doesn't already exist.
+            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
+            if (ksm == null)
+                throw new ConfigurationException("Keyspace does not already exist.");
+            else if (ksm.cfMetaData().containsKey(cfm.cfName))
+                throw new ConfigurationException("CF is already defined in that keyspace.");
+
+            // clone ksm but include the new cf def.
+            List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+            newCfs.add(cfm);
+            ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
+
+            // store it.
+            UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+            RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
+            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
+            rm.apply();
+
+            // reinitialize the table.
+            DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+            Table.reinitialize(ksm.name);
+            
+            // force creation of a new commit log segment.
+            CommitLog.instance().forceNewSegment();
+        }
+        finally
+        {
+            Table.openLock.unlock();
+        }
+    }
+
+    public static synchronized void dumpToStorage(UUID version) throws IOException
     {
         String versionKey = version.toString();
         long now = System.currentTimeMillis();
@@ -50,7 +93,7 @@ public class DefsTable
         rm.apply();
     }
 
-    public static Collection<KSMetaData> loadFromStorage(UUID version) throws IOException
+    public static synchronized Collection<KSMetaData> loadFromStorage(UUID version) throws IOException
     {
         Table defs = Table.open(Table.DEFINITIONS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);

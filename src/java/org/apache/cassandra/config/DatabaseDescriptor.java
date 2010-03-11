@@ -137,6 +137,8 @@ public class DatabaseDescriptor
 
     private final static String STORAGE_CONF_FILE = "storage-conf.xml";
 
+    private static UUID defsVersion = null;
+
     /**
      * Try the storage-config system property, and then inspect the classpath.
      */
@@ -477,7 +479,10 @@ public class DatabaseDescriptor
             };
             KSMetaData systemMeta = new KSMetaData(Table.SYSTEM_TABLE, null, -1, null, systemCfDefs);
             tables.put(Table.SYSTEM_TABLE, systemMeta);
-
+            
+            // todo: if tables are defined in the system store, use those.  load from xml otherwise.
+            readTablesFromXml();
+            
             // todo: fill in repStrat and epSnitch when this table is set to replicate.
             CFMetaData[] definitionCfDefs = new CFMetaData[]
             {
@@ -1112,7 +1117,17 @@ public class DatabaseDescriptor
         return tables.get(table);
     }
 
-    private static class ConfigurationException extends Exception
+    // todo: this is wrong. the definitions need to be moved into their own class that can only be updated by the
+    // process of mutating an individual keyspace, rather than setting manually here.
+    public static void setTableDefinition(KSMetaData ksm, UUID newVersion)
+    {
+        // at some point, this assert will be valid, because defsVersion_ will be set when the table defs are loaded.
+//        assert newVersion != null && !newVersion.equals(defsVersion_) && defsVersion_.compareTo(newVersion) < 0;
+        tables.put(ksm.name, ksm);
+        DatabaseDescriptor.defsVersion = newVersion;
+    }
+
+    public static class ConfigurationException extends Exception
     {
         public ConfigurationException(String message)
         {

@@ -26,8 +26,10 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang.ObjectUtils;
@@ -40,7 +42,7 @@ public final class KSMetaData
     public final IEndPointSnitch snitch;
     private final Map<String, CFMetaData> cfMetaData;
 
-    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, IEndPointSnitch snitch, CFMetaData... cfDefs)
+    public KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, int replicationFactor, IEndPointSnitch snitch, CFMetaData... cfDefs)
     {
         this.name = name;
         this.strategyClass = strategyClass;
