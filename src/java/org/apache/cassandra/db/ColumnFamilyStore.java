@@ -221,8 +221,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            String mbeanName = "org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table + ",columnfamily=" + columnFamily;
-            mbs.registerMBean(cfs, new ObjectName(mbeanName));
+            ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=ColumnFamilyStores,keyspace=" + table + ",columnfamily=" + columnFamily);
+            if (mbs.isRegistered(mbeanName))
+                mbs.unregisterMBean(mbeanName);
+            mbs.registerMBean(cfs, mbeanName);
         }
         catch (Exception e)
         {

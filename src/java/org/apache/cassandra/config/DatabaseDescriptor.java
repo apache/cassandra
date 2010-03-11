@@ -1082,7 +1082,7 @@ public class DatabaseDescriptor
         assert tableName != null;
         CFMetaData cfmd = getCFMetaData(tableName, cfName);
         if (cfmd == null)
-            throw new NullPointerException("Unknown ColumnFamily " + cfName + " in keyspace " + tableName);
+            throw new IllegalArgumentException("Unknown ColumnFamily " + cfName + " in keyspace " + tableName);
         return cfmd.comparator;
     }
 

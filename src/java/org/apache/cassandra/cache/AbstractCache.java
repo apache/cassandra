@@ -32,8 +32,11 @@ public class AbstractCache
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            String mbeanName = "org.apache.cassandra.db:type=Caches,keyspace=" + table + ",cache=" + name;
-            mbs.registerMBean(cache, new ObjectName(mbeanName));
+            ObjectName mbeanName = new ObjectName("org.apache.cassandra.db:type=Caches,keyspace=" + table + ",cache=" + name);
+            // unregister any previous, as this may be a replacement.
+            if (mbs.isRegistered(mbeanName))
+                mbs.unregisterMBean(mbeanName);
+            mbs.registerMBean(cache, mbeanName);
         }
         catch (Exception e)
         {

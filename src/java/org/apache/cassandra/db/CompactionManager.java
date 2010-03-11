@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.FileFilter;
 import java.io.IOException;
 import java.io.File;
 import java.lang.management.ManagementFactory;
@@ -27,6 +28,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import javax.management.*;
 
+import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -73,6 +76,50 @@ public class CompactionManager implements CompactionManagerMBean
     private CompactionExecutor executor = new CompactionExecutor();
     private Map<ColumnFamilyStore, Integer> estimatedCompactions = new NonBlockingHashMap<ColumnFamilyStore, Integer>();
 
+    /** cleans up data files for CFs that have been dropped. */
+    public Future submitGraveyardCleanup()
+    {
+        Callable c =  new Callable()
+        {
+            public Object call() throws Exception
+            {
+                logger.debug("Cleaning up abandoned column families...");
+                ColumnFamily dropped = SystemTable.getDroppedCFs();
+                Collection<IColumn> successes = new ArrayList<IColumn>();
+                for (IColumn col : dropped.getSortedColumns())
+                {
+                    if (!col.isMarkedForDelete())
+                    {
+                        final String[] parts = new String(col.name()).split("-");
+                        // table-cfname-cfid
+                        for (String dataDir : DatabaseDescriptor.getAllDataFileLocationsForTable(parts[0]))
+                        {
+                            File dir = new File(dataDir);
+                            if (dir.exists())
+                            {
+                                File[] dbFiles = dir.listFiles(new FileFilter()
+                                {
+                                    public boolean accept(File pathname)
+                                    {
+                                        return pathname.getName().startsWith(parts[1] + "-") && pathname.exists();
+                                    }
+                                });
+                                for (File f : dbFiles)
+                                {
+                                    FileUtils.deleteWithConfirm(f);
+                                }
+                            }
+                        }
+                        successes.add(col);
+                    }
+                }
+                SystemTable.deleteDroppedCfMarkers(successes);
+                return null;
+            }
+        };
+        return executor.submit(c);
+    }
+    
     /**
      * Call this whenever a compaction might be needed on the given columnfamily.
      * It's okay to over-call (within reason) since the compactions are single-threaded,

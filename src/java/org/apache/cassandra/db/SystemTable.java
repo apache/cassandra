@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.io.IOError;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 
 import org.apache.cassandra.service.StorageService;
@@ -35,6 +38,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import java.net.InetAddress;
+import java.util.Collection;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -44,6 +48,7 @@ public class SystemTable
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     private static final String LOCATION_KEY = "L";
     private static final String BOOTSTRAP_KEY = "Bootstrap";
+    private static final String GRAVEYARD_KEY = "Graveyard";
     private static final byte[] BOOTSTRAP = utf8("B");
     private static final byte[] TOKEN = utf8("Token");
     private static final byte[] GENERATION = utf8("Generation");
@@ -193,6 +198,38 @@ public class SystemTable
         ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
         cf.addColumn(new Column(BOOTSTRAP, new byte[] { (byte) (isBootstrapped ? 1 : 0) }, System.currentTimeMillis()));
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, BOOTSTRAP_KEY);
+        rm.add(cf);
+        try
+        {
+            rm.apply();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static ColumnFamily getDroppedCFs() throws IOException
+    {
+        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(SystemTable.STATUS_CF);
+        return cfs.getColumnFamily(new SliceQueryFilter(SystemTable.GRAVEYARD_KEY, new QueryPath(STATUS_CF), "".getBytes(), "".getBytes(), false, 100));
+    }
+    
+    public static void deleteDroppedCfMarkers(Collection<IColumn> cols) throws IOException
+    {
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, GRAVEYARD_KEY);
+        long now = System.currentTimeMillis();
+        for (IColumn col : cols)
+            rm.delete(new QueryPath(STATUS_CF, null, col.name()), now);
+        rm.apply();
+    }
+    
+    /** when a cf is dropped, it needs to be marked so its files get deleted at some point. */
+    public static void markForRemoval(CFMetaData cfm)
+    {
+        ColumnFamily cf = ColumnFamily.create(Table.SYSTEM_TABLE, STATUS_CF);
+        cf.addColumn(new Column((cfm.tableName + "-" + cfm.cfName + "-" + cfm.cfId).getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY, System.currentTimeMillis()));
+        RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, GRAVEYARD_KEY);
         rm.add(cf);
         try
         {

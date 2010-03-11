@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.CFMetaData;
 import static org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -32,6 +33,8 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,7 +43,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-public class DefsTest
+public class DefsTest extends CleanupHelper
 {
     @Before
     public void setup()
@@ -95,5 +98,63 @@ public class DefsTest
         assert Arrays.equals("value0".getBytes(), col.value());
     }
 
+    @Test
+    public void removeCf() throws IOException, ConfigurationException, ExecutionException, InterruptedException
+    {
+        // sanity
+        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
+        assert ks != null;
+        final CFMetaData cfm = ks.cfMetaData().get("Standard1");
+        assert cfm != null;
+        
+        // write some data, force a flush, then verify that files exist on disk.
+        RowMutation rm = new RowMutation(ks.name, "key0");
+        for (int i = 0; i < 100; i++)
+            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+        rm.apply();
+        ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
+        assert store != null;
+        store.forceBlockingFlush();
+        store.getFlushPath();
+        assert getFiles(cfm.tableName, cfm.cfName).size() > 0;
+        
+        DefsTable.drop(cfm, true);
+        
+        assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
+        
+        // any write should fail.
+        rm = new RowMutation(ks.name, "key0");
+        try
+        {
+            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.apply();
+            assert false : "This mutation should have failed since the CF no longer exists.";
+        }
+        catch (Throwable th)
+        {
+            assert th instanceof IllegalArgumentException;
+        }
+        
+        // verify that the files are gone.
+        assert getFiles(cfm.tableName, cfm.cfName).size() == 0;
+    }
     
+    private static Collection<File> getFiles(String table, final String cf)
+    {
+        List<File> found = new ArrayList<File>();
+        for (String path : DatabaseDescriptor.getAllDataFileLocationsForTable(table))
+        {
+            File[] dbFiles = new File(path).listFiles(new FileFilter()
+            {
+                public boolean accept(File pathname)
+                {
+                    return pathname.getName().startsWith(cf + "-") && pathname.getName().endsWith(".db") && pathname.exists();
+                            
+                }
+            });
+            for (File f : dbFiles)
+                found.add(f);
+        }
+        return found;
+    }
 }

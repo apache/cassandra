@@ -37,6 +37,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 public class DefsTable
 {
@@ -77,6 +78,66 @@ public class DefsTable
         finally
         {
             Table.openLock.unlock();
+        }
+    }
+
+    /**
+     * drop a column family. blockOnDeletion was added to make testing simpler.
+     */
+    public static synchronized void drop(CFMetaData cfm, boolean blockOnDeletion) throws IOException, ConfigurationException
+    {
+        Table.openLock.lock();
+        try
+        {
+            KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
+            if (ksm == null)
+                throw new ConfigurationException("Keyspace does not already exist.");
+            else if (!ksm.cfMetaData().containsKey(cfm.cfName))
+                throw new ConfigurationException("CF is not defined in that keyspace.");
+            
+            // clone ksm but do not include the new def
+            List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+            newCfs.remove(cfm);
+            assert newCfs.size() == ksm.cfMetaData().size() - 1;
+            ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
+            
+            // store it.
+            UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+            RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
+            rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
+            rm.apply();
+            
+            // reinitialize the table.
+            CFMetaData.purge(cfm);
+            DatabaseDescriptor.setTableDefinition(ksm, newVersion);
+            Table.reinitialize(ksm.name);
+            
+            // indicate that some files need to be deleted (eventually)
+            SystemTable.markForRemoval(cfm);
+            
+            // we don't really need a new segment, but let's force it to be consistent with other operations.
+            CommitLog.instance().forceNewSegment();
+        }
+        finally
+        {
+            Table.openLock.unlock();
+        }
+        
+        if (blockOnDeletion)
+        {
+            // notify the compaction manager that it needs to clean up the dropped cf files.
+            try
+            {
+                CompactionManager.instance.submitGraveyardCleanup().get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 

@@ -22,6 +22,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
@@ -237,10 +238,14 @@ public class CommitLog
                 {
                     public void runMayThrow() throws IOException
                     {
-                        /* remove column families that have already been flushed before applying the rest */
+                        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(table.name);
+                        
+                        /* remove a) column families that have already been flushed before applying the rest, and
+                        *  b) column families that have been dropped. */
                         for (ColumnFamily columnFamily : columnFamilies)
                         {
-                            int id = cfIdMap.get(new Pair<String, String>(table.name, columnFamily.name()));
+                            Pair<String, String> key = new Pair<String, String>(table.name, columnFamily.name()); 
+                            int id = cfIdMap.get(key);
                             if (!clHeader.isDirty(id) || entryLocation < clHeader.getPosition(id))
                             {
                                 rm.removeColumnFamily(columnFamily);

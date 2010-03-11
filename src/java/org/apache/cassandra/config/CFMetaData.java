@@ -86,6 +86,13 @@ public final class CFMetaData
         this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, nextId());
         cfIdMap.put(new Pair<String, String>(tableName, cfName), cfId);
     }
+    
+    /** used for evicting cf data out of static tracking collections. */
+    public static void purge(CFMetaData cfm)
+    {
+        cfIdMap.remove(new Pair<String, String>(cfm.tableName, cfm.cfName));
+        currentCfNames.remove(cfm.cfId);
+    }
 
     // a quick and dirty pretty printer for describing the column family...
     public String pretty()
