@@ -83,9 +83,6 @@ public class Table
     private final Map<String, ColumnFamilyStore> columnFamilyStores = new HashMap<String, ColumnFamilyStore>();
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
-
-    // this lock blocks other threads from opening a table during critical operations.
-    public static final Lock openLock = new ReentrantLock();
     
     public static Table open(String table) throws IOException
     {
@@ -94,8 +91,7 @@ public class Table
         {
             // instantiate the Table.  we could use putIfAbsent but it's important to making sure it is only done once
             // per keyspace, so we synchronize and re-check before doing it.
-            openLock.lock();
-            try
+            synchronized (Table.class)
             {
                 tableInstance = instances.get(table);
                 if (tableInstance == null)
@@ -104,21 +100,8 @@ public class Table
                     instances.put(table, tableInstance);
                 }
             }
-            finally
-            {
-                openLock.unlock();
-            }
         }
         return tableInstance;
-    }
-    
-    // prepares a table to be replaced
-    public static void close(String table) throws IOException
-    {
-        // yes, I see the irony.
-        Table t = open(table);
-        if (t != null)
-            open(table).release();
     }
     
     public Set<String> getColumnFamilies()
@@ -275,38 +258,40 @@ public class Table
         }, checkMs, checkMs);
     }
     
-    // undoes the constructor.
-    private void release() throws IOException
+    /** removes a cf from internal structures (doesn't change disk files). */
+    public void dropCf(String cfName) throws IOException
     {
-        openLock.lock();
-        try
+        assert columnFamilyStores.containsKey(cfName);
+        ColumnFamilyStore cfs = columnFamilyStores.remove(cfName);
+        if (cfs != null)
         {
-            instances.remove(name);
-            for (String cfName : getColumnFamilies())
+            try
             {
-                // clear out memtables.
-                ColumnFamilyStore cfs = columnFamilyStores.remove(cfName);
-                if (cfs != null)
-                {
-                    try
-                    {
-                        cfs.forceBlockingFlush();
-                    }
-                    catch (ExecutionException e)
-                    {
-                        throw new IOException(e);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new IOException(e);
-                    }
-                }
+                cfs.forceBlockingFlush();
+            }
+            catch (ExecutionException e)
+            {
+                throw new IOException(e);
+            }
+            catch (InterruptedException e)
+            {
+                throw new IOException(e);
             }
         }
-        finally 
-        {
-            openLock.unlock();
-        }
+    }
+    
+    /** adds a cf to internal structures, ends up creating disk files). */
+    public void addCf(String cfName) throws IOException
+    {
+        assert !columnFamilyStores.containsKey(cfName) : cfName;
+        columnFamilyStores.put(cfName, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
+    }
+    
+    /** basically a combined drop and add */
+    public void renameCf(String oldName, String newName) throws IOException
+    {
+        dropCf(oldName);
+        addCf(newName);
     }
 
     /**
@@ -360,12 +345,19 @@ public class Table
             {
                 Memtable memtableToFlush;
                 ColumnFamilyStore cfs = columnFamilyStores.get(columnFamily.name());
-                if ((memtableToFlush=cfs.apply(mutation.key(), columnFamily)) != null)
-                    memtablesToFlush.put(cfs, memtableToFlush);
-
-                ColumnFamily cachedRow = cfs.getRawCachedRow(mutation.key());
-                if (cachedRow != null)
-                    cachedRow.addAll(columnFamily);
+                if (cfs == null)
+                {
+                    logger.error("Attempting to mutate non-existant column family " + columnFamily.name());
+                }
+                else
+                {
+                    if ((memtableToFlush=cfs.apply(mutation.key(), columnFamily)) != null)
+                        memtablesToFlush.put(cfs, memtableToFlush);
+    
+                    ColumnFamily cachedRow = cfs.getRawCachedRow(mutation.key());
+                    if (cachedRow != null)
+                        cachedRow.addAll(columnFamily);
+                }
             }
         }
         finally

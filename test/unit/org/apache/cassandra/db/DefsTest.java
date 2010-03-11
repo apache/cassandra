@@ -66,9 +66,22 @@ public class DefsTest extends CleanupHelper
         }
     }
      
+    @Test
+    public void addNewCfToBogusTable() throws InterruptedException
+    {
+        CFMetaData newCf = new CFMetaData("MadeUpKeyspace", "NewCF", "Standard", new UTF8Type(), null, "new cf", 0, 0);
+        try
+        {
+            DefsTable.add(newCf).get();
+            throw new AssertionError("You should't be able to do anything to a keyspace that doesn't exist.");
+        }
+        catch (ExecutionException expected)
+        {
+        }
+    }
 
     @Test
-    public void addNewCF() throws IOException, ConfigurationException, ExecutionException, InterruptedException
+    public void addNewCF() throws IOException, ExecutionException, InterruptedException
     {
         final String ks = "Keyspace1";
         final String cf = "BrandNewCf";
@@ -76,7 +89,8 @@ public class DefsTest extends CleanupHelper
 
         CFMetaData newCf = new CFMetaData(original.name, cf, "Standard", new UTF8Type(), null, "A New Column Family", 0, 0);
         int clSegments = CommitLog.instance().getSegmentCount();
-        DefsTable.add(newCf);
+        assert !DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
+        DefsTable.add(newCf).get();
         assert CommitLog.instance().getSegmentCount() == clSegments + 1;
 
         assert DatabaseDescriptor.getTableDefinition(ks).cfMetaData().containsKey(newCf.cfName);
@@ -97,7 +111,7 @@ public class DefsTest extends CleanupHelper
     }
 
     @Test
-    public void removeCf() throws IOException, ConfigurationException, ExecutionException, InterruptedException
+    public void removeCf() throws IOException, ExecutionException, InterruptedException
     {
         // sanity
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
@@ -116,7 +130,7 @@ public class DefsTest extends CleanupHelper
         store.getFlushPath();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
-        DefsTable.drop(cfm, true);
+        DefsTable.drop(cfm, true).get();
         
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
         
@@ -138,7 +152,7 @@ public class DefsTest extends CleanupHelper
     }    
     
     @Test
-    public void renameCf() throws IOException, ConfigurationException, ExecutionException, InterruptedException
+    public void renameCf() throws IOException, ExecutionException, InterruptedException
     {
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace2");
         assert ks != null;
@@ -157,7 +171,7 @@ public class DefsTest extends CleanupHelper
         assert fileCount > 0;
         
         final String newCfmName = "St4ndard1Replacement";
-        DefsTable.rename(oldCfm, newCfmName);
+        DefsTable.rename(oldCfm, newCfmName).get();
         
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(oldCfm.cfName);
         assert DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(newCfmName);
