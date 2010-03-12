@@ -26,6 +26,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndPointSnitch;
@@ -40,15 +41,15 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
-    private int blockFor;
-    private DatacenterEndPointSnitch endpointsnitch;
-    private InetAddress localEndpoint;
+    private final AtomicInteger blockFor;
+    private final DatacenterEndPointSnitch endpointsnitch;
+    private final InetAddress localEndpoint;
 
     public DatacenterWriteResponseHandler(int blockFor, String table)
     {
         // Response is been managed by the map so the waitlist size really doesnt matter.
         super(blockFor, table);
-        this.blockFor = blockFor;
+        this.blockFor = new AtomicInteger(blockFor);
         endpointsnitch = (DatacenterEndPointSnitch) DatabaseDescriptor.getEndPointSnitch(table);
         localEndpoint = FBUtilities.getLocalAddress();
     }
@@ -56,17 +57,13 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     public void response(Message message)
     {
-        // IF done look no futher.
-        if (condition.isSignaled())
-        {
-            return;
-        }
-            //Is optimal to check if same datacenter than comparing Arrays.
+        //Is optimal to check if same datacenter than comparing Arrays.
+        int b = -1;
         try
         {
             if (endpointsnitch.isInSameDataCenter(localEndpoint, message.getFrom()))
             {
-                blockFor--;
+                b = blockFor.decrementAndGet();
             }
         }
         catch (UnknownHostException e)
@@ -74,7 +71,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
             throw new RuntimeException(e);
         }
         responses.add(message);
-        if (blockFor <= 0)
+        if (b == 0)
         {
             //Singnal when Quorum is recived.
             condition.signal();

@@ -18,11 +18,15 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -37,8 +41,8 @@ public class WriteResponseHandler implements IAsyncCallback
     protected static final Logger logger = Logger.getLogger( WriteResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
     private final int responseCount;
-    protected final List<Message> responses;
-    protected int localResponses;
+    protected final Collection<Message> responses;
+    protected AtomicInteger localResponses = new AtomicInteger(0);
     private final long startTime;
 
     public WriteResponseHandler(int responseCount, String table)
@@ -49,7 +53,7 @@ public class WriteResponseHandler implements IAsyncCallback
             : "invalid response count " + responseCount;
 
         this.responseCount = responseCount;
-        responses = new ArrayList<Message>(responseCount);
+        responses = new LinkedBlockingQueue<Message>();
         startTime = System.currentTimeMillis();
     }
 
@@ -82,25 +86,21 @@ public class WriteResponseHandler implements IAsyncCallback
         }
     }
 
-    public synchronized void response(Message message)
+    public void response(Message message)
     {
-        if (condition.isSignaled())
-            return;
         responses.add(message);
         maybeSignal();
     }
 
-    public synchronized void localResponse()
+    public void localResponse()
     {
-        if (condition.isSignaled())
-            return;
-        localResponses++;
+        localResponses.addAndGet(1);
         maybeSignal();
     }
 
     private void maybeSignal()
     {
-        if (responses.size() + localResponses >= responseCount)
+        if (responses.size() + localResponses.get() >= responseCount)
         {
             condition.signal();
         }

@@ -53,12 +53,11 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
     }
 
     @Override
-    public void response(Message message)
+    // synchronized for the benefit of dcResponses and responseCounts.  "responses" itself
+    // is inherited from WRH and is concurrent.
+    // TODO can we use concurrent structures instead?
+    public synchronized void response(Message message)
     {
-        if (condition.isSignaled())
-        {
-            return;
-        }
         try
         {
             String dataCenter = endPointSnitch.getLocation(message.getFrom());
@@ -89,8 +88,7 @@ public class DatacenterSyncWriteResponseHandler extends WriteResponseHandler
             throw new RuntimeException(e);
         }
         responses.add(message);
-        // If done then the response count will be empty after removing
-        // everything.
+        // If done then the response count will be empty
         if (responseCounts.isEmpty())
         {
             condition.signal();

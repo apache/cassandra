@@ -21,23 +21,26 @@ package org.apache.cassandra.service;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
-
-import org.apache.cassandra.cache.ICacheExpungeHook;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.ReadResponse;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.ColumnFamily;
-import java.net.InetAddress;
-import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.*;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
+
+import org.apache.cassandra.cache.ICacheExpungeHook;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.Row;
+import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ExpiringMap;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 class ConsistencyManager implements Runnable
@@ -47,9 +50,10 @@ class ConsistencyManager implements Runnable
 
     class DigestResponseHandler implements IAsyncCallback
 	{
-		List<Message> responses_ = new ArrayList<Message>();
+		Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
 
-		public void response(Message msg)
+        // syncronized so "size() == " works
+		public synchronized void response(Message msg)
 		{
 			responses_.add(msg);
             if (responses_.size() == ConsistencyManager.this.replicas_.size())
@@ -94,17 +98,18 @@ class ConsistencyManager implements Runnable
 	
 	static class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
 	{
-		private List<Message> responses_ = new ArrayList<Message>();
-		private IResponseResolver<Row> readResponseResolver_;
-		private int majority_;
+		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
+		private final IResponseResolver<Row> readResponseResolver_;
+		private final int majority_;
 		
 		DataRepairHandler(int responseCount, IResponseResolver<Row> readResponseResolver)
 		{
 			readResponseResolver_ = readResponseResolver;
 			majority_ = (responseCount / 2) + 1;  
 		}
-		
-		public void response(Message message)
+
+        // synchronized so the " == majority" is safe
+		public synchronized void response(Message message)
 		{
 			if (logger_.isDebugEnabled())
 			  logger_.debug("Received responses in DataRepairHandler : " + message.toString());
@@ -120,7 +125,7 @@ class ConsistencyManager implements Runnable
 		{
             try
 			{
-				readResponseResolver_.resolve(new ArrayList<Message>(responses_));
+				readResponseResolver_.resolve(responses_);
             }
             catch (Exception ex)
             {
