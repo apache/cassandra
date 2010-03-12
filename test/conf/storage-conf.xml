@@ -35,7 +35,6 @@
    </DataFileDirectories>
    <BootstrapFileDirectory>build/test/cassandra/bootstrap</BootstrapFileDirectory>
    <DiskAccessMode>mmap</DiskAccessMode>
-   <StagingFileDirectory>build/test/cassandra/staging</StagingFileDirectory>
    <MemtableThroughputInMB>1</MemtableThroughputInMB>
    <MemtableOperationsInMillions>0.00002</MemtableOperationsInMillions> <!-- 20 -->
    <Keyspaces>

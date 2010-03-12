@@ -186,8 +186,6 @@
   <DataFileDirectories>
       <DataFileDirectory>/var/lib/cassandra/data</DataFileDirectory>
   </DataFileDirectories>
-  <CalloutLocation>/var/lib/cassandra/callouts</CalloutLocation>
-  <StagingFileDirectory>/var/lib/cassandra/staging</StagingFileDirectory>
 
 
   <!--
