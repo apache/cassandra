@@ -445,7 +445,7 @@ public class DatabaseDescriptor
             String rowWarning = xmlUtils.getNodeValue("/Storage/RowWarningThresholdInMB");
             if (rowWarning != null)
             {
-                rowWarningThreshold = Integer.parseInt(rowWarning) * 1024 * 1024;
+                rowWarningThreshold = Long.parseLong(rowWarning) * 1024 * 1024;
                 if (rowWarningThreshold <= 0)
                     throw new ConfigurationException("Row warning threshold must be a positive integer");
             }
