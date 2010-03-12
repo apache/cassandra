@@ -60,13 +60,13 @@ As the banner says, you can use 'help' or '?' to see what the CLI has to
 offer, and 'quit' or 'exit' when you've had enough fun. But lets try
 something slightly more interesting...
 
-  cassandra> set Keyspace1.Standard1['jsmith']['first'] = 'John'
+  cassandra> set Keyspace1.Standard2['jsmith']['first'] = 'John'
   Value inserted.
-  cassandra> set Keyspace1.Standard1['jsmith']['last'] = 'Smith'
+  cassandra> set Keyspace1.Standard2['jsmith']['last'] = 'Smith'
   Value inserted.
-  cassandra> set Keyspace1.Standard1['jsmith']['age'] = '42'
+  cassandra> set Keyspace1.Standard2['jsmith']['age'] = '42'
   Value inserted.
-  cassandra> get Keyspace1.Standard1['jsmith']
+  cassandra> get Keyspace1.Standard2['jsmith']
     (column=age, value=42; timestamp=1249930062801)
     (column=first, value=John; timestamp=1249930053103)
     (column=last, value=Smith; timestamp=1249930058345)
@@ -77,13 +77,13 @@ If your session looks similar to what's above, congrats, your single node
 cluster is operational! But what exactly was all of that? Let's break it
 down into pieces and see.
 
-  set Keyspace1.Standard1['jsmith']['first'] = 'John'
+  set Keyspace1.Standard2['jsmith']['first'] = 'John'
        \            \         \        \          \
         \            \         \_ key   \          \_ value
          \            \                  \_ column
           \_ keyspace  \_ column family
 
-Data stored in Cassandra is associated with a column family (Standard1), 
+Data stored in Cassandra is associated with a column family (Standard2),
 which in turn is associated with a keyspace (Keyspace1). In the example
 above, we set the value 'John' in the 'first' column for key 'jsmith'.
 
