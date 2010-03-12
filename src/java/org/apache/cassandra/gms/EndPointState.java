@@ -25,7 +25,8 @@ import java.util.*;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.service.StorageService;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndPointState
@@ -156,7 +157,7 @@ public class EndPointState
 
 class EndPointStateSerializer implements ICompactSerializer<EndPointState>
 {
-    private static Logger logger_ = Logger.getLogger(EndPointStateSerializer.class);
+    private static Logger logger_ = LoggerFactory.getLogger(EndPointStateSerializer.class);
     
     public void serialize(EndPointState epState, DataOutputStream dos) throws IOException
     {
@@ -177,7 +178,7 @@ class EndPointStateSerializer implements ICompactSerializer<EndPointState>
             {
                 if ( Gossiper.MAX_GOSSIP_PACKET_SIZE - dos.size() < estimate )
                 {
-                    logger_.info("@@@@ Breaking out to respect the MTU size in EndPointState serializer. Estimate is " + estimate + " @@@@");
+                    logger_.info("@@@@ Breaking out to respect the MTU size in EndPointState serializer. Estimate is {} @@@@", estimate);;
                     break;
                 }
             

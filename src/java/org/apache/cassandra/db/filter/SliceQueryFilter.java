@@ -24,7 +24,8 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.collections.comparators.ReverseComparator;
 import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.apache.commons.collections.IteratorUtils;
@@ -40,7 +41,7 @@ import com.google.common.collect.Iterators;
 
 public class SliceQueryFilter extends QueryFilter
 {
-    private static Logger logger = Logger.getLogger(SliceQueryFilter.class);
+    private static Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
 
     public final byte[] start, finish;
     public final List<byte[]> bitmasks;

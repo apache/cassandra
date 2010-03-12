@@ -45,12 +45,13 @@ import org.apache.cassandra.db.SliceByNamesReadCommand;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.avro.AvroRecordFactory.*;
 import static org.apache.cassandra.avro.ErrorFactory.*;
 
 public class CassandraServer implements Cassandra {
-    private static Logger logger = Logger.getLogger(CassandraServer.class);
+    private static Logger logger = LoggerFactory.getLogger(CassandraServer.class);
 
     private final static GenericArray<Column> EMPTY_SUBCOLUMNS = new GenericData.Array<Column>(0, Schema.parse("{\"type\":\"array\",\"items\":" + Column.SCHEMA$ + "}"));
     private final static Utf8 API_VERSION = new Utf8("0.0.0");

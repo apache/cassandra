@@ -23,7 +23,8 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.io.IOException;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -38,7 +39,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class Column implements IColumn
 {
-    private static Logger logger_ = Logger.getLogger(Column.class);
+    private static Logger logger_ = LoggerFactory.getLogger(Column.class);
 
     private static ColumnSerializer serializer_ = new ColumnSerializer();
 

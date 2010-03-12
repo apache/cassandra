@@ -32,7 +32,8 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.XMLUtils;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
@@ -50,7 +51,7 @@ import java.net.URL;
 
 public class DatabaseDescriptor
 {
-    private static Logger logger = Logger.getLogger(DatabaseDescriptor.class);
+    private static Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
 
     // don't capitalize these; we need them to match what's in the config file for CLS.valueOf to parse
     public static enum CommitLogSync {

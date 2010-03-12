@@ -21,7 +21,8 @@ package org.apache.cassandra.utils;
 import java.util.*;
 import java.util.Map.Entry;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ICacheExpungeHook;
 
@@ -118,7 +119,7 @@ public class ExpiringMap<K, V>
     private Map<K, ICacheExpungeHook<K, V>> hooks_;
     private Timer timer_;
     private static int counter_ = 0;
-    private static final Logger LOGGER = Logger.getLogger(ExpiringMap.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExpiringMap.class);
 
     private void init(long expiration)
     {

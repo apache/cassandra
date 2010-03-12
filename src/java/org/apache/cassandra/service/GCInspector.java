@@ -1,6 +1,7 @@
 package org.apache.cassandra.service;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -18,7 +19,7 @@ public class GCInspector
 {
     public static final GCInspector instance = new GCInspector();
 
-    private static final Logger logger = Logger.getLogger(GCInspector.class);
+    private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
     final static long INTERVAL_IN_MS = 10 * 1000;
     final static long MIN_DURATION = 200;
 

@@ -26,7 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,7 +42,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 public class Memtable implements Comparable<Memtable>, IFlushable
 {
-    private static final Logger logger = Logger.getLogger(Memtable.class);
+    private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
     private boolean isFrozen;
 

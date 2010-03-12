@@ -27,7 +27,8 @@ import java.io.IOError;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.Range;
@@ -53,7 +54,7 @@ import org.apache.cassandra.net.MessagingService;
  */
 public class StreamOut
 {
-    private static Logger logger = Logger.getLogger(StreamOut.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamOut.class);
 
     static String TABLE_NAME = "STREAMING-TABLE-NAME";
     

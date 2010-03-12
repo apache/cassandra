@@ -24,7 +24,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.auth.AllowAllAuthenticator;
@@ -46,7 +47,7 @@ import org.json.simple.JSONValue;
 public class CassandraServer implements Cassandra.Iface
 {
     public static String TOKEN_MAP = "token map";
-    private static Logger logger = Logger.getLogger(CassandraServer.class);
+    private static Logger logger = LoggerFactory.getLogger(CassandraServer.class);
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();

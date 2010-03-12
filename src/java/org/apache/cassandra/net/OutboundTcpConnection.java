@@ -30,13 +30,14 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class OutboundTcpConnection extends Thread
 {
-    private static final Logger logger = Logger.getLogger(OutboundTcpConnection.class);
+    private static final Logger logger = LoggerFactory.getLogger(OutboundTcpConnection.class);
 
     private static final ByteBuffer CLOSE_SENTINEL = ByteBuffer.allocate(0);
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries

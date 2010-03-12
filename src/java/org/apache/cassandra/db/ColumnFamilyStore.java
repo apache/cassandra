@@ -32,7 +32,8 @@ import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.collections.IteratorUtils;
 
 import com.google.common.base.Predicate;
@@ -61,7 +62,7 @@ import org.apache.cassandra.utils.*;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
-    private static Logger logger_ = Logger.getLogger(ColumnFamilyStore.class);
+    private static Logger logger_ = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     /*
      * submitFlush first puts [Binary]Memtable.getSortedContents on the flushSorter executor,
@@ -129,7 +130,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         binaryMemtable_ = new AtomicReference<BinaryMemtable>(new BinaryMemtable(this));
 
         if (logger_.isDebugEnabled())
-            logger_.debug("Starting CFS " + columnFamily_);
+            logger_.debug("Starting CFS {}", columnFamily_);
         // scan for data files corresponding to this CF
         List<File> sstableFiles = new ArrayList<File>();
         Pattern auxFilePattern = Pattern.compile("(.*)(-Filter\\.db$|-Index\\.db$)");
@@ -563,7 +564,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     Condition submitFlush(IFlushable flushable)
     {
-        logger_.info("Enqueuing flush of " + flushable);
+        logger_.info("Enqueuing flush of {}", flushable);
         final Condition condition = new SimpleCondition();
         flushable.flushAndSignal(condition, flushSorter_, flushWriter_);
         return condition;

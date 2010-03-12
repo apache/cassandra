@@ -22,7 +22,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 
@@ -40,7 +41,7 @@ import org.apache.cassandra.utils.ReducingIterator;
  */
 public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
 {
-    private static final Logger logger_ = Logger.getLogger(RangeSliceResponseResolver.class);
+    private static final Logger logger_ = LoggerFactory.getLogger(RangeSliceResponseResolver.class);
     private final String table;
     private final List<InetAddress> sources;
 

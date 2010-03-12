@@ -30,7 +30,8 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.commons.collections.iterators.CollatingIterator;
 
@@ -46,7 +47,7 @@ import org.apache.thrift.TSerializer;
 
 public class FBUtilities
 {
-    private static Logger logger_ = Logger.getLogger(FBUtilities.class);
+    private static Logger logger_ = LoggerFactory.getLogger(FBUtilities.class);
 
     public static final BigInteger TWO = new BigInteger("2");
 

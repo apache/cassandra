@@ -30,7 +30,8 @@ import java.net.UnknownHostException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.CassandraServer;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
@@ -45,7 +46,7 @@ import com.google.common.collect.HashBiMap;
  */
 public class RingCache
 {
-    final private static Logger logger_ = Logger.getLogger(RingCache.class);
+    final private static Logger logger_ = LoggerFactory.getLogger(RingCache.class);
 
     private Set<String> seeds_ = new HashSet<String>();
     final private int port_= DatabaseDescriptor.getRpcPort();

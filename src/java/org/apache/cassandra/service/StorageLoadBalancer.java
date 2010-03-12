@@ -22,7 +22,8 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.dht.Token;
@@ -70,14 +71,14 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
             int myLoad = localLoad();            
             InetAddress predecessor = StorageService.instance.getPredecessor(StorageService.getLocalStorageEndPoint());
             if (logger_.isDebugEnabled())
-              logger_.debug("Trying to relocate the predecessor " + predecessor);
+              logger_.debug("Trying to relocate the predecessor {}", predecessor);
             boolean value = tryThisNode(myLoad, threshold, predecessor);
             if ( !value )
             {
                 loadInfo2_.remove(predecessor);
                 InetAddress successor = StorageService.instance.getSuccessor(StorageService.getLocalStorageEndPoint());
                 if (logger_.isDebugEnabled())
-                  logger_.debug("Trying to relocate the successor " + successor);
+                  logger_.debug("Trying to relocate the successor {}", successor);
                 value = tryThisNode(myLoad, threshold, successor);
                 if ( !value )
                 {
@@ -88,7 +89,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                         if ( target != null )
                         {
                             if (logger_.isDebugEnabled())
-                              logger_.debug("Trying to relocate the random node " + target);
+                              logger_.debug("Trying to relocate the random node {}", target);
                             value = tryThisNode(myLoad, threshold, target);
                             if ( !value )
                             {
@@ -137,7 +138,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
                 MoveMessage moveMessage = new MoveMessage(targetToken);
                 Message message = new Message(StorageService.getLocalStorageEndPoint(), StorageLoadBalancer.lbStage_, StorageLoadBalancer.moveMessageVerbHandler_, new Object[]{moveMessage});
                 if (logger_.isDebugEnabled())
-                  logger_.debug("Sending a move message to " + target);
+                  logger_.debug("Sending a move message to {}", target);
                 IAsyncResult result = MessagingService.getMessagingInstance().sendRR(message, target);
                 value = (Boolean)result.get()[0];
                 if (logger_.isDebugEnabled())
@@ -167,7 +168,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
 
     public static final StorageLoadBalancer instance = new StorageLoadBalancer();
 
-    private static final Logger logger_ = Logger.getLogger(StorageLoadBalancer.class);
+    private static final Logger logger_ = LoggerFactory.getLogger(StorageLoadBalancer.class);
     /* time to delay in minutes the actual load balance procedure if heavily loaded */
     private static final int delay_ = 5;
     /* If a node's load is this factor more than the average, it is considered Heavy */
@@ -262,7 +263,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         }
         double averageLoad = (nodeCount > 0) ? (systemLoad / nodeCount) : 0;
         if (logger_.isDebugEnabled())
-            logger_.debug("Average system load is " + averageLoad);
+            logger_.debug("Average system load is {}", averageLoad);
         return averageLoad;
     }
 
@@ -362,7 +363,7 @@ public class StorageLoadBalancer implements IEndPointStateChangeSubscriber
         int duration = BROADCAST_INTERVAL + StorageService.RING_DELAY;
         try
         {
-            logger_.info("Sleeping " + duration + " ms to wait for load information...");
+            logger_.info("Sleeping {} ms to wait for load information...", duration);
             Thread.sleep(duration);
         }
         catch (InterruptedException e)

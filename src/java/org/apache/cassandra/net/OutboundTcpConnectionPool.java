@@ -21,8 +21,6 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.net.InetAddress;
 
-import org.apache.log4j.Logger;
-
 import org.apache.cassandra.concurrent.StageManager;
 
 class OutboundTcpConnectionPool

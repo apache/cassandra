@@ -41,7 +41,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Collections2;
 import com.google.common.base.Predicate;
@@ -87,7 +88,7 @@ import com.google.common.base.Predicates;
  */
 public class AntiEntropyService
 {
-    private static final Logger logger = Logger.getLogger(AntiEntropyService.class);
+    private static final Logger logger = LoggerFactory.getLogger(AntiEntropyService.class);
 
     // millisecond lifetime to store trees before they become stale
     public final static long TREE_STORE_TIMEOUT = 600000;

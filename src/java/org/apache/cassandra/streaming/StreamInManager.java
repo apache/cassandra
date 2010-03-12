@@ -26,11 +26,12 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import org.apache.cassandra.streaming.IStreamComplete;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class StreamInManager
 {
-    private static final Logger logger = Logger.getLogger(StreamInManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(StreamInManager.class);
 
     /* Maintain a stream context per host that is the source of the stream */
     public static final Map<InetAddress, List<PendingFile>> ctxBag_ = new Hashtable<InetAddress, List<PendingFile>>();

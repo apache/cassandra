@@ -34,7 +34,8 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.concurrent.StageManager;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
@@ -77,7 +78,7 @@ public class CommitLog
 {
     private static volatile int SEGMENT_SIZE = 128*1024*1024; // roll after log gets this big
 
-    static final Logger logger = Logger.getLogger(CommitLog.class);
+    static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static CommitLog instance()
     {

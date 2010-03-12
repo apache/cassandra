@@ -24,7 +24,8 @@ package org.apache.cassandra.streaming;
 import java.net.InetAddress;
 import java.util.Collection;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.Range;
@@ -35,7 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /** for streaming data from other nodes in to this one */
 public class StreamIn
 {
-    private static Logger logger = Logger.getLogger(StreamOut.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamOut.class);
 
     /**
      * Request ranges to be transferred from source to local node

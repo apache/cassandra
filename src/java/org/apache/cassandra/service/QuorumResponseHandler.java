@@ -33,11 +33,12 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.SimpleCondition;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QuorumResponseHandler<T> implements IAsyncCallback
 {
-    protected static final Logger logger = Logger.getLogger( QuorumResponseHandler.class );
+    protected static final Logger logger = LoggerFactory.getLogger( QuorumResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
     protected final Collection<Message> responses;
     private IResponseResolver<T> responseResolver;

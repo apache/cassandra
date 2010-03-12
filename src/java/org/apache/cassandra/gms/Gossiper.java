@@ -30,7 +30,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -101,7 +102,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     final static int MAX_GOSSIP_PACKET_SIZE = 1428;
     public final static int intervalInMillis_ = 1000;
-    private static Logger logger_ = Logger.getLogger(Gossiper.class);
+    private static Logger logger_ = LoggerFactory.getLogger(Gossiper.class);
     public static final Gossiper instance = new Gossiper();
 
     private Timer gossipTimer_;
@@ -176,7 +177,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         EndPointState epState = endPointStateMap_.get(endpoint);
         if (epState.isAlive())
         {
-            logger_.info("InetAddress " + endpoint + " is now dead.");
+            logger_.info("InetAddress {} is now dead.", endpoint);;
             isAlive(endpoint, epState, false);
         }
     }
@@ -317,7 +318,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         int index = (size == 1) ? 0 : random_.nextInt(size);
         InetAddress to = liveEndPoints.get(index);
         if (logger_.isTraceEnabled())
-            logger_.trace("Sending a GossipDigestSynMessage to " + to + " ...");
+            logger_.trace("Sending a GossipDigestSynMessage to {} ...", to);;
         MessagingService.instance.sendOneWay(message, to);
         return seeds_.contains(to);
     }
@@ -561,11 +562,11 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     void markAlive(InetAddress addr, EndPointState localState)
     {
         if (logger_.isTraceEnabled())
-            logger_.trace("marking as alive " + addr);
+            logger_.trace("marking as alive {}", addr);
         if ( !localState.isAlive() )
         {
             isAlive(addr, localState, true);
-            logger_.info("InetAddress " + addr + " is now UP");
+            logger_.info("InetAddress {} is now UP", addr);;
         }
     }
 
@@ -573,13 +574,13 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     {
         if (justRemovedEndPoints_.containsKey(ep))
             return;
-    	logger_.info("Node " + ep + " is now part of the cluster");
+    	logger_.info("Node {} is now part of the cluster", ep);;
         handleMajorStateChange(ep, epState, false);
     }
 
     private void handleGenerationChange(InetAddress ep, EndPointState epState)
     {
-        logger_.info("Node " + ep + " has restarted, now UP again");
+        logger_.info("Node {} has restarted, now UP again", ep);;
         handleMajorStateChange(ep, epState, true);
     }
 
@@ -867,13 +868,13 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     public static class JoinVerbHandler implements IVerbHandler
     {
-        private static Logger logger_ = Logger.getLogger( JoinVerbHandler.class);
+        private static Logger logger_ = LoggerFactory.getLogger( JoinVerbHandler.class);
 
         public void doVerb(Message message)
         {
             InetAddress from = message.getFrom();
             if (logger_.isDebugEnabled())
-              logger_.debug("Received a JoinMessage from " + from);
+              logger_.debug("Received a JoinMessage from {}", from);
 
             byte[] bytes = message.getMessageBody();
             DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
@@ -896,13 +897,13 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     public static class GossipDigestSynVerbHandler implements IVerbHandler
     {
-        private static Logger logger_ = Logger.getLogger( GossipDigestSynVerbHandler.class);
+        private static Logger logger_ = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
 
         public void doVerb(Message message)
         {
             InetAddress from = message.getFrom();
             if (logger_.isTraceEnabled())
-                logger_.trace("Received a GossipDigestSynMessage from " + from);
+                logger_.trace("Received a GossipDigestSynMessage from {}", from);
 
             byte[] bytes = message.getMessageBody();
             DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
@@ -927,7 +928,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
                 Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck);
                 if (logger_.isTraceEnabled())
-                    logger_.trace("Sending a GossipDigestAckMessage to " + from);
+                    logger_.trace("Sending a GossipDigestAckMessage to {}", from);
                 MessagingService.instance.sendOneWay(gDigestAckMessage, from);
             }
             catch (IOException e)
@@ -982,13 +983,13 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     public static class GossipDigestAckVerbHandler implements IVerbHandler
     {
-        private static Logger logger_ = Logger.getLogger(GossipDigestAckVerbHandler.class);
+        private static Logger logger_ = LoggerFactory.getLogger(GossipDigestAckVerbHandler.class);
 
         public void doVerb(Message message)
         {
             InetAddress from = message.getFrom();
             if (logger_.isTraceEnabled())
-                logger_.trace("Received a GossipDigestAckMessage from " + from);
+                logger_.trace("Received a GossipDigestAckMessage from {}", from);
 
             byte[] bytes = message.getMessageBody();
             DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
@@ -1019,7 +1020,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 GossipDigestAck2Message gDigestAck2 = new GossipDigestAck2Message(deltaEpStateMap);
                 Message gDigestAck2Message = Gossiper.instance.makeGossipDigestAck2Message(gDigestAck2);
                 if (logger_.isTraceEnabled())
-                    logger_.trace("Sending a GossipDigestAck2Message to " + from);
+                    logger_.trace("Sending a GossipDigestAck2Message to {}", from);
                 MessagingService.instance.sendOneWay(gDigestAck2Message, from);
             }
             catch ( IOException e )
@@ -1031,13 +1032,13 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
 
     public static class GossipDigestAck2VerbHandler implements IVerbHandler
     {
-        private static Logger logger_ = Logger.getLogger(GossipDigestAck2VerbHandler.class);
+        private static Logger logger_ = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
         public void doVerb(Message message)
         {
             InetAddress from = message.getFrom();
             if (logger_.isTraceEnabled())
-                logger_.trace("Received a GossipDigestAck2Message from " + from);
+                logger_.trace("Received a GossipDigestAck2Message from {}", from);
 
             byte[] bytes = message.getMessageBody();
             DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );

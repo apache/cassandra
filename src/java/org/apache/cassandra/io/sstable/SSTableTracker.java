@@ -29,11 +29,12 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.Pair;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SSTableTracker implements Iterable<SSTableReader>
 {
-    private static final Logger logger = Logger.getLogger(SSTableTracker.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSTableTracker.class);
 
     private volatile Set<SSTableReader> sstables;
     private final AtomicLong liveSize = new AtomicLong();

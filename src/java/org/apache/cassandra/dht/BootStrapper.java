@@ -25,7 +25,8 @@ package org.apache.cassandra.dht;
  import java.net.InetAddress;
 
  import org.apache.commons.lang.StringUtils;
- import org.apache.log4j.Logger;
+ import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
  import org.apache.commons.lang.ArrayUtils;
 
@@ -45,7 +46,7 @@ package org.apache.cassandra.dht;
 
 public class BootStrapper
 {
-    private static final Logger logger = Logger.getLogger(BootStrapper.class);
+    private static final Logger logger = LoggerFactory.getLogger(BootStrapper.class);
 
     /* endpoints that need to be bootstrapped */
     protected final InetAddress address;

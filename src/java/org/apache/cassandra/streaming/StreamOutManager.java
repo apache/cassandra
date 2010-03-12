@@ -37,14 +37,15 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.SimpleCondition;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class manages the streaming of multiple files one after the other.
 */
 public class StreamOutManager
 {   
-    private static Logger logger = Logger.getLogger( StreamOutManager.class );
+    private static Logger logger = LoggerFactory.getLogger( StreamOutManager.class );
         
     private static ConcurrentMap<InetAddress, StreamOutManager> streamManagers = new ConcurrentHashMap<InetAddress, StreamOutManager>();
 

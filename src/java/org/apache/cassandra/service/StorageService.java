@@ -51,7 +51,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.io.util.FileUtils;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.log4j.Level;
 import org.apache.commons.lang.StringUtils;
 
@@ -66,7 +68,7 @@ import com.google.common.collect.HashMultimap;
  */
 public class StorageService implements IEndPointStateChangeSubscriber, StorageServiceMBean
 {
-    private static Logger logger_ = Logger.getLogger(StorageService.class);     
+    private static Logger logger_ = LoggerFactory.getLogger(StorageService.class);     
 
     public static final int RING_DELAY = 30 * 1000; // delay after which we assume ring has stablized
 
@@ -185,7 +187,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public void setToken(Token token)
     {
         if (logger_.isDebugEnabled())
-            logger_.debug("Setting token to " + token);
+            logger_.debug("Setting token to {}", token);
         SystemTable.updateToken(token);
         tokenMetadata_.updateNormalToken(token, FBUtilities.getLocalAddress());
     }
@@ -673,7 +675,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (bootstrapTokens.isEmpty() && leavingEndPoints.isEmpty())
         {
             if (logger_.isDebugEnabled())
-                logger_.debug("No bootstrapping or leaving nodes -> empty pending ranges for " + table);
+                logger_.debug("No bootstrapping or leaving nodes -> empty pending ranges for {}", table);
             tm.setPendingRanges(table, pendingRanges);
             return;
         }
@@ -1205,7 +1207,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public void setLog4jLevel(String classQualifier, String rawLevel)
     {
         Level level = Level.toLevel(rawLevel);
-        Logger.getLogger(classQualifier).setLevel(level);
+        org.apache.log4j.Logger.getLogger(classQualifier).setLevel(level);
         logger_.info("set log level to " + level + " for classes under '" + classQualifier + "' (if the level doesn't look like '" + rawLevel + "' then log4j couldn't parse '" + rawLevel + "')");
     }
 
@@ -1418,7 +1420,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 		    StorageLoadBalancer.instance.waitForLoadInfo();
 		    bootstrapToken = BootStrapper.getBalancedToken(tokenMetadata_, StorageLoadBalancer.instance.getLoadInfo());
 		}
-                logger_.info("re-bootstrapping to new token " + bootstrapToken);
+                logger_.info("re-bootstrapping to new token {}", bootstrapToken);
                 startBootstrap(bootstrapToken);
             }
         };

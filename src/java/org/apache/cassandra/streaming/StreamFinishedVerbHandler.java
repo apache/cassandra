@@ -26,7 +26,8 @@ import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -34,7 +35,7 @@ import org.apache.cassandra.streaming.StreamOutManager;
 
 public class StreamFinishedVerbHandler implements IVerbHandler
 {
-    private static Logger logger = Logger.getLogger(StreamFinishedVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamFinishedVerbHandler.class);
 
     public void doVerb(Message message)
     {

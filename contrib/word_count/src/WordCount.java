@@ -21,7 +21,8 @@ import java.util.Arrays;
 import java.util.SortedMap;
 import java.util.StringTokenizer;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
@@ -47,7 +48,7 @@ import org.apache.hadoop.util.ToolRunner;
  */
 public class WordCount extends Configured implements Tool
 {
-    private static final Logger logger = Logger.getLogger(WordCount.class);
+    private static final Logger logger = LoggerFactory.getLogger(WordCount.class);
 
     static final String KEYSPACE = "Keyspace1";
     static final String COLUMN_FAMILY = "Standard1";

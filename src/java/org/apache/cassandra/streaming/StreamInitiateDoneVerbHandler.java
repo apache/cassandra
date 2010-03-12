@@ -21,7 +21,8 @@ package org.apache.cassandra.streaming;
  */
 
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -29,7 +30,7 @@ import org.apache.cassandra.streaming.StreamOutManager;
 
 public class StreamInitiateDoneVerbHandler implements IVerbHandler
 {
-    private static Logger logger = Logger.getLogger(StreamInitiateDoneVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamInitiateDoneVerbHandler.class);
 
     public void doVerb(Message message)
     {

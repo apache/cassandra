@@ -23,7 +23,8 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -41,7 +42,7 @@ import org.apache.cassandra.service.StorageService;
 */
 class StreamCompletionHandler implements IStreamComplete
 {
-    private static Logger logger = Logger.getLogger(StreamCompletionHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamCompletionHandler.class);
 
     public void onStreamCompletion(InetAddress host, PendingFile pendingFile, CompletedFileStatus streamStatus) throws IOException
     {

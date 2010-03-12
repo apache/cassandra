@@ -28,7 +28,9 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.log4j.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
@@ -39,7 +41,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class CommitLogSegment
 {
-    private static final Logger logger = Logger.getLogger(CommitLogSegment.class);
+    private static final Logger logger = LoggerFactory.getLogger(CommitLogSegment.class);
 
     private final BufferedRandomAccessFile logWriter;
     private final CommitLogHeader header;

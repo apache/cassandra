@@ -27,14 +27,15 @@ import java.nio.channels.SocketChannel;
 
 import org.apache.cassandra.streaming.StreamOutManager;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class FileStreamTask extends WrappedRunnable
 {
-    private static Logger logger = Logger.getLogger( FileStreamTask.class );
+    private static Logger logger = LoggerFactory.getLogger( FileStreamTask.class );
     
     public static final int CHUNK_SIZE = 32*1024*1024;
 

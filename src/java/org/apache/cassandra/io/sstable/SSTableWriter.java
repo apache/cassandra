@@ -26,7 +26,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -39,7 +40,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SSTableWriter extends SSTable
 {
-    private static Logger logger = Logger.getLogger(SSTableWriter.class);
+    private static Logger logger = LoggerFactory.getLogger(SSTableWriter.class);
 
     private long keysWritten;
     private BufferedRandomAccessFile dataFile;

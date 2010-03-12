@@ -32,7 +32,10 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.log4j.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.log4j.PropertyConfigurator;
 
 /**
@@ -40,7 +43,7 @@ import org.apache.log4j.PropertyConfigurator;
  *
  */
 public class CassandraDaemon {
-    private static Logger logger = Logger.getLogger(CassandraDaemon.class);
+    private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private HttpServer server;
     private InetAddress listenAddr;
     private int listenPort;

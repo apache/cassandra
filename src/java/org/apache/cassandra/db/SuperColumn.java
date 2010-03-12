@@ -25,7 +25,8 @@ import java.security.MessageDigest;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer2;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -35,7 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SuperColumn implements IColumn, IColumnContainer
 {
-	private static Logger logger_ = Logger.getLogger(SuperColumn.class);
+	private static Logger logger_ = LoggerFactory.getLogger(SuperColumn.class);
 
     public static SuperColumnSerializer serializer(AbstractType comparator)
     {

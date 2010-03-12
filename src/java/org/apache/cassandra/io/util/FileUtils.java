@@ -25,12 +25,13 @@ import java.util.concurrent.ExecutorService;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class FileUtils
 {
-    private static Logger logger_ = Logger.getLogger(FileUtils.class);
+    private static Logger logger_ = LoggerFactory.getLogger(FileUtils.class);
     private static final DecimalFormat df_ = new DecimalFormat("#.##");
     private static final double kb_ = 1024d;
     private static final double mb_ = 1024*1024d;
@@ -106,7 +107,7 @@ public class FileUtils
             if (bVal)
             {
             	if (logger_.isDebugEnabled())
-            	  logger_.debug("Deleted file " + file);
+            	  logger_.debug("Deleted file {}", file);
                 files.remove(i);
             }
         }

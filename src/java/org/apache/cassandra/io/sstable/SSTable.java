@@ -26,7 +26,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.StringTokenizer;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.dht.IPartitioner;
@@ -50,7 +51,7 @@ import com.google.common.base.Objects;
  */
 public abstract class SSTable
 {
-    static final Logger logger = Logger.getLogger(SSTable.class);
+    static final Logger logger = LoggerFactory.getLogger(SSTable.class);
 
     public static final int FILES_ON_DISK = 3; // data, index, and bloom filter
     public static final String COMPONENT_DATA = "Data.db";

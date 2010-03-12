@@ -23,11 +23,12 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor
 {
-    protected static Logger logger = Logger.getLogger(JMXEnabledThreadPoolExecutor.class);
+    protected static Logger logger = LoggerFactory.getLogger(JMXEnabledThreadPoolExecutor.class);
 
     public DebuggableThreadPoolExecutor(String threadPoolName)
     {

@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.InetAddress;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.log4j.PropertyConfigurator;
 
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -52,7 +54,7 @@ import org.apache.cassandra.db.CompactionManager;
 
 public class CassandraDaemon
 {
-    private static Logger logger = Logger.getLogger(CassandraDaemon.class);
+    private static Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
     private TThreadPoolServer serverEngine;
 
     private void setup() throws IOException, TTransportException

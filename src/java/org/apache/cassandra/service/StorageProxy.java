@@ -30,7 +30,8 @@ import java.util.concurrent.TimeoutException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
@@ -58,7 +59,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 
 public class StorageProxy implements StorageProxyMBean
 {
-    private static final Logger logger = Logger.getLogger(StorageProxy.class);
+    private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
 
     // mbean stuff
     private static final LatencyTracker readStats = new LatencyTracker();
@@ -550,7 +551,7 @@ public class StorageProxy implements StorageProxyMBean
     throws IOException, UnavailableException, TimeoutException
     {
         if (logger.isDebugEnabled())
-            logger.debug(command);
+            logger.debug(command.toString());
         long startTime = System.nanoTime();
 
         final String table = command.keyspace;

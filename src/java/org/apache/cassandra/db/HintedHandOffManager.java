@@ -24,7 +24,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.io.IOException;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -81,7 +82,7 @@ public class HintedHandOffManager
 {
     public static final HintedHandOffManager instance = new HintedHandOffManager();
 
-    private static final Logger logger_ = Logger.getLogger(HintedHandOffManager.class);
+    private static final Logger logger_ = LoggerFactory.getLogger(HintedHandOffManager.class);
     final static long INTERVAL_IN_MS = 3600 * 1000; // check for ability to deliver hints this often
     public static final String HINTS_CF = "HintsColumnFamily";
     private static final int PAGE_SIZE = 10000;

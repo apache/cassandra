@@ -18,14 +18,15 @@
 
 package org.apache.cassandra.net;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.StorageService;
 
 public class MessageDeliveryTask implements Runnable
 {
     private Message message_;
-    private static Logger logger_ = Logger.getLogger(MessageDeliveryTask.class);    
+    private static Logger logger_ = LoggerFactory.getLogger(MessageDeliveryTask.class);    
     
     public MessageDeliveryTask(Message message)
     {

@@ -28,7 +28,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.collections.iterators.CollatingIterator;
 
 import org.apache.cassandra.utils.ReducingIterator;
@@ -42,7 +43,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 
 public class CompactionIterator extends ReducingIterator<IteratingRow, CompactionIterator.CompactedRow> implements Closeable
 {
-    private static Logger logger = Logger.getLogger(CompactionIterator.class);
+    private static Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
 
     protected static final int FILE_BUFFER_SIZE = 1024 * 1024;
 

@@ -26,7 +26,8 @@ import java.lang.ref.Reference;
 import java.nio.channels.FileChannel;
 import java.nio.MappedByteBuffer;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
@@ -52,7 +53,7 @@ import com.google.common.collect.Collections2;
  */
 class RowIndexedReader extends SSTableReader
 {
-    private static final Logger logger = Logger.getLogger(RowIndexedReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(RowIndexedReader.class);
 
     private static final long BUFFER_SIZE = Integer.MAX_VALUE;
 

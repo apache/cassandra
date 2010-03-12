@@ -25,11 +25,12 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class AsyncResult implements IAsyncResult
 {
-    private static Logger logger_ = Logger.getLogger( AsyncResult.class );
+    private static Logger logger_ = LoggerFactory.getLogger( AsyncResult.class );
     private byte[] result_;
     private AtomicBoolean done_ = new AtomicBoolean(false);
     private Lock lock_ = new ReentrantLock();

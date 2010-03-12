@@ -18,14 +18,15 @@
 
 package org.apache.cassandra.utils;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.net.*;
 import java.security.*;
 
 public class GuidGenerator {
-    private static Logger logger_ = Logger.getLogger(GuidGenerator.class);
+    private static Logger logger_ = LoggerFactory.getLogger(GuidGenerator.class);
     private static Random myRand;
     private static SecureRandom mySecureRand;
     private static String s_id;

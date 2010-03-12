@@ -33,7 +33,8 @@ import org.apache.commons.lang.StringUtils;
 import java.net.InetAddress;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.BoundedStatsDeque;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This FailureDetector is an implementation of the paper titled
@@ -43,7 +44,7 @@ import org.apache.log4j.Logger;
 public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {
     public static final IFailureDetector instance = new FailureDetector();
-    private static Logger logger_ = Logger.getLogger(FailureDetector.class);
+    private static Logger logger_ = LoggerFactory.getLogger(FailureDetector.class);
     private static final int sampleSize_ = 1000;
     private static final int phiConvictThreshold_ = 8;
     /* The Failure Detector has to have been up for at least 1 min. */
@@ -126,7 +127,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public void report(InetAddress ep)
     {
         if (logger_.isTraceEnabled())
-            logger_.trace("reporting " + ep);
+            logger_.trace("reporting {}", ep);
         long now = System.currentTimeMillis();
         ArrivalWindow heartbeatWindow = arrivalSamples_.get(ep);
         if ( heartbeatWindow == null )
@@ -197,7 +198,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
 class ArrivalWindow
 {
-    private static Logger logger_ = Logger.getLogger(ArrivalWindow.class);
+    private static Logger logger_ = LoggerFactory.getLogger(ArrivalWindow.class);
     private double tLast_ = 0L;
     private BoundedStatsDeque arrivalIntervals_;
 

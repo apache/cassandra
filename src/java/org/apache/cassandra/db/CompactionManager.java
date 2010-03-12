@@ -30,7 +30,10 @@ import javax.management.*;
 
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.log4j.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.dht.Range;
@@ -53,7 +56,7 @@ import org.apache.commons.collections.PredicateUtils;
 public class CompactionManager implements CompactionManagerMBean
 {
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
-    private static final Logger logger = Logger.getLogger(CompactionManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
     public static final CompactionManager instance;
 
     private int minimumCompactionThreshold = 4; // compact this many sstables min at a time

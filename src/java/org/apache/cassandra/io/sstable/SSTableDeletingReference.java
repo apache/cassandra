@@ -27,14 +27,15 @@ import java.lang.ref.ReferenceQueue;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class SSTableDeletingReference extends PhantomReference<SSTableReader>
 {
-    private static final Logger logger = Logger.getLogger(SSTableDeletingReference.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSTableDeletingReference.class);
 
     private static final Timer timer = new Timer("SSTABLE-CLEANUP-TIMER");
     public static final int RETRY_DELAY = 10000;

@@ -44,14 +44,15 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.db.filter.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Table 
 {
     public static final String SYSTEM_TABLE = "system";
     public static final String DEFINITIONS = "definitions";
 
-    private static final Logger logger = Logger.getLogger(Table.class);
+    private static final Logger logger = LoggerFactory.getLogger(Table.class);
     private static final String SNAPSHOT_SUBDIR_NAME = "snapshots";
     /* we use this lock to drain updaters before calling a flush. */
     static final ReentrantReadWriteLock flusherLock = new ReentrantReadWriteLock(true);

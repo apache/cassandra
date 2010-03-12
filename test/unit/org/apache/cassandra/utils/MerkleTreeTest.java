@@ -25,7 +25,8 @@ import java.math.BigInteger;
 import org.apache.cassandra.dht.*;
 import static org.apache.cassandra.utils.MerkleTree.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.AbstractIterator;
 
@@ -35,7 +36,7 @@ import static org.junit.Assert.*;
 
 public class MerkleTreeTest
 {
-    private static final Logger logger = Logger.getLogger(MerkleTreeTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(MerkleTreeTest.class);
 
     public static byte[] DUMMY = "blah".getBytes();
 

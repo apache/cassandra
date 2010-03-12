@@ -23,7 +23,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.Watcher;
@@ -38,7 +39,7 @@ import org.apache.zookeeper.Watcher.Event.KeeperState;
 
 public class ClusterMutex implements Watcher
 {
-    private static Logger logger = Logger.getLogger(ClusterMutex.class);
+    private static Logger logger = LoggerFactory.getLogger(ClusterMutex.class);
 
     private static ClusterMutex instance;
 

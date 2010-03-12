@@ -26,7 +26,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -38,7 +39,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class BinaryMemtable implements IFlushable
 {
-    private static final Logger logger = Logger.getLogger(BinaryMemtable.class);
+    private static final Logger logger = LoggerFactory.getLogger(BinaryMemtable.class);
     private final int threshold = DatabaseDescriptor.getBMTThreshold() * 1024 * 1024;
     private final AtomicInteger currentSize = new AtomicInteger(0);
 

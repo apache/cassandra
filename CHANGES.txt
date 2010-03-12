@@ -1,6 +1,7 @@
 dev
  * sstable versioning (CASSANDRA-389)
  * bitmask matching in SliceRange queries (CASSANDRA-764)
+ * switched to slf4j logging (CASSANDRA-625)
 
 
 0.6.0-RC1

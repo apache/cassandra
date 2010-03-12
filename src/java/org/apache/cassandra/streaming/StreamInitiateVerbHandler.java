@@ -23,7 +23,8 @@ import java.io.*;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -39,7 +40,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class StreamInitiateVerbHandler implements IVerbHandler
 {
-    private static Logger logger = Logger.getLogger(StreamInitiateVerbHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(StreamInitiateVerbHandler.class);
 
     /*
      * Here we handle the StreamInitiateMessage. Here we get the

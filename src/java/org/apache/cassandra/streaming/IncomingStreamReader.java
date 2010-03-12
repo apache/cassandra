@@ -24,13 +24,14 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.io.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.FileStreamTask;
 
 public class IncomingStreamReader
 {
-    private static Logger logger = Logger.getLogger(IncomingStreamReader.class);
+    private static Logger logger = LoggerFactory.getLogger(IncomingStreamReader.class);
     private PendingFile pendingFile;
     private CompletedFileStatus streamStatus;
     private SocketChannel socketChannel;

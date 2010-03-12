@@ -22,11 +22,12 @@ import java.util.TimerTask;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class LoadDisseminator extends TimerTask
 {
-    private final static Logger logger_ = Logger.getLogger(LoadDisseminator.class);
+    private final static Logger logger_ = LoggerFactory.getLogger(LoadDisseminator.class);
     protected final static String loadInfo_= "LOAD-INFORMATION";
     
     public void run()

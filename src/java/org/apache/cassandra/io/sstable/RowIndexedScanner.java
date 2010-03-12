@@ -30,12 +30,13 @@ import org.apache.cassandra.io.IteratingRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class RowIndexedScanner extends SSTableScanner
 {
-    private static Logger logger = Logger.getLogger(RowIndexedScanner.class);
+    private static Logger logger = LoggerFactory.getLogger(RowIndexedScanner.class);
 
     private final BufferedRandomAccessFile file;
     private final SSTableReader sstable;

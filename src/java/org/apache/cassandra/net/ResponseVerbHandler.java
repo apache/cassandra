@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.net;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ResponseVerbHandler implements IVerbHandler
 {
-    private static final Logger logger_ = Logger.getLogger( ResponseVerbHandler.class );
+    private static final Logger logger_ = LoggerFactory.getLogger( ResponseVerbHandler.class );
     
     public void doVerb(Message message)
     {     

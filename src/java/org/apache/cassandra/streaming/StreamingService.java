@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.streaming;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -31,7 +32,7 @@ import java.util.Set;
 
 public class StreamingService implements StreamingServiceMBean
 {
-    private static final Logger logger = Logger.getLogger(StreamingService.class);
+    private static final Logger logger = LoggerFactory.getLogger(StreamingService.class);
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.streaming:type=StreamingService";
     public static final StreamingService instance = new StreamingService();
     static final String NOTHING = "Nothing is happening";

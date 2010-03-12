@@ -26,11 +26,12 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CleanupHelper
 {
-    private static Logger logger = Logger.getLogger(CleanupHelper.class);
+    private static Logger logger = LoggerFactory.getLogger(CleanupHelper.class);
 
     @BeforeClass
     public static void cleanupAndLeaveDirs() throws IOException

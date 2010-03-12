@@ -27,7 +27,8 @@ import java.net.UnknownHostException;
 import java.util.*;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.XMLUtils;
 import org.xml.sax.SAXException;
@@ -60,7 +61,7 @@ public class DatacenterEndPointSnitch extends AbstractEndpointSnitch
     /**
      * Reference to the logger.
      */
-    private static Logger logger_ = Logger.getLogger(DatacenterEndPointSnitch.class);
+    private static Logger logger_ = LoggerFactory.getLogger(DatacenterEndPointSnitch.class);
 
     /**
      * Constructor, intialize XML config and read the config in...

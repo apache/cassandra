@@ -25,8 +25,10 @@ import java.io.IOError;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.commons.lang.ArrayUtils;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.dht.Token;
@@ -44,7 +46,7 @@ import java.util.TreeSet;
 
 public class SystemTable
 {
-    private static Logger logger = Logger.getLogger(SystemTable.class);
+    private static Logger logger = LoggerFactory.getLogger(SystemTable.class);
     public static final String STATUS_CF = "LocationInfo"; // keep the old CF string for backwards-compatibility
     private static final String LOCATION_KEY = "L";
     private static final String BOOTSTRAP_KEY = "Bootstrap";

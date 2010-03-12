@@ -24,13 +24,14 @@ package org.apache.cassandra.net;
 import java.io.*;
 import java.net.Socket;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.streaming.IncomingStreamReader;
 
 public class IncomingTcpConnection extends Thread
 {
-    private static Logger logger = Logger.getLogger(IncomingTcpConnection.class);
+    private static Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
     private final DataInputStream input;
     private Socket socket;

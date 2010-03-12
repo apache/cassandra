@@ -31,7 +31,8 @@ import javax.management.ObjectName;
 
 import org.apache.cassandra.locator.EndPointSnitch;
 import java.net.InetAddress;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * PropertyFileEndPointSnitch
@@ -61,7 +62,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
     /**
      * Reference to the logger.
      */
-    private static Logger logger_ = Logger.getLogger(PropertyFileEndPointSnitch.class);     
+    private static Logger logger_ = LoggerFactory.getLogger(PropertyFileEndPointSnitch.class);     
 
     public PropertyFileEndPointSnitch() throws IOException {
         reloadConfiguration();
@@ -88,7 +89,7 @@ public class PropertyFileEndPointSnitch extends EndPointSnitch implements Proper
         String value = hostProperties.getProperty(key);
         if (value == null)
         {
-            logger_.error("Could not find end point information for " + key + ", will use default.");
+            logger_.error("Could not find end point information for {}, will use default.", key);
             value = hostProperties.getProperty("default");
         }
         StringTokenizer st = new StringTokenizer(value, ":");

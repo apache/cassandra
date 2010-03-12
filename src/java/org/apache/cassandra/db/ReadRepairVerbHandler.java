@@ -23,11 +23,12 @@ import java.io.*;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ReadRepairVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = Logger.getLogger(ReadRepairVerbHandler.class);    
+    private static Logger logger_ = LoggerFactory.getLogger(ReadRepairVerbHandler.class);    
     
     public void doVerb(Message message)
     {          

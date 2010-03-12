@@ -29,7 +29,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ICompactSerializer2;
@@ -43,7 +44,7 @@ public class ColumnFamily implements IColumnContainer
     /* The column serializer for this Column Family. Create based on config. */
     private static ColumnFamilySerializer serializer_ = new ColumnFamilySerializer();
 
-    private static Logger logger_ = Logger.getLogger( ColumnFamily.class );
+    private static Logger logger_ = LoggerFactory.getLogger( ColumnFamily.class );
     private static Map<String, String> columnTypes_ = new HashMap<String, String>();
     String type_;
 

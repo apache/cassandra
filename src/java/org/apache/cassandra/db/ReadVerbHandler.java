@@ -32,7 +32,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ReadVerbHandler implements IVerbHandler
 {
@@ -42,7 +43,7 @@ public class ReadVerbHandler implements IVerbHandler
         protected DataOutputBuffer bufOut_ = new DataOutputBuffer();
     }
 
-    private static Logger logger_ = Logger.getLogger( ReadVerbHandler.class );
+    private static Logger logger_ = LoggerFactory.getLogger( ReadVerbHandler.class );
     /* We use this so that we can reuse the same row mutation context for the mutation. */
     private static ThreadLocal<ReadVerbHandler.ReadContext> tls_ = new InheritableThreadLocal<ReadVerbHandler.ReadContext>();
     

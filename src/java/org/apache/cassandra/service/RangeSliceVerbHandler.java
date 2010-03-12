@@ -25,12 +25,13 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RangeSliceVerbHandler implements IVerbHandler
 {
 
-    private static final Logger logger = Logger.getLogger(RangeSliceVerbHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(RangeSliceVerbHandler.class);
 
     public void doVerb(Message message)
     {

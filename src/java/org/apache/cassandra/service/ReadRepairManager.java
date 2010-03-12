@@ -31,7 +31,8 @@ import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.cache.ICacheExpungeHook;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /*
@@ -45,7 +46,7 @@ import org.apache.log4j.Logger;
  */
 class ReadRepairManager
 {
-    private static final Logger logger_ = Logger.getLogger(ReadRepairManager.class);
+    private static final Logger logger_ = LoggerFactory.getLogger(ReadRepairManager.class);
     private static final long expirationTimeInMillis = 2000;
     public static final ReadRepairManager instance = new ReadRepairManager();
 

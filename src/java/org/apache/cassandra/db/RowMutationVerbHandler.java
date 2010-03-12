@@ -26,14 +26,15 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class RowMutationVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = Logger.getLogger(RowMutationVerbHandler.class);
+    private static Logger logger_ = LoggerFactory.getLogger(RowMutationVerbHandler.class);
 
     public void doVerb(Message message)
     {

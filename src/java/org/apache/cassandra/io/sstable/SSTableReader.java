@@ -26,7 +26,8 @@ import java.lang.ref.Reference;
 import java.nio.channels.FileChannel;
 import java.nio.MappedByteBuffer;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.InstrumentedCache;
 import org.apache.cassandra.dht.IPartitioner;
@@ -49,7 +50,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
  */
 public abstract class SSTableReader extends SSTable implements Comparable<SSTableReader>
 {
-    private static final Logger logger = Logger.getLogger(SSTableReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
     // `finalizers` is required to keep the PhantomReferences alive after the enclosing SSTR is itself
     // unreferenced.  otherwise they will never get enqueued.

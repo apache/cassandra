@@ -26,7 +26,8 @@ import java.io.IOError;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
  /**
  * This verb handler handles the StreamRequestMessage that is sent by
@@ -34,7 +35,7 @@ import org.apache.log4j.Logger;
 */
 public class StreamRequestVerbHandler implements IVerbHandler
 {
-    private static Logger logger_ = Logger.getLogger(StreamRequestVerbHandler.class);
+    private static Logger logger_ = LoggerFactory.getLogger(StreamRequestVerbHandler.class);
     
     public void doVerb(Message message)
     {

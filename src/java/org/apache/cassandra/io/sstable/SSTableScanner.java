@@ -30,8 +30,6 @@ import org.apache.cassandra.io.IteratingRow;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 
-import org.apache.log4j.Logger;
-
 
 public abstract class SSTableScanner implements Iterator<IteratingRow>, Closeable
 {

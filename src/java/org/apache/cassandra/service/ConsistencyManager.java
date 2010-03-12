@@ -28,7 +28,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.cache.ICacheExpungeHook;
@@ -42,10 +41,12 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class ConsistencyManager implements Runnable
 {
-	private static Logger logger_ = Logger.getLogger(ConsistencyManager.class);
+	private static Logger logger_ = LoggerFactory.getLogger(ConsistencyManager.class);
     private final String table_;
 
     class DigestResponseHandler implements IAsyncCallback

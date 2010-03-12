@@ -22,7 +22,8 @@ import java.net.InetAddress;
 import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -41,7 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 */
 public abstract class AbstractReplicationStrategy
 {
-    protected static final Logger logger_ = Logger.getLogger(AbstractReplicationStrategy.class);
+    protected static final Logger logger_ = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
     private TokenMetadata tokenMetadata_;
     protected final IEndPointSnitch snitch_;

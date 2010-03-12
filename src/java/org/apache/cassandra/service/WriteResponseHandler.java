@@ -34,11 +34,12 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.SimpleCondition;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class WriteResponseHandler implements IAsyncCallback
 {
-    protected static final Logger logger = Logger.getLogger( WriteResponseHandler.class );
+    protected static final Logger logger = LoggerFactory.getLogger( WriteResponseHandler.class );
     protected final SimpleCondition condition = new SimpleCondition();
     private final int responseCount;
     protected final Collection<Message> responses;

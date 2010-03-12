@@ -36,7 +36,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Turns ReadResponse messages into Row objects, resolving to the most recent
@@ -44,7 +45,7 @@ import org.apache.log4j.Logger;
  */
 public class ReadResponseResolver implements IResponseResolver<Row>
 {
-	private static Logger logger_ = Logger.getLogger(ReadResponseResolver.class);
+	private static Logger logger_ = LoggerFactory.getLogger(ReadResponseResolver.class);
     private final String table;
     private final int responseCount;
 

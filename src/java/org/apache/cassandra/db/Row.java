@@ -25,13 +25,14 @@ import java.util.Collection;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.ICompactSerializer;
 
 public class Row
 {
-    private static Logger logger_ = Logger.getLogger(Row.class);
+    private static Logger logger_ = LoggerFactory.getLogger(Row.class);
     private static RowSerializer serializer = new RowSerializer();
 
     static RowSerializer serializer()

@@ -24,11 +24,12 @@ import java.io.IOException;
 
 import org.apache.cassandra.net.sink.SinkManager;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class MessageDeserializationTask implements Runnable
 {
-    private static Logger logger_ = Logger.getLogger(MessageDeserializationTask.class);
+    private static Logger logger_ = LoggerFactory.getLogger(MessageDeserializationTask.class);
     
     private ByteArrayInputStream bytes;
     

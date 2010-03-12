@@ -24,7 +24,8 @@ package org.apache.cassandra.hadoop;
 import java.io.IOException;
 import java.util.*;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.IColumn;
@@ -58,7 +59,7 @@ import org.apache.thrift.transport.TTransportException;
 public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[], IColumn>>
 {
 
-    private static final Logger logger = Logger.getLogger(StorageService.class);
+    private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
     private void validateConfiguration(Configuration conf)
     {

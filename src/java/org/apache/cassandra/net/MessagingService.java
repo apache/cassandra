@@ -29,7 +29,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -70,7 +71,7 @@ public class MessagingService implements IFailureDetectionEventListener
     
     private static NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers_ = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
     
-    private static Logger logger_ = Logger.getLogger(MessagingService.class);
+    private static Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
     
     public static final MessagingService instance = new MessagingService();
 
