@@ -87,25 +87,33 @@
        ~ the number of keys per sstable whose locations we keep in
        ~ memory in "mostly LRU" order.  (JUST the key locations, NOT any
        ~ column values.) Specify a fraction (value less than 1), a percentage
-       ~ (ending in a % sign) or an absolute number of keys to cache. 
+       ~ (ending in a % sign) or an absolute number of keys to cache.
+       ~ KeysCached defaults to 200000 keys.
        ~
        ~ The optional RowsCached attribute specifies the number of rows
        ~ whose entire contents we cache in memory. Do not use this on
        ~ ColumnFamilies with large rows, or ColumnFamilies with high write:read
        ~ ratios. Specify a fraction (value less than 1), a percentage (ending in
        ~ a % sign) or an absolute number of rows to cache. 
+       ~ RowsCached defaults to 0, i.e., row cache is off by default.
+       ~
+       ~ Remember, when using caches as a percentage, they WILL grow with
+       ~ your data set!
       -->
-      <ColumnFamily CompareWith="BytesType" 
-                    Name="Standard1" 
-                    RowsCached="10%"
-                    KeysCached="0"/>
-      <ColumnFamily CompareWith="UTF8Type" Name="Standard2"/>
-      <ColumnFamily CompareWith="TimeUUIDType" Name="StandardByUUID1"/>
-      <ColumnFamily ColumnType="Super"
+      <ColumnFamily Name="Standard1" CompareWith="BytesType"/>
+      <ColumnFamily Name="Standard2" 
+                    CompareWith="UTF8Type"
+                    KeysCached="100%"/>
+      <ColumnFamily Name="StandardByUUID1" CompareWith="TimeUUIDType" />
+      <ColumnFamily Name="Super1"
+                    ColumnType="Super"
+                    CompareWith="BytesType"
+                    CompareSubcolumnsWith="BytesType" />
+      <ColumnFamily Name="Super2"
+                    ColumnType="Super"
                     CompareWith="UTF8Type"
                     CompareSubcolumnsWith="UTF8Type"
-                    Name="Super1"
-                    RowsCached="1000"
+                    RowsCached="10000"
                     KeysCached="50%"
                     Comment="A column family with supercolumns, whose column and subcolumn names are UTF8 strings"/>
 

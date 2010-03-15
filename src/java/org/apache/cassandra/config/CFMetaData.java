@@ -29,7 +29,7 @@ import java.io.InputStream;
 
 public final class CFMetaData
 {
-    public final static double DEFAULT_KEY_CACHE_SIZE = 0.1;
+    public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
 
     public final String tableName;            // name of table which has this column family
