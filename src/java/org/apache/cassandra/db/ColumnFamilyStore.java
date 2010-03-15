@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.*;
@@ -32,8 +33,6 @@ import java.util.regex.Pattern;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.commons.collections.IteratorUtils;
 
 import com.google.common.base.Predicate;
@@ -50,7 +49,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
@@ -59,6 +57,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -125,7 +125,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private long rowsCompactedTotalSize = 0L;
     private long rowsCompactedCount = 0L;
     
-    ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
+    ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue)
     {
         table_ = table;
         columnFamily_ = columnFamilyName;
@@ -151,14 +151,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (!new File(basePath + "-Data.db").exists())
                 {
                     logger_.info(String.format("Removing orphan %s", file.getAbsolutePath()));
-                    FileUtils.deleteWithConfirm(file);
+                    try
+                    {
+                        FileUtils.deleteWithConfirm(file);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IOError(e);
+                    }
                     continue;
                 }
             }
 
             if (((file.length() == 0 && !filename.endsWith("-Compacted")) || (filename.contains("-" + SSTable.TEMPFILE_MARKER))))
             {
-                FileUtils.deleteWithConfirm(file);
+                try
+                {
+                    FileUtils.deleteWithConfirm(file);
+                }
+                catch (IOException e)
+                {
+                    throw new IOError(e);
+                }
                 continue;
             }
 
@@ -221,7 +235,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return 0L;
     }
 
-    public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException
+    public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily)
     {
         /*
          * Get all data files associated with old Memtables for this table.
@@ -560,14 +574,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Table getTable()
     {
-        try
-        {
-            return Table.open(table_);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return Table.open(table_);
     }
 
     void markCompacted(Collection<SSTableReader> sstables) throws IOException

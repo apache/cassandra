@@ -45,15 +45,8 @@ public class SSTableUtils
     public static String CFNAME;
     static
     {
-        try
-        {
-            TABLENAME = DatabaseDescriptor.getTables().iterator().next();
-            CFNAME = Table.open(TABLENAME).getColumnFamilies().iterator().next();
-        }
-        catch(IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        TABLENAME = DatabaseDescriptor.getTables().iterator().next();
+        CFNAME = Table.open(TABLENAME).getColumnFamilies().iterator().next();
     }
 
     public static File tempSSTableFile(String tablename, String cfname) throws IOException

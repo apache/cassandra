@@ -20,6 +20,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.io.IOError;
 import java.io.IOException;
 import java.util.List;
 import java.util.Arrays;
@@ -122,14 +123,21 @@ public abstract class SSTable
      *
      * @return true if the file was deleted
      */
-    public static boolean deleteIfCompacted(String dataFilename) throws IOException
+    public static boolean deleteIfCompacted(String dataFilename)
     {
         if (new File(compactedFilename(dataFilename)).exists())
         {
-            FileUtils.deleteWithConfirm(new File(dataFilename));
-            FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
-            FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
-            FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
+            try
+            {
+                FileUtils.deleteWithConfirm(new File(dataFilename));
+                FileUtils.deleteWithConfirm(new File(SSTable.indexFilename(dataFilename)));
+                FileUtils.deleteWithConfirm(new File(SSTable.filterFilename(dataFilename)));
+                FileUtils.deleteWithConfirm(new File(SSTable.compactedFilename(dataFilename)));
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
             logger.info("Deleted " + dataFilename);
             return true;
         }

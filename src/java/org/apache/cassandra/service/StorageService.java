@@ -857,15 +857,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         double bytes = 0;
         for (String tableName : DatabaseDescriptor.getTables())
         {
-            Table table;
-            try
-            {
-                table = Table.open(tableName);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            Table table = Table.open(tableName);
             for (String cfName : table.getColumnFamilies())
             {
                 ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);

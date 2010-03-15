@@ -358,14 +358,7 @@ public class AntiEntropyService
         {
             List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
             ColumnFamilyStore cfs;
-            try
-            {
-                cfs = Table.open(cf.left).getColumnFamilyStore(cf.right);
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
+            cfs = Table.open(cf.left).getColumnFamilyStore(cf.right);
             if (cfs != null) // TODO test w/ valid CF definitions, this if{} shouldn't be necessary
             {
                 for (DecoratedKey sample : cfs.allKeySamples())

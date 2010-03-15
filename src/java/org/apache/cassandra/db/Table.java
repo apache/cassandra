@@ -85,7 +85,7 @@ public class Table
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
     
-    public static Table open(String table) throws IOException
+    public static Table open(String table)
     {
         Table tableInstance = instances.get(table);
         if (tableInstance == null)
@@ -229,7 +229,7 @@ public class Table
         return list;
     }
 
-    private Table(String table) throws IOException
+    private Table(String table)
     {
         name = table;
         waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch;
@@ -282,7 +282,7 @@ public class Table
     }
     
     /** adds a cf to internal structures, ends up creating disk files). */
-    public void addCf(String cfName) throws IOException
+    public void addCf(String cfName)
     {
         assert !columnFamilyStores.containsKey(cfName) : cfName;
         columnFamilyStores.put(cfName, ColumnFamilyStore.createColumnFamilyStore(name, cfName));
@@ -430,14 +430,7 @@ public class Table
         {
             public Table apply(String tableName)
             {
-                try
-                {
-                    return Table.open(tableName);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                return Table.open(tableName);
             }
         };
         return Iterables.transform(DatabaseDescriptor.getTables(), transformer);
