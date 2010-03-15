@@ -1,6 +1,5 @@
 Cassandra is a highly scalable, eventually consistent, distributed, structured 
 key-value store. 
---minor svn commit-test change.--
 
 
 Project description
