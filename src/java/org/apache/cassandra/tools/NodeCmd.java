@@ -356,6 +356,10 @@ public class NodeCmd {
                     outs.println("\t\tRow cache: disabled");
                 }
 
+                outs.println("\t\tCompacted row minimum size: " + cfstore.getMinRowCompactedSize());
+                outs.println("\t\tCompacted row maximum size: " + cfstore.getMaxRowCompactedSize());
+                outs.println("\t\tCompacted row mean size: " + cfstore.getMeanRowCompactedSize());
+
                 outs.println("");
             }
             outs.println("----------------");
