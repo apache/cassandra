@@ -349,7 +349,7 @@
    ~ This is less necessary in Cassandra than in traditional databases
    ~ since replication reduces the odds of losing data from a failure
    ~ after writing the log entry but before it actually reaches the disk.
-   ~ So the other option is "timed," where writes may be acked immediately
+   ~ So the other option is "periodic," where writes may be acked immediately
    ~ and the CommitLog is simply synced every CommitLogSyncPeriodInMS
    ~ milliseconds.
   -->
