@@ -68,7 +68,6 @@ public class DatabaseDescriptor
     public static final String random = "RANDOM";
     public static final String ophf = "OPHF";
     private static int storagePort = 7000;
-    private static int controlPort = 7001;
     private static int thriftPort = 9160;
     private static boolean thriftFramed = false;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
@@ -345,11 +344,6 @@ public class DatabaseDescriptor
             String thriftAddr = xmlUtils.getNodeValue("/Storage/ThriftAddress");
             if ( thriftAddr != null )
                 thriftAddress = InetAddress.getByName(thriftAddr);
-            
-            /* UDP port for control messages */
-            port = xmlUtils.getNodeValue("/Storage/ControlPort");
-            if ( port != null )
-                controlPort = Integer.parseInt(port);
 
             /* get the thrift port from conf file */
             port = xmlUtils.getNodeValue("/Storage/ThriftPort");
@@ -949,11 +943,6 @@ public class DatabaseDescriptor
     public static int getStoragePort()
     {
         return storagePort;
-    }
-
-    public static int getControlPort()
-    {
-        return controlPort;
     }
 
     public static int getThriftPort()

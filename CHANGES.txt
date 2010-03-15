@@ -23,6 +23,7 @@
  * Remove CalloutLocation and StagingFileDirectory from storage-conf files 
    since those settings are no longer used (CASSANDRA-878)
  * Parse a long from RowWarningThresholdInMB instead of an int (CASSANDRA-882)
+ * Remove obsolete ControlPort code from DatabaseDescriptor (CASSANDRA-886)
 
 
 0.6.0-beta1/beta2
