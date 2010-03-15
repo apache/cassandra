@@ -26,6 +26,8 @@
  * Remove obsolete ControlPort code from DatabaseDescriptor (CASSANDRA-886)
  * move skipBytes side effect out of assert (CASSANDRA-899)
  * add "double getLoad" to StorageServiceMBean (CASSANDRA-898)
+ * track row stats per CF at compaction time (CASSANDRA-870)
+ * disallow CommitLogDirectory matching a DataFileDirectory (CASSANDRA-888)
 
 
 0.6.0-beta1/beta2
