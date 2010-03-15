@@ -200,7 +200,8 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             boolean outOfBounds = false;
 
             file.reset();
-            assert file.skipBytes((int)curColPosition.offset) == curColPosition.offset;
+            long curOffset = file.skipBytes((int) curColPosition.offset); 
+            assert curOffset == curColPosition.offset;
             while (file.bytesPastMark() < curColPosition.offset + curColPosition.width && !outOfBounds)
             {
                 IColumn column = emptyColumnFamily.getColumnSerializer().deserialize(file);

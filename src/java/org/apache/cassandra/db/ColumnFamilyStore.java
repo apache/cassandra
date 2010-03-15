@@ -119,6 +119,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private LatencyTracker readStats_ = new LatencyTracker();
     private LatencyTracker writeStats_ = new LatencyTracker();
+
+    private long minRowCompactedSize = 0L;
+    private long maxRowCompactedSize = 0L;
+    private long rowsCompactedTotalSize = 0L;
+    private long rowsCompactedCount = 0L;
     
     ColumnFamilyStore(String table, String columnFamilyName, boolean isSuper, int indexValue) throws IOException
     {
@@ -186,6 +191,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         ssTables_ = new SSTableTracker(table, columnFamilyName);
         ssTables_.add(sstables);
+    }
+
+    public void addToCompactedRowStats(Long rowsize)
+    {
+        if (minRowCompactedSize < 1 || rowsize < minRowCompactedSize)
+            minRowCompactedSize = rowsize;
+        if (rowsize > maxRowCompactedSize)
+            maxRowCompactedSize = rowsize;
+        rowsCompactedCount++;
+        rowsCompactedTotalSize += rowsize;
+    }
+
+    public long getMinRowCompactedSize()
+    {
+        return minRowCompactedSize;
+    }
+
+    public long getMaxRowCompactedSize()
+    {
+        return maxRowCompactedSize;
+    }
+
+    public long getMeanRowCompactedSize()
+    {
+        if (rowsCompactedCount > 0)
+            return rowsCompactedTotalSize / rowsCompactedCount;
+        else
+            return 0L;
     }
 
     public static ColumnFamilyStore createColumnFamilyStore(String table, String columnFamily) throws IOException

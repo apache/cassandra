@@ -118,4 +118,22 @@ public interface ColumnFamilyStoreMBean
      * invalidate the row cache; for use after bulk loading via BinaryMemtable
      */
     public void invalidateRowCache();
+
+    /**
+     * return the size of the smallest compacted row
+     * @return
+     */
+    public long getMinRowCompactedSize();
+
+    /**
+     * return the size of the largest compacted row
+     * @return
+     */
+    public long getMaxRowCompactedSize();
+
+    /**
+     * return the mean size of the rows compacted
+     * @return
+     */
+    public long getMeanRowCompactedSize();
 }

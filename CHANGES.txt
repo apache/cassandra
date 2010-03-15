@@ -30,6 +30,11 @@ dev
    since those settings are no longer used (CASSANDRA-878)
  * Parse a long from RowWarningThresholdInMB instead of an int (CASSANDRA-882)
  * Remove obsolete ControlPort code from DatabaseDescriptor (CASSANDRA-886)
+ * move skipBytes side effect out of assert (CASSANDRA-899)
+ * add "double getLoad" to StorageServiceMBean (CASSANDRA-898)
+ * track row stats per CF at compaction time (CASSANDRA-870)
+ * disallow CommitLogDirectory matching a DataFileDirectory (CASSANDRA-888)
+ * default key cache size is 200k entries, changed from 10% (CASSANDRA-863)
 
 
 0.6.0-beta1/beta2

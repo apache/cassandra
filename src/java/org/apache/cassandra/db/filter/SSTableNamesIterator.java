@@ -95,7 +95,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
             for (IndexHelper.IndexInfo indexInfo : ranges)
             {
                 file.reset();
-                assert file.skipBytes((int)indexInfo.offset) == indexInfo.offset;
+                long curOffsert = file.skipBytes((int)indexInfo.offset);
+                assert curOffsert == indexInfo.offset;
                 // TODO only completely deserialize columns we are interested in
                 while (file.bytesPastMark() < indexInfo.offset + indexInfo.width)
                 {

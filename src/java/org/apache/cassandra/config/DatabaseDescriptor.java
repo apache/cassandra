@@ -447,6 +447,12 @@ public class DatabaseDescriptor
             dataFileDirectories = xmlUtils.getNodeValues("/Storage/DataFileDirectories/DataFileDirectory");
             logFileDirectory = xmlUtils.getNodeValue("/Storage/CommitLogDirectory");
 
+            for (String datadir : dataFileDirectories)
+            {
+                if (datadir.equals(logFileDirectory))
+                    throw new ConfigurationException("CommitLogDirectory must not be the same as any DataFileDirectory");
+            }
+
             /* threshold after which commit log should be rotated. */
             String value = xmlUtils.getNodeValue("/Storage/CommitLogRotationThresholdInMB");
             if ( value != null)

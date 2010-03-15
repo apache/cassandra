@@ -40,7 +40,7 @@ import org.apache.commons.lang.ObjectUtils;
 
 public final class CFMetaData
 {
-    public final static double DEFAULT_KEY_CACHE_SIZE = 0.1;
+    public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
 
     private static final AtomicInteger idGen = new AtomicInteger(0);
