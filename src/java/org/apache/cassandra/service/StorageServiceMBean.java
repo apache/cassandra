@@ -62,6 +62,11 @@ public interface StorageServiceMBean
      */
     public Map<Range, List<String>> getRangeToEndPointMap(String keyspace);
 
+    /**
+     * Numeric load value.
+     */
+    public double getLoad();
+
     /** Human-readable load value */
     public String getLoadString();
 
