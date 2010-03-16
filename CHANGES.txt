@@ -29,6 +29,7 @@
  * track row stats per CF at compaction time (CASSANDRA-870)
  * disallow CommitLogDirectory matching a DataFileDirectory (CASSANDRA-888)
  * default key cache size is 200k entries, changed from 10% (CASSANDRA-863)
+ * add -Dcassandra-foreground=yes to cassandra.bat
 
 
 0.6.0-beta1/beta2

@@ -59,7 +59,7 @@ goto :eof
 :okClasspath
 REM Include the build\classes directory so it works in development
 set CASSANDRA_CLASSPATH=%CLASSPATH%;%CASSANDRA_HOME%\build\classes
-set CASSANDRA_PARAMS=-Dcassandra -Dstorage-config="%CASSANDRA_CONF%"
+set CASSANDRA_PARAMS=-Dcassandra -Dstorage-config="%CASSANDRA_CONF%" -Dcassandra-foreground=yes
 goto runDaemon
 
 :runDaemon
