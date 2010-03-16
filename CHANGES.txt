@@ -30,6 +30,8 @@
  * disallow CommitLogDirectory matching a DataFileDirectory (CASSANDRA-888)
  * default key cache size is 200k entries, changed from 10% (CASSANDRA-863)
  * add -Dcassandra-foreground=yes to cassandra.bat
+ * add default CASSANDRA_HOME to cassandra-cli.bat
+ * exit if cluster name is changed unexpectedly (CASSANDRA-769)
 
 
 0.6.0-beta1/beta2
