@@ -54,6 +54,7 @@ public class SystemTable
     private static final byte[] BOOTSTRAP = utf8("B");
     private static final byte[] TOKEN = utf8("Token");
     private static final byte[] GENERATION = utf8("Generation");
+    private static final byte[] CLUSTERNAME = utf8("ClusterName");
     private static StorageMetadata metadata;
 
     private static byte[] utf8(String str)
@@ -128,6 +129,7 @@ public class SystemTable
         SortedSet<byte[]> columns = new TreeSet<byte[]>(new BytesType());
         columns.add(TOKEN);
         columns.add(GENERATION);
+        columns.add(CLUSTERNAME);
         QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(STATUS_CF), columns);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
 
@@ -147,13 +149,16 @@ public class SystemTable
             // but it's as close as sanely possible
             int generation = (int) (System.currentTimeMillis() / 1000);
 
+            logger.info("Saved ClusterName not found. Using " + DatabaseDescriptor.getClusterName());
+
             RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
             cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
             cf.addColumn(new Column(TOKEN, p.getTokenFactory().toByteArray(token)));
             cf.addColumn(new Column(GENERATION, FBUtilities.toByteArray(generation)));
+            cf.addColumn(new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes()));
             rm.add(cf);
             rm.apply();
-            metadata = new StorageMetadata(token, generation);
+            metadata = new StorageMetadata(token, generation, DatabaseDescriptor.getClusterName().getBytes());
             return metadata;
         }
 
@@ -168,14 +173,29 @@ public class SystemTable
         IColumn generation = cf.getColumn(GENERATION);
         assert generation != null : cf;
         int gen = Math.max(FBUtilities.byteArrayToInt(generation.value()) + 1, (int) (System.currentTimeMillis() / 1000));
-        
+
+        IColumn cluster = cf.getColumn(CLUSTERNAME);
+
         RowMutation rm = new RowMutation(Table.SYSTEM_TABLE, LOCATION_KEY);
         cf = ColumnFamily.create(Table.SYSTEM_TABLE, SystemTable.STATUS_CF);
         Column generation2 = new Column(GENERATION, FBUtilities.toByteArray(gen), generation.timestamp() + 1);
         cf.addColumn(generation2);
+        byte[] cname;
+        if (cluster != null)
+        {
+            logger.info("Saved ClusterName found: " + new String(cluster.value()));
+            cname = cluster.value();
+        }
+        else
+        {
+            Column clustername = new Column(CLUSTERNAME, DatabaseDescriptor.getClusterName().getBytes());
+            cf.addColumn(clustername);
+            cname = DatabaseDescriptor.getClusterName().getBytes();
+            logger.info("Saved ClusterName not found. Using " + DatabaseDescriptor.getClusterName());
+        }
         rm.add(cf);
         rm.apply();
-        metadata = new StorageMetadata(token, gen);
+        metadata = new StorageMetadata(token, gen, cname);
         return metadata;
     }
 
@@ -247,11 +267,13 @@ public class SystemTable
     {
         private Token token;
         private int generation;
+        private byte[] cluster;
 
-        StorageMetadata(Token storageId, int generation)
+        StorageMetadata(Token storageId, int generation, byte[] clustername)
         {
             token = storageId;
             this.generation = generation;
+            cluster = clustername;
         }
 
         public Token getToken()
@@ -267,6 +289,11 @@ public class SystemTable
         public int getGeneration()
         {
             return generation;
+        }
+
+        public byte[] getClusterName()
+        {
+            return cluster;
         }
     }
 }

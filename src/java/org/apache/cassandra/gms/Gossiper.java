@@ -892,6 +892,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
             {
                 Gossiper.instance.join(from);
             }
+            else
+            {
+                logger_.warn("ClusterName mismatch from " + from + " " + joinMessage.clusterId_  + "!=" + DatabaseDescriptor.getClusterName());
+            }
         }
     }
 
@@ -913,7 +917,10 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
                 GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis);
                 /* If the message is from a different cluster throw it away. */
                 if ( !gDigestMessage.clusterId_.equals(DatabaseDescriptor.getClusterName()) )
+                {
+                    logger_.warn("ClusterName mismatch from " + from + " " + gDigestMessage.clusterId_  + "!=" + DatabaseDescriptor.getClusterName());
                     return;
+                }
 
                 List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
                 /* Notify the Failure Detector */

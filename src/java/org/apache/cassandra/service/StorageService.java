@@ -303,6 +303,15 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         initialized = true;
         isClientMode = false;
         storageMetadata_ = SystemTable.initMetadata();
+
+        // be certain that the recorded clustername matches what the user specified
+        if (!(Arrays.equals(storageMetadata_.getClusterName(),DatabaseDescriptor.getClusterName().getBytes())))
+        {
+            logger_.error("ClusterName mismatch: " + new String(storageMetadata_.getClusterName()) + " != " +
+                    DatabaseDescriptor.getClusterName());
+            System.exit(3);
+        }
+
         DatabaseDescriptor.createAllDirectories();
         GCInspector.instance.start();
         logger_.info("Starting up server gossip");
