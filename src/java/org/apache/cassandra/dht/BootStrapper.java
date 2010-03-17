@@ -150,9 +150,9 @@ public class BootStrapper
 
         Multimap<Range, InetAddress> myRangeAddresses = ArrayListMultimap.create();
         Multimap<Range, InetAddress> rangeAddresses = strat.getRangeAddresses(tokenMetadata, table);
-        for (Range range : rangeAddresses.keySet())
+        for (Range myRange : myRanges)
         {
-            for (Range myRange : myRanges)
+            for (Range range : rangeAddresses.keySet())
             {
                 if (range.contains(myRange))
                 {
@@ -161,6 +161,7 @@ public class BootStrapper
                     break;
                 }
             }
+            assert myRangeAddresses.keySet().contains(myRange);
         }
         return myRangeAddresses;
     }

@@ -7,6 +7,7 @@ dev
 
 <NEXT tag for 0.6>
 * JMX drain to flush memtables and run through commit log (CASSANDRA-880)
+* Bootstrapping can skip ranges under the right conditions (CASSANDRA-902)
 
 
 0.6.0-beta3
