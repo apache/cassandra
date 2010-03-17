@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.io.SerializerType;
@@ -55,8 +54,6 @@ public class MessagingService implements IFailureDetectionEventListener
 
     /** we preface every message with this number so the recipient can validate the sender is sane */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
-    /* Verb Handler for the Response */
-    public static final String responseVerbHandler_ = "RESPONSE";
 
     /* This records all the results mapped by message Id */
     private static ExpiringMap<String, IAsyncCallback> callbackMap_;
@@ -78,11 +75,6 @@ public class MessagingService implements IFailureDetectionEventListener
     public static final MessagingService instance = new MessagingService();
     
     private SocketThread socketThread;
-
-    public static int getVersion()
-    {
-        return version_;
-    }
 
     public Object clone() throws CloneNotSupportedException
     {
@@ -400,11 +392,6 @@ public class MessagingService implements IFailureDetectionEventListener
     {
         if (magic != PROTOCOL_MAGIC)
             throw new IOException("invalid protocol header");
-    }
-    
-    public static boolean isEqual(byte digestA[], byte digestB[])
-    {
-        return MessageDigest.isEqual(digestA, digestB);
     }
 
     public static int getBits(int x, int p, int n)
