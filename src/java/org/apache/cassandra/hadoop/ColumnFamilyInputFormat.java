@@ -50,11 +50,10 @@ import org.apache.thrift.transport.TTransportException;
  * You can also configure the number of rows per InputSplit with
  *   ConfigHelper.setInputSplitSize
  * This should be "as big as possible, but no bigger."  Each InputSplit is read from Cassandra
- * with a single get_slice_range query, and the per-call overhead of get_slice_range is high,
- * so larger split sizes are better -- but if it is too large, you will run out of memory,
- * since no paging is done (yet).
+ * with multiple get_slice_range queries, and the per-call overhead of get_slice_range is high,
+ * so larger split sizes are better -- but if it is too large, you will run out of memory.
  *
- * The default split size is 4096 rows.
+ * The default split size is 64k rows.
  */
 public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[], IColumn>>
 {

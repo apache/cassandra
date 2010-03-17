@@ -4,7 +4,7 @@ dev
  * switched to slf4j logging (CASSANDRA-625)
 
 
-0.6.0-RC1
+0.6.0-beta3
  * fix compaction bucketing bug (CASSANDRA-814)
  * update windows batch file (CASSANDRA-824)
  * deprecate KeysCachedFraction configuration directive in favor

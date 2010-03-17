@@ -4,7 +4,6 @@ import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.Job;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -16,7 +15,9 @@ public class ConfigHelper
     private static final String COLUMNFAMILY_CONFIG = "cassandra.input.columnfamily";
     private static final String PREDICATE_CONFIG = "cassandra.input.predicate";
     private static final String INPUT_SPLIT_SIZE_CONFIG = "cassandra.input.split.size";
-    private static final int DEFAULT_SPLIT_SIZE = 4096;
+    private static final int DEFAULT_SPLIT_SIZE = 64*1024;
+    private static final String RANGE_BATCH_SIZE_CONFIG = "cassandra.range.batch.size";
+    private static final int DEFAULT_RANGE_BATCH_SIZE = 4096;
 
     /**
      * Set the keyspace and column family for this job.
@@ -47,6 +48,34 @@ public class ConfigHelper
         conf.set(COLUMNFAMILY_CONFIG, columnFamily);
     }
 
+    /**
+     * The number of rows to request with each get range slices request.
+     * Too big and you can either get timeouts when it takes Cassandra too
+     * long to fetch all the data. Too small and the performance
+     * will be eaten up by the overhead of each request. 
+     *
+     * @param conf Job configuration you are about to run
+     * @param batchsize Number of rows to request each time
+     */
+    public static void setRangeBatchSize(Configuration conf, int batchsize)
+    {
+        conf.setInt(RANGE_BATCH_SIZE_CONFIG, batchsize);
+    }
+
+    /**
+     * The number of rows to request with each get range slices request.
+     * Too big and you can either get timeouts when it takes Cassandra too
+     * long to fetch all the data. Too small and the performance
+     * will be eaten up by the overhead of each request. 
+     *
+     * @param conf Job configuration you are about to run
+     * @return Number of rows to request each time
+     */
+    public static int getRangeBatchSize(Configuration conf)
+    {
+        return conf.getInt(RANGE_BATCH_SIZE_CONFIG, DEFAULT_RANGE_BATCH_SIZE);
+    }
+    
     /**
      * Set the size of the input split.
      * This affects the number of maps created, if the number is too small
