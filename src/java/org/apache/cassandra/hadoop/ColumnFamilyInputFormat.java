@@ -23,6 +23,10 @@ package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,34 +87,75 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
 
         int splitsize = ConfigHelper.getInputSplitSize(context.getConfiguration());
         
-        // cannonical ranges, split into pieces:
-        // for each range, pick a live owner and ask it to compute bite-sized splits
-        // TODO parallelize this thread-per-range
-        Map<TokenRange, List<String>> splitRanges = new HashMap<TokenRange, List<String>>();
-        for (TokenRange range : masterRangeNodes)
+        // cannonical ranges, split into pieces, fetching the splits in parallel 
+        ExecutorService executor = Executors.newCachedThreadPool();
+        List<InputSplit> splits = new ArrayList<InputSplit>();
+
+        try
         {
-            splitRanges.put(range, getSubSplits(range, splitsize));
+            List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
+            for (TokenRange range : masterRangeNodes)
+            {
+                // for each range, pick a live owner and ask it to compute bite-sized splits
+                splitfutures.add(executor.submit(new SplitCallable(range, splitsize)));
+            }
+    
+            // wait until we have all the results back
+            for (Future<List<InputSplit>> futureInputSplits : splitfutures)
+            {
+                try
+                {
+                    splits.addAll(futureInputSplits.get());
+                } 
+                catch (Exception e)
+                {
+                    throw new IOException("Could not get input splits", e);
+                } 
+            }
+        } 
+        finally
+        {
+            executor.shutdownNow();
         }
 
-        // turn the sub-ranges into InputSplits
-        ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
-        for (Map.Entry<TokenRange, List<String>> entry : splitRanges.entrySet())
+        assert splits.size() > 0;
+        
+        return splits;
+    }
+
+    /**
+     * Gets a token range and splits it up according to the suggested
+     * size into input splits that Hadoop can use. 
+     */
+    class SplitCallable implements Callable<List<InputSplit>>
+    {
+
+        private TokenRange range;
+        private int splitsize;
+        
+        public SplitCallable(TokenRange tr, int splitsize)
         {
-            TokenRange range = entry.getKey();
-            List<String> tokens = entry.getValue();
+            this.range = tr;
+            this.splitsize = splitsize;
+        }
+
+        @Override
+        public List<InputSplit> call() throws Exception
+        {
+            ArrayList<InputSplit> splits = new ArrayList<InputSplit>();
+            List<String> tokens = getSubSplits(range, splitsize);
+
+            // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
 
-            int i = 1;
-            for ( ; i < tokens.size(); i++)
+            for (int i = 1; i < tokens.size(); i++)
             {
                 ColumnFamilySplit split = new ColumnFamilySplit(tokens.get(i - 1), tokens.get(i), endpoints);
                 logger.debug("adding " + split);
                 splits.add(split);
             }
+            return splits;
         }
-        assert splits.size() > 0;
-        
-        return splits;
     }
 
     private List<String> getSubSplits(TokenRange range, int splitsize) throws IOException
