@@ -37,8 +37,10 @@ import com.google.common.collect.Multimaps;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
+import org.apache.cassandra.io.DeletionService;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.*;
@@ -273,6 +275,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
         MessagingService.shutdown();
+        StageManager.shutdownNow();
     }
 
     public synchronized void initClient() throws IOException
@@ -1301,6 +1304,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             {
                 Gossiper.instance.stop();
                 MessagingService.shutdown();
+                StageManager.shutdownNow();
                 setMode("Decommissioned", true);
                 // let op be responsible for killing the process
             }
@@ -1524,5 +1528,44 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         TokenMetadata old = tokenMetadata_;
         tokenMetadata_ = tmd;
         return old;
+    }
+    
+    /** shuts node off to writes, empties memtables and the commit log. */
+    public synchronized void drain() throws IOException, InterruptedException, ExecutionException
+    {
+        ExecutorService mutationStage = StageManager.getStage(StageManager.MUTATION_STAGE);
+        if (mutationStage.isTerminated())
+        {
+            logger_.warn("Cannot drain node (did it already happen?)");
+            return;
+        }
+        setMode("Starting drain process", true);
+        Gossiper.instance.stop();
+        setMode("Draining: shutting down MessageService", false);
+        MessagingService.shutdown();
+        setMode("Draining: emptying MessageService pools", false);
+        MessagingService.waitFor();
+        
+        // lets flush.
+        setMode("Draining: flushing column families", false);
+        for (String tableName : DatabaseDescriptor.getNonSystemTables())
+            for (Future f : Table.open(tableName).flush())
+                f.get();
+        
+
+        setMode("Draining: replaying commit log", false);
+        CommitLog.instance().forceNewSegment();
+        // want to make sure that any segments deleted as a result of flushing are gone.
+        DeletionService.waitFor();
+        CommitLog.recover();
+        
+        // commit log recovery just sends work to the mutation stage. (there could have already been work there anyway.  
+        // Either way, we need to let this one drain naturally, and then we're finished.
+        setMode("Draining: clearing mutation stage", false);
+        mutationStage.shutdown();
+        while (!mutationStage.isTerminated())
+            mutationStage.awaitTermination(5, TimeUnit.SECONDS);
+        
+        setMode("Node is drained", true);
     }
 }

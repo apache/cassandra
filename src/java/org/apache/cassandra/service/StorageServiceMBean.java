@@ -23,6 +23,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
 import org.apache.cassandra.dht.Range;
@@ -165,4 +166,7 @@ public interface StorageServiceMBean
 
     /** get the operational mode (leaving, joining, normal, decommissioned, client) **/
     public String getOperationMode();
+    
+    /** makes node unavailable for writes, flushes memtables and replays commitlog. */
+    public void drain() throws IOException, InterruptedException, ExecutionException;
 }

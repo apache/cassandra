@@ -164,7 +164,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     {
         if (syncNeeded_)
         {
-            flush();
+            flushBuffer();
             getChannel().force(true); // true, because file length counts as "metadata"
             syncNeeded_ = false;
         }
@@ -172,18 +172,9 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     public void close() throws IOException
     {
-        this.flush();
+        sync();
         this.buff_ = null;
         super.close();
-    }
-    
-    /**
-     * Flush any bytes in the file's buffer that have not yet been written to
-     * disk. If the file was created read-only, this method is a no-op.
-     */
-    public void flush() throws IOException
-    {        
-        this.flushBuffer();
     }
     
     /* Flush any dirty bytes in the buffer to disk. */

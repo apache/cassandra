@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 import java.util.zip.CRC32;
 import java.util.concurrent.Callable;
@@ -173,12 +174,10 @@ public class CommitLog
         logger.info("Log replay complete");
     }
 
-
     public static void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
-        assert StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTaskCount() == 0;
-        int rows = 0;
+        final AtomicInteger counter = new AtomicInteger(0);
         for (File file : clogs)
         {
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
@@ -263,16 +262,17 @@ public class CommitLog
                         {
                             Table.open(newRm.getTable()).apply(newRm, null, false);
                         }
+                        counter.decrementAndGet();
                     }
                 };
-                StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
-                rows++;
+                counter.incrementAndGet();
+                StageManager.getStage(StageManager.MUTATION_STAGE).submit(runnable);
             }
             reader.close();
         }
 
         // wait for all the writes to finish on the mutation stage
-        while (StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTaskCount() < rows)
+        while (counter.get() > 0)
         {
             try
             {

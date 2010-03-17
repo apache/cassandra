@@ -23,6 +23,7 @@ package org.apache.cassandra.io;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
@@ -47,6 +48,11 @@ public class DeletionService
             }
         };
         executor.submit(deleter);
+    }
+    
+    public static void waitFor() throws InterruptedException, ExecutionException
+    {
+        executor.submit(new Runnable() { public void run() { }}).get();
     }
 
     public static void submitDeleteWithRetry(String file)

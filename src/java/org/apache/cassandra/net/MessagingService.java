@@ -32,12 +32,14 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.*;
@@ -74,6 +76,8 @@ public class MessagingService implements IFailureDetectionEventListener
     private static Logger logger_ = LoggerFactory.getLogger(MessagingService.class);
     
     public static final MessagingService instance = new MessagingService();
+    
+    private SocketThread socketThread;
 
     public static int getVersion()
     {
@@ -141,25 +145,9 @@ public class MessagingService implements IFailureDetectionEventListener
         final ServerSocket ss = serverChannel.socket();
         ss.setReuseAddress(true);
         ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
+        socketThread = new SocketThread(ss, "ACCEPT-" + localEp);
+        socketThread.start();
 
-        new Thread(new Runnable()
-        {
-            public void run()
-            {
-                while (true)
-                {
-                    try
-                    {
-                        Socket socket = ss.accept();
-                        new IncomingTcpConnection(socket).start();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        }, "ACCEPT-" + localEp).start();
     }
 
     public static OutboundTcpConnectionPool getConnectionPool(InetAddress to)
@@ -338,14 +326,31 @@ public class MessagingService implements IFailureDetectionEventListener
         Runnable streamingTask = new FileStreamTask(file, startPosition, endPosition, from, to);
         streamExecutor_.execute(streamingTask);
     }
+    
+    /** blocks until the processing pools are empty and done. */
+    public static void waitFor() throws InterruptedException
+    {
+        while (!messageDeserializerExecutor_.isTerminated())
+            messageDeserializerExecutor_.awaitTermination(5, TimeUnit.SECONDS);
+        while (!streamExecutor_.isTerminated())
+            streamExecutor_.awaitTermination(5, TimeUnit.SECONDS);
+    }
 
     public static void shutdown()
     {
-        logger_.info("Shutting down ...");
+        logger_.info("Shutting down MessageService...");
+
+        try
+        {
+            instance.socketThread.close();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
 
         messageDeserializerExecutor_.shutdownNow();
         streamExecutor_.shutdownNow();
-        StageManager.shutdownNow();
 
         /* shut down the cachetables */
         taskCompletionMap_.shutdown();
@@ -466,5 +471,43 @@ public class MessagingService implements IFailureDetectionEventListener
         buffer.putInt(header);
         buffer.flip();
         return buffer;
+    }
+    
+    private class SocketThread extends Thread
+    {
+        private final ServerSocket server;
+        
+        SocketThread(ServerSocket server, String name)
+        {
+            super(name);
+            this.server = server;
+        }
+
+        public void run()
+        {
+            while (true)
+            {
+                try
+                {
+                    Socket socket = server.accept();
+                    new IncomingTcpConnection(socket).start();
+                }
+                catch (AsynchronousCloseException e)
+                {
+                    // this happens when another thread calls close().
+                    logger_.info("MessagingService shutting down server thread.");
+                    break;
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        
+        void close() throws IOException
+        {
+            server.close();
+        }
     }
 }
