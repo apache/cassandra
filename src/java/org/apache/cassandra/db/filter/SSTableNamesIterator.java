@@ -21,6 +21,7 @@ package org.apache.cassandra.db.filter;
  */
 
 
+import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
@@ -33,26 +34,32 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SSTableNamesIterator extends SimpleAbstractColumnIterator
 {
+    private static Logger logger = LoggerFactory.getLogger(SSTableNamesIterator.class);
+
     private ColumnFamily cf;
     private Iterator<IColumn> iter;
     public final SortedSet<byte[]> columns;
 
-    public SSTableNamesIterator(SSTableReader ssTable, String key, SortedSet<byte[]> columnNames) throws IOException
+    public SSTableNamesIterator(SSTableReader ssTable, String key, SortedSet<byte[]> columnNames)
     {
         assert columnNames != null;
         this.columns = columnNames;
 
         DecoratedKey decoratedKey = ssTable.getPartitioner().decorateKey(key);
 
-        FileDataInput file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
-        if (file == null)
-            return;
+        FileDataInput file = null;
         try
         {
+            file = ssTable.getFileDataInput(decoratedKey, DatabaseDescriptor.getIndexedReadBufferSizeInKB() * 1024);
+            if (file == null)
+                return;
             DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
             assert keyInDisk.equals(decoratedKey) : keyInDisk;
             file.readInt(); // data size
@@ -109,11 +116,22 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
                 }
             }
         }
+        catch (IOException e)
+        {
+           throw new IOError(e); 
+        }
         finally
         {
-            file.close();
+            try
+            {
+                if (file != null)
+                    file.close();
+            }
+            catch (IOException e)
+            {
+                logger.error("error closing file", e);
+            }
         }
-
         iter = cf.getSortedColumns().iterator();
     }
 

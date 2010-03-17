@@ -341,7 +341,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /** flush the given memtable and swap in a new one for its CFS, if it hasn't been frozen already.  threadsafe. */
-    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog) throws IOException
+    Future<?> maybeSwitchMemtable(Memtable oldMemtable, final boolean writeCommitLog)
     {
         /**
          *  If we can get the writelock, that means no new updates can come in and 
@@ -389,19 +389,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    void switchBinaryMemtable(String key, byte[] buffer) throws IOException
+    void switchBinaryMemtable(String key, byte[] buffer)
     {
         binaryMemtable_.set(new BinaryMemtable(this));
         binaryMemtable_.get().put(key, buffer);
     }
 
-    public void forceFlushIfExpired() throws IOException
+    public void forceFlushIfExpired()
     {
         if (memtable_.isExpired())
             forceFlush();
     }
 
-    public Future<?> forceFlush() throws IOException
+    public Future<?> forceFlush()
     {
         if (memtable_.isClean())
             return null;
@@ -409,7 +409,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maybeSwitchMemtable(memtable_, true);
     }
 
-    public void forceBlockingFlush() throws IOException, ExecutionException, InterruptedException
+    public void forceBlockingFlush() throws ExecutionException, InterruptedException
     {
         Future<?> future = forceFlush();
         if (future != null)
@@ -431,7 +431,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    Memtable apply(String key, ColumnFamily columnFamily) throws IOException
+    Memtable apply(String key, ColumnFamily columnFamily)
     {
         long start = System.nanoTime();
 
@@ -447,7 +447,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * needs to be used. param @ key - key for update/insert param @
      * columnFamily - columnFamily changes
      */
-    void applyBinary(String key, byte[] buffer) throws IOException
+    void applyBinary(String key, byte[] buffer)
     {
         long start = System.nanoTime();
         binaryMemtable_.get().put(key, buffer);
@@ -577,7 +577,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Table.open(table_);
     }
 
-    void markCompacted(Collection<SSTableReader> sstables) throws IOException
+    void markCompacted(Collection<SSTableReader> sstables)
     {
         ssTables_.markCompacted(sstables);
     }
@@ -588,7 +588,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements)
-            throws IOException
     {
         ssTables_.replace(sstables, replacements);
     }
@@ -707,22 +706,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return writeStats_.getRecentLatencyMicros();
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit) throws IOException
+    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
     {
         return getColumnFamily(new SliceQueryFilter(key, path, start, finish, bitmasks, reversed, limit));
     }
 
-    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit) throws IOException
+    public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
     {
         return getColumnFamily(new SliceQueryFilter(key, path, start, finish, reversed, limit));
     }
 
-    public ColumnFamily getColumnFamily(QueryFilter filter) throws IOException
+    public ColumnFamily getColumnFamily(QueryFilter filter)
     {
         return getColumnFamily(filter, CompactionManager.getDefaultGCBefore());
     }
 
-    private ColumnFamily cacheRow(String key) throws IOException
+    private ColumnFamily cacheRow(String key)
     {
         ColumnFamily cached;
         if ((cached = ssTables_.getRowCache().get(key)) == null)
@@ -740,7 +739,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * only the latest version of a column is returned.
      * @return null if there is no data and no tombstones; otherwise a ColumnFamily
      */
-    public ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore) throws IOException
+    public ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
     {
         assert columnFamily_.equals(filter.getColumnFamilyName());
 
@@ -794,7 +793,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore) throws IOException
+    private ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
     {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
@@ -873,7 +872,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
        would be better.
      */
     private boolean getKeyRange(List<String> keys, final AbstractBounds range, int maxResults)
-    throws IOException, ExecutionException, InterruptedException
+    throws ExecutionException, InterruptedException
     {
         final DecoratedKey startWith = new DecoratedKey(range.left, null);
         final DecoratedKey stopAt = new DecoratedKey(range.right, null);
@@ -973,7 +972,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 if (iter instanceof Closeable)
                 {
-                    ((Closeable)iter).close();
+                    try
+                    {
+                        ((Closeable)iter).close();
+                    }
+                    catch (IOException e)
+                    {
+                        throw new IOError(e);
+                    }
                 }
             }
         }
@@ -986,12 +992,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @param keyMax maximum number of keys to process, regardless of startKey/finishKey
      * @param sliceRange may be null if columnNames is specified. specifies contiguous columns to return in what order.
      * @param columnNames may be null if sliceRange is specified. specifies which columns to return in what order.      @return list of key->list<column> tuples.
-     * @throws IOException
      * @throws ExecutionException
      * @throws InterruptedException
      */
     public RangeSliceReply getRangeSlice(byte[] super_column, final AbstractBounds range, int keyMax, SliceRange sliceRange, List<byte[]> columnNames)
-    throws IOException, ExecutionException, InterruptedException
+    throws ExecutionException, InterruptedException
     {
         List<String> keys = new ArrayList<String>();
         boolean completed;
@@ -1035,7 +1040,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * 
      * @param snapshotName the name of the associated with the snapshot 
      */
-    public void snapshot(String snapshotName) throws IOException
+    public void snapshot(String snapshotName)
     {
         try
         {
@@ -1052,27 +1057,34 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (SSTableReader ssTable : ssTables_)
         {
-            // mkdir
-            File sourceFile = new File(ssTable.getFilename());
-            File dataDirectory = sourceFile.getParentFile().getParentFile();
-            String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
-            FileUtils.createDirectory(snapshotDirectoryPath);
+            try
+            {
+                // mkdir
+                File sourceFile = new File(ssTable.getFilename());
+                File dataDirectory = sourceFile.getParentFile().getParentFile();
+                String snapshotDirectoryPath = Table.getSnapshotPath(dataDirectory.getAbsolutePath(), table_, snapshotName);
+                FileUtils.createDirectory(snapshotDirectoryPath);
 
-            // hard links
-            File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+                // hard links
+                File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
 
-            sourceFile = new File(ssTable.indexFilename());
-            targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+                sourceFile = new File(ssTable.indexFilename());
+                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
 
-            sourceFile = new File(ssTable.filterFilename());
-            targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
-            FileUtils.createHardLink(sourceFile, targetLink);
+                sourceFile = new File(ssTable.filterFilename());
+                targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
+                FileUtils.createHardLink(sourceFile, targetLink);
+                if (logger_.isDebugEnabled())
+                    logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +
+                        " created as " + targetLink.getAbsolutePath());
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
 
-            if (logger_.isDebugEnabled())
-                logger_.debug("Snapshot for " + table_ + " table data file " + sourceFile.getAbsolutePath() +
-                    " created as " + targetLink.getAbsolutePath());
         }
     }
 

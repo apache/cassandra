@@ -226,13 +226,18 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
      */
     public abstract long length();
 
-    public void markCompacted() throws IOException
+    public void markCompacted()
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking " + getFilename() + " compacted");
-        if (!new File(compactedFilename()).createNewFile())
+        try
         {
-            throw new IOException("Unable to create compaction marker");
+            if (!new File(compactedFilename()).createNewFile())
+                throw new IOException("Unable to create compaction marker");
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
         }
         phantomReference.deleteOnCleanup();
     }
@@ -241,13 +246,13 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
      * @param bufferSize Buffer size in bytes for this Scanner.
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public abstract SSTableScanner getScanner(int bufferSize) throws IOException;
+    public abstract SSTableScanner getScanner(int bufferSize);
 
     /**
      * FIXME: should not be public: use Scanner.
      */
     @Deprecated
-    public abstract FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize) throws IOException;
+    public abstract FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize);
 
     public AbstractType getColumnComparator()
     {

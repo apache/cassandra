@@ -64,7 +64,7 @@ public class NamesQueryFilter extends QueryFilter
         return memtable.getNamesIterator(cf, this);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
+    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         return new SSTableNamesIterator(sstable, key, columns);
     }

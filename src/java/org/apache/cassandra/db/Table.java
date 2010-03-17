@@ -246,14 +246,7 @@ public class Table
             {
                 for (ColumnFamilyStore cfs : columnFamilyStores.values())
                 {
-                    try
-                    {
-                        cfs.forceFlushIfExpired();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
+                    cfs.forceFlushIfExpired();
                 }
             }
         }, checkMs, checkMs);

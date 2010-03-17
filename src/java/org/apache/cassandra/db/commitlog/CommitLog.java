@@ -309,7 +309,7 @@ public class CommitLog
         return segments.getLast();
     }
     
-    public CommitLogSegment.CommitLogContext getContext() throws IOException
+    public CommitLogSegment.CommitLogContext getContext()
     {
         Callable<CommitLogSegment.CommitLogContext> task = new Callable<CommitLogSegment.CommitLogContext>()
         {

@@ -47,9 +47,16 @@ public class RowIndexedScanner extends SSTableScanner
     /**
      * @param sstable SSTable to scan.
      */
-    RowIndexedScanner(SSTableReader sstable, int bufferSize) throws IOException
+    RowIndexedScanner(SSTableReader sstable, int bufferSize)
     {
-        this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", bufferSize);
+        try
+        {
+            this.file = new BufferedRandomAccessFile(sstable.getFilename(), "r", bufferSize);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
         this.sstable = sstable;
     }
 

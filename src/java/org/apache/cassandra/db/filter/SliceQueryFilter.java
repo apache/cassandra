@@ -68,7 +68,7 @@ public class SliceQueryFilter extends QueryFilter
         return memtable.getSliceIterator(cf, this, comparator);
     }
 
-    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable) throws IOException
+    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         Predicate<IColumn> predicate = (bitmasks == null || bitmasks.isEmpty())
                                        ? Predicates.<IColumn>alwaysTrue()

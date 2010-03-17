@@ -55,7 +55,7 @@ public class SSTableTracker implements Iterable<SSTableReader>
         rowCache = new JMXInstrumentedCache<String, ColumnFamily>(ksname, cfname + "RowCache", 0);
     }
 
-    public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements) throws IOException
+    public synchronized void replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
     {
         Set<SSTableReader> sstablesNew = new HashSet<SSTableReader>(sstables);
 
@@ -84,17 +84,10 @@ public class SSTableTracker implements Iterable<SSTableReader>
     public synchronized void add(Iterable<SSTableReader> sstables)
     {
         assert sstables != null;
-        try
-        {
-            replace(Collections.<SSTableReader>emptyList(), sstables);
-        }
-        catch (IOException e)
-        {
-            throw new AssertionError(e);
-        }
+        replace(Collections.<SSTableReader>emptyList(), sstables);
     }
 
-    public synchronized void markCompacted(Collection<SSTableReader> compacted) throws IOException
+    public synchronized void markCompacted(Collection<SSTableReader> compacted)
     {
         replace(compacted, Collections.<SSTableReader>emptyList());
     }

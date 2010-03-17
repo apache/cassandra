@@ -234,7 +234,7 @@ class RowIndexedReader extends SSTableReader
     /**
      * returns the position in the data file to find the given key, or -1 if the key is not present
      */
-    public PositionSize getPosition(DecoratedKey decoratedKey) throws IOException
+    public PositionSize getPosition(DecoratedKey decoratedKey)
     {
         // first, check bloom filter
         if (!bf.isPresent(partitioner.convertToDiskFormat(decoratedKey)))
@@ -268,18 +268,18 @@ class RowIndexedReader extends SSTableReader
 
         // scan the on-disk index, starting at the nearest sampled position
         long p = sampledPosition.position;
-        FileDataInput input;
-        if (indexBuffers == null)
-        {
-            input = new BufferedRandomAccessFile(indexFilename(), "r");
-            ((BufferedRandomAccessFile)input).seek(p);
-        }
-        else
-        {
-            input = new MappedFileDataInput(indexBuffers[bufferIndex(p)], indexFilename(), (int)(p % BUFFER_SIZE));
-        }
+        FileDataInput input = null;
         try
         {
+            if (indexBuffers == null)
+            {
+                input = new BufferedRandomAccessFile(indexFilename(), "r");
+                ((BufferedRandomAccessFile)input).seek(p);
+            }
+            else
+            {
+                input = new MappedFileDataInput(indexBuffers[bufferIndex(p)], indexFilename(), (int)(p % BUFFER_SIZE));
+            }
             int i = 0;
             do
             {
@@ -316,9 +316,21 @@ class RowIndexedReader extends SSTableReader
                     return null;
             } while  (++i < INDEX_INTERVAL);
         }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
         finally
         {
-            input.close();
+            try
+            {
+                if (input != null)
+                    input.close();
+            }
+            catch (IOException e)
+            {
+                logger.error("error closing file", e);
+            }
         }
         return null;
     }
@@ -375,12 +387,12 @@ class RowIndexedReader extends SSTableReader
         bf = BloomFilter.alwaysMatchingBloomFilter();
     }
 
-    public SSTableScanner getScanner(int bufferSize) throws IOException
+    public SSTableScanner getScanner(int bufferSize)
     {
         return new RowIndexedScanner(this, bufferSize);
     }
 
-    public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize) throws IOException
+    public FileDataInput getFileDataInput(DecoratedKey decoratedKey, int bufferSize)
     {
         PositionSize info = getPosition(decoratedKey);
         if (info == null)
@@ -388,9 +400,16 @@ class RowIndexedReader extends SSTableReader
 
         if (buffers == null || (bufferIndex(info.position) != bufferIndex(info.position + info.size)))
         {
-            BufferedRandomAccessFile file = new BufferedRandomAccessFile(getFilename(), "r", bufferSize);
-            file.seek(info.position);
-            return file;
+            try
+            {
+                BufferedRandomAccessFile file = new BufferedRandomAccessFile(getFilename(), "r", bufferSize);
+                file.seek(info.position);
+                return file;
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
         }
         return new MappedFileDataInput(buffers[bufferIndex(info.position)], getFilename(), (int) (info.position % BUFFER_SIZE));
     }

@@ -22,6 +22,7 @@ package org.apache.cassandra.db.filter;
 
 
 import java.util.*;
+import java.io.IOError;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DecoratedKey;
@@ -49,7 +50,6 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
     private ColumnGroupReader reader;
 
     public SSTableSliceIterator(SSTableReader ssTable, String key, byte[] startColumn, byte[] finishColumn, Predicate<IColumn> predicate, boolean reversed)
-    throws IOException
     {
         this.reversed = reversed;
 
@@ -132,20 +132,25 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
         private int curRangeIndex;
         private Deque<IColumn> blockColumns = new ArrayDeque<IColumn>();
 
-        public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, FileDataInput input) throws IOException
+        public ColumnGroupReader(SSTableReader ssTable, DecoratedKey key, FileDataInput input)
         {
             this.file = input;
-
-            DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
-            assert keyInDisk.equals(key);
-
-            file.readInt(); // row size
-            IndexHelper.skipBloomFilter(file);
-            indexes = IndexHelper.deserializeIndex(file);
-
-            emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
-            file.readInt(); // column count
-
+            try
+            {
+                DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
+                assert keyInDisk.equals(key);
+    
+                file.readInt(); // row size
+                IndexHelper.skipBloomFilter(file);
+                indexes = IndexHelper.deserializeIndex(file);
+    
+                emptyColumnFamily = ColumnFamily.serializer().deserializeFromSSTableNoColumns(ssTable.makeColumnFamily(), file);
+                file.readInt(); // column count
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
             file.mark();
             curRangeIndex = IndexHelper.indexFor(startColumn, indexes, comparator, reversed);
             if (reversed && curRangeIndex == indexes.size())

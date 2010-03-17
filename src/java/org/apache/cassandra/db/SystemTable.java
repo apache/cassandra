@@ -202,17 +202,10 @@ public class SystemTable
     public static boolean isBootstrapped()
     {
         Table table = null;
-        try
-        {
-            table = Table.open(Table.SYSTEM_TABLE);
-            QueryFilter filter = new NamesQueryFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
-            ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
-            return cf != null && cf.getColumn(BOOTSTRAP).value()[0] == 1;
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        table = Table.open(Table.SYSTEM_TABLE);
+        QueryFilter filter = new NamesQueryFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
+        ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
+        return cf != null && cf.getColumn(BOOTSTRAP).value()[0] == 1;
     }
 
     public static void setBootstrapped(boolean isBootstrapped)

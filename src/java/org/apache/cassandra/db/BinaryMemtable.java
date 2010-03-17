@@ -68,7 +68,7 @@ public class BinaryMemtable implements IFlushable
      * the memtable. This version will respect the threshold and flush
      * the memtable to disk when the size exceeds the threshold.
     */
-    void put(String key, byte[] buffer) throws IOException
+    void put(String key, byte[] buffer)
     {
         if (isThresholdViolated())
         {
