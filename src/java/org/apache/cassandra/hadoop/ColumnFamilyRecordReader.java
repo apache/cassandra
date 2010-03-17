@@ -28,12 +28,11 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import org.apache.commons.lang.ArrayUtils;
-
 import com.google.common.collect.AbstractIterator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.thrift.SuperColumn;
@@ -52,7 +51,8 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     private RowIterator iter;
     private Pair<String, SortedMap<byte[], IColumn>> currentRow;
     private SlicePredicate predicate;
-    private int rowCount;
+    private int totalRowCount; // total number of rows to fetch
+    private int batchRowCount; // fetch this many per batch
     private String cfName;
     private String keyspace;
 
@@ -70,7 +70,8 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     
     public float getProgress()
     {
-        return ((float)iter.rowsRead()) / iter.size();
+        // the progress is likely to be reported slightly off the actual but close enough
+        return ((float)iter.rowsRead()) / totalRowCount;
     }
     
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
@@ -78,7 +79,8 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
         this.split = (ColumnFamilySplit) split;
         Configuration conf = context.getConfiguration();
         predicate = ConfigHelper.getSlicePredicate(conf);
-        rowCount = ConfigHelper.getInputSplitSize(conf);
+        totalRowCount = ConfigHelper.getInputSplitSize(conf);
+        batchRowCount = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getColumnFamily(conf);
         keyspace = ConfigHelper.getKeyspace(conf);
         iter = new RowIterator();
@@ -96,11 +98,17 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
     {
 
         private List<KeySlice> rows;
+        private String startToken;
+        private int totalRead = 0;
         private int i = 0;
         private AbstractType comparator = DatabaseDescriptor.getComparator(keyspace, cfName);
 
         private void maybeInit()
         {
+            // check if we need another batch 
+            if (rows != null && i >= rows.size())
+                rows = null;
+            
             if (rows != null)
                 return;
             TSocket socket = new TSocket(getLocation(),
@@ -115,8 +123,19 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             {
                 throw new RuntimeException(e);
             }
-            KeyRange keyRange = new KeyRange(rowCount)
-                                .setStart_token(split.getStartToken())
+            
+            if (startToken == null)
+            {
+                startToken = split.getStartToken();
+            } 
+            else if (startToken.equals(split.getEndToken()))
+            {
+                rows = null;
+                return;
+            }
+            
+            KeyRange keyRange = new KeyRange(batchRowCount)
+                                .setStart_token(startToken)
                                 .setEnd_token(split.getEndToken());
             try
             {
@@ -125,6 +144,21 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
                                                predicate,
                                                keyRange,
                                                ConsistencyLevel.ONE);
+                    
+                // nothing new? reached the end
+                if (rows.isEmpty())
+                {
+                    rows = null;
+                    return;
+                }
+                               
+                // reset to iterate through this new batch
+                i = 0;
+                
+                // prepare for the next slice to be read
+                KeySlice lastRow = rows.get(rows.size() - 1);
+                IPartitioner p = DatabaseDescriptor.getPartitioner();
+                startToken = p.getTokenFactory().toString(p.getToken(lastRow.getKey()));
             }
             catch (Exception e)
             {
@@ -167,23 +201,22 @@ public class ColumnFamilyRecordReader extends RecordReader<String, SortedMap<byt
             return split.getLocations()[0];
         }
 
-        public int size()
-        {
-            maybeInit();
-            return rows.size();
-        }
-
+        /**
+         * @return total number of rows read by this record reader
+         */
         public int rowsRead()
         {
-            return i;
+            return totalRead;
         }
 
         @Override
         protected Pair<String, SortedMap<byte[], IColumn>> computeNext()
         {
             maybeInit();
-            if (i == rows.size())
+            if (rows == null)
                 return endOfData();
+            
+            totalRead++;
             KeySlice ks = rows.get(i++);
             SortedMap<byte[], IColumn> map = new TreeMap<byte[], IColumn>(comparator);
             for (ColumnOrSuperColumn cosc : ks.columns)
