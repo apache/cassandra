@@ -33,6 +33,7 @@ import org.apache.log4j.Logger;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 import java.util.zip.CRC32;
 import java.util.concurrent.Callable;
@@ -172,8 +173,7 @@ public class CommitLog
     public static void recover(File[] clogs) throws IOException
     {
         Set<Table> tablesRecovered = new HashSet<Table>();
-        assert StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTaskCount() == 0;
-        int rows = 0;
+        final AtomicInteger counter = new AtomicInteger(0);
         for (File file : clogs)
         {
             int bufferSize = (int)Math.min(file.length(), 32 * 1024 * 1024);
@@ -246,16 +246,17 @@ public class CommitLog
                         {
                             Table.open(rm.getTable()).apply(rm, null, false);
                         }
+                        counter.decrementAndGet();
                     }
                 };
-                StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
-                rows++;
+                counter.incrementAndGet();
+                StageManager.getStage(StageManager.MUTATION_STAGE).submit(runnable);
             }
             reader.close();
         }
 
         // wait for all the writes to finish on the mutation stage
-        while (StageManager.getStage(StageManager.MUTATION_STAGE).getCompletedTaskCount() < rows)
+        while (counter.get() > 0)
         {
             try
             {
@@ -422,6 +423,31 @@ public class CommitLog
     void sync() throws IOException
     {
         currentSegment().sync();
+    }
+    
+    public void forceNewSegment()
+    {
+        Callable task = new Callable()
+        {
+            public Object call() throws Exception
+            {
+                sync();
+                segments.add(new CommitLogSegment(currentSegment().getHeader().getColumnFamilyCount()));
+                return null;
+            }
+        };
+        try
+        {
+            executor.submit(task).get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     class LogRecordAdder implements Callable<CommitLogSegment.CommitLogContext>

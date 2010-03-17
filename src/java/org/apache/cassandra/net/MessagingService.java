@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.io.SerializerType;
@@ -31,12 +30,14 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.log4j.Logger;
 
+import java.io.IOError;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ServerSocketChannel;
 import java.security.MessageDigest;
 import java.util.*;
@@ -52,8 +53,6 @@ public class MessagingService implements IFailureDetectionEventListener
 
     /** we preface every message with this number so the recipient can validate the sender is sane */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
-    /* Verb Handler for the Response */
-    public static final String responseVerbHandler_ = "RESPONSE";
 
     /* This records all the results mapped by message Id */
     private static ExpiringMap<String, IAsyncCallback> callbackMap_;
@@ -73,11 +72,8 @@ public class MessagingService implements IFailureDetectionEventListener
     private static Logger logger_ = Logger.getLogger(MessagingService.class);
     
     public static final MessagingService instance = new MessagingService();
-
-    public static int getVersion()
-    {
-        return version_;
-    }
+    
+    private SocketThread socketThread;
 
     public Object clone() throws CloneNotSupportedException
     {
@@ -140,25 +136,8 @@ public class MessagingService implements IFailureDetectionEventListener
         final ServerSocket ss = serverChannel.socket();
         ss.setReuseAddress(true);
         ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
-
-        new Thread(new Runnable()
-        {
-            public void run()
-            {
-                while (true)
-                {
-                    try
-                    {
-                        Socket socket = ss.accept();
-                        new IncomingTcpConnection(socket).start();
-                    }
-                    catch (IOException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        }, "ACCEPT-" + localEp).start();
+        socketThread = new SocketThread(ss, "ACCEPT-" + localEp);
+        socketThread.start();
     }
 
     public static OutboundTcpConnectionPool getConnectionPool(InetAddress to)
@@ -337,14 +316,31 @@ public class MessagingService implements IFailureDetectionEventListener
         Runnable streamingTask = new FileStreamTask(file, startPosition, endPosition, from, to);
         streamExecutor_.execute(streamingTask);
     }
+    
+    /** blocks until the processing pools are empty and done. */
+    public static void waitFor() throws InterruptedException
+    {
+        while (!messageDeserializerExecutor_.isTerminated())
+            messageDeserializerExecutor_.awaitTermination(5, TimeUnit.SECONDS);
+        while (!streamExecutor_.isTerminated())
+            streamExecutor_.awaitTermination(5, TimeUnit.SECONDS);
+    }
 
     public static void shutdown()
     {
-        logger_.info("Shutting down ...");
+        logger_.info("Shutting down MessageService...");
+
+        try
+        {
+            instance.socketThread.close();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
 
         messageDeserializerExecutor_.shutdownNow();
         streamExecutor_.shutdownNow();
-        StageManager.shutdownNow();
 
         /* shut down the cachetables */
         taskCompletionMap_.shutdown();
@@ -394,11 +390,6 @@ public class MessagingService implements IFailureDetectionEventListener
     {
         if (magic != PROTOCOL_MAGIC)
             throw new IOException("invalid protocol header");
-    }
-    
-    public static boolean isEqual(byte digestA[], byte digestB[])
-    {
-        return MessageDigest.isEqual(digestA, digestB);
     }
 
     public static int getBits(int x, int p, int n)
@@ -466,4 +457,43 @@ public class MessagingService implements IFailureDetectionEventListener
         buffer.flip();
         return buffer;
     }
+    
+    private class SocketThread extends Thread
+    {
+        private final ServerSocket server;
+        
+        SocketThread(ServerSocket server, String name)
+        {
+            super(name);
+            this.server = server;
+        }
+
+        public void run()
+        {
+            while (true)
+            {
+                try
+                {
+                    Socket socket = server.accept();
+                    new IncomingTcpConnection(socket).start();
+                }
+                catch (AsynchronousCloseException e)
+                {
+                    // this happens when another thread calls close().
+                    logger_.info("MessagingService shutting down server thread.");
+                    break;
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        
+        void close() throws IOException
+        {
+            server.close();
+        }
+    }
+
 }
