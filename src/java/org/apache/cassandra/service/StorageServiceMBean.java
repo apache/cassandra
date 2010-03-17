@@ -166,7 +166,7 @@ public interface StorageServiceMBean
 
     /** get the operational mode (leaving, joining, normal, decommissioned, client) **/
     public String getOperationMode();
-    
+
     /** makes node unavailable for writes, flushes memtables and replays commitlog. */
     public void drain() throws IOException, InterruptedException, ExecutionException;
 }

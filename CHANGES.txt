@@ -5,6 +5,10 @@ dev
  * drain method to flush memtables and purge commit log prior to shutdown. (CASSANDRA-880)
 
 
+<NEXT tag for 0.6>
+* JMX drain to flush memtables and run through commit log (CASSANDRA-880)
+
+
 0.6.0-beta3
  * fix compaction bucketing bug (CASSANDRA-814)
  * update windows batch file (CASSANDRA-824)

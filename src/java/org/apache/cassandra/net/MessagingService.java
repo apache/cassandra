@@ -139,7 +139,6 @@ public class MessagingService implements IFailureDetectionEventListener
         ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
         socketThread = new SocketThread(ss, "ACCEPT-" + localEp);
         socketThread.start();
-
     }
 
     public static OutboundTcpConnectionPool getConnectionPool(InetAddress to)

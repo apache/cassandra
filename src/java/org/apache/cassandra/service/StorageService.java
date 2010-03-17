@@ -1506,6 +1506,46 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     {
         return operationMode;
     }
+    
+    /** shuts node off to writes, empties memtables and the commit log. */
+    public synchronized void drain() throws IOException, InterruptedException, ExecutionException
+    {
+        ExecutorService mutationStage = StageManager.getStage(StageManager.MUTATION_STAGE);
+        if (mutationStage.isTerminated())
+        {
+            logger_.warn("Cannot drain node (did it already happen?)");
+            return;
+        }
+        setMode("Starting drain process", true);
+        Gossiper.instance.stop();
+        setMode("Draining: shutting down MessageService", false);
+        MessagingService.shutdown();
+        setMode("Draining: emptying MessageService pools", false);
+        MessagingService.waitFor();
+       
+        // lets flush.
+        setMode("Draining: flushing column families", false);
+        for (String tableName : DatabaseDescriptor.getNonSystemTables())
+            for (Future f : Table.open(tableName).flush())
+                f.get();
+       
+
+        setMode("Draining: replaying commit log", false);
+        CommitLog.instance().forceNewSegment();
+        // want to make sure that any segments deleted as a result of flushing are gone.
+        DeletionService.waitFor();
+        CommitLog.recover();
+       
+        // commit log recovery just sends work to the mutation stage. (there could have already been work there anyway.  
+        // Either way, we need to let this one drain naturally, and then we're finished.
+        setMode("Draining: clearing mutation stage", false);
+        mutationStage.shutdown();
+        while (!mutationStage.isTerminated())
+            mutationStage.awaitTermination(5, TimeUnit.SECONDS);
+       
+        setMode("Node is drained", true);
+    }
+    
 
     // Never ever do this at home. Used by tests.
     Map<String, AbstractReplicationStrategy> setReplicationStrategyUnsafe(Map<String, AbstractReplicationStrategy> replacement)
@@ -1528,44 +1568,5 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         TokenMetadata old = tokenMetadata_;
         tokenMetadata_ = tmd;
         return old;
-    }
-    
-    /** shuts node off to writes, empties memtables and the commit log. */
-    public synchronized void drain() throws IOException, InterruptedException, ExecutionException
-    {
-        ExecutorService mutationStage = StageManager.getStage(StageManager.MUTATION_STAGE);
-        if (mutationStage.isTerminated())
-        {
-            logger_.warn("Cannot drain node (did it already happen?)");
-            return;
-        }
-        setMode("Starting drain process", true);
-        Gossiper.instance.stop();
-        setMode("Draining: shutting down MessageService", false);
-        MessagingService.shutdown();
-        setMode("Draining: emptying MessageService pools", false);
-        MessagingService.waitFor();
-        
-        // lets flush.
-        setMode("Draining: flushing column families", false);
-        for (String tableName : DatabaseDescriptor.getNonSystemTables())
-            for (Future f : Table.open(tableName).flush())
-                f.get();
-        
-
-        setMode("Draining: replaying commit log", false);
-        CommitLog.instance().forceNewSegment();
-        // want to make sure that any segments deleted as a result of flushing are gone.
-        DeletionService.waitFor();
-        CommitLog.recover();
-        
-        // commit log recovery just sends work to the mutation stage. (there could have already been work there anyway.  
-        // Either way, we need to let this one drain naturally, and then we're finished.
-        setMode("Draining: clearing mutation stage", false);
-        mutationStage.shutdown();
-        while (!mutationStage.isTerminated())
-            mutationStage.awaitTermination(5, TimeUnit.SECONDS);
-        
-        setMode("Node is drained", true);
     }
 }

@@ -9,7 +9,7 @@ lib/antlr-3.1.3.jar usr/share/cassandra
 lib/avro-1.2.0-dev.jar usr/share/cassandra
 lib/clhm-production.jar usr/share/cassandra
 lib/high-scale-lib.jar usr/share/cassandra
-lib/libthrift-r894924.jar usr/share/cassandra
+lib/libthrift-r917130.jar usr/share/cassandra
 build/lib/jars/commons-cli-1.1.jar usr/share/cassandra
 build/lib/jars/commons-codec-1.2.jar usr/share/cassandra
 build/lib/jars/commons-collections-3.2.1.jar usr/share/cassandra
