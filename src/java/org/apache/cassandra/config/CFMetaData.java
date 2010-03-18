@@ -103,6 +103,13 @@ public final class CFMetaData
         return new CFMetaData(cfm.tableName, newName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.cfId);
     }
     
+    /** clones existing CFMetaData. keeps the id but changes the table name.*/
+    public static CFMetaData renameTable(CFMetaData cfm, String tableName)
+    {
+        purge(cfm);
+        return new CFMetaData(tableName, cfm.cfName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.cfId);
+    }
+    
     /** used for evicting cf data out of static tracking collections. */
     public static void purge(CFMetaData cfm)
     {

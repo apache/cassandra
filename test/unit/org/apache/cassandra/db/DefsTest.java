@@ -27,6 +27,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.locator.EndPointSnitch;
 import org.apache.cassandra.locator.RackAwareStrategy;
 import org.apache.cassandra.utils.FBUtilities;
@@ -39,6 +40,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -242,7 +245,6 @@ public class DefsTest extends CleanupHelper
         ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
-        store.getFlushPath();
         assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
         
         DefsTable.drop(ks, true).get();
@@ -255,7 +257,7 @@ public class DefsTest extends CleanupHelper
         {
             rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
             rm.apply();
-            assert false : "This mutation should have failed since the CF no longer exists.";
+            throw new AssertionError("This mutation should have failed since the CF no longer exists.");
         }
         catch (Throwable th)
         {
@@ -272,5 +274,79 @@ public class DefsTest extends CleanupHelper
             // this is what has historically happened when you try to open a table that doesn't exist.
             assert th instanceof NullPointerException;
         }
+    }
+    
+    @Test
+    public void renameKs() throws IOException, ExecutionException, InterruptedException
+    {
+        final KSMetaData oldKs = DatabaseDescriptor.getTableDefinition("Keyspace2");
+        assert oldKs != null;
+        final String cfName = "Standard3";
+        assert oldKs.cfMetaData().containsKey(cfName);
+        assert oldKs.cfMetaData().get(cfName).tableName.equals(oldKs.name);
+        
+        // write some data that we hope to read back later.
+        RowMutation rm = new RowMutation(oldKs.name, "renameKs");
+        for (int i = 0; i < 10; i++)
+            rm.add(new QueryPath(cfName, null, ("col" + i).getBytes()), "value".getBytes(), 1L);
+        rm.apply();
+        ColumnFamilyStore store = Table.open(oldKs.name).getColumnFamilyStore(cfName);
+        assert store != null;
+        store.forceBlockingFlush();
+        assert DefsTable.getFiles(oldKs.name, cfName).size() > 0;
+        
+        final String newKsName = "RenamedKeyspace2";
+        DefsTable.rename(oldKs, newKsName).get();
+        KSMetaData newKs = DatabaseDescriptor.getTableDefinition(newKsName);
+        
+        assert DatabaseDescriptor.getTableDefinition(oldKs.name) == null;
+        assert newKs != null;
+        assert newKs.name.equals(newKsName);
+        assert newKs.cfMetaData().containsKey(cfName);
+        assert newKs.cfMetaData().get(cfName).tableName.equals(newKsName);
+        assert DefsTable.getFiles(newKs.name, cfName).size() > 0;
+        assert DefsTable.getFiles(oldKs.name, cfName).size() == 0;
+        
+        // read on old should fail.
+        try
+        {
+            Table.open(oldKs.name);
+        }
+        catch (Throwable th)
+        {
+            assert th instanceof NullPointerException;
+        }
+        
+        // write on old should fail.
+        rm = new RowMutation(oldKs.name, "any key will do");
+        try
+        {
+            rm.add(new QueryPath(cfName, null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.apply();
+            throw new AssertionError("This mutation should have failed since the CF/Table no longer exists.");
+        }
+        catch (Throwable th)
+        {
+            assert th instanceof IllegalArgumentException;
+        }
+        
+        // write on new should work.
+        rm = new RowMutation(newKsName, "renameKs");
+        rm.add(new QueryPath(cfName, null, "col0".getBytes()), "newvalue".getBytes(), 2L);
+        rm.apply();
+        store = Table.open(newKs.name).getColumnFamilyStore(cfName);
+        assert store != null;
+        store.forceBlockingFlush();
+        
+        // read on new should work.
+        SortedSet<byte[]> cols = new TreeSet<byte[]>(new BytesType());
+        cols.add("col0".getBytes());
+        cols.add("col1".getBytes());
+        ColumnFamily cfam = store.getColumnFamily(new NamesQueryFilter("renameKs", new QueryPath(cfName), cols));
+        assert cfam.getColumnCount() == cols.size();
+        // tests new write.
+        assert Arrays.equals(cfam.getColumn("col0".getBytes()).value(), "newvalue".getBytes());
+        // tests old write.
+        assert Arrays.equals(cfam.getColumn("col1".getBytes()).value(), "value".getBytes());
     }
 }

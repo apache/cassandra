@@ -238,7 +238,6 @@ public class CommitLog
                 {
                     public void runMayThrow() throws IOException
                     {
-                        KSMetaData ksm = DatabaseDescriptor.getTableDefinition(table.name);
                         RowMutation newRm = new RowMutation(rm.getTable(), rm.key());
                         
                         // Rebuild the row mutation, omitting column families that a) have already been flushed,
