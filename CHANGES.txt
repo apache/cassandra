@@ -2,6 +2,7 @@
  * JMX drain to flush memtables and run through commit log (CASSANDRA-880)
  * Bootstrapping can skip ranges under the right conditions (CASSANDRA-902)
  * fix merging row versions in range_slice for CL > ONE (CASSANDRA-884)
+ * default write ConsistencyLeven chaned from ZERO to ONE
 
 
 0.6.0-beta3

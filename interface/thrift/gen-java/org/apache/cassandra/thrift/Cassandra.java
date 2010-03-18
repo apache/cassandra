@@ -11215,7 +11215,7 @@ public class Cassandra {
     }
 
     public insert_args() {
-      this.consistency_level = ConsistencyLevel.ZERO;
+      this.consistency_level = ConsistencyLevel.ONE;
 
     }
 
@@ -12404,7 +12404,7 @@ public class Cassandra {
     }
 
     public batch_insert_args() {
-      this.consistency_level = ConsistencyLevel.ZERO;
+      this.consistency_level = ConsistencyLevel.ONE;
 
     }
 
@@ -13445,7 +13445,7 @@ public class Cassandra {
     }
 
     public remove_args() {
-      this.consistency_level = ConsistencyLevel.ZERO;
+      this.consistency_level = ConsistencyLevel.ONE;
 
     }
 
@@ -14539,7 +14539,7 @@ public class Cassandra {
     }
 
     public batch_mutate_args() {
-      this.consistency_level = ConsistencyLevel.ZERO;
+      this.consistency_level = ConsistencyLevel.ONE;
 
     }
 
