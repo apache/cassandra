@@ -77,6 +77,12 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
             List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
             String key;
 
+            @Override
+            protected boolean isEqual(Pair<Row, InetAddress> o1, Pair<Row, InetAddress> o2)
+            {
+                return o1.left.key.equals(o2.left.key);
+            }
+
             public void reduce(Pair<Row,InetAddress> current)
             {
                 key = current.left.key;
@@ -89,6 +95,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<List<Row>>
                 ColumnFamily resolved = ReadResponseResolver.resolveSuperset(versions);
                 ReadResponseResolver.maybeScheduleRepairs(resolved, table, key, versions, versionSources);
                 versions.clear();
+                versionSources.clear();
                 return new Row(key, resolved);
             }
         };

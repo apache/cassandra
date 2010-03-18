@@ -172,6 +172,16 @@ public class Cassandra {
      */
     public void remove(String keyspace, String key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
+    /**
+     *   Mutate many columns or super columns for many row keys. See also: Mutation.
+     * 
+     *   mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
+     * *
+     * 
+     * @param keyspace
+     * @param mutation_map
+     * @param consistency_level
+     */
     public void batch_mutate(String keyspace, Map<String,Map<String,List<Mutation>>> mutation_map, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException;
 
     /**
