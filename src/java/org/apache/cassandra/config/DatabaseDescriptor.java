@@ -1107,6 +1107,12 @@ public class DatabaseDescriptor
         tables.put(ksm.name, ksm);
         DatabaseDescriptor.defsVersion = newVersion;
     }
+    
+    public static void clearTableDefinition(KSMetaData ksm, UUID newVersion)
+    {
+        tables.remove(ksm.name);
+        DatabaseDescriptor.defsVersion = newVersion;
+    }
 
     public static class ConfigurationException extends Exception
     {

@@ -113,7 +113,7 @@ public class DefsTest extends CleanupHelper
     }
 
     @Test
-    public void removeCf() throws IOException, ExecutionException, InterruptedException
+    public void dropCf() throws IOException, ExecutionException, InterruptedException
     {
         // sanity
         final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
@@ -122,7 +122,7 @@ public class DefsTest extends CleanupHelper
         assert cfm != null;
         
         // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, "key0");
+        RowMutation rm = new RowMutation(ks.name, "dropCf");
         for (int i = 0; i < 100; i++)
             rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
         rm.apply();
@@ -137,7 +137,7 @@ public class DefsTest extends CleanupHelper
         assert !DatabaseDescriptor.getTableDefinition(ks.name).cfMetaData().containsKey(cfm.cfName);
         
         // any write should fail.
-        rm = new RowMutation(ks.name, "key0");
+        rm = new RowMutation(ks.name, "dropCf");
         try
         {
             rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
@@ -223,5 +223,54 @@ public class DefsTest extends CleanupHelper
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
         assert Arrays.equals("value0".getBytes(), col.value());
+    }
+    
+    @Test
+    public void dropKS() throws IOException, ExecutionException, InterruptedException
+    {
+        // sanity
+        final KSMetaData ks = DatabaseDescriptor.getTableDefinition("Keyspace1");
+        assert ks != null;
+        final CFMetaData cfm = ks.cfMetaData().get("Standard2");
+        assert cfm != null;
+        
+        // write some data, force a flush, then verify that files exist on disk.
+        RowMutation rm = new RowMutation(ks.name, "dropKs");
+        for (int i = 0; i < 100; i++)
+            rm.add(new QueryPath(cfm.cfName, null, ("col" + i).getBytes()), "anyvalue".getBytes(), 1L);
+        rm.apply();
+        ColumnFamilyStore store = Table.open(cfm.tableName).getColumnFamilyStore(cfm.cfName);
+        assert store != null;
+        store.forceBlockingFlush();
+        store.getFlushPath();
+        assert DefsTable.getFiles(cfm.tableName, cfm.cfName).size() > 0;
+        
+        DefsTable.drop(ks, true).get();
+        
+        assert DatabaseDescriptor.getTableDefinition(ks.name) == null;
+        
+        // write should fail.
+        rm = new RowMutation(ks.name, "dropKs");
+        try
+        {
+            rm.add(new QueryPath("Standard1", null, "col0".getBytes()), "value0".getBytes(), 1L);
+            rm.apply();
+            assert false : "This mutation should have failed since the CF no longer exists.";
+        }
+        catch (Throwable th)
+        {
+            assert th instanceof IllegalArgumentException;
+        }
+        
+        // reads should fail too.
+        try
+        {
+            Table.open(ks.name);
+        }
+        catch (Throwable th)
+        {
+            // this is what has historically happened when you try to open a table that doesn't exist.
+            assert th instanceof NullPointerException;
+        }
     }
 }

@@ -85,6 +85,7 @@ public class Table
     private final Map<String, ColumnFamilyStore> columnFamilyStores = new HashMap<String, ColumnFamilyStore>();
     // cache application CFs since Range queries ask for them a _lot_
     private SortedSet<String> applicationColumnFamilies;
+    private final TimerTask flushTask;
     
     public static Table open(String table)
     {
@@ -104,6 +105,17 @@ public class Table
             }
         }
         return tableInstance;
+    }
+    
+    public static Table clear(String table) throws IOException
+    {
+        synchronized (Table.class)
+        {
+            Table t = instances.remove(table);
+            if (t != null)
+                t.flushTask.cancel();
+            return t;
+        }
     }
     
     public Set<String> getColumnFamilies()
@@ -260,7 +272,7 @@ public class Table
 
         // check 10x as often as the lifetime, so we can exceed lifetime by 10% at most
         int checkMs = DatabaseDescriptor.getMemtableLifetimeMS() / 10;
-        flushTimer.schedule(new TimerTask()
+        flushTask = new TimerTask()
         {
             public void run()
             {
@@ -269,7 +281,8 @@ public class Table
                     cfs.forceFlushIfExpired();
                 }
             }
-        }, checkMs, checkMs);
+        };
+        flushTimer.schedule(flushTask, checkMs, checkMs);
     }
     
     /** removes a cf from internal structures (doesn't change disk files). */

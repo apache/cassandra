@@ -86,7 +86,7 @@ public class DefsTable
     /**
      * drop a column family. blockOnDeletion was added to make testing simpler.
      */
-    public static Future drop(final CFMetaData cfm, final boolean blockOnDeletion)
+    public static Future drop(final CFMetaData cfm, final boolean blockOnFileDeletion)
     {
         return executor.submit(new WrappedRunnable() 
         {
@@ -118,23 +118,7 @@ public class DefsTable
                 // we don't really need a new segment, but let's force it to be consistent with other operations.
                 CommitLog.instance().forceNewSegment();
         
-                
-                if (blockOnDeletion)
-                {
-                    // notify the compaction manager that it needs to clean up the dropped cf files.
-                    try
-                    {
-                        CompactionManager.instance.submitGraveyardCleanup().get();
-                    }
-                    catch (InterruptedException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    catch (ExecutionException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                }     
+                cleanupDeadFiles(blockOnFileDeletion);    
             }
         });
     }
@@ -205,6 +189,45 @@ public class DefsTable
         });
     }
     
+    /** drop a keyspace. */
+    public static Future drop(final KSMetaData ksm, final boolean blockOnFileDeletion)
+    {
+        return executor.submit(new WrappedRunnable()
+        {
+            protected void runMayThrow() throws Exception
+            {
+                if (DatabaseDescriptor.getTableDefinition(ksm.name) != ksm)
+                    throw new ConfigurationException("Either keyspace doesn't exist or the name of the one you supplied doesn't match with the one being used.");
+                
+                // remove the table from the static instances.
+                Table table = Table.clear(ksm.name);
+                if (table == null)
+                    throw new ConfigurationException("Table is not active. " + ksm.name);
+                
+                // remove all cfs from the table instance.
+                for (CFMetaData cfm : ksm.cfMetaData().values())
+                {
+                    CFMetaData.purge(cfm);
+                    table.dropCf(cfm.cfName);
+                    SystemTable.markForRemoval(cfm);
+                }
+                                
+                // update internal table.
+                UUID versionId = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+                RowMutation rm = new RowMutation(Table.DEFINITIONS, versionId.toString());
+                rm.delete(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), System.currentTimeMillis());
+                rm.apply();
+                
+                // reset defs.
+                DatabaseDescriptor.clearTableDefinition(ksm, versionId);
+                
+                CommitLog.instance().forceNewSegment();
+                cleanupDeadFiles(blockOnFileDeletion);
+                
+            }
+        });
+    }
+    
     /** dumps current keyspace definitions to storage */
     public static synchronized void dumpToStorage(UUID version) throws IOException
     {
@@ -255,6 +278,26 @@ public class DefsTable
         return found;
     }
     
+    private static void cleanupDeadFiles(boolean wait)
+    {
+        Future cleanup = CompactionManager.instance.submitGraveyardCleanup();
+        if (wait)
+        {
+            // notify the compaction manager that it needs to clean up the dropped cf files.
+            try
+            {
+                cleanup.get();
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+            catch (ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        } 
+    }
     // if this errors out, we are in a world of hurt.
     private static void renameStorageFiles(String table, String oldCfName, String newCfName) throws IOException
     {
