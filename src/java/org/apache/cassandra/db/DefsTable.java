@@ -71,10 +71,7 @@ public class DefsTable
                 ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
         
                 // store it.
-                UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
-                RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
-                rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
-                rm.apply();
+                UUID newVersion = saveKeyspaceDefinition(ksm);
         
                 // reinitialize the table.
                 Table.open(ksm.name).addCf(cfm.cfName);
@@ -108,10 +105,7 @@ public class DefsTable
                 ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
                 
                 // store it.
-                UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
-                RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
-                rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
-                rm.apply();
+                UUID newVersion = saveKeyspaceDefinition(ksm);
                 
                 // reinitialize the table.
                 CFMetaData.purge(cfm);
@@ -169,10 +163,7 @@ public class DefsTable
                 ksm = new KSMetaData(ksm.name, ksm.strategyClass, ksm.replicationFactor, ksm.snitch, newCfs.toArray(new CFMetaData[newCfs.size()]));
                 
                 // store it
-                UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
-                RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
-                rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
-                rm.apply();
+                UUID newVersion = saveKeyspaceDefinition(ksm);
                 
                 // leave it up to operators to ensure there are no writes going on durng the file rename. Just know that
                 // attempting row mutations on oldcfName right now would be really bad.
@@ -196,6 +187,24 @@ public class DefsTable
         });
     }
 
+    /** adds a keyspace */
+    public static Future add(final KSMetaData ksm)
+    {
+        return executor.submit(new WrappedRunnable()
+        {
+            protected void runMayThrow() throws Exception
+            {
+                if (DatabaseDescriptor.getTableDefinition(ksm.name) != null)
+                    throw new ConfigurationException("Keyspace already exists.");
+                
+                UUID versionId = saveKeyspaceDefinition(ksm);
+                DatabaseDescriptor.setTableDefinition(ksm, versionId);
+                Table.open(ksm.name);
+                CommitLog.instance().forceNewSegment();
+            }
+        });
+    }
+    
     /** dumps current keyspace definitions to storage */
     public static synchronized void dumpToStorage(UUID version) throws IOException
     {
@@ -266,5 +275,14 @@ public class DefsTable
         }
         if (mostRecentProblem != null)
             throw new IOException("One or more IOExceptions encountered while renaming files. Most recent problem is included.", mostRecentProblem);
+    }
+    
+    private static UUID saveKeyspaceDefinition(KSMetaData ksm) throws IOException
+    {
+        UUID newVersion = UUIDGen.makeType1UUIDFromHost(FBUtilities.getLocalAddress());
+        RowMutation rm = new RowMutation(Table.DEFINITIONS, newVersion.toString());
+        rm.add(new QueryPath(SCHEMA_CF, null, ksm.name.getBytes()), KSMetaData.serialize(ksm), System.currentTimeMillis());
+        rm.apply();
+        return newVersion;
     }
 }
