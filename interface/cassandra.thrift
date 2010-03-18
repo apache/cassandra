@@ -407,6 +407,11 @@ service Cassandra {
               5:ConsistencyLevel consistency_level=ZERO)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
+  /**
+    Mutate many columns or super columns for many row keys. See also: Mutation.
+
+    mutation_map maps key to column family to a list of Mutation objects to take place at that scope.
+  **/
   void batch_mutate(1:required string keyspace,
                     2:required map<string, map<string, list<Mutation>>> mutation_map,
                     3:required ConsistencyLevel consistency_level=ZERO)
