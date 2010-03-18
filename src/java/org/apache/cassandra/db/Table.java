@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOError;
 import java.util.*;
 import java.io.IOException;
 import java.io.File;
@@ -233,6 +234,25 @@ public class Table
     {
         name = table;
         waitForCommitLog = DatabaseDescriptor.getCommitLogSync() == DatabaseDescriptor.CommitLogSync.batch;
+        // create data directories.
+        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            try
+            {
+                String keyspaceDir = dataDir + File.separator + table;
+                FileUtils.createDirectory(keyspaceDir);
+    
+                // remove the deprecated streaming directory.
+                File streamingDir = new File(keyspaceDir, "stream");
+                if (streamingDir.exists())
+                    FileUtils.deleteDir(streamingDir);
+            }
+            catch (IOException ex)
+            {
+                throw new IOError(ex);
+            }
+        }
+      
         for (String columnFamily : getColumnFamilies())
         {
             columnFamilyStores.put(columnFamily, ColumnFamilyStore.createColumnFamilyStore(table, columnFamily));

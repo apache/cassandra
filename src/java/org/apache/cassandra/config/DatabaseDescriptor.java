@@ -811,21 +811,6 @@ public class DatabaseDescriptor
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
-        /* make sure we have a directory for each table */
-        for (String dataFile : dataFileDirectories)
-        {
-            FileUtils.createDirectory(dataFile + File.separator + Table.SYSTEM_TABLE);
-            for (String table : tables.keySet())
-            {
-                String oneDir = dataFile + File.separator + table;
-                FileUtils.createDirectory(oneDir);
-
-                // remove the deprecated streaming directory.
-                File streamingDir = new File(oneDir, "stream");
-                if (streamingDir.exists())
-                    FileUtils.deleteDir(streamingDir);
-            }
-        }
     }
 
     public static int getGcGraceInSeconds()
