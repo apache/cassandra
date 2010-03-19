@@ -117,6 +117,7 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
         return open(desc, StorageService.getPartitioner());
     }
 
+    /** public, but only for tests */
     public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
     {
         return open(Descriptor.fromFilename(dataFileName), partitioner);

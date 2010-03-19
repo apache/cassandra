@@ -85,8 +85,8 @@ public class SSTableWriter extends SSTable
         if (logger.isTraceEnabled())
             logger.trace("wrote index of " + decoratedKey + " at " + indexPosition);
 
-        boolean spannedEntry = RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(indexFile.getFilePointer());
-        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedEntry)
+        boolean spannedIndexEntry = RowIndexedReader.bufferIndex(indexPosition) != RowIndexedReader.bufferIndex(indexFile.getFilePointer());
+        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedIndexEntry)
         {
             if (indexPositions == null)
             {
@@ -95,7 +95,7 @@ public class SSTableWriter extends SSTable
             KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
             indexPositions.add(info);
 
-            if (spannedEntry)
+            if (spannedIndexEntry)
             {
                 if (spannedIndexDataPositions == null)
                 {

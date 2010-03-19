@@ -22,6 +22,7 @@ package org.apache.cassandra.db.marshal;
 
 
 import java.util.UUID;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TimeUUIDType extends AbstractType
 {
@@ -38,7 +39,7 @@ public class TimeUUIDType extends AbstractType
         
         long t1 = LexicalUUIDType.getUUID(o1).timestamp();
         long t2 = LexicalUUIDType.getUUID(o2).timestamp();
-        return t1 < t2 ? -1 : (t1 > t2 ? 1 : 0);
+        return t1 < t2 ? -1 : (t1 > t2 ? 1 : FBUtilities.compareByteArrays(o1, o2));
     }
 
     public String getString(byte[] bytes)
