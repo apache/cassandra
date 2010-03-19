@@ -86,8 +86,8 @@ public class SSTableWriter extends SSTable
         if (logger.isTraceEnabled())
             logger.trace("wrote index of " + decoratedKey + " at " + indexPosition);
 
-        boolean spannedEntry = SSTableReader.bufferIndex(indexPosition) != SSTableReader.bufferIndex(indexFile.getFilePointer());
-        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedEntry)
+        boolean spannedIndexEntry = SSTableReader.bufferIndex(indexPosition) != SSTableReader.bufferIndex(indexFile.getFilePointer());
+        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedIndexEntry)
         {
             if (indexPositions == null)
             {
@@ -96,7 +96,7 @@ public class SSTableWriter extends SSTable
             KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
             indexPositions.add(info);
 
-            if (spannedEntry)
+            if (spannedIndexEntry)
             {
                 if (spannedIndexDataPositions == null)
                 {
@@ -180,8 +180,7 @@ public class SSTableWriter extends SSTable
         SSTableWriter.rename(indexFilename(dataFileName));
         SSTableWriter.rename(filterFilename(dataFileName));
         dataFileName = SSTableWriter.rename(dataFileName);
-        return SSTableReader.open(dataFileName,
-                                  StorageService.getPartitioner());
+        return SSTableReader.open(dataFileName);
     }
 
 }

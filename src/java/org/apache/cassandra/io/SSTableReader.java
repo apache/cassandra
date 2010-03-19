@@ -112,6 +112,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
         return open(dataFileName, StorageService.getPartitioner());
     }
 
+    /** public, but only for tests */
     public static SSTableReader open(String dataFileName, IPartitioner partitioner) throws IOException
     {
         assert partitioner != null;
@@ -320,7 +321,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // next, the key cache
         Pair<String, DecoratedKey> unifiedKey = new Pair<String, DecoratedKey>(path, decoratedKey);
-        if (keyCache != null && keyCache.getCapacity() > 0)
+        if (keyCache.getCapacity() > 0)
         {
             PositionSize cachedPosition = keyCache.get(unifiedKey);
             if (cachedPosition != null)
@@ -386,7 +387,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     {
                         info = new PositionSize(position, length() - position);
                     }
-                    if (keyCache != null && keyCache.getCapacity() > 0)
+                    if (keyCache.getCapacity() > 0)
                         keyCache.put(unifiedKey, info);
                     return info;
                 }

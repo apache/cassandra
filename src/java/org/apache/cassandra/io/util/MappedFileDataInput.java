@@ -98,7 +98,8 @@ public class MappedFileDataInput extends InputStream implements FileDataInput
 
     public int skipBytes(int n) throws IOException
     {
-        if (n <= 0)
+        assert n >= 0 : "skipping negative bytes is illegal: " + n;
+        if (n == 0)
             return 0;
         int oldPosition = position;
         assert ((long)oldPosition) + n <= Integer.MAX_VALUE;
