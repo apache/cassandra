@@ -3,6 +3,10 @@
  * Bootstrapping can skip ranges under the right conditions (CASSANDRA-902)
  * fix merging row versions in range_slice for CL > ONE (CASSANDRA-884)
  * default write ConsistencyLeven chaned from ZERO to ONE
+ * use lexical comparison if time part of TimeUUIDs are the same 
+   (CASSANDRA-907)
+ * bound read, mutation, and response stages to fix possible OOM
+   during log replay (CASSANDRA-885)
 
 
 0.6.0-beta3
