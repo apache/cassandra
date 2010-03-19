@@ -155,6 +155,8 @@ public class DatabaseDescriptor
         throw new RuntimeException("Cannot locate " + STORAGE_CONF_FILE + " via storage-config system property or classpath lookup.");
     }
 
+    private static int stageQueueSize_ = 4096;
+
     static
     {
         try
@@ -293,10 +295,19 @@ public class DatabaseDescriptor
             {
                 concurrentReaders = Integer.parseInt(rawReaders);
             }
+            if (concurrentReaders < 2)
+            {
+                throw new ConfigurationException("ConcurrentReads must be at least 2");
+            }
+
             String rawWriters = xmlUtils.getNodeValue("/Storage/ConcurrentWrites");
             if (rawWriters != null)
             {
                 concurrentWriters = Integer.parseInt(rawWriters);
+            }
+            if (concurrentWriters < 2)
+            {
+                throw new ConfigurationException("ConcurrentWrites must be at least 2");
             }
 
             String rawFlushData = xmlUtils.getNodeValue("/Storage/FlushDataBufferSizeInMB");
@@ -1071,6 +1082,11 @@ public class DatabaseDescriptor
     {
         assert tableName != null;
         return getCFMetaData(tableName, cfName).subcolumnComparator;
+    }
+
+    public static int getStageQueueSize()
+    {
+        return stageQueueSize_;
     }
 
     /**

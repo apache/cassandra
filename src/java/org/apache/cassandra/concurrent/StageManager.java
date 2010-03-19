@@ -21,15 +21,14 @@ package org.apache.cassandra.concurrent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentReaders;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriters;
 
 
 /**
@@ -53,7 +52,7 @@ public class StageManager
     {
         stages.put(MUTATION_STAGE, multiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
         stages.put(READ_STAGE, multiThreadedStage(READ_STAGE, getConcurrentReaders()));
-        stages.put(RESPONSE_STAGE, multiThreadedStage("RESPONSE-STAGE", Runtime.getRuntime().availableProcessors()));
+        stages.put(RESPONSE_STAGE, multiThreadedStage("RESPONSE-STAGE", Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
         stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
         stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
@@ -63,11 +62,15 @@ public class StageManager
 
     private static ThreadPoolExecutor multiThreadedStage(String name, int numThreads)
     {
+        // avoid running afoul of requirement in DebuggableThreadPoolExecutor that single-threaded executors
+        // must have unbounded queues
+        assert numThreads > 1 : "multi-threaded stages must have at least 2 threads";
+
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 numThreads,
                                                 Integer.MAX_VALUE,
                                                 TimeUnit.SECONDS,
-                                                new LinkedBlockingQueue<Runnable>(),
+                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getStageQueueSize()),
                                                 new NamedThreadFactory(name));
     }
 
