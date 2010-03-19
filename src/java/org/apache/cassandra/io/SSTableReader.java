@@ -188,6 +188,8 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
     {
         phantomReference = new SSTableDeletingReference(tracker, this, finalizerQueue);
         finalizers.add(phantomReference);
+        // TODO keyCache should never be null in live Cassandra, but only setting it here
+        // means it can be during tests, so we have to do otherwise-unnecessary != null checks
         keyCache = tracker.getKeyCache();
     }
 
@@ -321,7 +323,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
 
         // next, the key cache
         Pair<String, DecoratedKey> unifiedKey = new Pair<String, DecoratedKey>(path, decoratedKey);
-        if (keyCache.getCapacity() > 0)
+        if (keyCache != null && keyCache.getCapacity() > 0)
         {
             PositionSize cachedPosition = keyCache.get(unifiedKey);
             if (cachedPosition != null)
@@ -387,7 +389,7 @@ public class SSTableReader extends SSTable implements Comparable<SSTableReader>
                     {
                         info = new PositionSize(position, length() - position);
                     }
-                    if (keyCache.getCapacity() > 0)
+                    if (keyCache != null && keyCache.getCapacity() > 0)
                         keyCache.put(unifiedKey, info);
                     return info;
                 }
