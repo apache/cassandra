@@ -314,25 +314,30 @@ class Stress(object):
         else:
             outf = sys.stdout
         outf.write('total,interval_op_rate,interval_key_rate,avg_latency,elapsed_time\n')
-        total = old_total = latency = keycount = old_keycount = old_latency = 0
-        while True:
-            time.sleep(options.interval)
-            old_total, old_latency, old_keycount = total, latency, keycount
-            total = sum(self.opcounts[th.idx] for th in threads)
-            latency = sum(self.latencies[th.idx] for th in threads)
-            keycount = sum(self.keycounts[th.idx] for th in threads)
-            opdelta = total - old_total
-            keydelta = keycount - old_keycount
-            delta_latency = latency - old_latency
-            if opdelta > 0:
-                delta_formatted = (delta_latency / opdelta)
-            else:
-                delta_formatted = 'NaN'
-            elapsed_t = int(time.time() - start_t)
-            outf.write('%d,%d,%d,%s,%d\n' 
-                       % (total, opdelta / options.interval, keydelta / options.interval, delta_formatted, elapsed_t))
+        epoch = total = old_total = latency = keycount = old_keycount = old_latency = 0
+        epoch_intervals = (options.interval * 10) # 1 epoch = 1 tenth of a second
+        terminate = False
+        while not terminate:
+            time.sleep(0.1)
             if not [th for th in threads if th.isAlive()]:
-                break
+                terminate = True
+            epoch = epoch + 1
+            if terminate or epoch > epoch_intervals:
+                epoch = 0
+                old_total, old_latency, old_keycount = total, latency, keycount
+                total = sum(self.opcounts[th.idx] for th in threads)
+                latency = sum(self.latencies[th.idx] for th in threads)
+                keycount = sum(self.keycounts[th.idx] for th in threads)
+                opdelta = total - old_total
+                keydelta = keycount - old_keycount
+                delta_latency = latency - old_latency
+                if opdelta > 0:
+                    delta_formatted = (delta_latency / opdelta)
+                else:
+                    delta_formatted = 'NaN'
+                elapsed_t = int(time.time() - start_t)
+                outf.write('%d,%d,%d,%s,%d\n' 
+                           % (total, opdelta / options.interval, keydelta / options.interval, delta_formatted, elapsed_t))
 
     def insert(self):
         threads = self.create_threads('insert')
