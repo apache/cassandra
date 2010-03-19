@@ -255,7 +255,7 @@ class RangeSlicer(Operation):
                     self.latencies[self.idx] += time.time() - begin
                     self.opcounts[self.idx] += 1
                 current += len(r) + 1
-                last += current + options.rangecount
+                last = current + len(r) + 1
                 self.keycounts[self.idx] += len(r)
         else:
             parent = ColumnParent('Standard1')
@@ -275,7 +275,7 @@ class RangeSlicer(Operation):
                         print start, finish
                         raise
                 current += len(r) + 1
-                last += current + options.rangecount
+                last = current + len(r)  + 1
                 self.latencies[self.idx] += time.time() - begin
                 self.opcounts[self.idx] += 1
                 self.keycounts[self.idx] += len(r)
