@@ -21,14 +21,29 @@ package org.apache.cassandra.db.marshal;
  */
 
 
+import java.io.UnsupportedEncodingException;
+
 import org.apache.commons.lang.ArrayUtils;
 
 import org.junit.Test;
 
-public class BytesTypeTest
+public class TypeCompareTest
 {
     @Test
-    public void testCompare()
+    public void testAscii()
+    {
+        AsciiType comparator = new AsciiType();
+        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, "asdf".getBytes()) < 0;
+        assert comparator.compare("asdf".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY) > 0;
+        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY) == 0;
+        assert comparator.compare("z".getBytes(), "a".getBytes()) > 0;
+        assert comparator.compare("a".getBytes(), "z".getBytes()) < 0;
+        assert comparator.compare("asdf".getBytes(), "asdf".getBytes()) == 0;
+        assert comparator.compare("asdz".getBytes(), "asdf".getBytes()) > 0;
+    }
+
+    @Test
+    public void testBytes()
     {
         BytesType comparator = new BytesType();
         assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, "asdf".getBytes()) < 0;
@@ -38,5 +53,17 @@ public class BytesTypeTest
         assert comparator.compare("a".getBytes(), "z".getBytes()) < 0;
         assert comparator.compare("asdf".getBytes(), "asdf".getBytes()) == 0;
         assert comparator.compare("asdz".getBytes(), "asdf".getBytes()) > 0;
+    }
+
+    @Test
+    public void testUTF8() throws UnsupportedEncodingException
+    {
+        UTF8Type comparator = new UTF8Type();
+        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, "asdf".getBytes()) < 0;
+        assert comparator.compare("asdf".getBytes(), ArrayUtils.EMPTY_BYTE_ARRAY) > 0;
+        assert comparator.compare(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY) == 0;
+        assert comparator.compare("z".getBytes("UTF-8"), "a".getBytes("UTF-8")) > 0;
+        assert comparator.compare("z".getBytes("UTF-8"), "z".getBytes("UTF-8")) == 0;
+        assert comparator.compare("a".getBytes("UTF-8"), "z".getBytes("UTF-8")) < 0;
     }
 }
