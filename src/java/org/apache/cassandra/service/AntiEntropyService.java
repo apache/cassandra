@@ -33,7 +33,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.CompactionIterator.CompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.IndexSummary;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.IVerbHandler;
@@ -44,7 +44,6 @@ import org.apache.cassandra.utils.*;
 import org.apache.log4j.Logger;
 
 import com.google.common.collect.Collections2;
-import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 
 /**
@@ -367,7 +366,7 @@ public class AntiEntropyService
             }
             if (cfs != null) // TODO test w/ valid CF definitions, this if{} shouldn't be necessary
             {
-                for (SSTable.KeyPosition info: cfs.allIndexPositions())
+                for (IndexSummary.KeyPosition info: cfs.allIndexPositions())
                     keys.add(info.key);
             }
 

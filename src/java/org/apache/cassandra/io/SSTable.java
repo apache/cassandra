@@ -25,7 +25,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Arrays;
-import java.util.Map;
 
 import org.apache.log4j.Logger;
 import org.apache.commons.lang.StringUtils;
@@ -56,12 +55,9 @@ public abstract class SSTable
     protected String path;
     protected IPartitioner partitioner;
     protected BloomFilter bf;
-    protected List<KeyPosition> indexPositions;
-    protected Map<KeyPosition, PositionSize> spannedIndexDataPositions; // map of index position, to data position, for index entries spanning mmap segments
     protected String columnFamilyName;
+    protected IndexSummary indexSummary;
 
-    /* Every 128th index entry is loaded into memory so we know where to start looking for the actual key w/o seeking */
-    public static final int INDEX_INTERVAL = 128;/* Required extension for temporary files created during compactions. */
     public static final String TEMPFILE_MARKER = "tmp";
 
     public SSTable(String filename, IPartitioner partitioner)
@@ -171,33 +167,6 @@ public abstract class SSTable
             sum += sstable.length();
         }
         return sum;
-    }
-
-    /**
-     * This is a simple container for the index Key and its corresponding position
-     * in the data file. Binary search is performed on a list of these objects
-     * to lookup keys within the SSTable data file.
-     */
-    public class KeyPosition implements Comparable<KeyPosition>
-    {
-        public final DecoratedKey key;
-        public final long position;
-
-        public KeyPosition(DecoratedKey key, long position)
-        {
-            this.key = key;
-            this.position = position;
-        }
-
-        public int compareTo(KeyPosition kp)
-        {
-            return key.compareTo(kp.key);
-        }
-
-        public String toString()
-        {
-            return key + ":" + position;
-        }
     }
 
     public long bytesOnDisk()

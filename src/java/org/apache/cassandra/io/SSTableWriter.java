@@ -35,7 +35,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.BufferedRandomAccessFile;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -52,6 +51,7 @@ public class SSTableWriter extends SSTable
     public SSTableWriter(String filename, long keyCount, IPartitioner partitioner) throws IOException
     {
         super(filename, partitioner);
+        indexSummary = new IndexSummary();
         dataFile = new BufferedRandomAccessFile(path, "rw", (int)(DatabaseDescriptor.getFlushDataBufferSizeInMB() * 1024 * 1024));
         indexFile = new BufferedRandomAccessFile(indexFilename(), "rw", (int)(DatabaseDescriptor.getFlushIndexBufferSizeInMB() * 1024 * 1024));
         bf = BloomFilter.getFilter(keyCount, 15);
@@ -86,25 +86,7 @@ public class SSTableWriter extends SSTable
         if (logger.isTraceEnabled())
             logger.trace("wrote index of " + decoratedKey + " at " + indexPosition);
 
-        boolean spannedIndexEntry = SSTableReader.bufferIndex(indexPosition) != SSTableReader.bufferIndex(indexFile.getFilePointer());
-        if (keysWritten++ % INDEX_INTERVAL == 0 || spannedIndexEntry)
-        {
-            if (indexPositions == null)
-            {
-                indexPositions = new ArrayList<KeyPosition>();
-            }
-            KeyPosition info = new KeyPosition(decoratedKey, indexPosition);
-            indexPositions.add(info);
-
-            if (spannedIndexEntry)
-            {
-                if (spannedIndexDataPositions == null)
-                {
-                    spannedIndexDataPositions = new HashMap<KeyPosition, PositionSize>();
-                }
-                spannedIndexDataPositions.put(info, new PositionSize(dataPosition, dataSize));
-            }
-        }
+        indexSummary.maybeAddEntry(decoratedKey, dataPosition, dataSize, indexPosition, indexFile.getFilePointer());
     }
 
     // TODO make this take a DataOutputStream and wrap the byte[] version to combine them
@@ -153,7 +135,8 @@ public class SSTableWriter extends SSTable
         rename(filterFilename());
         path = rename(path); // important to do this last since index & filter file names are derived from it
 
-        return new SSTableReader(path, partitioner, indexPositions, spannedIndexDataPositions, bf);
+        indexSummary.complete();
+        return new SSTableReader(path, partitioner, indexSummary, bf);
     }
 
     static String rename(String tmpFilename)

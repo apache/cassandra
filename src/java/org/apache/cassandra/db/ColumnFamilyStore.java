@@ -49,10 +49,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.SSTable;
-import org.apache.cassandra.io.SSTableReader;
-import org.apache.cassandra.io.SSTableScanner;
-import org.apache.cassandra.io.SSTableTracker;
+import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SliceRange;
@@ -1128,10 +1125,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(stores);
     }
 
-    public Iterable<SSTable.KeyPosition> allIndexPositions()
+    public Iterable<IndexSummary.KeyPosition> allIndexPositions()
     {
         Collection<SSTableReader> sstables = getSSTables();
-        Iterable<SSTable.KeyPosition>[] positions = new Iterable[sstables.size()];
+        Iterable<IndexSummary.KeyPosition>[] positions = new Iterable[sstables.size()];
         int i = 0;
         for (SSTableReader sstable: sstables)
         {

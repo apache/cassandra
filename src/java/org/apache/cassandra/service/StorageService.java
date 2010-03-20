@@ -27,7 +27,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.net.InetAddress;
@@ -41,7 +40,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.DeletionService;
-import org.apache.cassandra.io.SSTable;
+import org.apache.cassandra.io.IndexSummary;
 import org.apache.cassandra.io.SSTableReader;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.*;
@@ -1233,7 +1232,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            for (SSTable.KeyPosition info: cfs.allIndexPositions())
+            for (IndexSummary.KeyPosition info: cfs.allIndexPositions())
             {
                 if (range.contains(info.key.token))
                     keys.add(info.key);
@@ -1262,7 +1261,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         List<DecoratedKey> keys = new ArrayList<DecoratedKey>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            for (SSTable.KeyPosition info: cfs.allIndexPositions())
+            for (IndexSummary.KeyPosition info: cfs.allIndexPositions())
             {
                 if (range.contains(info.key.token))
                     keys.add(info.key);
