@@ -8,6 +8,7 @@
    (CASSANDRA-907)
  * bound read, mutation, and response stages to fix possible OOM
    during log replay (CASSANDRA-885)
+ * Use microseconds-since-epoch (UTC) in cli, instead of milliseconds
 
 
 0.6.0-beta3
