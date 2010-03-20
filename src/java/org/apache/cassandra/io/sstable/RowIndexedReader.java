@@ -65,8 +65,7 @@ class RowIndexedReader extends SSTableReader
 
     RowIndexedReader(Descriptor desc,
                      IPartitioner partitioner,
-                     List<KeyPosition> indexPositions,
-                     Map<KeyPosition, PositionSize> spannedIndexDataPositions,
+                     IndexSummary indexSummary,
                      BloomFilter bloomFilter)
             throws IOException
     {
@@ -107,14 +106,13 @@ class RowIndexedReader extends SSTableReader
             buffers = null;
         }
 
-        this.indexPositions = indexPositions;
-        this.spannedIndexDataPositions = spannedIndexDataPositions;
+        this.indexSummary = indexSummary;
         this.bf = bloomFilter;
     }
 
     RowIndexedReader(Descriptor desc, IPartitioner partitioner) throws IOException
     {
-        this(desc, partitioner, null, null, null);
+        this(desc, partitioner, null, null);
     }
 
     public static RowIndexedReader open(Descriptor desc, IPartitioner partitioner) throws IOException
@@ -128,14 +126,14 @@ class RowIndexedReader extends SSTableReader
 
     public long estimatedKeys()
     {
-        return (indexPositions.size() + 1) * INDEX_INTERVAL;
+        return (indexSummary.getIndexPositions().size() + 1) * IndexSummary.INDEX_INTERVAL;
     }
 
     public Collection<DecoratedKey> getKeySamples()
     {
-        return Collections2.transform(indexPositions,
-                                      new Function<KeyPosition,DecoratedKey>(){
-                                          public DecoratedKey apply(KeyPosition kp)
+        return Collections2.transform(indexSummary.getIndexPositions(),
+                                      new Function<IndexSummary.KeyPosition, DecoratedKey>(){
+                                          public DecoratedKey apply(IndexSummary.KeyPosition kp)
                                           {
                                               return kp.key;
                                           }
@@ -157,14 +155,13 @@ class RowIndexedReader extends SSTableReader
 
     void loadIndexFile() throws IOException
     {
-        indexPositions = new ArrayList<KeyPosition>();
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         // any entries that do, we force into the in-memory sample so key lookup can always bsearch within
         // a single mmapped segment.
+        indexSummary = new IndexSummary();
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
         try
         {
-            int i = 0;
             long indexSize = input.length();
             while (true)
             {
@@ -176,27 +173,21 @@ class RowIndexedReader extends SSTableReader
                 DecoratedKey decoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
                 long dataPosition = input.readLong();
                 long nextIndexPosition = input.getFilePointer();
-                boolean spannedEntry = bufferIndex(indexPosition) != bufferIndex(nextIndexPosition);
-                if (i++ % INDEX_INTERVAL == 0 || spannedEntry)
+                // read the next index entry to see how big the row is
+                long nextDataPosition;
+                if (input.isEOF())
                 {
-                    KeyPosition info;
-                    info = new KeyPosition(decoratedKey, indexPosition);
-                    indexPositions.add(info);
-
-                    if (spannedEntry)
-                    {
-                        if (spannedIndexDataPositions == null)
-                        {
-                            spannedIndexDataPositions = new HashMap<KeyPosition, PositionSize>();
-                        }
-                        // read the next index entry to see how big the row is corresponding to the current, mmap-segment-spanning one
-                        input.readUTF();
-                        long nextDataPosition = input.readLong();
-                        input.seek(nextIndexPosition);
-                        spannedIndexDataPositions.put(info, new PositionSize(dataPosition, nextDataPosition - dataPosition));
-                    }
+                    nextDataPosition = length();
                 }
+                else
+                {
+                    input.readUTF();
+                    nextDataPosition = input.readLong();
+                    input.seek(nextIndexPosition);
+                }
+                indexSummary.maybeAddEntry(decoratedKey, dataPosition, nextDataPosition - dataPosition, indexPosition, nextIndexPosition);
             }
+            indexSummary.complete();
         }
         finally
         {
@@ -212,10 +203,10 @@ class RowIndexedReader extends SSTableReader
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */
-    private KeyPosition getIndexScanPosition(DecoratedKey decoratedKey)
+    private IndexSummary.KeyPosition getIndexScanPosition(DecoratedKey decoratedKey)
     {
-        assert indexPositions != null && indexPositions.size() > 0;
-        int index = Collections.binarySearch(indexPositions, new KeyPosition(decoratedKey, -1));
+        assert indexSummary.getIndexPositions() != null && indexSummary.getIndexPositions().size() > 0;
+        int index = Collections.binarySearch(indexSummary.getIndexPositions(), new IndexSummary.KeyPosition(decoratedKey, -1));
         if (index < 0)
         {
             // binary search gives us the first index _greater_ than the key searched for,
@@ -223,11 +214,11 @@ class RowIndexedReader extends SSTableReader
             int greaterThan = (index + 1) * -1;
             if (greaterThan == 0)
                 return null;
-            return indexPositions.get(greaterThan - 1);
+            return indexSummary.getIndexPositions().get(greaterThan - 1);
         }
         else
         {
-            return indexPositions.get(index);
+            return indexSummary.getIndexPositions().get(index);
         }
     }
 
@@ -252,23 +243,19 @@ class RowIndexedReader extends SSTableReader
         }
 
         // next, see if the sampled index says it's impossible for the key to be present
-        KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
+        IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
         if (sampledPosition == null)
-        {
             return null;
-        }
 
         // handle exact sampled index hit
-        if (spannedIndexDataPositions != null)
-        {
-            PositionSize info = spannedIndexDataPositions.get(sampledPosition);
-            if (info != null)
-                return info;
-        }
-
-        // scan the on-disk index, starting at the nearest sampled position
-        long p = sampledPosition.position;
-        FileDataInput input = null;
+        PositionSize info = indexSummary.getSpannedPosition(sampledPosition);
+        if (info != null)
+            return info;
+  
+        // get either a buffered or a mmap'd input for the on-disk index
+        long p = sampledPosition.indexPosition;
+        FileDataInput input;
+        int bufferIndex = bufferIndex(p);
         try
         {
             if (indexBuffers == null)
@@ -278,43 +265,44 @@ class RowIndexedReader extends SSTableReader
             }
             else
             {
-                input = new MappedFileDataInput(indexBuffers[bufferIndex(p)], indexFilename(), (int)(p % BUFFER_SIZE));
+                input = new MappedFileDataInput(indexBuffers[bufferIndex], indexFilename(), BUFFER_SIZE * bufferIndex, (int)(p % BUFFER_SIZE));
             }
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+
+        // scan the on-disk index, starting at the nearest sampled position
+        try
+        {
             int i = 0;
             do
             {
-                DecoratedKey indexDecoratedKey;
-                try
+                // if using mmapped i/o, skip to the next mmap buffer if necessary
+                if (input.isEOF() || indexSummary.getSpannedPosition(input.getAbsolutePosition()) != null)
                 {
-                    indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+                    if (indexBuffers == null || ++bufferIndex == indexBuffers.length)
+                        break;
+                    input = new MappedFileDataInput(indexBuffers[bufferIndex], indexFilename(), BUFFER_SIZE * bufferIndex, 0);
+                    continue;
                 }
-                catch (EOFException e)
-                {
-                    return null;
-                }
-                long position = input.readLong();
+
+                // read key & data position from index entry
+                DecoratedKey indexDecoratedKey = partitioner.convertFromDiskFormat(input.readUTF());
+                long dataPosition = input.readLong();
+
                 int v = indexDecoratedKey.compareTo(decoratedKey);
                 if (v == 0)
                 {
-                    PositionSize info;
-                    if (!input.isEOF())
-                    {
-                        int utflen = input.readUnsignedShort();
-                        if (utflen != input.skipBytes(utflen))
-                            throw new EOFException();
-                        info = new PositionSize(position, input.readLong() - position);
-                    }
-                    else
-                    {
-                        info = new PositionSize(position, length() - position);
-                    }
+                    info = getDataPositionSize(input, dataPosition);
                     if (keyCache != null && keyCache.getCapacity() > 0)
                         keyCache.put(unifiedKey, info);
                     return info;
                 }
                 if (v > 0)
                     return null;
-            } while  (++i < INDEX_INTERVAL);
+            } while  (++i < IndexSummary.INDEX_INTERVAL);
         }
         catch (IOException e)
         {
@@ -335,10 +323,30 @@ class RowIndexedReader extends SSTableReader
         return null;
     }
 
+    private PositionSize getDataPositionSize(FileDataInput input, long dataPosition) throws IOException
+    {
+        // if we've reached the end of the index, then the row size is "the rest of the data file"
+        if (input.isEOF())
+            return new PositionSize(dataPosition, length() - dataPosition);
+
+        // otherwise, row size is the start of the next row (in next index entry), minus the start of this one.
+        long nextIndexPosition = input.getAbsolutePosition();
+        // if next index entry would span mmap boundary, get the next row position from the summary instead
+        PositionSize nextPositionSize = indexSummary.getSpannedPosition(nextIndexPosition);
+        if (nextPositionSize != null)
+            return new PositionSize(dataPosition, nextPositionSize.position - dataPosition);
+
+        // read next entry directly
+        int utflen = input.readUnsignedShort();
+        if (utflen != input.skipBytes(utflen))
+            throw new EOFException();
+        return new PositionSize(dataPosition, input.readLong() - dataPosition);
+    }
+
     /** like getPosition, but if key is not found will return the location of the first key _greater_ than the desired one, or -1 if no such key exists. */
     public long getNearestPosition(DecoratedKey decoratedKey) throws IOException
     {
-        KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
+        IndexSummary.KeyPosition sampledPosition = getIndexScanPosition(decoratedKey);
         if (sampledPosition == null)
         {
             return 0;
@@ -346,7 +354,7 @@ class RowIndexedReader extends SSTableReader
 
         // can't use a MappedFileDataInput here, since we might cross a segment boundary while scanning
         BufferedRandomAccessFile input = new BufferedRandomAccessFile(indexFilename(), "r");
-        input.seek(sampledPosition.position);
+        input.seek(sampledPosition.indexPosition);
         try
         {
             while (true)
@@ -411,7 +419,7 @@ class RowIndexedReader extends SSTableReader
                 throw new IOError(e);
             }
         }
-        return new MappedFileDataInput(buffers[bufferIndex(info.position)], getFilename(), (int) (info.position % BUFFER_SIZE));
+        return new MappedFileDataInput(buffers[bufferIndex(info.position)], getFilename(), BUFFER_SIZE * (info.position / BUFFER_SIZE), (int) (info.position % BUFFER_SIZE));
     }
 
     static int bufferIndex(long position)

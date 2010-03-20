@@ -36,4 +36,6 @@ public interface FileDataInput extends DataInput, Closeable
     public void reset() throws IOException;
 
     public int bytesPastMark();
+
+    long getAbsolutePosition();
 }

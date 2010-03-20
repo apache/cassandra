@@ -253,7 +253,12 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         }
         this.curr_ = pos;
     }
-    
+
+    public long getAbsolutePosition()
+    {
+        return getFilePointer();
+    }
+
     public long getFilePointer()
     {
         return this.curr_;

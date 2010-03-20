@@ -89,7 +89,7 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
 
     public static int indexInterval()
     {
-        return INDEX_INTERVAL;
+        return IndexSummary.INDEX_INTERVAL;
     }
 
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
@@ -99,7 +99,7 @@ public abstract class SSTableReader extends SSTable implements Comparable<SSTabl
         for (SSTableReader sstable : sstables)
         {
             int indexKeyCount = sstable.getKeySamples().size();
-            count = count + (indexKeyCount + 1) * INDEX_INTERVAL;
+            count = count + (indexKeyCount + 1) * IndexSummary.INDEX_INTERVAL;
             if (logger.isDebugEnabled())
                 logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
         }

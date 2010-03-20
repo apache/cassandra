@@ -35,6 +35,7 @@ import org.apache.cassandra.io.CompactionIterator.CompactedRow;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.streaming.StreamOut;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -45,7 +46,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Collections2;
-import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 
 /**
