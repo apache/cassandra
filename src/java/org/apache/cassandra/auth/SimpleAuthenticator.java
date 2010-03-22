@@ -131,8 +131,11 @@ public class SimpleAuthenticator implements IAuthenticator
             // given keyspace X, users A B and C can be authorized like this (separate their names with spaces):
             // X = A B C
             
-            // note we keep the message here and for other authorization problems exactly the same to prevent attackers from guessing what keyspaces are valid
-            if (null == props.getProperty(keyspace)) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
+            // note we keep the message here and for other authorization problems exactly the same to prevent attackers
+            // from guessing what keyspaces are valid
+            if (null == props.getProperty(keyspace))
+                throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
+
             for (String allow : props.getProperty(keyspace).split(","))
             {
                 if (allow.equals(username)) authorized = AccessLevel.FULL;
@@ -145,10 +148,6 @@ public class SimpleAuthenticator implements IAuthenticator
         catch (IOException e)
         {
             throw new RuntimeException("Authorization table file given by property " + ACCESS_FILENAME_PROPERTY + " could not be opened: " + e.getMessage());
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException("Unexpected authorization problem", e);
         }
 
         if (authorized == AccessLevel.NONE) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
