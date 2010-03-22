@@ -53,12 +53,12 @@ public class CassandraServer implements Cassandra.Iface
     private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
 
     // will be set only by login()
-    private ThreadLocal<Boolean> loginDone = new ThreadLocal<Boolean>() 
+    private ThreadLocal<AccessLevel> loginDone = new ThreadLocal<AccessLevel>() 
     {
         @Override
-        protected Boolean initialValue()
+        protected AccessLevel initialValue()
         {
-            return false;
+            return AccessLevel.NONE;
         }
     };
 
@@ -215,9 +215,8 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (logger.isDebugEnabled())
             logger.debug("get_slice");
-
-        checkLoginDone();
-
+        
+        checkLoginAuthorized(AccessLevel.READONLY);
         return multigetSliceInternal(keyspace, Arrays.asList(key), column_parent, predicate, consistency_level).get(key);
     }
     
@@ -227,7 +226,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget_slice");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READONLY);
 
         return multigetSliceInternal(keyspace, keys, column_parent, predicate, consistency_level);
     }
@@ -266,7 +265,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READONLY);
 
         ColumnOrSuperColumn column = multigetInternal(table, Arrays.asList(key), column_path, consistency_level).get(key);
         if (!column.isSetColumn() && !column.isSetSuper_column())
@@ -283,7 +282,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("multiget");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READONLY);
 
         return multigetInternal(table, keys, column_path, consistency_level);
     }
@@ -328,7 +327,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("get_count");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READONLY);
 
         SliceRange range = new SliceRange(ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
         SlicePredicate predicate = new SlicePredicate().setSlice_range(range);
@@ -341,7 +340,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("insert");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPath(table, column_path);
@@ -364,7 +363,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("batch_insert");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READWRITE);
 
         ThriftValidation.validateKey(key);
 
@@ -385,7 +384,25 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("batch_mutate");
 
-        checkLoginDone();
+        AccessLevel needed = AccessLevel.READWRITE;
+
+        TOP:
+        for (Map<String, List<Mutation>> submap : mutation_map.values())
+        {
+            for (List<Mutation> mutations: submap.values())
+            {
+                for (Mutation m : mutations)
+                {
+                    if (m.isSetDeletion())
+                    {
+                        needed = AccessLevel.FULL;
+                        break TOP;
+                    }
+                }
+            }
+        }
+        
+        checkLoginAuthorized(needed);
 
         List<RowMutation> rowMutations = new ArrayList<RowMutation>();
         for (Map.Entry<String, Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
@@ -428,7 +445,7 @@ public class CassandraServer implements Cassandra.Iface
         if (logger.isDebugEnabled())
             logger.debug("remove");
 
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.FULL);
 
         ThriftValidation.validateKey(key);
         ThriftValidation.validateColumnPathOrParent(table, column_path);
@@ -559,7 +576,7 @@ public class CassandraServer implements Cassandra.Iface
     private List<KeySlice> getRangeSlicesInternal(String keyspace, ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
             throws InvalidRequestException, UnavailableException, TimedOutException
     {
-        checkLoginDone();
+        checkLoginAuthorized(AccessLevel.READONLY);
 
         ThriftValidation.validateColumnParent(keyspace, column_parent);
         ThriftValidation.validatePredicate(keyspace, column_parent, predicate);
@@ -643,21 +660,22 @@ public class CassandraServer implements Cassandra.Iface
         return splits;
     }
 
-    public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
+    public AccessLevel login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
-        DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
-        loginDone.set(true);
+        AccessLevel level = DatabaseDescriptor.getAuthenticator().login(keyspace, auth_request);
+        loginDone.set(level);
+        return level;
     }
 
-    protected void checkLoginDone() throws InvalidRequestException
+    protected void checkLoginAuthorized(AccessLevel level) throws InvalidRequestException
     {
-        // FIXME: This disables the "you must call login()" requirement when the configured
+        // FIXME: This disables access level checks when the configured
         // authenticator is AllowAllAuthenticator. This is a temporary measure until CASSANDRA-714 is complete.
         if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
             return;
-        if (!loginDone.get()) throw new InvalidRequestException("Login is required before any other API calls");
+        if (loginDone.get() == AccessLevel.NONE) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
+        if (loginDone.get().getValue() >= level.getValue()) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
     }
-
     
     // main method moved to CassandraDaemon
 }

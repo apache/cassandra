@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 
+import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -44,7 +45,7 @@ public class SimpleAuthenticator implements IAuthenticator
     };
 
     @Override
-    public void login(String keyspace, AuthenticationRequest authRequest) throws AuthenticationException, AuthorizationException
+    public AccessLevel login(String keyspace, AuthenticationRequest authRequest) throws AuthenticationException, AuthorizationException
     {
         String pmode_plain = System.getProperty(PMODE_PROPERTY);
         PasswordMode mode = PasswordMode.PLAIN;
@@ -118,7 +119,7 @@ public class SimpleAuthenticator implements IAuthenticator
         // if we're here, the authentication succeeded. Now let's see if the user is authorized for this keyspace.
 
         String afilename = System.getProperty(ACCESS_FILENAME_PROPERTY);
-        boolean authorized = false;
+        AccessLevel authorized = AccessLevel.NONE;
         try
         {
             FileInputStream in = new FileInputStream(afilename);
@@ -134,7 +135,7 @@ public class SimpleAuthenticator implements IAuthenticator
             if (null == props.getProperty(keyspace)) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
             for (String allow : props.getProperty(keyspace).split(","))
             {
-                if (allow.equals(username)) authorized = true;
+                if (allow.equals(username)) authorized = AccessLevel.FULL;
             }
         }
         catch (FileNotFoundException e)
@@ -150,7 +151,9 @@ public class SimpleAuthenticator implements IAuthenticator
             throw new RuntimeException("Unexpected authorization problem", e);
         }
 
-        if (!authorized) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
+        if (authorized == AccessLevel.NONE) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
+        
+        return authorized;
     }
 
     static String authorizationErrorMessage(String keyspace, String username)

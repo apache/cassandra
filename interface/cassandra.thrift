@@ -305,7 +305,7 @@ struct AuthenticationRequest {
 
 service Cassandra {
   # auth methods
-  void login(1: required string keyspace, 2:required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
+  AccessLevel login(1: required string keyspace, 2:required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
  
   # retrieval methods
 
