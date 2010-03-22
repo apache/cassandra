@@ -48,7 +48,7 @@ public class Cassandra {
 
   public interface Iface {
 
-    public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException;
+    public AccessLevel login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException;
 
     /**
      * Get the Column or SuperColumn at the given column_path. If no value is present, NotFoundException is thrown. (This is
@@ -276,10 +276,10 @@ public class Cassandra {
       return this.oprot_;
     }
 
-    public void login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
+    public AccessLevel login(String keyspace, AuthenticationRequest auth_request) throws AuthenticationException, AuthorizationException, TException
     {
       send_login(keyspace, auth_request);
-      recv_login();
+      return recv_login();
     }
 
     public void send_login(String keyspace, AuthenticationRequest auth_request) throws TException
@@ -293,7 +293,7 @@ public class Cassandra {
       oprot_.getTransport().flush();
     }
 
-    public void recv_login() throws AuthenticationException, AuthorizationException, TException
+    public AccessLevel recv_login() throws AuthenticationException, AuthorizationException, TException
     {
       TMessage msg = iprot_.readMessageBegin();
       if (msg.type == TMessageType.EXCEPTION) {
@@ -304,13 +304,16 @@ public class Cassandra {
       login_result result = new login_result();
       result.read(iprot_);
       iprot_.readMessageEnd();
+      if (result.isSetSuccess()) {
+        return result.success;
+      }
       if (result.authnx != null) {
         throw result.authnx;
       }
       if (result.authzx != null) {
         throw result.authzx;
       }
-      return;
+      throw new TApplicationException(TApplicationException.MISSING_RESULT, "login failed: unknown result");
     }
 
     public ColumnOrSuperColumn get(String keyspace, String key, ColumnPath column_path, ConsistencyLevel consistency_level) throws InvalidRequestException, NotFoundException, UnavailableException, TimedOutException, TException
@@ -1144,7 +1147,7 @@ public class Cassandra {
         iprot.readMessageEnd();
         login_result result = new login_result();
         try {
-          iface_.login(args.keyspace, args.auth_request);
+          result.success = iface_.login(args.keyspace, args.auth_request);
         } catch (AuthenticationException authnx) {
           result.authnx = authnx;
         } catch (AuthorizationException authzx) {
@@ -2200,14 +2203,25 @@ public class Cassandra {
   public static class login_result implements TBase<login_result._Fields>, java.io.Serializable, Cloneable, Comparable<login_result>   {
     private static final TStruct STRUCT_DESC = new TStruct("login_result");
 
+    private static final TField SUCCESS_FIELD_DESC = new TField("success", TType.I32, (short)0);
     private static final TField AUTHNX_FIELD_DESC = new TField("authnx", TType.STRUCT, (short)1);
     private static final TField AUTHZX_FIELD_DESC = new TField("authzx", TType.STRUCT, (short)2);
 
+    /**
+     * 
+     * @see AccessLevel
+     */
+    public AccessLevel success;
     public AuthenticationException authnx;
     public AuthorizationException authzx;
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements TFieldIdEnum {
+      /**
+       * 
+       * @see AccessLevel
+       */
+      SUCCESS((short)0, "success"),
       AUTHNX((short)1, "authnx"),
       AUTHZX((short)2, "authzx");
 
@@ -2265,6 +2279,8 @@ public class Cassandra {
     // isset id assignments
 
     public static final Map<_Fields, FieldMetaData> metaDataMap = Collections.unmodifiableMap(new EnumMap<_Fields, FieldMetaData>(_Fields.class) {{
+      put(_Fields.SUCCESS, new FieldMetaData("success", TFieldRequirementType.DEFAULT, 
+          new EnumMetaData(TType.ENUM, AccessLevel.class)));
       put(_Fields.AUTHNX, new FieldMetaData("authnx", TFieldRequirementType.DEFAULT, 
           new FieldValueMetaData(TType.STRUCT)));
       put(_Fields.AUTHZX, new FieldMetaData("authzx", TFieldRequirementType.DEFAULT, 
@@ -2279,10 +2295,12 @@ public class Cassandra {
     }
 
     public login_result(
+      AccessLevel success,
       AuthenticationException authnx,
       AuthorizationException authzx)
     {
       this();
+      this.success = success;
       this.authnx = authnx;
       this.authzx = authzx;
     }
@@ -2291,6 +2309,9 @@ public class Cassandra {
      * Performs a deep copy on <i>other</i>.
      */
     public login_result(login_result other) {
+      if (other.isSetSuccess()) {
+        this.success = other.success;
+      }
       if (other.isSetAuthnx()) {
         this.authnx = new AuthenticationException(other.authnx);
       }
@@ -2306,6 +2327,38 @@ public class Cassandra {
     @Deprecated
     public login_result clone() {
       return new login_result(this);
+    }
+
+    /**
+     * 
+     * @see AccessLevel
+     */
+    public AccessLevel getSuccess() {
+      return this.success;
+    }
+
+    /**
+     * 
+     * @see AccessLevel
+     */
+    public login_result setSuccess(AccessLevel success) {
+      this.success = success;
+      return this;
+    }
+
+    public void unsetSuccess() {
+      this.success = null;
+    }
+
+    /** Returns true if field success is set (has been asigned a value) and false otherwise */
+    public boolean isSetSuccess() {
+      return this.success != null;
+    }
+
+    public void setSuccessIsSet(boolean value) {
+      if (!value) {
+        this.success = null;
+      }
     }
 
     public AuthenticationException getAuthnx() {
@@ -2358,6 +2411,14 @@ public class Cassandra {
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
+      case SUCCESS:
+        if (value == null) {
+          unsetSuccess();
+        } else {
+          setSuccess((AccessLevel)value);
+        }
+        break;
+
       case AUTHNX:
         if (value == null) {
           unsetAuthnx();
@@ -2383,6 +2444,9 @@ public class Cassandra {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return getSuccess();
+
       case AUTHNX:
         return getAuthnx();
 
@@ -2400,6 +2464,8 @@ public class Cassandra {
     /** Returns true if field corresponding to fieldID is set (has been asigned a value) and false otherwise */
     public boolean isSet(_Fields field) {
       switch (field) {
+      case SUCCESS:
+        return isSetSuccess();
       case AUTHNX:
         return isSetAuthnx();
       case AUTHZX:
@@ -2424,6 +2490,15 @@ public class Cassandra {
     public boolean equals(login_result that) {
       if (that == null)
         return false;
+
+      boolean this_present_success = true && this.isSetSuccess();
+      boolean that_present_success = true && that.isSetSuccess();
+      if (this_present_success || that_present_success) {
+        if (!(this_present_success && that_present_success))
+          return false;
+        if (!this.success.equals(that.success))
+          return false;
+      }
 
       boolean this_present_authnx = true && this.isSetAuthnx();
       boolean that_present_authnx = true && that.isSetAuthnx();
@@ -2459,6 +2534,15 @@ public class Cassandra {
       int lastComparison = 0;
       login_result typedOther = (login_result)other;
 
+      lastComparison = Boolean.valueOf(isSetSuccess()).compareTo(typedOther.isSetSuccess());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetSuccess()) {        lastComparison = TBaseHelper.compareTo(success, typedOther.success);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
       lastComparison = Boolean.valueOf(isSetAuthnx()).compareTo(typedOther.isSetAuthnx());
       if (lastComparison != 0) {
         return lastComparison;
@@ -2490,6 +2574,13 @@ public class Cassandra {
           break;
         }
         switch (field.id) {
+          case 0: // SUCCESS
+            if (field.type == TType.I32) {
+              this.success = AccessLevel.findByValue(iprot.readI32());
+            } else { 
+              TProtocolUtil.skip(iprot, field.type);
+            }
+            break;
           case 1: // AUTHNX
             if (field.type == TType.STRUCT) {
               this.authnx = new AuthenticationException();
@@ -2520,7 +2611,11 @@ public class Cassandra {
     public void write(TProtocol oprot) throws TException {
       oprot.writeStructBegin(STRUCT_DESC);
 
-      if (this.isSetAuthnx()) {
+      if (this.isSetSuccess()) {
+        oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
+        oprot.writeI32(this.success.getValue());
+        oprot.writeFieldEnd();
+      } else if (this.isSetAuthnx()) {
         oprot.writeFieldBegin(AUTHNX_FIELD_DESC);
         this.authnx.write(oprot);
         oprot.writeFieldEnd();
@@ -2538,6 +2633,14 @@ public class Cassandra {
       StringBuilder sb = new StringBuilder("login_result(");
       boolean first = true;
 
+      sb.append("success:");
+      if (this.success == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.success);
+      }
+      first = false;
+      if (!first) sb.append(", ");
       sb.append("authnx:");
       if (this.authnx == null) {
         sb.append("null");
