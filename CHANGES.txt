@@ -9,6 +9,8 @@
  * bound read, mutation, and response stages to fix possible OOM
    during log replay (CASSANDRA-885)
  * Use microseconds-since-epoch (UTC) in cli, instead of milliseconds
+ * Treat batch_mutate Deletion with null supercolumn as "apply this predicate 
+   to top level supercolumns" (CASSANDRA-834)
 
 
 0.6.0-beta3

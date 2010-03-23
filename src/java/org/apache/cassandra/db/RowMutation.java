@@ -306,12 +306,15 @@ public class RowMutation
         {
             for(byte[] c : del.predicate.column_names)
             {
-                rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
+                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.table_, cfName).equals("Super"))
+                    rm.delete(new QueryPath(cfName, c), del.timestamp);
+                else
+                    rm.delete(new QueryPath(cfName, del.super_column, c), del.timestamp);
             }
         }
         else
         {
-            rm.delete(new QueryPath(cfName, del.super_column, null), del.timestamp);
+            rm.delete(new QueryPath(cfName, del.super_column), del.timestamp);
         }
     }
 }
