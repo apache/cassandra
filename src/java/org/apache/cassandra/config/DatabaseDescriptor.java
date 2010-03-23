@@ -656,6 +656,10 @@ public class DatabaseDescriptor
                     {
                         throw new ConfigurationException("ColumnFamily name attribute is required");
                     }
+                    if (cfName.contains("-"))
+                    {
+                        throw new ConfigurationException("ColumnFamily names cannot contain hyphens");
+                    }
                     String xqlCF = xqlTable + "ColumnFamily[@Name='" + cfName + "']/";
 
                     // Parse out the column type
