@@ -48,6 +48,7 @@ public class IncomingStreamReader
 
     public void read() throws IOException
     {
+        StreamingService.instance.setStatus("Receiving stream");
         InetSocketAddress remoteAddress = (InetSocketAddress)socketChannel.socket().getRemoteSocketAddress();
         if (logger.isDebugEnabled())
           logger.debug("Creating file for " + pendingFile.getTargetFile());
@@ -61,6 +62,7 @@ public class IncomingStreamReader
                 bytesRead += fc.transferFrom(socketChannel, bytesRead, FileStreamTask.CHUNK_SIZE);
                 pendingFile.update(bytesRead);
             }
+            StreamingService.instance.setStatus("Receiving stream: finished reading chunk, awaiting more");
         }
         catch (IOException ex)
         {
@@ -70,6 +72,7 @@ public class IncomingStreamReader
             /* Delete the orphaned file. */
             File file = new File(pendingFile.getTargetFile());
             file.delete();
+            StreamingService.instance.setStatus("Receiving stream: recovering from IO error");
             throw ex;
         }
         finally
@@ -84,6 +87,7 @@ public class IncomingStreamReader
                 logger.debug("Removing stream context " + pendingFile);
             }
             fc.close();
+            StreamingService.instance.setStatus(StreamingService.NOTHING);
             handleStreamCompletion(remoteAddress.getAddress());
         }
     }
