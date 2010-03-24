@@ -210,7 +210,7 @@ Alnum
 
 // syntactic Elements
 Identifier
-    : Letter ( Alnum | '_' )*
+    : Letter ( Alnum | '_' | '-' )*
     ;
 
 // literals
