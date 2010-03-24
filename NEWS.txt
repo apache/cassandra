@@ -6,6 +6,11 @@ Configuraton
     - The ThriftAddress and ThriftPort directives have been renamed to
       RPCAddress and RPCPort respectively.
 
+Thrift API
+----------
+    - The return type for login() is now AccessLevel.
+
+
 0.6.0
 =====
 
