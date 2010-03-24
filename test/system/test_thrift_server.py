@@ -889,6 +889,14 @@ class TestMutations(ThriftTester):
             assert rows.has_key(key) == True
             assert columns == rows[key]
 
+    def test_batch_mutate_super_deletion(self):
+        _insert_super('test')
+        d = Deletion(1, predicate=SlicePredicate(column_names=['sc1']))
+        cfmap = {'Super1': [Mutation(deletion=d)]}
+        mutation_map = {'test': cfmap}
+        client.batch_mutate('Keyspace1', mutation_map, ConsistencyLevel.ONE)
+        _expect_missing(lambda: client.get('Keyspace1', 'key1', ColumnPath('Super1', 'sc1'), ConsistencyLevel.ONE))
+
     def test_describe_keyspace(self):
         """ Test keyspace description """
         kspaces = client.describe_keyspaces()

@@ -232,10 +232,17 @@ public class CliClient
         }
 
         thriftClient_.remove(tableName, key, new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
-                             System.currentTimeMillis(), ConsistencyLevel.ONE);
+                             timestampMicros(), ConsistencyLevel.ONE);
         css_.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
-    }  
-    
+    }
+
+    private static long timestampMicros()
+    {
+        // we use microsecond resolution for compatibility with other client libraries, even though
+        // we can't actually get microsecond precision.
+        return System.currentTimeMillis() * 1000;
+    }
+
     private void doSlice(String keyspace, String key, String columnFamily, byte[] superColumnName)
             throws InvalidRequestException, UnavailableException, TimedOutException, TException, UnsupportedEncodingException, IllegalAccessException, NotFoundException, InstantiationException, ClassNotFoundException
     {
@@ -409,7 +416,7 @@ public class CliClient
         
         // do the insert
         thriftClient_.insert(tableName, key, new ColumnPath(columnFamily).setSuper_column(superColumnName).setColumn(columnName),
-                             value.getBytes(), System.currentTimeMillis(), ConsistencyLevel.ONE);
+                             value.getBytes(), timestampMicros(), ConsistencyLevel.ONE);
         
         css_.out.println("Value inserted.");
     }
@@ -421,7 +428,6 @@ public class CliClient
 
         String propertyValue = thriftClient_.get_string_property(propertyName);
         css_.out.println(propertyValue);
-        return;
     }
 
     // process "show tables" statement
@@ -473,8 +479,6 @@ public class CliClient
         } catch (NotFoundException e) {
             css_.out.println("Keyspace " + tableName + " could not be found.");
         }
-        
-        return;
     }
 
     // process a statement of the form: connect hostname/port
