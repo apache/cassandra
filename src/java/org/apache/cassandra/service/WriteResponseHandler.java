@@ -61,7 +61,7 @@ public class WriteResponseHandler implements IAsyncCallback
     {
         try
         {
-            long timeout = System.currentTimeMillis() - startTime + DatabaseDescriptor.getRpcTimeout();
+            long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
             boolean success;
             try
             {
