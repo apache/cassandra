@@ -79,7 +79,7 @@ class AsyncResult implements IAsyncResult
             {
                 if ( !done_.get() )
                 {
-                    long overall_timeout = System.currentTimeMillis() - startTime_ + timeout;
+                    long overall_timeout = timeout - (System.currentTimeMillis() - startTime_);
                     if(overall_timeout > 0)
                         bVal = condition_.await(overall_timeout, TimeUnit.MILLISECONDS);
                     else
