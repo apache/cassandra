@@ -23,5 +23,3 @@ Alternative JSON (de)serialization by json-simple from
 (http://code.google.com/p/json-simple).
 Copyright (C) 2009 Fang Yidong and Chris Nokleberg
 
-This product includes the JUnit testing framework
-(http://http://junit.org/).
