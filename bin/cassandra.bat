@@ -48,8 +48,6 @@ set CLASSPATH=
 
 REM For each jar in the CASSANDRA_HOME lib directory call append to build the CLASSPATH variable.
 for %%i in (%CASSANDRA_HOME%\lib\*.jar) do call :append %%~fi
-REM In developer mode, we need to include the ivy downloaded jars.
-for %%i in (%CASSANDRA_HOME%\build\lib\jars\*.jar) do call :append %%~fi
 goto okClasspath
 
 :append
