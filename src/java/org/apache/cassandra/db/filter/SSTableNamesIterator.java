@@ -53,7 +53,8 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator
         try
         {
             DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
-            assert keyInDisk.equals(decoratedKey) : keyInDisk;
+            assert keyInDisk.equals(decoratedKey) 
+                   : String.format("%s != %s in %s", keyInDisk, decoratedKey, file.getPath());
             file.readInt(); // data size
 
             /* Read the bloom filter summarizing the columns */

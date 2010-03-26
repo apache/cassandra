@@ -123,7 +123,8 @@ class SSTableSliceIterator extends AbstractIterator<IColumn> implements ColumnIt
             this.file = input;
 
             DecoratedKey keyInDisk = ssTable.getPartitioner().convertFromDiskFormat(file.readUTF());
-            assert keyInDisk.equals(key);
+            assert keyInDisk.equals(key)
+                   : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
 
             file.readInt(); // row size
             IndexHelper.skipBloomFilter(file);
