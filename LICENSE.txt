@@ -201,3 +201,9 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 
+
+THIRD-PARTY DEPENDENCIES
+========================
+Convenience copies of some third-party dependencies are distributed with
+Apache Cassandra as Java jar files in lib/. Licensing information for
+these files can be found in the lib/licenses directory.
