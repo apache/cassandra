@@ -50,11 +50,6 @@ JMX metrics
 
 Installation/Upgrade
 --------------------
-    - Where possible, Ivy (http://ant.apache.org/ivy/) is now being used to
-      dynamically retrieve third-party dependencies that were previously
-      shipped in lib/. If you are installing from binary distribution then
-      you will need to install Ant (http://ant.apache.org/), and invoke
-      `ant ivy-retrieve' in order to download needed dependencies.
     - 0.6 network traffic is not compatible with earlier versions.  You
       will need to shut down all your nodes at once, upgrade, then restart.
 
