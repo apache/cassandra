@@ -284,10 +284,6 @@
           <include name="*.txt" />
         </fileset>
       </copy>
-      <copy todir="${dist.dir}">
-        <fileset file="build.xml" />
-        <fileset file="ivy.xml" />
-      </copy>
       
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
