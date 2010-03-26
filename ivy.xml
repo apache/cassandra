@@ -19,40 +19,13 @@
 <ivy-module version="2.0">
   <info organisation="apache-cassandra" module="cassandra"/>
 
-  <configurations defaultconfmapping="default">
-    <conf name="default"/>
-    <conf name="build" extends="default" />
-    <conf name="qa" extends="default" />
-  </configurations>
-
   <dependencies>
-    <!-- for hadoop -->
-    <dependency org="commons-logging" name="commons-logging" rev="1.1.1"/>
-    <dependency org="org.apache.mahout.hadoop" name="hadoop-core" rev="0.20.1"/>
-    <dependency org="commons-httpclient" name="commons-httpclient" rev="3.1"/>
-
-    <dependency org="org.apache.hadoop" name="avro" rev="1.3.0"/>
-
-    <dependency org="com.google.collections" name="google-collections"
-                rev="1.0"/>
-    <dependency org="commons-cli" name="commons-cli" rev="1.2"/>
-    <dependency org="commons-collections" name="commons-collections"
-                rev="3.2.1"/>
-    <dependency org="commons-lang" name="commons-lang" rev="2.5"/>
-    <dependency org="jline" name="jline" rev="0.9.94"/>
-    <dependency org="org.slf4j" name="slf4j-api" rev="1.5.11"/>
-    <dependency org="org.slf4j" name="slf4j-log4j12" rev="1.5.11"/>
-    <dependency org="com.googlecode.json-simple" name="json-simple" rev="1.1"/>
-    <dependency org="junit" name="junit" rev="4.8.1" conf="build->default" />
-
-    <dependency org="org.apache.rat" name="apache-rat" rev="0.6"
-                conf="qa->default"/>
-    <dependency org="org.mortbay.jetty" name="jetty" rev="6.1.21"/>
-
-	<dependency org="org.safehaus.jug" name="jug" rev="2.0.0"> 
-      <!-- I can't figure out how to tell ivy to grab the classifier=asl version of this lib, so I force it. -->
-	  <artifact name="jug" type="jar" ext="jar" url="http://repo1.maven.org/maven2/org/safehaus/jug/jug/2.0.0/jug-2.0.0-asl.jar"/>
-	</dependency>
+    <!-- FIXME: paranamer can be dropped after we're depending on avro 
+    (since it depends on them). -->
+    <dependency org="com.thoughtworks.paranamer"
+                name="paranamer-ant" rev="2.1"/>
+    <dependency org="junit" name="junit" rev="4.6" />
+    <dependency org="org.apache.rat" name="apache-rat" rev="0.6" />
   </dependencies>
 </ivy-module>
 

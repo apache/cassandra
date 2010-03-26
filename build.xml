@@ -67,16 +67,19 @@
     <!-- 
 	 Add all the dependencies.
     -->
+    <path id="autoivy.classpath">
+        <fileset dir="${build.dir.lib}">
+          <include name="**/*.jar" />
+        </fileset>
+        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
+    </path>
     <path id="cassandra.classpath">
         <pathelement location="${cobertura.classes.dir}"/>
         <pathelement location="${build.classes}"/>
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
-        <fileset dir="${build.dir.lib}">
-          <include name="**/*.jar" />
-        </fileset>
-        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
+        <path refid="autoivy.classpath" />
     </path>
     <path id="rat.classpath">
       <fileset dir="${build.dir.lib}">
@@ -145,22 +148,12 @@
       <mkdir dir="${build.dir.lib}"/>
       <taskdef resource="org/apache/ivy/ant/antlib.xml"
                uri="antlib:org.apache.ivy.ant"
-               classpathref="cassandra.classpath"/>
+               classpathref="autoivy.classpath"/>
       <property name="ivy.initialized" value="true"/>
     </target>
 
-    <target name="ivy-retrieve" depends="ivy-init">
-      <ivy:retrieve type="jar,source" conf="default" sync="true"
-             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
-    </target>
-
-    <target name="ivy-retrieve-build" depends="ivy-init,ivy-retrieve">
-      <ivy:retrieve type="jar,source" conf="build" sync="true"
-             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
-    </target>
-
-    <target name="ivy-retrieve-qa" depends="ivy-init,ivy-retrieve">
-      <ivy:retrieve type="jar,source" conf="qa" sync="true"
+    <target name="ivy-retrieve-build" depends="ivy-init">
+      <ivy:retrieve type="jar,source" sync="true"
              pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
     </target>
 
@@ -304,10 +297,6 @@
           <include name="*.txt" />
         </fileset>
       </copy>
-      <copy todir="${dist.dir}">
-        <fileset file="build.xml" />
-        <fileset file="ivy.xml" />
-      </copy>
       
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -439,7 +428,7 @@
   <!--
     License audit tool
   -->
-  <target name="rat-init" depends="ivy-retrieve-qa">
+  <target name="rat-init" depends="ivy-retrieve-build">
     <typedef resource="org/apache/rat/anttasks/antlib.xml"
              uri="antlib:org.apache.rat.anttasks">
       <classpath refid="rat.classpath" />
