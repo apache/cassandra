@@ -13,6 +13,7 @@
    to top level supercolumns" (CASSANDRA-834)
  * Streaming destination nodes do not update their JMX status (CASSANDRA-916)
  * Fix internal RPC timeout calculation (CASSANDRA-911)
+ * Added Pig loadfunc to contrib/pig (CASSANDRA-910)
 
 
 0.6.0-beta3
