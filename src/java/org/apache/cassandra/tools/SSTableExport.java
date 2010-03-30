@@ -192,8 +192,11 @@ public class SSTableExport
         SSTableReader reader = SSTableReader.open(ssTableFile);
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
         IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();    
-        Set<String> excludeSet = new HashSet<String>(Arrays.asList(excludes));
+        Set<String> excludeSet = new HashSet();
         int i = 0;
+
+        if (excludes != null)
+            excludeSet = new HashSet<String>(Arrays.asList(excludes));
         
         outs.println("{");
         
@@ -252,7 +255,10 @@ public class SSTableExport
     static void export(SSTableReader reader, PrintStream outs, String[] excludes) throws IOException
     {
         SSTableScanner scanner = reader.getScanner(INPUT_FILE_BUFFER_SIZE);
-        Set<String> excludeSet = new HashSet<String>(Arrays.asList(excludes));
+        Set<String> excludeSet = new HashSet();
+
+        if (excludes != null)
+            excludeSet = new HashSet<String>(Arrays.asList(excludes));
 
         outs.println("{");
         

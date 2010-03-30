@@ -10,3 +10,4 @@ CHANGES.txt
 interface/*/gen-*/**
 src/gen-java/**
 build/**
+lib/licenses/*.txt
