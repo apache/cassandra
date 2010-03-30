@@ -22,57 +22,54 @@ package org.apache.cassandra.db.filter;
 
 
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Arrays;
+import java.util.*;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 
-public abstract class QueryFilter
+public class QueryFilter
 {
     public final String key;
     public final QueryPath path;
+    private final IFilter filter;
+    private final IFilter superFilter;
 
-    protected QueryFilter(String key, QueryPath path)
+    protected QueryFilter(String key, QueryPath path, IFilter filter)
     {
         this.key = key;
         this.path = path;
+        this.filter = filter;
+        superFilter = path.superColumnName == null ? null : new NamesQueryFilter(key, path.superColumnName);
     }
 
-    /**
-     * returns an iterator that returns columns from the given memtable
-     * matching the Filter criteria in sorted order.
-     */
-    public abstract ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator);
-
-    public ColumnIterator getMemColumnIterator(Memtable memtable, AbstractType comparator)
+    public ColumnIterator getMemtableColumnIterator(Memtable memtable, AbstractType comparator, int gcBefore)
     {
-        return getMemColumnIterator(memtable, memtable.getColumnFamily(key), comparator);
+        ColumnFamily cf = memtable.getColumnFamily(key);
+        if (cf == null)
+            return null;
+        return getMemtableColumnIterator(cf, comparator, gcBefore);
     }
 
-    /**
-     * returns an iterator that returns columns from the given SSTable
-     * matching the Filter criteria in sorted order.
-     */
-    public abstract ColumnIterator getSSTableColumnIterator(SSTableReader sstable);
+    // TODO move gcBefore into a field
+    public ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator, int gcBefore)
+    {
+        assert cf != null;
+        if (path.superColumnName == null)
+            return filter.getMemtableColumnIterator(cf, comparator);
+        return superFilter.getMemtableColumnIterator(cf, comparator);
+    }
 
-    /**
-     * collects columns from reducedColumns into returnCF.  Termination is determined
-     * by the filter code, which should have some limit on the number of columns
-     * to avoid running out of memory on large rows.
-     */
-    public abstract void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore);
+    // TODO move gcBefore into a field
+    public ColumnIterator getSSTableColumnIterator(SSTableReader sstable, int gcBefore)
+    {
+        if (path.superColumnName == null)
+            return filter.getSSTableColumnIterator(sstable);
+        return superFilter.getSSTableColumnIterator(sstable);
+    }
 
-    /**
-     * subcolumns of a supercolumn are unindexed, so to pick out parts of those we operate in-memory.
-     * @param superColumn may be modified by filtering op.
-     */
-    public abstract SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore);
-
-    public Comparator<IColumn> getColumnComparator(final AbstractType comparator)
+    public static Comparator<IColumn> getColumnComparator(final AbstractType comparator)
     {
         return new Comparator<IColumn>()
         {
@@ -83,7 +80,7 @@ public abstract class QueryFilter
         };
     }
     
-    public void collectCollatedColumns(final ColumnFamily returnCF, Iterator<IColumn> collatedColumns, int gcBefore)
+    public void collectCollatedColumns(final ColumnFamily returnCF, Iterator<IColumn> collatedColumns, final int gcBefore)
     {
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
@@ -104,12 +101,14 @@ public abstract class QueryFilter
             protected IColumn getReduced()
             {
                 IColumn c = curCF.getSortedColumns().iterator().next();
+                if (superFilter != null)
+                    c = filter.filterSuperColumn((SuperColumn)c, gcBefore);
                 curCF.clear();
                 return c;
             }
         };
 
-        collectReducedColumns(returnCF, reduced, gcBefore);
+        (superFilter == null ? filter : superFilter).collectReducedColumns(returnCF, reduced, gcBefore);
     }
 
     public String getColumnFamilyName()
@@ -125,5 +124,48 @@ public abstract class QueryFilter
         long maxChange = column.mostRecentLiveChangeAt();
         return (!column.isMarkedForDelete() || column.getLocalDeletionTime() > gcBefore || maxChange > column.getMarkedForDeleteAt()) // (1)
                && (!container.isMarkedForDelete() || maxChange > container.getMarkedForDeleteAt()); // (2)
+    }
+
+    /**
+     * @return a QueryFilter object to satisfy the given slice criteria:
+     * @param key the row to slice
+     * @param path path to the level to slice at (CF or SuperColumn)
+     * @param start column to start slice at, inclusive; empty for "the first column"
+     * @param finish column to stop slice at, inclusive; empty for "the last column"
+     * @param bitmasks we should probably remove this
+     * @param reversed true to start with the largest column (as determined by configured sort order) instead of smallest
+     * @param limit maximum number of non-deleted columns to return
+     */
+    public static QueryFilter getSliceFilter(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
+    {
+        return new QueryFilter(key, path, new SliceQueryFilter(key, start, finish, bitmasks, reversed, limit));
+    }
+
+    /**
+     * return a QueryFilter object that includes every column in the row.
+     * This is dangerous on large rows; avoid except for test code.
+     */
+    public static QueryFilter getIdentityFilter(String key, QueryPath path)
+    {
+        return new QueryFilter(key, path, new IdentityQueryFilter(key));
+    }
+
+    /**
+     * @return a QueryFilter object that will return columns matching the given names
+     * @param key the row to slice
+     * @param path path to the level to slice at (CF or SuperColumn)
+     * @param columns the column names to restrict the results to
+     */
+    public static QueryFilter getNamesFilter(String key, QueryPath path, SortedSet<byte[]> columns)
+    {
+        return new QueryFilter(key, path, new NamesQueryFilter(key, columns));
+    }
+
+    /**
+     * convenience method for creating a name filter matching a single column
+     */
+    public static QueryFilter getNamesFilter(String key, QueryPath path, byte[] column)
+    {
+        return new QueryFilter(key, path, new NamesQueryFilter(key, column));
     }
 }

@@ -23,7 +23,6 @@ import java.io.UnsupportedEncodingException;
 import java.io.IOError;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -35,7 +34,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -130,7 +128,7 @@ public class SystemTable
         columns.add(TOKEN);
         columns.add(GENERATION);
         columns.add(CLUSTERNAME);
-        QueryFilter filter = new NamesQueryFilter(LOCATION_KEY, new QueryPath(STATUS_CF), columns);
+        QueryFilter filter = QueryFilter.getNamesFilter(LOCATION_KEY, new QueryPath(STATUS_CF), columns);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
 
         IPartitioner p = StorageService.getPartitioner();
@@ -203,7 +201,7 @@ public class SystemTable
     {
         Table table = null;
         table = Table.open(Table.SYSTEM_TABLE);
-        QueryFilter filter = new NamesQueryFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
+        QueryFilter filter = QueryFilter.getNamesFilter(BOOTSTRAP_KEY, new QueryPath(STATUS_CF), BOOTSTRAP);
         ColumnFamily cf = table.getColumnFamilyStore(STATUS_CF).getColumnFamily(filter);
         return cf != null && cf.getColumn(BOOTSTRAP).value()[0] == 1;
     }
@@ -227,7 +225,7 @@ public class SystemTable
     public static ColumnFamily getDroppedCFs() throws IOException
     {
         ColumnFamilyStore cfs = Table.open(Table.SYSTEM_TABLE).getColumnFamilyStore(SystemTable.STATUS_CF);
-        return cfs.getColumnFamily(new SliceQueryFilter(SystemTable.GRAVEYARD_KEY, new QueryPath(STATUS_CF), "".getBytes(), "".getBytes(), false, 100));
+        return cfs.getColumnFamily(QueryFilter.getSliceFilter(SystemTable.GRAVEYARD_KEY, new QueryPath(STATUS_CF), "".getBytes(), "".getBytes(), null, false, 100));
     }
     
     public static void deleteDroppedCfMarkers(Collection<IColumn> cols) throws IOException

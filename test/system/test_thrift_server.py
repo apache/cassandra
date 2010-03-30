@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # to run a single test, run from trunk/:
-# PYTHONPATH=test nosetests --tests=system.test_server:TestMutations.test_empty_range
+# PYTHONPATH=test nosetests --tests=system.test_thrift_server:TestMutations.test_empty_range
 
 import os, sys, time, struct
 

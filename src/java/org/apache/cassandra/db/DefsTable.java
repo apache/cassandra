@@ -23,6 +23,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.utils.FBUtilities;
@@ -283,7 +284,7 @@ public class DefsTable
     {
         Table defs = Table.open(Table.DEFINITIONS);
         ColumnFamilyStore cfStore = defs.getColumnFamilyStore(SCHEMA_CF);
-        SliceQueryFilter filter = new SliceQueryFilter(version.toString(), new QueryPath(SCHEMA_CF), "".getBytes(), "".getBytes(), false, 1024);
+        QueryFilter filter = QueryFilter.getSliceFilter(version.toString(), new QueryPath(SCHEMA_CF), "".getBytes(), "".getBytes(), null, false, 1024);
         ColumnFamily cf = cfStore.getColumnFamily(filter);
         Collection<KSMetaData> tables = new ArrayList<KSMetaData>();
         for (IColumn col : cf.getSortedColumns())

@@ -29,6 +29,7 @@ import org.junit.Test;
 import static junit.framework.Assert.assertEquals;
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -36,10 +37,6 @@ import java.net.InetAddress;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.CollatingOrderPreservingPartitioner;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
 public class ColumnFamilyStoreTest extends CleanupHelper
@@ -70,7 +67,7 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         List<SSTableReader> ssTables = table.getAllSSTablesOnDisk();
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceFilterFailures();
-        ColumnFamily cf = store.getColumnFamily(new IdentityQueryFilter("key2", new QueryPath("Standard1", null, "Column1".getBytes())));
+        ColumnFamily cf = store.getColumnFamily(QueryFilter.getIdentityFilter("key2", new QueryPath("Standard1", null, "Column1".getBytes())));
         assertNull(cf);
     }
 
@@ -89,9 +86,9 @@ public class ColumnFamilyStoreTest extends CleanupHelper
         {
             public void runMayThrow() throws IOException
             {
-                SliceQueryFilter sliceFilter = new SliceQueryFilter("key1", new QueryPath("Standard2", null, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, 1);
+                QueryFilter sliceFilter = QueryFilter.getSliceFilter("key1", new QueryPath("Standard2", null, null), ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, 1);
                 assertNull(store.getColumnFamily(sliceFilter));
-                NamesQueryFilter namesFilter = new NamesQueryFilter("key1", new QueryPath("Standard2", null, null), "a".getBytes());
+                QueryFilter namesFilter = QueryFilter.getNamesFilter("key1", new QueryPath("Standard2", null, null), "a".getBytes());
                 assertNull(store.getColumnFamily(namesFilter));
             }
         };

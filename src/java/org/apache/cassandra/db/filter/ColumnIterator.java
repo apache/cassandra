@@ -30,7 +30,7 @@ import org.apache.cassandra.db.ColumnFamily;
 public interface ColumnIterator extends Iterator<IColumn>
 {
     /**
-     *  returns the CF of the column being iterated.
+     *  returns the CF of the column being iterated.  Do not modify the returned CF; clone first.
      *  The CF is only guaranteed to be available after a call to next() or hasNext().
      */
     public abstract ColumnFamily getColumnFamily();

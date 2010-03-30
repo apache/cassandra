@@ -193,7 +193,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         return columnFamilies.isEmpty();
     }
 
-    private String getTableName()
+    public String getTableName()
     {
         return cfs.getTable().name;
     }
@@ -201,11 +201,10 @@ public class Memtable implements Comparable<Memtable>, IFlushable
     /**
      * obtain an iterator of columns in this memtable in the specified order starting from a given column.
      */
-    public ColumnIterator getSliceIterator(ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
+    public static ColumnIterator getSliceIterator(final ColumnFamily cf, SliceQueryFilter filter, AbstractType typeComparator)
     {
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(getTableName(), filter.getColumnFamilyName()) : cf.cloneMeShallow();
-
-        Collection<IColumn> rawColumns = (cf == null ? columnFamily : cf).getSortedColumns();
+        assert cf != null;
+        Collection<IColumn> rawColumns = cf.getSortedColumns();
         Collection<IColumn> filteredColumns = filter.applyPredicate(rawColumns);
 
         final IColumn columns[] = filteredColumns.toArray(new IColumn[0]);
@@ -213,7 +212,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         if (filter.reversed)
             ArrayUtils.reverse(columns);
         IColumn startIColumn;
-        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(getTableName(), filter.getColumnFamilyName()).equals("Standard");
+        final boolean isStandard = !cf.isSuper();
         if (isStandard)
             startIColumn = new Column(filter.start);
         else
@@ -240,7 +239,7 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
             public ColumnFamily getColumnFamily()
             {
-                return columnFamily;
+                return cf;
             }
 
             public boolean hasNext()
@@ -256,10 +255,10 @@ public class Memtable implements Comparable<Memtable>, IFlushable
         };
     }
 
-    public ColumnIterator getNamesIterator(final ColumnFamily cf, final NamesQueryFilter filter)
+    public static ColumnIterator getNamesIterator(final ColumnFamily cf, final NamesQueryFilter filter)
     {
-        final ColumnFamily columnFamily = cf == null ? ColumnFamily.create(getTableName(), filter.getColumnFamilyName()) : cf.cloneMeShallow();
-        final boolean isStandard = DatabaseDescriptor.getColumnFamilyType(getTableName(), filter.getColumnFamilyName()).equals("Standard");
+        assert cf != null;
+        final boolean isStandard = !cf.isSuper();
 
         return new SimpleAbstractColumnIterator()
         {
@@ -268,15 +267,11 @@ public class Memtable implements Comparable<Memtable>, IFlushable
 
             public ColumnFamily getColumnFamily()
             {
-                return columnFamily;
+                return cf;
             }
 
             protected IColumn computeNext()
             {
-                if (cf == null)
-                {
-                    return endOfData();
-                }
                 while (iter.hasNext())
                 {
                     current = iter.next();

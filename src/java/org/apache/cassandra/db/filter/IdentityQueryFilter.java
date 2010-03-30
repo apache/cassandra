@@ -25,14 +25,14 @@ import org.apache.commons.lang.ArrayUtils;
 
 import org.apache.cassandra.db.SuperColumn;
 
-public class IdentityQueryFilter extends SliceQueryFilter
+class IdentityQueryFilter extends SliceQueryFilter
 {
     /**
      * Only for use in testing; will read entire CF into memory.
      */
-    public IdentityQueryFilter(String key, QueryPath path)
+    public IdentityQueryFilter(String key)
     {
-        super(key, path, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, false, Integer.MAX_VALUE);
+        super(key, ArrayUtils.EMPTY_BYTE_ARRAY, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, Integer.MAX_VALUE);
     }
 
     public SuperColumn filterSuperColumn(SuperColumn superColumn, int gcBefore)

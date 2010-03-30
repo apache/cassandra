@@ -30,7 +30,7 @@ import java.util.concurrent.Future;
 import org.junit.Test;
 
 import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
@@ -85,13 +85,13 @@ public class CompactionsPurgeTest extends CleanupHelper
         rm.apply();
         cfs.forceBlockingFlush();
         CompactionManager.instance.doCompaction(cfs, sstablesIncomplete, CompactionManager.getDefaultGCBefore());
-        ColumnFamily cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assert cf.getColumnCount() == 10;
 
         // major compact and test that all columns but the resurrected one is completely gone
         CompactionManager.instance.submitMajor(cfs, 0, Integer.MAX_VALUE).get();
         cfs.invalidateCachedRow(key);
-        cf = cfs.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assertColumns(cf, "5");
         assert cf.getColumn(String.valueOf(5).getBytes()) != null;
     }
@@ -130,7 +130,7 @@ public class CompactionsPurgeTest extends CleanupHelper
         // compact and test that the row is completely gone
         CompactionManager.instance.submitMajor(store, 0, Integer.MAX_VALUE).get();
         assert store.getSSTables().isEmpty();
-        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
         assert cf == null : cf;
     }
 }

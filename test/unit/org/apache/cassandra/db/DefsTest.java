@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -109,7 +110,7 @@ public class DefsTest extends CleanupHelper
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(new NamesQueryFilter("key0", new QueryPath(cf), "col0".getBytes()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(cf), "col0".getBytes()));
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
         assert Arrays.equals("value0".getBytes(), col.value());
@@ -187,7 +188,7 @@ public class DefsTest extends CleanupHelper
         // do some reads.
         store = Table.open(oldCfm.tableName).getColumnFamilyStore(newCfmName);
         assert store != null;
-        ColumnFamily cfam = store.getColumnFamily(new SliceQueryFilter("key0", new QueryPath(newCfmName), "".getBytes(), "".getBytes(), false, 1000));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getSliceFilter("key0", new QueryPath(newCfmName), "".getBytes(), "".getBytes(), null, false, 1000));
         assert cfam.getSortedColumns().size() == 100; // should be good enough?
         
         // do some writes
@@ -196,7 +197,7 @@ public class DefsTest extends CleanupHelper
         rm.apply();
         store.forceBlockingFlush();
         
-        cfam = store.getColumnFamily(new NamesQueryFilter("key0", new QueryPath(newCfmName), "col5".getBytes()));
+        cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(newCfmName), "col5".getBytes()));
         assert cfam.getColumnCount() == 1;
         assert Arrays.equals(cfam.getColumn("col5".getBytes()).value(), "updated".getBytes());
     }
@@ -222,7 +223,7 @@ public class DefsTest extends CleanupHelper
         assert store != null;
         store.forceBlockingFlush();
         
-        ColumnFamily cfam = store.getColumnFamily(new NamesQueryFilter("key0", new QueryPath(newCf.cfName), "col0".getBytes()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter("key0", new QueryPath(newCf.cfName), "col0".getBytes()));
         assert cfam.getColumn("col0".getBytes()) != null;
         IColumn col = cfam.getColumn("col0".getBytes());
         assert Arrays.equals("value0".getBytes(), col.value());
@@ -342,7 +343,7 @@ public class DefsTest extends CleanupHelper
         SortedSet<byte[]> cols = new TreeSet<byte[]>(new BytesType());
         cols.add("col0".getBytes());
         cols.add("col1".getBytes());
-        ColumnFamily cfam = store.getColumnFamily(new NamesQueryFilter("renameKs", new QueryPath(cfName), cols));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter("renameKs", new QueryPath(cfName), cols));
         assert cfam.getColumnCount() == cols.size();
         // tests new write.
         assert Arrays.equals(cfam.getColumn("col0".getBytes()).value(), "newvalue".getBytes());

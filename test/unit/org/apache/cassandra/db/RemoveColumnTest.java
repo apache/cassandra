@@ -24,8 +24,8 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.CleanupHelper;
 
@@ -49,9 +49,9 @@ public class RemoveColumnTest extends CleanupHelper
         rm.delete(new QueryPath("Standard1", null, "Column1".getBytes()), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(new NamesQueryFilter("key1", new QueryPath("Standard1"), "Column1".getBytes()));
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter("key1", new QueryPath("Standard1"), "Column1".getBytes()));
         assert retrieved.getColumn("Column1".getBytes()).isMarkedForDelete();
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));
-        assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Standard1"))), Integer.MAX_VALUE));
+        assertNull(ColumnFamilyStore.removeDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter("key1", new QueryPath("Standard1"))), Integer.MAX_VALUE));
     }
 }

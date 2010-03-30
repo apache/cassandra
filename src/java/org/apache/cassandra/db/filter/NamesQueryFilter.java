@@ -21,28 +21,26 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.utils.ReducingIterator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class NamesQueryFilter extends QueryFilter
+public class NamesQueryFilter implements IFilter
 {
+    private final String key;
     public final SortedSet<byte[]> columns;
 
-    public NamesQueryFilter(String key, QueryPath columnParent, SortedSet<byte[]> columns)
+    public NamesQueryFilter(String key, SortedSet<byte[]> columns)
     {
-        super(key, columnParent);
+        this.key = key;
         this.columns = columns;
     }
 
-    public NamesQueryFilter(String key, QueryPath columnParent, byte[] column)
+    public NamesQueryFilter(String key, byte[] column)
     {
-        this(key, columnParent, getSingleColumnSet(column));
+        this(key, getSingleColumnSet(column));
     }
 
     private static TreeSet<byte[]> getSingleColumnSet(byte[] column)
@@ -59,9 +57,9 @@ public class NamesQueryFilter extends QueryFilter
         return set;
     }
 
-    public ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator)
+    public ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator)
     {
-        return memtable.getNamesIterator(cf, this);
+        return Memtable.getNamesIterator(cf, this);
     }
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable)
@@ -73,7 +71,7 @@ public class NamesQueryFilter extends QueryFilter
     {
         for (IColumn column : superColumn.getSubColumns())
         {
-            if (!columns.contains(column.name()))
+            if (!columns.contains(column.name()) || !QueryFilter.isRelevant(column, superColumn, gcBefore))
             {
                 superColumn.remove(column.name());
             }
@@ -89,5 +87,10 @@ public class NamesQueryFilter extends QueryFilter
             if (QueryFilter.isRelevant(column, container, gcBefore))
                 container.addColumn(column);
         }
+    }
+
+    public Comparator<IColumn> getColumnComparator(AbstractType comparator)
+    {
+        return QueryFilter.getColumnComparator(comparator);
     }
 }

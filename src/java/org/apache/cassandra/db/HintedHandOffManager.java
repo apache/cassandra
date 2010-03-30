@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 
@@ -42,7 +41,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -120,7 +118,7 @@ public class HintedHandOffManager
         RowMutation rm = new RowMutation(tableName, key);
         for (ColumnFamilyStore cfstore : table.getColumnFamilyStores())
         {
-            ColumnFamily cf = cfstore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfstore.getColumnFamilyName())));
+            ColumnFamily cf = cfstore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfstore.getColumnFamilyName())));
             if (cf != null)
                 rm.add(cf);
         }
@@ -172,7 +170,7 @@ public class HintedHandOffManager
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
             while (true)
             {
-                QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
+                QueryFilter filter = QueryFilter.getSliceFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (pagingFinished(hintColumnFamily, startColumn))
                     break;
@@ -236,7 +234,7 @@ public class HintedHandOffManager
             byte[] startColumn = ArrayUtils.EMPTY_BYTE_ARRAY;
             while (true)
             {
-                QueryFilter filter = new SliceQueryFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, false, PAGE_SIZE);
+                QueryFilter filter = QueryFilter.getSliceFilter(tableName, new QueryPath(HINTS_CF), startColumn, ArrayUtils.EMPTY_BYTE_ARRAY, null, false, PAGE_SIZE);
                 ColumnFamily hintColumnFamily = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), Integer.MAX_VALUE);
                 if (pagingFinished(hintColumnFamily, startColumn))
                     break;

@@ -29,7 +29,6 @@ import java.util.concurrent.Future;
 import javax.management.*;
 
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

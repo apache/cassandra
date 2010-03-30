@@ -705,12 +705,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int limit)
     {
-        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, bitmasks, reversed, limit));
+        return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, bitmasks, reversed, limit));
     }
 
     public ColumnFamily getColumnFamily(String key, QueryPath path, byte[] start, byte[] finish, boolean reversed, int limit)
     {
-        return getColumnFamily(new SliceQueryFilter(key, path, start, finish, reversed, limit));
+        return getColumnFamily(QueryFilter.getSliceFilter(key, path, start, finish, null, reversed, limit));
     }
 
     public ColumnFamily getColumnFamily(QueryFilter filter)
@@ -723,7 +723,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ColumnFamily cached;
         if ((cached = ssTables_.getRowCache().get(key)) == null)
         {
-            cached = getTopLevelColumns(new IdentityQueryFilter(key, new QueryPath(columnFamily_)), Integer.MIN_VALUE);
+            cached = getTopLevelColumns(QueryFilter.getIdentityFilter(key, new QueryPath(columnFamily_)), Integer.MIN_VALUE);
             if (cached == null)
                 return null;
             ssTables_.getRowCache().put(key, cached);
@@ -743,46 +743,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         try
         {
-            if (filter.path.superColumnName == null)
-            {
-                if (ssTables_.getRowCache().getCapacity() == 0)
-                    return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
-
-                ColumnFamily cached = cacheRow(filter.key);
-                ColumnIterator ci = filter.getMemColumnIterator(memtable_, cached, getComparator()); // TODO passing memtable here is confusing since it's almost entirely unused
-                ColumnFamily returnCF = ci.getColumnFamily();
-                filter.collectCollatedColumns(returnCF, ci, gcBefore);
-                return removeDeleted(returnCF, gcBefore);
-            }
-
-            // we are querying subcolumns of a supercolumn: fetch the supercolumn with NQF, then filter in-memory.
-            ColumnFamily cf;
-            SuperColumn sc;
             if (ssTables_.getRowCache().getCapacity() == 0)
-            {
-                QueryFilter nameFilter = new NamesQueryFilter(filter.key, new QueryPath(columnFamily_), filter.path.superColumnName);
-                cf = getTopLevelColumns(nameFilter, gcBefore);
-                if (cf == null || cf.getColumnCount() == 0)
-                    return cf;
+                return removeDeleted(getTopLevelColumns(filter, gcBefore), gcBefore);
 
-                assert cf.getSortedColumns().size() == 1;
-                sc = (SuperColumn)cf.getSortedColumns().iterator().next();
-            }
-            else
-            {
-                cf = cacheRow(filter.key);
-                if (cf == null)
-                    return null;
-                sc = (SuperColumn)cf.getColumn(filter.path.superColumnName);
-                if (sc == null)
-                    return null;
-                sc = (SuperColumn)sc.cloneMe();
-            }
-            
-            SuperColumn scFiltered = filter.filterSuperColumn(sc, gcBefore);
-            ColumnFamily cfFiltered = cf.cloneMeShallow();
-            cfFiltered.addColumn(scFiltered);
-            return removeDeleted(cfFiltered, gcBefore);
+            ColumnFamily cached = cacheRow(filter.key);
+            if (cached == null)
+                return null;
+            ColumnIterator ci = filter.getMemtableColumnIterator(cached, getComparator(), gcBefore);
+            ColumnFamily returnCF = ci.getColumnFamily().cloneMeShallow();
+            filter.collectCollatedColumns(returnCF, ci, gcBefore);
+            // TODO this is necessary because when we collate supercolumns together, we don't check
+            // their subcolumns for relevance, so we need to do a second prune post facto here.
+            return removeDeleted(returnCF, gcBefore);
         }
         finally
         {
@@ -794,39 +766,42 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // we are querying top-level columns, do a merging fetch with indexes.
         List<ColumnIterator> iterators = new ArrayList<ColumnIterator>();
+        final ColumnFamily returnCF = ColumnFamily.create(table_, columnFamily_);
         try
         {
-            final ColumnFamily returnCF;
             ColumnIterator iter;
 
             /* add the current memtable */
             Table.flusherLock.readLock().lock();
             try
             {
-                iter = filter.getMemColumnIterator(memtable_, getComparator());
-                // TODO this is a little subtle: the Memtable ColumnIterator has to be a shallow clone of the source CF,
-                // with deletion times set correctly, so we can use it as the "base" CF to add query results to.
-                // (for sstable ColumnIterators we do not care if it is a shallow clone or not.)
-                returnCF = iter.getColumnFamily();
+                iter = filter.getMemtableColumnIterator(memtable_, getComparator(), gcBefore);
             }
             finally
             {
                 Table.flusherLock.readLock().unlock();
             }
-            iterators.add(iter);
+            if (iter != null)
+            {
+                returnCF.delete(iter.getColumnFamily());
+                iterators.add(iter);
+            }
 
             /* add the memtables being flushed */
             for (Memtable memtable : getMemtablesPendingFlush())
             {
-                iter = filter.getMemColumnIterator(memtable, getComparator());
-                returnCF.delete(iter.getColumnFamily());
-                iterators.add(iter);
+                iter = filter.getMemtableColumnIterator(memtable, getComparator(), gcBefore);
+                if (iter != null)
+                {
+                    returnCF.delete(iter.getColumnFamily());
+                    iterators.add(iter);
+                }
             }
 
             /* add the SSTables on disk */
             for (SSTableReader sstable : ssTables_)
             {
-                iter = filter.getSSTableColumnIterator(sstable);
+                iter = filter.getSSTableColumnIterator(sstable, gcBefore);
                 if (iter.hasNext()) // initializes iter.CF
                 {
                     returnCF.delete(iter.getColumnFamily());
@@ -840,7 +815,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return null;
 
             filter.collectCollatedColumns(returnCF, collated, gcBefore);
-            return returnCF;
+            return returnCF; // caller is responsible for final removeDeleted
         }
         finally
         {
@@ -1020,7 +995,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             columnNameSet.addAll(columnNames);
         for (String key : keys)
         {
-            QueryFilter filter = sliceRange == null ? new NamesQueryFilter(key, queryPath, columnNameSet) : new SliceQueryFilter(key, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
+            QueryFilter filter = sliceRange == null
+                                 ? QueryFilter.getNamesFilter(key, queryPath, columnNameSet)
+                                 : QueryFilter.getSliceFilter(key, queryPath, sliceRange.start, sliceRange.finish, sliceRange.bitmasks, sliceRange.reversed, sliceRange.count);
             rows.add(new Row(key, getColumnFamily(filter)));
         }
 

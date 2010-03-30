@@ -329,7 +329,7 @@ public class Table
     {
         ColumnFamilyStore cfStore = columnFamilyStores.get(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
-        return cfStore.getColumnFamily(new IdentityQueryFilter(key, new QueryPath(cfName)));
+        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, new QueryPath(cfName)));
     }
 
     public Row getRow(QueryFilter filter) throws IOException

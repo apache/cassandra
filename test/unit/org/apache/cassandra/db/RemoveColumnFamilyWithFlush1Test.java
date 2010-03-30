@@ -24,7 +24,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertNull;
-import org.apache.cassandra.db.filter.IdentityQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.CleanupHelper;
 
@@ -49,7 +49,7 @@ public class RemoveColumnFamilyWithFlush1Test extends CleanupHelper
         rm.delete(new QueryPath("Standard1"), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(new IdentityQueryFilter("key1", new QueryPath("Standard1")));
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter("key1", new QueryPath("Standard1")));
         assert retrieved.isMarkedForDelete();
         assertNull(retrieved.getColumn("Column1".getBytes()));
         assertNull(ColumnFamilyStore.removeDeleted(retrieved, Integer.MAX_VALUE));

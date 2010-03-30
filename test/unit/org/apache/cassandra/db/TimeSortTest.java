@@ -28,6 +28,8 @@ import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.CleanupHelper;
 import static org.apache.cassandra.Util.getBytes;
+
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.marshal.LongType;
@@ -104,7 +106,7 @@ public class TimeSortTest extends CleanupHelper
         TreeSet<byte[]> columnNames = new TreeSet<byte[]>(new LongType());
         columnNames.add(getBytes(10));
         columnNames.add(getBytes(0));
-        cf = cfStore.getColumnFamily(new NamesQueryFilter("900", new QueryPath("StandardLong1"), columnNames));
+        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter("900", new QueryPath("StandardLong1"), columnNames));
         assert "c".equals(new String(cf.getColumn(getBytes(0)).value()));
         assert "c".equals(new String(cf.getColumn(getBytes(10)).value()));
     }

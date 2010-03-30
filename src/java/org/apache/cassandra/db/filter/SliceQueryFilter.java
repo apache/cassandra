@@ -21,7 +21,6 @@ package org.apache.cassandra.db.filter;
  */
 
 
-import java.io.IOException;
 import java.util.*;
 
 import org.slf4j.Logger;
@@ -39,23 +38,20 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 
-public class SliceQueryFilter extends QueryFilter
+public class SliceQueryFilter implements IFilter
 {
     private static Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
 
-    public final byte[] start, finish;
+    private final String key;
+    public final byte[] start;
+    public final byte[] finish;
     public final List<byte[]> bitmasks;
     public final boolean reversed;
     public final int count;
 
-    public SliceQueryFilter(String key, QueryPath columnParent, byte[] start, byte[] finish, boolean reversed, int count)
+    public SliceQueryFilter(String key, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
     {
-        this(key, columnParent, start, finish, null, reversed, count);
-    }
-
-    public SliceQueryFilter(String key, QueryPath columnParent, byte[] start, byte[] finish, List<byte[]> bitmasks, boolean reversed, int count)
-    {
-        super(key, columnParent);
+        this.key = key;
         this.start = start;
         this.finish = finish;
         this.reversed = reversed;
@@ -63,9 +59,9 @@ public class SliceQueryFilter extends QueryFilter
         this.bitmasks = bitmasks;
     }
 
-    public ColumnIterator getMemColumnIterator(Memtable memtable, ColumnFamily cf, AbstractType comparator)
+    public ColumnIterator getMemtableColumnIterator(ColumnFamily cf, AbstractType comparator)
     {
-        return memtable.getSliceIterator(cf, this, comparator);
+        return Memtable.getSliceIterator(cf, this, comparator);
     }
 
     public ColumnIterator getSSTableColumnIterator(SSTableReader sstable)
@@ -114,10 +110,9 @@ public class SliceQueryFilter extends QueryFilter
         return scFiltered;
     }
 
-    @Override
     public Comparator<IColumn> getColumnComparator(AbstractType comparator)
     {
-        return reversed ? new ReverseComparator(super.getColumnComparator(comparator)) : super.getColumnComparator(comparator);
+        return reversed ? new ReverseComparator(QueryFilter.getColumnComparator(comparator)) : QueryFilter.getColumnComparator(comparator);
     }
 
     public void collectReducedColumns(IColumnContainer container, Iterator<IColumn> reducedColumns, int gcBefore)
@@ -132,7 +127,8 @@ public class SliceQueryFilter extends QueryFilter
 
             IColumn column = reducedColumns.next();
             if (logger.isDebugEnabled())
-                logger.debug("collecting " + column.getString(comparator));
+                logger.debug(String.format("collecting %s of %s: %s",
+                                           liveColumns, count, column.getString(comparator)));
 
             if (finish.length > 0
                 && ((!reversed && comparator.compare(column.name(), finish) > 0))

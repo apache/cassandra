@@ -20,11 +20,10 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.utils.ByteArrayListSerializer;
 
@@ -66,7 +65,7 @@ public class SliceFromReadCommand extends ReadCommand
     @Override
     public Row getRow(Table table) throws IOException
     {
-        return table.getRow(new SliceQueryFilter(key, queryPath, start, finish, bitmasks, reversed, count));
+        return table.getRow(QueryFilter.getSliceFilter(key, queryPath, start, finish, bitmasks, reversed, count));
     }
 
     @Override

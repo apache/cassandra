@@ -26,6 +26,7 @@ import java.util.Arrays;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -213,13 +214,13 @@ public class SSTableExportTest
         SSTableImport.importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());        
         
         reader = SSTableReader.open(tempSS2.getPath(), DatabaseDescriptor.getPartitioner());
-        NamesQueryFilter qf = new NamesQueryFilter("rowA", new QueryPath("Standard1", null, null), "name".getBytes());
-        ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
+        QueryFilter qf = QueryFilter.getNamesFilter("rowA", new QueryPath("Standard1", null, null), "name".getBytes());
+        ColumnFamily cf = qf.getSSTableColumnIterator(reader, Integer.MAX_VALUE).getColumnFamily();
         assertTrue(cf != null);
         assertTrue(Arrays.equals(cf.getColumn("name".getBytes()).value(), hexToBytes("76616c")));
 
-        qf = new NamesQueryFilter("rowExclude", new QueryPath("Standard1", null, null), "name".getBytes());
-        cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
+        qf = QueryFilter.getNamesFilter("rowExclude", new QueryPath("Standard1", null, null), "name".getBytes());
+        cf = qf.getSSTableColumnIterator(reader, Integer.MAX_VALUE).getColumnFamily();
         assert cf == null;
 
     }
