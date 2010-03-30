@@ -1,3 +1,7 @@
+0.6.1
+ * fix NPE in sstable2json when no excluded keys are given (CASSANDRA-934)
+
+
 0.6.0-RC1
  * JMX drain to flush memtables and run through commit log (CASSANDRA-880)
  * Bootstrapping can skip ranges under the right conditions (CASSANDRA-902)
