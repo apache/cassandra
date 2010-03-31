@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -43,10 +42,47 @@ import org.apache.cassandra.utils.ExpiringMap;
 import org.apache.cassandra.utils.FBUtilities;
 
 
-class ConsistencyManager implements Runnable
+class ConsistencyChecker implements Runnable
 {
-	private static Logger logger_ = Logger.getLogger(ConsistencyManager.class);
+	private static Logger logger_ = Logger.getLogger(ConsistencyChecker.class);
+    private static long scheduledTimeMillis_ = 600;
+    private static ExpiringMap<String, String> readRepairTable_ = new ExpiringMap<String, String>(scheduledTimeMillis_);
+
     private final String table_;
+    private final Row row_;
+    protected final List<InetAddress> replicas_;
+    private final ReadCommand readCommand_;
+
+    public ConsistencyChecker(String table, Row row, List<InetAddress> replicas, ReadCommand readCommand)
+    {
+        table_ = table;
+        row_ = row;
+        replicas_ = replicas;
+        readCommand_ = readCommand;
+    }
+
+    public void run()
+	{
+        ReadCommand readCommandDigestOnly = constructReadMessage(true);
+		try
+		{
+			Message message = readCommandDigestOnly.makeReadMessage();
+            if (logger_.isDebugEnabled())
+              logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
+            MessagingService.instance.sendRR(message, replicas_.toArray(new InetAddress[replicas_.size()]), new DigestResponseHandler());
+		}
+		catch (IOException ex)
+		{
+			throw new RuntimeException(ex);
+		}
+	}
+
+    private ReadCommand constructReadMessage(boolean isDigestQuery)
+    {
+        ReadCommand readCommand = readCommand_.copy();
+        readCommand.setDigestQuery(isDigestQuery);
+        return readCommand;
+    }
 
     class DigestResponseHandler implements IAsyncCallback
 	{
@@ -56,12 +92,9 @@ class ConsistencyManager implements Runnable
 		public synchronized void response(Message msg)
 		{
 			responses_.add(msg);
-            if (responses_.size() == ConsistencyManager.this.replicas_.size())
-                handleDigestResponses();
-        }
+            if (responses_.size() != ConsistencyChecker.this.replicas_.size())
+                return;
 
-        private void handleDigestResponses()
-        {
             for (Message response : responses_)
             {
                 try
@@ -95,7 +128,7 @@ class ConsistencyManager implements Runnable
             MessagingService.instance.sendRR(message, replicas_.toArray(new InetAddress[replicas_.size()]), responseHandler);
 		}
 	}
-	
+
 	static class DataRepairHandler implements IAsyncCallback, ICacheExpungeHook<String, String>
 	{
 		private final Collection<Message> responses_ = new LinkedBlockingQueue<Message>();
@@ -132,43 +165,5 @@ class ConsistencyManager implements Runnable
                 throw new RuntimeException(ex);
             }
         }
-
-    }
-
-	private static long scheduledTimeMillis_ = 600;
-	private static ExpiringMap<String, String> readRepairTable_ = new ExpiringMap<String, String>(scheduledTimeMillis_);
-	private final Row row_;
-	protected final List<InetAddress> replicas_;
-	private final ReadCommand readCommand_;
-
-    public ConsistencyManager(String table, Row row, List<InetAddress> replicas, ReadCommand readCommand)
-    {
-        table_ = table;
-        row_ = row;
-        replicas_ = replicas;
-        readCommand_ = readCommand;
-    }
-
-	public void run()
-	{
-        ReadCommand readCommandDigestOnly = constructReadMessage(true);
-		try
-		{
-			Message message = readCommandDigestOnly.makeReadMessage();
-            if (logger_.isDebugEnabled())
-              logger_.debug("Reading consistency digest for " + readCommand_.key + " from " + message.getMessageId() + "@[" + StringUtils.join(replicas_, ", ") + "]");
-            MessagingService.instance.sendRR(message, replicas_.toArray(new InetAddress[replicas_.size()]), new DigestResponseHandler());
-		}
-		catch (IOException ex)
-		{
-			throw new RuntimeException(ex);
-		}
-	}
-    
-    private ReadCommand constructReadMessage(boolean isDigestQuery)
-    {
-        ReadCommand readCommand = readCommand_.copy();
-        readCommand.setDigestQuery(isDigestQuery);
-        return readCommand;
     }
 }
