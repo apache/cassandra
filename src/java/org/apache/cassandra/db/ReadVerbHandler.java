@@ -43,18 +43,8 @@ public class ReadVerbHandler implements IVerbHandler
     }
 
     private static Logger logger_ = Logger.getLogger( ReadVerbHandler.class );
-    /* We use this so that we can reuse the same row mutation context for the mutation. */
+    /* We use this so that we can reuse readcontext objects */
     private static ThreadLocal<ReadVerbHandler.ReadContext> tls_ = new InheritableThreadLocal<ReadVerbHandler.ReadContext>();
-    
-    protected static ReadVerbHandler.ReadContext getCurrentReadContext()
-    {
-        return tls_.get();
-    }
-    
-    protected static void setCurrentReadContext(ReadVerbHandler.ReadContext readContext)
-    {
-        tls_.set(readContext);
-    }
 
     public void doVerb(Message message)
     {
