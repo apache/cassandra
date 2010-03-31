@@ -99,7 +99,7 @@ public class ReadVerbHandler implements IVerbHandler
                 List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
                 /* Remove the local storage endpoint from the list. */
                 endpoints.remove(FBUtilities.getLocalAddress());
-                if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
+                if (endpoints.size() > 0)
                     StorageService.instance.doConsistencyCheck(row, endpoints, command);
             }
         }
