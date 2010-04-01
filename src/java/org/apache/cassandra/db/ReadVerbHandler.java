@@ -44,18 +44,8 @@ public class ReadVerbHandler implements IVerbHandler
     }
 
     private static Logger logger_ = LoggerFactory.getLogger( ReadVerbHandler.class );
-    /* We use this so that we can reuse the same row mutation context for the mutation. */
+    /* We use this so that we can reuse readcontext objects */
     private static ThreadLocal<ReadVerbHandler.ReadContext> tls_ = new InheritableThreadLocal<ReadVerbHandler.ReadContext>();
-    
-    protected static ReadVerbHandler.ReadContext getCurrentReadContext()
-    {
-        return tls_.get();
-    }
-    
-    protected static void setCurrentReadContext(ReadVerbHandler.ReadContext readContext)
-    {
-        tls_.set(readContext);
-    }
 
     public void doVerb(Message message)
     {
@@ -110,7 +100,7 @@ public class ReadVerbHandler implements IVerbHandler
                 List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
                 /* Remove the local storage endpoint from the list. */
                 endpoints.remove(FBUtilities.getLocalAddress());
-                if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
+                if (endpoints.size() > 0)
                     StorageService.instance.doConsistencyCheck(row, endpoints, command);
             }
         }

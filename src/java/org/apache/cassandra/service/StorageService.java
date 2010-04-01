@@ -416,7 +416,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
      */
     public void doConsistencyCheck(Row row, List<InetAddress> endpoints, ReadCommand command)
     {
-        consistencyManager_.submit(new ConsistencyManager(command.table, row, endpoints, command));
+        consistencyManager_.submit(new ConsistencyChecker(command.table, row, endpoints, command));
     }
 
     /**

@@ -357,7 +357,8 @@ public class StorageProxy implements StorageProxyMBean
 
             if (logger.isDebugEnabled())
                 logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
+            if (DatabaseDescriptor.getConsistencyCheck())
+                message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
             iars.add(MessagingService.instance.sendRR(message, endPoint));
         }
 
@@ -753,19 +754,21 @@ public class StorageProxy implements StorageProxyMBean
 
         public Object call() throws IOException
         {
-            List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
-            /* Remove the local storage endpoint from the list. */
-            endpoints.remove(FBUtilities.getLocalAddress());
-
             if (logger.isDebugEnabled())
                 logger.debug("weakreadlocal reading " + command);
 
             Table table = Table.open(command.table);
             Row row = command.getRow(table);
 
-            // Do the consistency checks in the background and return the non NULL row
-            if (endpoints.size() > 0 && DatabaseDescriptor.getConsistencyCheck())
-                StorageService.instance.doConsistencyCheck(row, endpoints, command);
+            // Do the consistency checks in the background
+            if (DatabaseDescriptor.getConsistencyCheck())
+            {
+                List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
+                /* Remove the local storage endpoint from the list. */
+                endpoints.remove(FBUtilities.getLocalAddress());
+                if (endpoints.size() > 0)
+                    StorageService.instance.doConsistencyCheck(row, endpoints, command);
+            }
 
             return row;
         }
