@@ -8,6 +8,8 @@ dev
 
 0.6.1
  * fix NPE in sstable2json when no excluded keys are given (CASSANDRA-934)
+ * keep the replica set constant throughout the read repair process
+   (CASSANDRA-937)
 
 
 0.6.0-RC1
