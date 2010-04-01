@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
 
 class ConsistencyChecker implements Runnable
 {
-    private static Logger logger_ = LoggerFactory.getLogger(ConsistencyManager.class);
+    private static Logger logger_ = LoggerFactory.getLogger(ConsistencyChecker.class);
     private static ExpiringMap<String, String> readRepairTable_ = new ExpiringMap<String, String>(DatabaseDescriptor.getRpcTimeout());
 
     private final String table_;
