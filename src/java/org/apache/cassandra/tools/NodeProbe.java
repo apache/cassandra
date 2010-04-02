@@ -400,9 +400,9 @@ public class NodeProbe
         }
     }
 
-    public List<InetAddress> getEndPoints(String key, String table)
+    public List<InetAddress> getEndPoints(String keyspace, String key)
     {
-        return ssProxy.getNaturalEndpoints(key, table);
+        return ssProxy.getNaturalEndpoints(keyspace, key);
     }
 
     public Set<InetAddress> getStreamDestinations()
