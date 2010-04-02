@@ -52,7 +52,7 @@ public class StageManager
     {
         stages.put(MUTATION_STAGE, multiThreadedStage(MUTATION_STAGE, getConcurrentWriters()));
         stages.put(READ_STAGE, multiThreadedStage(READ_STAGE, getConcurrentReaders()));
-        stages.put(RESPONSE_STAGE, multiThreadedStage("RESPONSE-STAGE", Math.max(2, Runtime.getRuntime().availableProcessors())));
+        stages.put(RESPONSE_STAGE, multiThreadedStage(RESPONSE_STAGE, Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
         stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
         stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
