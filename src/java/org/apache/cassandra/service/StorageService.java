@@ -1125,6 +1125,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         if (logger_.isDebugEnabled())
             logger_.debug("computing ranges for " + StringUtils.join(sortedTokens, ", "));
 
+        if (sortedTokens.isEmpty()) 
+            return Collections.emptyList();
         List<Range> ranges = new ArrayList<Range>();
         int size = sortedTokens.size();
         for (int i = 1; i < size; ++i)
