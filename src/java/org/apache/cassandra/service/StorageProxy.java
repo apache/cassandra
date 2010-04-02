@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
@@ -61,6 +62,7 @@ public class StorageProxy implements StorageProxyMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
 
+    private static final Random random = new Random();
     // mbean stuff
     private static final LatencyTracker readStats = new LatencyTracker();
     private static final LatencyTracker rangeStats = new LatencyTracker();
@@ -357,7 +359,7 @@ public class StorageProxy implements StorageProxyMBean
 
             if (logger.isDebugEnabled())
                 logger.debug("weakreadremote reading " + command + " from " + message.getMessageId() + "@" + endPoint);
-            if (DatabaseDescriptor.getConsistencyCheck())
+            if (randomlyReadRepair(command))
                 message.setHeader(ReadCommand.DO_REPAIR, ReadCommand.DO_REPAIR.getBytes());
             iars.add(MessagingService.instance.sendRR(message, endPoint));
         }
@@ -491,7 +493,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (DigestMismatchException ex)
             {
-                if (DatabaseDescriptor.getConsistencyCheck())
+                if (randomlyReadRepair(command))
                 {
                     IResponseResolver<Row> readResponseResolverRepair = new ReadResponseResolver(command.table, DatabaseDescriptor.getQuorum(command.table));
                     QuorumResponseHandler<Row> quorumResponseHandlerRepair = new QuorumResponseHandler<Row>(
@@ -697,6 +699,12 @@ public class StorageProxy implements StorageProxyMBean
         }
         return ranges;
     }
+    
+    private static boolean randomlyReadRepair(ReadCommand command)
+    {
+        CFMetaData cfmd = DatabaseDescriptor.getTableMetaData(command.table).get(command.getColumnFamilyName());
+        return cfmd.readRepairChance > random.nextDouble();
+    }
 
     public long getReadOperations()
     {
@@ -761,7 +769,7 @@ public class StorageProxy implements StorageProxyMBean
             Row row = command.getRow(table);
 
             // Do the consistency checks in the background
-            if (DatabaseDescriptor.getConsistencyCheck())
+            if (randomlyReadRepair(command))
             {
                 List<InetAddress> endpoints = StorageService.instance.getLiveNaturalEndpoints(command.table, command.key);
                 if (endpoints.size() > 1)

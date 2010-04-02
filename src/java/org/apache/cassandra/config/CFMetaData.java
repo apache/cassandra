@@ -40,6 +40,7 @@ import org.apache.commons.lang.ObjectUtils;
 
 public final class CFMetaData
 {
+    public final static double DEFAULT_READ_REPAIR_CHANCE = 1.0;
     public final static double DEFAULT_KEY_CACHE_SIZE = 200000;
     public final static double DEFAULT_ROW_CACHE_SIZE = 0.0;
 
@@ -74,9 +75,11 @@ public final class CFMetaData
     public final String comment; // for humans only
     public final double rowCacheSize; // default 0
     public final double keyCacheSize; // default 0.01
+    public final double readRepairChance; //chance 0 to 1, of doing a read repair; defaults 1.0 (always)
     public final int cfId;
 
-    private CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize, int cfId)
+
+    private CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize, double readRepairChance, int cfId)
     {
         this.tableName = tableName;
         this.cfName = cfName;
@@ -86,6 +89,7 @@ public final class CFMetaData
         this.comment = comment;
         this.rowCacheSize = rowCacheSize;
         this.keyCacheSize = keyCacheSize;
+        this.readRepairChance = readRepairChance;
         this.cfId = cfId;
         currentCfNames.put(cfId, cfName);
         cfIdMap.put(new Pair<String, String>(tableName, cfName), cfId);
@@ -93,21 +97,26 @@ public final class CFMetaData
     
     public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize)
     {
-        this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, nextId());
+        this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, DEFAULT_READ_REPAIR_CHANCE, nextId());
     }
-    
+
+    public CFMetaData(String tableName, String cfName, String columnType, AbstractType comparator, AbstractType subcolumnComparator, String comment, double rowCacheSize, double keyCacheSize, double readRepairChance)
+    {
+        this(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance, nextId());
+    }
+
     /** clones an existing CFMetaData using the same id. */
     public static CFMetaData rename(CFMetaData cfm, String newName)
     {
         purge(cfm);
-        return new CFMetaData(cfm.tableName, newName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.cfId);
+        return new CFMetaData(cfm.tableName, newName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.readRepairChance, cfm.cfId);
     }
     
     /** clones existing CFMetaData. keeps the id but changes the table name.*/
     public static CFMetaData renameTable(CFMetaData cfm, String tableName)
     {
         purge(cfm);
-        return new CFMetaData(tableName, cfm.cfName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.cfId);
+        return new CFMetaData(tableName, cfm.cfName, cfm.columnType, cfm.comparator, cfm.subcolumnComparator, cfm.comment, cfm.rowCacheSize, cfm.keyCacheSize, cfm.readRepairChance, cfm.cfId);
     }
     
     /** used for evicting cf data out of static tracking collections. */
@@ -141,6 +150,7 @@ public final class CFMetaData
             dout.writeUTF(cfm.comment);
         dout.writeDouble(cfm.rowCacheSize);
         dout.writeDouble(cfm.keyCacheSize);
+        dout.writeDouble(cfm.readRepairChance);
         dout.writeInt(cfm.cfId);
         dout.close();
         return bout.toByteArray();
@@ -173,10 +183,11 @@ public final class CFMetaData
         String comment = din.readBoolean() ? din.readUTF() : null;
         double rowCacheSize = din.readDouble();
         double keyCacheSize = din.readDouble();
+        double readRepairChance = din.readDouble();
         int cfId = din.readInt();
-        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, cfId);
+        return new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance, cfId);
     }
-
+    
     public boolean equals(Object obj)
     {
         if (!(obj instanceof CFMetaData))
@@ -190,6 +201,7 @@ public final class CFMetaData
                 && ObjectUtils.equals(other.comment, comment)
                 && other.rowCacheSize == rowCacheSize
                 && other.keyCacheSize == keyCacheSize
+                && other.readRepairChance == readRepairChance
                 && other.cfId == cfId;
     }
     

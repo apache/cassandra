@@ -82,6 +82,10 @@
        ~
        ~ An optional `Comment` attribute may be used to attach additional
        ~ human-readable information about the column family to its definition.
+       ~
+       ~ The optional ReadRepairChance attribute (from 0 to 1) specifies
+       ~ the probability with which read repairs should be invoked on non-quorum
+       ~ reads.  The default is 1.0 (always read repair).
        ~ 
        ~ The optional KeysCached attribute specifies
        ~ the number of keys per sstable whose locations we keep in
@@ -103,6 +107,7 @@
       <ColumnFamily Name="Standard1" CompareWith="BytesType"/>
       <ColumnFamily Name="Standard2" 
                     CompareWith="UTF8Type"
+                    ReadRepairChance="0.1"
                     KeysCached="100%"/>
       <ColumnFamily Name="StandardByUUID1" CompareWith="TimeUUIDType" />
       <ColumnFamily Name="Super1"

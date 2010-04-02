@@ -105,12 +105,6 @@ public class DatabaseDescriptor
     private static int memtableThroughput = 64;
     /* Number of objects in millions in the memtable before it is dumped */
     private static double memtableOperations = 0.1;
-    /* 
-     * This parameter enables or disables consistency checks. 
-     * If set to false the read repairs are disable for very
-     * high throughput on reads but at the cost of consistency.
-    */
-    private static boolean doConsistencyCheck = true;
     /* Job Jar Location */
     private static String jobJarFileLocation;
     /* Address where to run the job tracker */
@@ -429,13 +423,6 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Memtable object count must be a positive double");
             }
 
-            /* This parameter enables or disables consistency checks.
-             * If set to false the read repairs are disable for very
-             * high throughput on reads but at the cost of consistency.*/
-            String doConsistency = xmlUtils.getNodeValue("/Storage/DoConsistencyChecksBoolean");
-            if ( doConsistency != null )
-                doConsistencyCheck = Boolean.parseBoolean(doConsistency);
-
             /* read the size at which we should do column indexes */
             String columnIndexSize = xmlUtils.getNodeValue("/Storage/ColumnIndexSizeInKB");
             if(columnIndexSize == null)
@@ -705,12 +692,22 @@ public class DatabaseDescriptor
                         rowCacheSize = FBUtilities.parseDoubleOrPercent(value);
                     }
 
+                    double readRepairChance = CFMetaData.DEFAULT_READ_REPAIR_CHANCE;
+                    if ((value = XMLUtils.getAttributeValue(columnFamily, "ReadRepairChance")) != null)
+                    {
+                        readRepairChance = FBUtilities.parseDoubleOrPercent(value);
+                        if (readRepairChance < 0.0 || readRepairChance > 1.0)
+                        {                        
+                            throw new ConfigurationException("ReadRepairChance must be between 0.0 and 1.0");
+                        }
+                    }
+
                     // Parse out user-specified logical names for the various dimensions
                     // of a the column family from the config.
                     String comment = xmlUtils.getNodeValue(xqlCF + "Comment");
 
                     // insert it into the table dictionary.
-                    cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize);
+                    cfDefs[j] = new CFMetaData(tableName, cfName, columnType, comparator, subcolumnComparator, comment, rowCacheSize, keyCacheSize, readRepairChance);
                 }
 
                 KSMetaData meta = new KSMetaData(ksName, strategyClass, replicationFactor, snitch, cfDefs);
@@ -876,11 +873,6 @@ public class DatabaseDescriptor
     public static double getMemtableOperations()
     {
       return memtableOperations;
-    }
-
-    public static boolean getConsistencyCheck()
-    {
-      return doConsistencyCheck;
     }
 
     public static String getClusterName()
