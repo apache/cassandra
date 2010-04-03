@@ -21,6 +21,7 @@ package org.apache.cassandra.auth;
  */
 
 
+import org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
@@ -33,5 +34,10 @@ public class AllowAllAuthenticator implements IAuthenticator
     {
         // do nothing, allow anything
         return AccessLevel.FULL;
+    }
+    
+   @Override    
+    public void validateConfiguration() throws ConfigurationException {
+        // do nothing, no configuration to validate
     }
 }

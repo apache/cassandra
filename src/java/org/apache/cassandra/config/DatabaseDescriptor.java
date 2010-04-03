@@ -249,6 +249,8 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("Invalid authenticator class " + authenticatorClassName);
                 }
             }
+
+            authenticator.validateConfiguration();
             
             /* Hashing strategy */
             String partitionerClassName = xmlUtils.getNodeValue("/Storage/Partitioner");

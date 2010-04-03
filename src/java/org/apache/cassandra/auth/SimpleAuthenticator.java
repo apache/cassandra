@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 
+import org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
@@ -153,6 +154,19 @@ public class SimpleAuthenticator implements IAuthenticator
         if (authorized == AccessLevel.NONE) throw new AuthorizationException(authorizationErrorMessage(keyspace, username));
         
         return authorized;
+    }
+
+   @Override
+    public void validateConfiguration() throws ConfigurationException 
+    {
+        String aFileName = System.getProperty(SimpleAuthenticator.ACCESS_FILENAME_PROPERTY);
+        String pfilename = System.getProperty(SimpleAuthenticator.PASSWD_FILENAME_PROPERTY);
+        if (aFileName == null || pfilename == null)
+        {
+            throw new ConfigurationException("When using " + this.getClass().getCanonicalName() + " " + 
+                    SimpleAuthenticator.ACCESS_FILENAME_PROPERTY + " and " + 
+                    SimpleAuthenticator.PASSWD_FILENAME_PROPERTY + " properties must be defined.");	
+        }
     }
 
     static String authorizationErrorMessage(String keyspace, String username)
