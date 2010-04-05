@@ -29,6 +29,36 @@
             {"name": "super_column", "type": ["SuperColumn", "null"]}
         ]
       },
+      {"name": "SliceRange", "type": "record",
+          "fields": [
+            {"name": "start", "type": "bytes"},
+            {"name": "finish", "type": "bytes"},
+            {"name": "reversed", "type": "boolean", "default": false},
+            {"name": "count", "type": "int", "default": 100},
+            {"name": "bitmasks", "type": {"type": "array", "items": "bytes"}}
+          ]
+      },
+      {"name": "SlicePredicate", "type": "record",
+          "fields": [
+            {"name": "column_names",
+                "type": [{"type": "array", "items": "bytes"}, "null"]},
+            {"name": "slice_range", "type": ["SliceRange", "null"]}
+          ]
+      },
+      {"name": "Deletion", "type": "record",
+          "fields": [
+            {"name": "timestamp", "type": "long"},
+            {"name": "super_column", "type": ["bytes", "null"]},
+            {"name": "predicate", "type": ["SlicePredicate", "null"]}
+          ]
+      },
+      {"name": "Mutation", "type": "record",
+          "fields": [
+            {"name": "column_or_supercolumn", 
+                "type": ["ColumnOrSuperColumn", "null"]},
+            {"name": "deletion", "type": ["Deletion", "null"]}
+          ]
+      },
       {"name": "ConsistencyLevel", "type": "enum",
           "symbols": [
             "ZERO", "ONE", "QUORUM", "DCQUORUM", "DCQUORUMSYNC", "ALL"
@@ -86,6 +116,24 @@
             {"name": "keyspace", "type": "string"},
             {"name": "key", "type": "string"},
             {"name": "cfmap", "type": {"type": "map", "values": {"type": "array", "items": "ColumnOrSuperColumn"}}},
+            {"name": "consistency_level", "type": "ConsistencyLevel"}
+        ],
+        "response": "null",
+        "errors": ["InvalidRequestException", "UnavailableException",
+            "TimedOutException"]
+    },
+    "batch_mutate": {
+        "request": [
+            {"name": "keyspace", "type": "string"},
+            /* Map<String, Map<String, List<Mutation>>> mutation_map */
+            {"name": "mutation_map",
+                "type": {
+                    "type": "map", "values": {
+                        "type": "map", "values": {
+                            "type": "array", "items": "Mutation"}
+                    }
+                }
+            },
             {"name": "consistency_level", "type": "ConsistencyLevel"}
         ],
         "response": "null",
