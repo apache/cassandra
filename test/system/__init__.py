@@ -47,9 +47,7 @@ thrift_client = get_thrift_client()
 def get_avro_client(host='127.0.0.1', port=9170):
     schema = os.path.join(root, 'interface', 'cassandra.avpr')
     proto = protocol.parse(open(schema).read())
-    conn = httplib.HTTPConnection(host, port)
-    conn.connect()
-    client = ipc.HTTPTransceiver(conn)
+    client = ipc.HTTPTransceiver(host, port)
     return ipc.Requestor(proto, client)
 
 pid_fname = "system_test.pid"
