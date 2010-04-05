@@ -3,6 +3,7 @@
  * keep the replica set constant throughout the read repair process
    (CASSANDRA-937)
  * allow querying getAllRanges with empty token list (CASSANDRA-933)
+ * fix command line arguments inversion in clustertool (CASSANDRA-942)
 
 
 0.6.0-RC1
