@@ -1,0 +1,107 @@
+/**
+ * Cassandra protocol
+ */
+@namespace("org.apache.cassandra.avro")
+
+protocol Cassandra {
+    record ColumnPath {
+        string column_family;
+        union { bytes, null } super_column;
+        union { bytes, null } column;
+    }
+
+    record ColumnParent {
+        string column_family;
+        union { bytes, null } super_column;
+    }
+
+    record Column {
+        bytes name;
+        bytes value;
+        long timestamp;
+    }
+
+    record SuperColumn {
+        bytes name;
+        array<Column> columns;
+    }
+
+    record ColumnOrSuperColumn {
+        union { Column, null } column;
+        union { SuperColumn, null } super_column;
+    }
+
+    record SliceRange {
+        bytes start;
+        bytes finish;
+        /* FIXME: reversed needs to default to false */
+        boolean reversed;
+        /* FIXME: count needs to default to 100 */
+        int count;
+        array<bytes> bitmasks;
+    }
+
+    record SlicePredicate {
+        array<bytes> column_names;
+        union { SliceRange, null } slice_range;
+    }
+
+    record Deletion {
+        long timestamp;
+        union { bytes, null } super_column;
+        union { SlicePredicate, null } predicate;
+    }
+
+    record Mutation {
+        union { ColumnOrSuperColumn, null } column_or_supercolumn;
+        union { Deletion, null } deletion;
+    }
+
+    enum ConsistencyLevel {
+        ZERO, ONE, QUORUM, DCQUORUM, DCQUORUMSYNC, ALL
+    }
+
+    error InvalidRequestException {
+        union { string, null } why;
+    }
+
+    error NotFoundException {
+        union { string, null } why;
+    }
+
+    error UnavailableException {
+        union { string, null } why;
+    }
+
+    error TimedOutException {
+        union { string, null } why;
+    }
+
+    ColumnOrSuperColumn get(string keyspace,
+                            string key,
+                            ColumnPath column_path,
+                            ConsistencyLevel consistency_level)
+    throws InvalidRequestException, NotFoundException, UnavailableException,
+           TimedOutException;
+
+    void insert(string keyspace,
+                string key,
+                ColumnPath column_path,
+                bytes value,
+                long timestamp,
+                ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
+    void batch_insert(string keyspace,
+                      string key,
+                      map<array<ColumnOrSuperColumn>> cfmap,
+                      ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
+    void batch_mutate(string keyspace,
+                      map<map<array<Mutation>>> mutation_map,
+                      ConsistencyLevel consistency_level)
+    throws InvalidRequestException, UnavailableException, TimedOutException;
+
+    string get_api_version();
+}
