@@ -83,6 +83,15 @@ public class AvroRecordFactory
         ByteBuffer wrappedColumn = (column != null) ? ByteBuffer.wrap(column) : null;
         return newColumnPath(cfName, wrappedSuperColumn, wrappedColumn);
     }
+
+    public static ColumnParent newColumnParent(String cfName, byte[] superColumn)
+    {
+        ColumnParent cp = new ColumnParent();
+        cp.column_family = new Utf8(cfName);
+        if (superColumn != null)
+            cp.super_column = ByteBuffer.wrap(superColumn);
+        return cp;
+    }
 }
 
 class ErrorFactory

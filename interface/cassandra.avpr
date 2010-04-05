@@ -10,6 +10,12 @@
             {"name": "column", "type": ["bytes", "null"]}
         ]
       },
+      {"name": "ColumnParent", "type": "record",
+          "fields": [
+            {"name": "column_family", "type": "string"},
+            {"name": "super_column", "type": ["bytes", "null"]}
+        ]
+      },
       {"name": "Column", "type": "record",
           "fields": [
             {"name": "name", "type": "bytes"},
