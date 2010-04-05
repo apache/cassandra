@@ -1063,8 +1063,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     {
         // request that all relevant endpoints generate trees
         final MessagingService ms = MessagingService.instance;
-        final Set<InetAddress> endpoints = AntiEntropyService.getNeighbors(tableName);
-        endpoints.add(FBUtilities.getLocalAddress());
+        final List<InetAddress> endpoints = getNaturalEndpoints(tableName, getLocalToken());
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(tableName, columnFamilies))
         {
             Message request = TreeRequestVerbHandler.makeVerb(tableName, cfStore.getColumnFamilyName());
