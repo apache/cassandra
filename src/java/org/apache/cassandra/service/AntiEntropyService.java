@@ -589,11 +589,8 @@ public class AntiEntropyService
                     logger.debug("Endpoints " + local + " and " + remote + " are consistent for " + cf);
                     return;
                 }
-
-                if (difference < 0.05)
-                    performRangeRepair();
-                else
-                    performStreamingRepair();
+                
+                performStreamingRepair();
             }
             catch(IOException e)
             {
@@ -611,17 +608,6 @@ public class AntiEntropyService
             for (MerkleTree.TreeRange diff : differences)
                 fraction += 1.0 / Math.pow(2, diff.depth);
             return (float)fraction;
-        }
-
-        /**
-         * Sends our list of differences to the remote endpoint using read
-         * repairs via the query API.
-         */
-        void performRangeRepair() throws IOException
-        {
-            logger.info("Performing range read repair of " + differences.size() + " ranges for " + cf);
-            // FIXME
-            logger.debug("Finished range read repair for " + cf);
         }
 
         /**

@@ -7,6 +7,7 @@
  * fix race condition that could trigger a false-positive assertion
    during post-flush discard of old commitlog segments (CASSANDRA-936)
  * fix neighbor calculation for anti-entropy repair (CASSANDRA-924)
+ * perform repair even for small entropy differences (CASSANDRA-924)
 
 
 0.6.0-RC1
