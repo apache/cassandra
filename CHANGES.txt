@@ -4,6 +4,8 @@
    (CASSANDRA-937)
  * allow querying getAllRanges with empty token list (CASSANDRA-933)
  * fix command line arguments inversion in clustertool (CASSANDRA-942)
+ * fix race condition that could trigger a false-positive assertion
+   during post-flush discard of old commitlog segments (CASSANDRA-936)
 
 
 0.6.0-RC1
