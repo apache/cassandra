@@ -131,7 +131,6 @@
     "batch_mutate": {
         "request": [
             {"name": "keyspace", "type": "string"},
-            /* Map<String, Map<String, List<Mutation>>> mutation_map */
             {"name": "mutation_map",
                 "type": {
                     "type": "map", "values": {

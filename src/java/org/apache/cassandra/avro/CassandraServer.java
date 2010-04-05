@@ -30,12 +30,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.ipc.AvroRemoteException;
 import org.apache.avro.util.Utf8;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.ReadCommand;
@@ -326,6 +326,110 @@ public class CassandraServer implements Cassandra {
         return rm;
     }
 
+    @Override
+    public Void batch_mutate(Utf8 keyspace, Map<Utf8, Map<Utf8, GenericArray<Mutation>>> mutationMap, ConsistencyLevel consistencyLevel)
+    throws AvroRemoteException, InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("batch_mutate");
+        
+        String keyspaceString = keyspace.toString();
+        
+        List<RowMutation> rowMutations = new ArrayList<RowMutation>();
+        for (Map.Entry<Utf8, Map<Utf8, GenericArray<Mutation>>> mutationEntry: mutationMap.entrySet())
+        {
+            String key = mutationEntry.getKey().toString();
+            AvroValidation.validateKey(key);
+            
+            Map<Utf8, GenericArray<Mutation>> cfToMutations = mutationEntry.getValue();
+            for (Map.Entry<Utf8, GenericArray<Mutation>> cfMutations : cfToMutations.entrySet())
+            {
+                String cfName = cfMutations.getKey().toString();
+                
+                for (Mutation mutation : cfMutations.getValue())
+                    AvroValidation.validateMutation(keyspaceString, cfName, mutation);
+            }
+            rowMutations.add(getRowMutationFromMutations(keyspaceString, key, cfToMutations));
+        }
+        
+        if (consistencyLevel == ConsistencyLevel.ZERO)
+        {
+            StorageProxy.mutate(rowMutations);
+        }
+        else
+        {
+            try
+            {
+                StorageProxy.mutateBlocking(rowMutations, thriftConsistencyLevel(consistencyLevel));
+            }
+            catch (TimeoutException te)
+            {
+                throw newTimedOutException();
+            }
+            // FIXME: StorageProxy.mutateBlocking throws Thrift's UnavailableException
+            catch (org.apache.cassandra.thrift.UnavailableException ue)
+            {
+                throw newUnavailableException();
+            }
+        }
+        
+        return null;
+    }
+    
+    // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
+    private static RowMutation getRowMutationFromMutations(String keyspace, String key, Map<Utf8, GenericArray<Mutation>> cfMap)
+    {
+        RowMutation rm = new RowMutation(keyspace, key.trim());
+        
+        for (Map.Entry<Utf8, GenericArray<Mutation>> entry : cfMap.entrySet())
+        {
+            String cfName = entry.getKey().toString();
+            
+            for (Mutation mutation : entry.getValue())
+            {
+                if (mutation.deletion != null)
+                    deleteColumnOrSuperColumnToRowMutation(rm, cfName, mutation.deletion);
+                else
+                    addColumnOrSuperColumnToRowMutation(rm, cfName, mutation.column_or_supercolumn);
+            }
+        }
+        
+        return rm;
+    }
+    
+    // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
+    private static void addColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, ColumnOrSuperColumn cosc)
+    {
+        if (cosc.column == null)
+        {
+            for (Column column : cosc.super_column.columns)
+                rm.add(new QueryPath(cfName, cosc.super_column.name.array(), column.name.array()), column.value.array(), column.timestamp);
+        }
+        else
+        {
+            rm.add(new QueryPath(cfName, null, cosc.column.name.array()), cosc.column.value.array(), cosc.column.timestamp);
+        }
+    }
+    
+    // FIXME: This is copypasta from o.a.c.db.RowMutation, (RowMutation.getRowMutation uses Thrift types directly).
+    private static void deleteColumnOrSuperColumnToRowMutation(RowMutation rm, String cfName, Deletion del)
+    {
+        if (del.predicate != null && del.predicate.column_names != null)
+        {
+            for (ByteBuffer col : del.predicate.column_names)
+            {
+                if (del.super_column == null && DatabaseDescriptor.getColumnFamilyType(rm.getTable(), cfName).equals("Super"))
+                    rm.delete(new QueryPath(cfName, col.array()), del.timestamp);
+                else
+                    rm.delete(new QueryPath(cfName, del.super_column.array(), col.array()), del.timestamp);
+            }
+        }
+        else
+        {
+            rm.delete(new QueryPath(cfName, del.super_column.array()), del.timestamp);
+        }
+    }
+    
     private org.apache.cassandra.thrift.ConsistencyLevel thriftConsistencyLevel(ConsistencyLevel consistency)
     {
         switch (consistency)

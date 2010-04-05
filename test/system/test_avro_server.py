@@ -17,6 +17,7 @@
 from . import AvroTester
 from time import time
 from random import randint
+from avro.ipc import AvroRemoteException
 
 COLUMNS = [
     dict(name="c0", value="v0", timestamp=1L),
@@ -141,6 +142,39 @@ class TestRpcOperations(AvroTester):
 
         for i in range(0,3):
             assert_cosc(_get_column(self.client, COLUMNS[i]['name']))
+
+    def test_batch_mutate(self):
+        "performing batch mutation operations"
+        params = dict()
+        params['keyspace'] = 'Keyspace1'
+        params['consistency_level'] = 'ONE'
+
+        mutation_map = dict()
+        mutation_map['key1'] = dict(Standard1=[
+            dict(column_or_supercolumn=dict(column=COLUMNS[0])),
+            dict(column_or_supercolumn=dict(column=COLUMNS[1])),
+            dict(column_or_supercolumn=dict(column=COLUMNS[2]))
+        ])
+
+        params['mutation_map'] = mutation_map
+
+        self.client.request('batch_mutate', params)
+
+        for i in range(0,3):
+            cosc = _get_column(self.client, COLUMNS[i]['name'])
+            assert_cosc(cosc)
+            assert_columns_match(cosc['column'], COLUMNS[i])
+
+        # FIXME: still need to apply a mutation that deletes
+
+        #try:
+        #    assert not _get_column(self.client, COLUMNS[1]['name']), \
+        #        "Mutation did not delete column %s" % COLUMNS[1]['name']
+        #    assert not _get_column(self.client, COLUMNS[2]['name']), \
+        #        "Mutation did not delete column %s" % COLUMNS[2]['name']
+        #except AvroRemoteException:
+        #    pass
+
 
     def test_get_api_version(self):
         "getting the remote api version string"

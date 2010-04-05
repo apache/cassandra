@@ -131,6 +131,11 @@ class ErrorFactory
     {
         return newTimedOutException(new Utf8(why));
     }
+
+    static TimedOutException newTimedOutException()
+    {
+        return newTimedOutException(new Utf8());
+    }
     
     static UnavailableException newUnavailableException(Utf8 why)
     {
@@ -142,5 +147,10 @@ class ErrorFactory
     static UnavailableException newUnavailableException(String why)
     {
         return newUnavailableException(new Utf8(why));
+    }
+    
+    static UnavailableException newUnavailableException()
+    {
+        return newUnavailableException(new Utf8());
     }
 }
