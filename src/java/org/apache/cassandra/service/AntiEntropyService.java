@@ -43,9 +43,6 @@ import org.apache.cassandra.utils.*;
 
 import org.apache.log4j.Logger;
 
-import com.google.common.collect.Collections2;
-import com.google.common.base.Predicates;
-
 /**
  * AntiEntropyService encapsulates "validating" (hashing) individual column families,
  * exchanging MerkleTrees with remote nodes via a TreeRequest/Response conversation,
@@ -141,12 +138,18 @@ public class AntiEntropyService
     /**
      * Return all of the neighbors with whom we share data.
      */
-    private static Collection<InetAddress> getNeighbors(String table)
+    public static Set<InetAddress> getNeighbors(String table)
     {
-        InetAddress local = FBUtilities.getLocalAddress();
         StorageService ss = StorageService.instance;
-        return Collections2.filter(ss.getNaturalEndpoints(table, ss.getLocalToken()),
-                                   Predicates.not(Predicates.equalTo(local)));
+        Set<InetAddress> neighbors = new HashSet<InetAddress>();
+        Map<Range, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
+        for (Range range : ss.getLocalRanges(table))
+        {
+            // for every range stored locally (replica or original) collect neighbors storing copies
+            neighbors.addAll(replicaSets.get(range));
+        }
+        neighbors.remove(FBUtilities.getLocalAddress());
+        return neighbors;
     }
 
     /**
