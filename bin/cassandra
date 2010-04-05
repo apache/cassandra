@@ -141,7 +141,7 @@ while true; do
             shift
         ;;
         -h)
-            echo "Usage: $0 [-f] [-h] [-p pidfile] [-b]"
+            echo "Usage: $0 [-f] [-h] [-p pidfile]"
             exit 0
         ;;
         -D)
