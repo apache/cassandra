@@ -695,11 +695,11 @@ public class DatabaseDescriptor
                     }
 
                     // Parse out the column comparator
-                    AbstractType comparator = getComparator(columnFamily, "CompareWith");
+                    AbstractType comparator = getComparator(XMLUtils.getAttributeValue(columnFamily, "CompareWith"));
                     AbstractType subcolumnComparator = null;
                     if (columnType.equals("Super"))
                     {
-                        subcolumnComparator = getComparator(columnFamily, "CompareSubcolumnsWith");
+                        subcolumnComparator = getComparator(XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith"));
                     }
                     else if (XMLUtils.getAttributeValue(columnFamily, "CompareSubcolumnsWith") != null)
                     {
@@ -772,21 +772,11 @@ public class DatabaseDescriptor
         return thriftFramed;
     }
 
-    private static AbstractType getComparator(Node columnFamily, String attr) throws ConfigurationException
+    public static AbstractType getComparator(String compareWith) throws ConfigurationException
 //    throws ConfigurationException, TransformerException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException
     {
         Class<? extends AbstractType> typeClass;
-        String compareWith = null;
-        try
-        {
-            compareWith = XMLUtils.getAttributeValue(columnFamily, attr);
-        }
-        catch (TransformerException e)
-        {
-            ConfigurationException ex = new ConfigurationException(e.getMessage());
-            ex.initCause(e);
-            throw ex;
-        }
+        
         if (compareWith == null)
         {
             typeClass = BytesType.class;
@@ -800,7 +790,7 @@ public class DatabaseDescriptor
             }
             catch (ClassNotFoundException e)
             {
-                throw new ConfigurationException("Unable to load class " + className + " for " + attr + " attribute");
+                throw new ConfigurationException("Unable to load class " + className);
             }
         }
         try

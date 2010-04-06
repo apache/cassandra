@@ -912,3 +912,50 @@ class TestMutations(ThriftTester):
 
     def test_describe_ring(self):
         assert list(client.describe_ring('Keyspace1'))[0].endpoints == ['127.0.0.1']
+    
+    def test_system_keyspace_operations(self):
+        """ Test keyspace (add, drop, rename) operations """
+        # create
+        keyspace = KsDef('CreateKeyspace', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndPointSnitch',
+        [
+            CfDef('CreateKeyspace', 'CreateKsCf')
+        ])
+        client.system_add_keyspace(keyspace)
+        newks = client.describe_keyspace('CreateKeyspace')
+        assert 'CreateKsCf' in newks
+        
+        # rename
+        client.system_rename_keyspace('CreateKeyspace', 'RenameKeyspace')
+        renameks = client.describe_keyspace('RenameKeyspace')
+        assert 'CreateKsCf' in renameks
+        def get_first_ks():
+            client.describe_keyspace('CreateKeyspace')
+        _expect_exception(get_first_ks, NotFoundException)
+        
+        # drop
+        client.system_drop_keyspace('RenameKeyspace')
+        def get_second_ks():
+            client.describe_keyspace('RenameKeyspace')
+        _expect_exception(get_second_ks, NotFoundException)
+
+    def test_system_column_family_operations(self):
+        """ Test cf (add, drop, rename) operations """
+        # create
+        newcf = CfDef('Keyspace1', 'NewColumnFamily')
+        client.system_add_column_family(newcf)
+        ks1 = client.describe_keyspace('Keyspace1')
+        assert 'NewColumnFamily' in ks1
+        
+        # rename
+        client.system_rename_column_family('Keyspace1', 'NewColumnFamily', 'RenameColumnFamily')
+        ks1 = client.describe_keyspace('Keyspace1')
+        assert 'RenameColumnFamily' in ks1
+        assert 'NewColumnFamily' not in ks1
+        
+        # drop
+        client.system_drop_column_family('Keyspace1', 'RenameColumnFamily')
+        ks1 = client.describe_keyspace('Keyspace1')
+        assert 'RenameColumnFamily' not in ks1
+        assert 'NewColumnFamily' not in ks1
+        assert 'Standard1' in ks1
+        

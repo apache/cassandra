@@ -22,8 +22,21 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.ConfigurationException;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.migration.AddColumnFamily;
+import org.apache.cassandra.db.migration.AddKeyspace;
+import org.apache.cassandra.db.migration.DropColumnFamily;
+import org.apache.cassandra.db.migration.DropKeyspace;
+import org.apache.cassandra.db.migration.RenameColumnFamily;
+import org.apache.cassandra.db.migration.RenameKeyspace;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.IEndPointSnitch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang.ArrayUtils;
@@ -678,31 +691,217 @@ public class CassandraServer implements Cassandra.Iface
     public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
     {
         checkLoginAuthorized(AccessLevel.FULL);
+
+        // if there is anything going on in the migration stage, fail.
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
+        
+        try
+        {
+            CFMetaData cfm = new CFMetaData(
+                        cf_def.table,
+                        cf_def.name,
+                        ColumnFamily.getColumnType(cf_def.column_type),
+                        DatabaseDescriptor.getComparator(cf_def.comparator_type),
+                        cf_def.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cf_def.subcomparator_type),
+                        cf_def.comment,
+                        cf_def.row_cache_size,
+                        cf_def.key_cache_size);
+            AddColumnFamily add = new AddColumnFamily(cfm);
+            add.apply();
+            add.announce();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     public void system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
     {
         checkLoginAuthorized(AccessLevel.FULL);
+        
+        // if there is anything going on in the migration stage, fail.
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
+
+        try
+        {
+            DropColumnFamily drop = new DropColumnFamily(keyspace, column_family, true);
+            drop.apply();
+            drop.announce();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     public void system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
     {
         checkLoginAuthorized(AccessLevel.FULL);
+        
+        // if there is anything going on in the migration stage, fail.
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
+
+        try
+        {
+            RenameColumnFamily rename = new RenameColumnFamily(keyspace, old_name, new_name);
+            rename.apply();
+            rename.announce();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
     {
         checkLoginAuthorized(AccessLevel.FULL);
+        
+        // if there is anything going on in the migration stage, fail.
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
+
+        try
+        {
+            Collection<CFMetaData> cfDefs = new ArrayList<CFMetaData>(ks_def.cf_defs.size());
+            for (CfDef cfDef : ks_def.cf_defs)
+            {
+                CFMetaData cfm = new CFMetaData(
+                        cfDef.table,
+                        cfDef.name,
+                        ColumnFamily.getColumnType(cfDef.column_type),
+                        DatabaseDescriptor.getComparator(cfDef.comparator_type),
+                        cfDef.subcomparator_type.length() == 0 ? null : DatabaseDescriptor.getComparator(cfDef.subcomparator_type),
+                        cfDef.comment,
+                        cfDef.row_cache_size,
+                        cfDef.key_cache_size);
+                cfDefs.add(cfm);
+            }
+            
+            KSMetaData ksm = new KSMetaData(
+                    ks_def.name, 
+                    (Class<? extends AbstractReplicationStrategy>)Class.forName(ks_def.strategy_class), 
+                    ks_def.replication_factor, 
+                    (IEndPointSnitch)Class.forName(ks_def.snitch_class).newInstance(), 
+                    cfDefs.toArray(new CFMetaData[cfDefs.size()]));
+            AddKeyspace add = new AddKeyspace(ksm);
+            add.apply();
+            add.announce();
+        }
+        catch (ClassNotFoundException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (InstantiationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IllegalAccessException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     public void system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
     {
         checkLoginAuthorized(AccessLevel.FULL);
+        
+        // if there is anything going on in the migration stage, fail.
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
+
+        try
+        {
+            DropKeyspace drop = new DropKeyspace(keyspace, true);
+            drop.apply();
+            drop.announce();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     public void system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
     {
         checkLoginAuthorized(AccessLevel.FULL);
+        
+        // if there is anything going on in the migration stage, fail.
+        if (StageManager.getStage(StageManager.MIGRATION_STAGE).getQueue().size() > 0)
+            throw new InvalidRequestException("This node appears to be handling gossiped migrations.");
+
+        try
+        {
+            RenameKeyspace rename = new RenameKeyspace(old_name, new_name);
+            rename.apply();
+            rename.announce();
+        }
+        catch (ConfigurationException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
+        catch (IOException e)
+        {
+            InvalidRequestException ex = new InvalidRequestException(e.getMessage());
+            ex.initCause(e);
+            throw ex;
+        }
     }
 
     // main method moved to CassandraDaemon

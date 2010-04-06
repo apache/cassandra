@@ -67,6 +67,9 @@ class BaseTester(object):
 
     def close_client(self):
         raise NotImplementedError()
+    
+    def define_schema(self):
+        raise NotImplementedError()
 
     def setUp(self):
         if self.runserver:
@@ -117,6 +120,8 @@ class BaseTester(object):
                 self.open_client()
             except:
                 pass
+        
+        self.define_schema()
 
     def tearDown(self):
         if self.runserver:
@@ -135,6 +140,44 @@ class ThriftTester(BaseTester):
 
     def close_client(self):
         self.client.transport.close()
+        
+    def define_schema(self):
+        keyspace1 = Cassandra.KsDef('Keyspace1', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndPointSnitch', 
+        [
+            Cassandra.CfDef('Keyspace1', 'Standard1'),
+            Cassandra.CfDef('Keyspace1', 'Standard2'), 
+            Cassandra.CfDef('Keyspace1', 'StandardLong1', comparator_type='LongType'), 
+            Cassandra.CfDef('Keyspace1', 'StandardLong2', comparator_type='LongType'), 
+            Cassandra.CfDef('Keyspace1', 'Super1', column_type='Super', subcomparator_type='LongType', row_cache_size=1000, key_cache_size=0), 
+            Cassandra.CfDef('Keyspace1', 'Super2', column_type='Super', subcomparator_type='LongType'), 
+            Cassandra.CfDef('Keyspace1', 'Super3', column_type='Super', subcomparator_type='LongType'), 
+            Cassandra.CfDef('Keyspace1', 'Super4', column_type='Super', subcomparator_type='UTF8Type')
+        ])
+
+        keyspace2 = Cassandra.KsDef('Keyspace2', 'org.apache.cassandra.locator.RackUnawareStrategy', 1, 'org.apache.cassandra.locator.EndPointSnitch',
+        [
+            Cassandra.CfDef('Keyspace2', 'Standard1'),
+            Cassandra.CfDef('Keyspace2', 'Standard3'),
+            Cassandra.CfDef('Keyspace2', 'Super3', column_type='Super', subcomparator_type='BytesType'),
+            Cassandra.CfDef('Keyspace2', 'Super4', column_type='Super', subcomparator_type='TimeUUIDType'),
+        ])
+
+        keyspace3 = Cassandra.KsDef('Keyspace3', 'org.apache.cassandra.locator.RackUnawareStrategy', 5, 'org.apache.cassandra.locator.EndPointSnitch',
+        [
+            Cassandra.CfDef('Keyspace3', 'Standard1'),
+        ])
+
+        keyspace4 = Cassandra.KsDef('Keyspace4', 'org.apache.cassandra.locator.RackUnawareStrategy', 3, 'org.apache.cassandra.locator.EndPointSnitch',
+        [
+            Cassandra.CfDef('Keyspace4', 'Standard1'),
+            Cassandra.CfDef('Keyspace4', 'Standard3'),
+            Cassandra.CfDef('Keyspace4', 'Super3', column_type='Super', subcomparator_type='BytesType'),
+            Cassandra.CfDef('Keyspace4', 'Super4', column_type='Super', subcomparator_type='TimeUUIDType')
+        ])
+        self.client.system_add_keyspace(keyspace1)
+        self.client.system_add_keyspace(keyspace2)
+        self.client.system_add_keyspace(keyspace3)
+        self.client.system_add_keyspace(keyspace4)
 
 class AvroTester(BaseTester):
     client = None
@@ -145,5 +188,8 @@ class AvroTester(BaseTester):
 
     def close_client(self):
         self.client.transceiver.conn.close()
+    
+    def define_schema(self):
+        pass
 
 # vim:ai sw=4 ts=4 tw=0 et
