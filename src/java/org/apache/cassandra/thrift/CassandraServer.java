@@ -674,7 +674,37 @@ public class CassandraServer implements Cassandra.Iface
         if (loginDone.get() == AccessLevel.NONE) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
         if (loginDone.get().getValue() >= level.getValue()) throw new InvalidRequestException("Your login access level was not sufficient to do " + level + " operations");
     }
-    
+
+    public void system_add_column_family(CfDef cf_def) throws InvalidRequestException, TException
+    {
+        checkLoginAuthorized(AccessLevel.FULL);
+    }
+
+    public void system_drop_column_family(String keyspace, String column_family) throws InvalidRequestException, TException
+    {
+        checkLoginAuthorized(AccessLevel.FULL);
+    }
+
+    public void system_rename_column_family(String keyspace, String old_name, String new_name) throws InvalidRequestException, TException
+    {
+        checkLoginAuthorized(AccessLevel.FULL);
+    }
+
+    public void system_add_keyspace(KsDef ks_def) throws InvalidRequestException, TException
+    {
+        checkLoginAuthorized(AccessLevel.FULL);
+    }
+
+    public void system_drop_keyspace(String keyspace) throws InvalidRequestException, TException
+    {
+        checkLoginAuthorized(AccessLevel.FULL);
+    }
+
+    public void system_rename_keyspace(String old_name, String new_name) throws InvalidRequestException, TException
+    {
+        checkLoginAuthorized(AccessLevel.FULL);
+    }
+
     // main method moved to CassandraDaemon
 }
     

@@ -302,6 +302,26 @@ struct AuthenticationRequest {
     1: required map<string, string> credentials,
 }
 
+/* describes a column family. */
+struct CfDef {
+    1: required string table,
+    2: required string name,
+    3: optional string column_type="Standard",
+    4: optional string comparator_type="BytesType",
+    5: optional string subcomparator_type="",
+    6: optional string comment="",
+    7: optional double row_cache_size=0,
+    8: optional double key_cache_size=200000,
+}
+
+/* describes a keyspace. */
+struct KsDef {
+    1: required string name,
+    2: required string strategy_class,
+    3: required i32 replication_factor,
+    4: required string snitch_class,
+    5: required list<CfDef> cf_defs,    
+}
 
 service Cassandra {
   # auth methods
@@ -473,4 +493,22 @@ service Cassandra {
   list<string> describe_splits(1:required string start_token, 
   	                       2:required string end_token,
                                3:required i32 keys_per_split),
+  
+  void system_add_column_family(1:required CfDef cf_def)
+    throws (1:InvalidRequestException ire),
+    
+  void system_drop_column_family(1:required string keyspace, 2:required string column_family)
+    throws (1:InvalidRequestException ire), 
+    
+  void system_rename_column_family(1:required string keyspace, 2:required string old_name, 3:required string new_name)
+    throws (1:InvalidRequestException ire),
+  
+  void system_add_keyspace(1:required KsDef ks_def)
+    throws (1:InvalidRequestException ire),
+  
+  void system_drop_keyspace(1:required string keyspace)
+    throws (1:InvalidRequestException ire),
+    
+  void system_rename_keyspace(1:required string old_name, 2:required string new_name)
+    throws (1:InvalidRequestException ire),
 }
