@@ -172,6 +172,23 @@ def _expect_exception(fn, type_):
 def _expect_missing(fn):
     _expect_exception(fn, NotFoundException)
 
+def waitfor(secs, fn, *args, **kwargs):
+    start = time.time()
+    success = False
+    last_exception = None
+    while not success and time.time() < start + secs:
+        try:
+            fn(*args, **kwargs)
+            success = True
+        except KeyboardInterrupt:
+            raise
+        except Exception, e:
+            last_exception = e
+            pass
+    if not success and last_exception:
+        raise last_exception
+
+ZERO_WAIT = 5
 
 class TestMutations(ThriftTester):
     def test_insert(self):
@@ -311,11 +328,10 @@ class TestMutations(ThriftTester):
         keyed_mutations = dict((key, mutation_map) for key in keys)
 
         client.batch_mutate('Keyspace1', keyed_mutations, ConsistencyLevel.ZERO)
-        time.sleep(0.1)
 
         for column_family in column_families:
             for key in keys:
-                _assert_column('Keyspace1', column_family, key, 'c1', 'value1')
+               waitfor(ZERO_WAIT, _assert_column, 'Keyspace1', column_family, key, 'c1', 'value1')
 
     def test_batch_mutate_standard_columns_blocking(self):
         column_families = ['Standard1', 'Standard2']
@@ -365,12 +381,11 @@ class TestMutations(ThriftTester):
         keyed_mutations = dict((key, mutation_map) for key in keys)
 
         client.batch_mutate('Keyspace1', keyed_mutations, ConsistencyLevel.ZERO)
-        time.sleep(0.1)
         for column_family in column_families:
             for sc in _SUPER_COLUMNS:
                 for c in sc.columns:
                     for key in keys:
-                        _assert_no_columnpath('Keyspace1', key, ColumnPath(column_family, super_column=sc.name, column=c.name))
+                        waitfor(ZERO_WAIT, _assert_no_columnpath, 'Keyspace1', key, ColumnPath(column_family, super_column=sc.name, column=c.name))
 
     def test_batch_mutate_remove_super_columns_with_none_given_underneath(self):
         keys = ['key_%d' % i for i in range(17,21)]
@@ -394,12 +409,11 @@ class TestMutations(ThriftTester):
                 _assert_columnpath_exists('Keyspace1', key, ColumnPath('Super1', super_column=sc.name))
 
         client.batch_mutate('Keyspace1', keyed_mutations, ConsistencyLevel.ZERO)
-        time.sleep(0.1)
 
         for sc in _SUPER_COLUMNS:
             for c in sc.columns:
                 for key in keys:
-                    _assert_no_columnpath('Keyspace1', key, ColumnPath('Super1', super_column=sc.name))
+                    waitfor(ZERO_WAIT, _assert_no_columnpath, 'Keyspace1', key, ColumnPath('Super1', super_column=sc.name))
 
     def test_batch_mutate_insertions_and_deletions(self):
         first_insert = SuperColumn("sc1",
@@ -543,9 +557,8 @@ class TestMutations(ThriftTester):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
                   'Super2': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS]}
          client.batch_insert('Keyspace1', 'key1', cfmap, ConsistencyLevel.ZERO)
-         time.sleep(0.1)
-         _verify_super('Super1')
-         _verify_super('Super2')
+         waitfor(ZERO_WAIT, _verify_super, 'Super1')
+         waitfor(ZERO_WAIT, _verify_super, 'Super2')
 
     def test_batch_insert_super_blocking(self):
          cfmap = {'Super1': [ColumnOrSuperColumn(super_column=c) for c in _SUPER_COLUMNS],
