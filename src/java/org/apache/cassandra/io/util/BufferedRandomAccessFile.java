@@ -57,6 +57,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     private boolean hitEOF_; // buffer contains last file block?
     private long diskPos_; // disk position
     private long markedPointer;
+    private long fileLength = -1; // cache for file size
 
     /*
     * To describe the above fields, we introduce the following abstractions for
@@ -125,7 +126,7 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
     {
         super(file, mode);
         path_ = file.getAbsolutePath();
-        this.init(size);
+        this.init(size, mode);
     }
     
     /**
@@ -138,14 +139,14 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         this(name, mode, 0);
     }
     
-    public BufferedRandomAccessFile(String name, String mode, int size) throws FileNotFoundException
+    public BufferedRandomAccessFile(String name, String mode, int size) throws IOException
     {
         super(name, mode);
         path_ = name;
-        this.init(size);
+        this.init(size, mode);
     }
     
-    private void init(int size)
+    private void init(int size, String mode) throws IOException
     {
         this.dirty_ = false;
         this.lo_ = this.curr_ = this.hi_ = 0;
@@ -153,6 +154,11 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
         this.maxHi_ = (long) BuffSz_;
         this.hitEOF_ = false;
         this.diskPos_ = 0L;
+        if ("r".equals(mode))
+        {
+            // read only file, we can cache file length
+            this.fileLength = super.length();
+        }
     }
 
     public String getPath()
@@ -266,8 +272,16 @@ public class BufferedRandomAccessFile extends RandomAccessFile implements FileDa
 
     public long length() throws IOException
     {
-        // max accounts for the case where we have written past the old file length, but not yet flushed our buffer
-        return Math.max(this.curr_, super.length());
+        if (fileLength == -1)
+        {
+            // max accounts for the case where we have written past the old file length, but not yet flushed our buffer
+            return Math.max(this.curr_, super.length());
+        }
+        else
+        {
+            // opened as read only, file length is cached
+            return fileLength;
+        }
     }
 
     public int read() throws IOException
