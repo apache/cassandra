@@ -177,7 +177,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         EndPointState epState = endPointStateMap_.get(endpoint);
         if (epState.isAlive())
         {
-            logger_.info("InetAddress {} is now dead.", endpoint);;
+            logger_.info("InetAddress {} is now dead.", endpoint);
             isAlive(endpoint, epState, false);
         }
     }
@@ -318,7 +318,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         int index = (size == 1) ? 0 : random_.nextInt(size);
         InetAddress to = liveEndPoints.get(index);
         if (logger_.isTraceEnabled())
-            logger_.trace("Sending a GossipDigestSynMessage to {} ...", to);;
+            logger_.trace("Sending a GossipDigestSynMessage to {} ...", to);
         MessagingService.instance.sendOneWay(message, to);
         return seeds_.contains(to);
     }
@@ -474,21 +474,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         return reqdEndPointState;
     }
 
-    /*
-     * This method is called only from the JoinVerbHandler. This happens
-     * when a new node coming up multicasts the JoinMessage. Here we need
-     * to add the endPoint to the list of live endpoints.
-    */
-    synchronized void join(InetAddress from)
-    {
-        if ( !from.equals( localEndPoint_ ) )
-        {
-            /* Mark this endpoint as "live" */
-        	liveEndpoints_.add(from);
-            unreachableEndpoints_.remove(from);
-        }
-    }
-
     void notifyFailureDetector(List<GossipDigest> gDigests)
     {
         IFailureDetector fd = FailureDetector.instance;
@@ -566,7 +551,7 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
         if ( !localState.isAlive() )
         {
             isAlive(addr, localState, true);
-            logger_.info("InetAddress {} is now UP", addr);;
+            logger_.info("InetAddress {} is now UP", addr);
         }
     }
 
@@ -574,13 +559,13 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     {
         if (justRemovedEndPoints_.containsKey(ep))
             return;
-    	logger_.info("Node {} is now part of the cluster", ep);;
+    	logger_.info("Node {} is now part of the cluster", ep);
         handleMajorStateChange(ep, epState, false);
     }
 
     private void handleGenerationChange(InetAddress ep, EndPointState epState)
     {
-        logger_.info("Node {} has restarted, now UP again", ep);;
+        logger_.info("Node {} has restarted, now UP again", ep);
         handleMajorStateChange(ep, epState, true);
     }
 
@@ -864,39 +849,6 @@ public class Gossiper implements IFailureDetectionEventListener, IEndPointStateC
     {
         gossipTimer_.cancel();
         gossipTimer_ = new Timer(false); // makes the Gossiper reentrant.
-    }
-
-    public static class JoinVerbHandler implements IVerbHandler
-    {
-        private static Logger logger_ = LoggerFactory.getLogger( JoinVerbHandler.class);
-
-        public void doVerb(Message message)
-        {
-            InetAddress from = message.getFrom();
-            if (logger_.isDebugEnabled())
-              logger_.debug("Received a JoinMessage from {}", from);
-
-            byte[] bytes = message.getMessageBody();
-            DataInputStream dis = new DataInputStream( new ByteArrayInputStream(bytes) );
-
-            JoinMessage joinMessage;
-            try
-            {
-                joinMessage = JoinMessage.serializer().deserialize(dis);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            if ( joinMessage.clusterId_.equals( DatabaseDescriptor.getClusterName() ) )
-            {
-                Gossiper.instance.join(from);
-            }
-            else
-            {
-                logger_.warn("ClusterName mismatch from " + from + " " + joinMessage.clusterId_  + "!=" + DatabaseDescriptor.getClusterName());
-            }
-        }
     }
 
     public static class GossipDigestSynVerbHandler implements IVerbHandler

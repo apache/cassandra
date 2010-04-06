@@ -55,11 +55,6 @@ class GossipDigestAckMessage
         epStateMap_ = epStateMap;
     }
     
-    void addGossipDigest(InetAddress ep, int generation, int version)
-    {
-        gDigestList_.add( new GossipDigest(ep, generation, version) );
-    }
-    
     List<GossipDigest> getGossipDigestList()
     {
         return gDigestList_;
