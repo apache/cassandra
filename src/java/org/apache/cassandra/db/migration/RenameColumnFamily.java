@@ -1,8 +1,8 @@
 package org.apache.cassandra.db.migration;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.RowMutation;
@@ -66,11 +66,11 @@ public class RenameColumnFamily extends Migration
         
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(tableName);
         if (ksm == null)
-            throw new DatabaseDescriptor.ConfigurationException("Keyspace does not already exist.");
+            throw new ConfigurationException("Keyspace does not already exist.");
         if (!ksm.cfMetaData().containsKey(oldName))
-            throw new DatabaseDescriptor.ConfigurationException("CF is not defined in that keyspace.");
+            throw new ConfigurationException("CF is not defined in that keyspace.");
         if (ksm.cfMetaData().containsKey(newName))
-            throw new DatabaseDescriptor.ConfigurationException("CF is already defined in that keyspace.");
+            throw new ConfigurationException("CF is already defined in that keyspace.");
         
         // clone the ksm, replacing cfm with the new one.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);

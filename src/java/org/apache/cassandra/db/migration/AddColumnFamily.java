@@ -1,19 +1,16 @@
 package org.apache.cassandra.db.migration;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.io.ICompactSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -58,9 +55,9 @@ public class AddColumnFamily extends Migration
         KSMetaData ksm = DatabaseDescriptor.getTableDefinition(cfm.tableName);
         
         if (ksm == null)
-            throw new DatabaseDescriptor.ConfigurationException("Keyspace does not already exist.");
+            throw new ConfigurationException("Keyspace does not already exist.");
         else if (ksm.cfMetaData().containsKey(cfm.cfName))
-            throw new DatabaseDescriptor.ConfigurationException("CF is already defined in that keyspace.");
+            throw new ConfigurationException("CF is already defined in that keyspace.");
         
         // clone ksm but include the new cf def.
         KSMetaData newKsm = makeNewKeyspaceDefinition(ksm);

@@ -26,7 +26,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 
-import org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.thrift.AccessLevel;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;

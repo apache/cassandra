@@ -20,7 +20,7 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.CleanupHelper;
 import org.apache.cassandra.config.CFMetaData;
-import static org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;

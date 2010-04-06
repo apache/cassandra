@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.db.migration;
 
+import org.apache.cassandra.config.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DatabaseDescriptor.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.HintedHandOffManager;

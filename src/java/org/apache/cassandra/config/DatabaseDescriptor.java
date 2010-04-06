@@ -1135,14 +1135,6 @@ public class DatabaseDescriptor
         return defsVersion;
     }
 
-    public static class ConfigurationException extends Exception
-    {
-        public ConfigurationException(String message)
-        {
-            super(message);
-        }
-    }
-
     public static InetAddress getListenAddress()
     {
         return listenAddress;
