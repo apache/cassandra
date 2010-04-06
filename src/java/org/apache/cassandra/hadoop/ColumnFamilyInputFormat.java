@@ -22,6 +22,7 @@ package org.apache.cassandra.hadoop;
 
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -147,7 +148,12 @@ public class ColumnFamilyInputFormat extends InputFormat<String, SortedMap<byte[
 
             // turn the sub-ranges into InputSplits
             String[] endpoints = range.endpoints.toArray(new String[range.endpoints.size()]);
-
+            // hadoop needs hostname, not ip
+            for (int i = 0; i < endpoints.length; i++)
+            {
+                endpoints[i] = InetAddress.getByName(endpoints[i]).getHostName();
+            }
+            
             for (int i = 1; i < tokens.size(); i++)
             {
                 ColumnFamilySplit split = new ColumnFamilySplit(tokens.get(i - 1), tokens.get(i), endpoints);
